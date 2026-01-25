@@ -1,0 +1,25 @@
+[package]
+name = "popmix-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Core algorithms for population genetics F-statistics and admixture analysis"
+
+[dependencies]
+ndarray = { workspace = true }
+# ndarray-linalg will be added when implementing qpAdm/qpGraph
+rayon = { workspace = true }
+thiserror = { workspace = true }
+petgraph = { workspace = true }
+itertools = { workspace = true }
+ordered-float = { workspace = true }
+
+[dev-dependencies]
+approx = { workspace = true }
+proptest = { workspace = true }
+criterion = { workspace = true }
+
+# Benchmarks will be added later
+# [[bench]]
+# name = "fstats"
+# harness = false

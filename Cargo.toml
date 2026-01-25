@@ -1,0 +1,45 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/popmix-core",
+    "crates/popmix-io",
+    "crates/popmix-python",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+authors = ["Popmix Contributors"]
+repository = "https://github.com/popmix/popmix"
+description = "Population genetics F-statistics and admixture analysis"
+
+[workspace.dependencies]
+# Core dependencies
+ndarray = { version = "0.16", features = ["rayon"] }
+# ndarray-linalg will be added when implementing qpAdm/qpGraph
+# ndarray-linalg = { version = "0.16", features = ["openblas-static"] }
+rayon = "1.10"
+thiserror = "2.0"
+petgraph = "0.6"
+
+# I/O
+memmap2 = "0.9"
+byteorder = "1.5"
+
+# Python bindings
+pyo3 = { version = "0.22", features = ["extension-module"] }
+numpy = "0.22"
+
+# Utilities
+itertools = "0.13"
+ordered-float = "4.0"
+
+# Testing
+approx = "0.5"
+proptest = "1.0"
+criterion = "0.5"
+
+[profile.release]
+lto = true
+codegen-units = 1

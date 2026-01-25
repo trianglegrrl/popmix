@@ -1,0 +1,10 @@
+{
+  "french_han_yoruba_mbuti": {
+    "pop1": "French.DG",
+    "pop2": "Han.DG",
+    "pop3": "Yoruba.DG",
+    "pop4": "Mbuti.DG",
+    "estimate": 0.00024879808411,
+    "std_err": 9.2597494509e-05
+  }
+}

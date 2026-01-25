@@ -1,0 +1,238 @@
+//! Genetic map block definitions for jackknife resampling.
+//!
+//! SNPs are grouped into blocks based on genetic map position (in Morgans).
+//! The default block size is 0.05 Morgans (5 centiMorgans).
+
+use crate::genotypes::Snp;
+
+/// Default block size in Morgans (5 cM).
+pub const DEFAULT_BLOCK_SIZE_MORGAN: f64 = 0.05;
+
+/// Definition of how to partition SNPs into blocks.
+#[derive(Debug, Clone)]
+pub struct BlockDefinition {
+    /// Block size in Morgans.
+    pub block_size: f64,
+}
+
+impl Default for BlockDefinition {
+    fn default() -> Self {
+        BlockDefinition {
+            block_size: DEFAULT_BLOCK_SIZE_MORGAN,
+        }
+    }
+}
+
+impl BlockDefinition {
+    /// Create a new block definition with custom block size.
+    pub fn new(block_size_morgan: f64) -> Self {
+        BlockDefinition {
+            block_size: block_size_morgan,
+        }
+    }
+
+    /// Assign SNPs to blocks based on their genetic map positions.
+    ///
+    /// Returns a BlockAssignment that maps each SNP index to a block index.
+    pub fn assign_blocks(&self, snps: &[Snp]) -> BlockAssignment {
+        if snps.is_empty() {
+            return BlockAssignment {
+                snp_to_block: Vec::new(),
+                block_starts: Vec::new(),
+                block_lengths: Vec::new(),
+                n_blocks: 0,
+            };
+        }
+
+        let mut snp_to_block = Vec::with_capacity(snps.len());
+        let mut block_starts = Vec::new();
+        let mut block_lengths = Vec::new();
+
+        let mut current_block = 0;
+        let mut current_block_start = 0;
+        let mut current_chr = snps[0].chromosome.clone();
+        let mut current_block_start_morgans = snps[0].position_morgans;
+
+        for (snp_idx, snp) in snps.iter().enumerate() {
+            // Start a new block if:
+            // 1. Chromosome changed
+            // 2. Exceeded block size in genetic distance (block_size is in Morgans)
+            let new_block = snp.chromosome != current_chr
+                || (snp.position_morgans - current_block_start_morgans) >= self.block_size;
+
+            if new_block && snp_idx > 0 {
+                // Record the previous block
+                block_starts.push(current_block_start);
+                block_lengths.push(snp_idx - current_block_start);
+
+                // Start new block
+                current_block += 1;
+                current_block_start = snp_idx;
+                current_chr = snp.chromosome.clone();
+                current_block_start_morgans = snp.position_morgans;
+            }
+
+            snp_to_block.push(current_block);
+        }
+
+        // Record the final block
+        block_starts.push(current_block_start);
+        block_lengths.push(snps.len() - current_block_start);
+
+        BlockAssignment {
+            snp_to_block,
+            block_starts,
+            block_lengths,
+            n_blocks: current_block + 1,
+        }
+    }
+}
+
+/// Assignment of SNPs to blocks.
+#[derive(Debug, Clone)]
+pub struct BlockAssignment {
+    /// For each SNP index, which block it belongs to.
+    pub snp_to_block: Vec<usize>,
+    /// Starting SNP index for each block.
+    pub block_starts: Vec<usize>,
+    /// Number of SNPs in each block.
+    pub block_lengths: Vec<usize>,
+    /// Total number of blocks.
+    pub n_blocks: usize,
+}
+
+impl BlockAssignment {
+    /// Get the block index for a given SNP.
+    #[inline]
+    pub fn block_of(&self, snp_idx: usize) -> usize {
+        self.snp_to_block[snp_idx]
+    }
+
+    /// Get the SNP range for a given block.
+    pub fn block_range(&self, block_idx: usize) -> std::ops::Range<usize> {
+        let start = self.block_starts[block_idx];
+        let end = start + self.block_lengths[block_idx];
+        start..end
+    }
+
+    /// Get the number of SNPs in a block.
+    #[inline]
+    pub fn block_len(&self, block_idx: usize) -> usize {
+        self.block_lengths[block_idx]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::genotypes::Chromosome;
+
+    fn make_snps_same_chr(n: usize, cm_spacing: f64) -> Vec<Snp> {
+        // Convert cM to Morgans for internal storage
+        let morgans_spacing = cm_spacing / 100.0;
+        (0..n)
+            .map(|i| {
+                Snp::new(
+                    format!("rs{}", i),
+                    Chromosome::Autosome(1),
+                    (i * 1000) as u32,
+                    i as f64 * morgans_spacing,
+                    'A',
+                    'G',
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn test_single_block_small_region() {
+        // 10 SNPs at 1 cM spacing = 10 cM total, fits in one 5 cM block? No, 2 blocks
+        // Actually with 5 cM blocks, SNPs at 0, 1, 2, 3, 4 cM are in block 0
+        // SNPs at 5, 6, 7, 8, 9 cM are in block 1
+        let snps = make_snps_same_chr(10, 1.0);
+        let blocks = BlockDefinition::default().assign_blocks(&snps);
+
+        assert_eq!(blocks.n_blocks, 2);
+        assert_eq!(blocks.block_of(0), 0);
+        assert_eq!(blocks.block_of(4), 0);
+        assert_eq!(blocks.block_of(5), 1);
+        assert_eq!(blocks.block_of(9), 1);
+    }
+
+    #[test]
+    fn test_multiple_blocks() {
+        // 100 SNPs at 1 cM spacing = 100 cM total
+        // With 5 cM blocks, should have ~20 blocks (may vary slightly due to FP precision)
+        let snps = make_snps_same_chr(100, 1.0);
+        let blocks = BlockDefinition::default().assign_blocks(&snps);
+
+        // Allow some tolerance for floating point precision at boundaries
+        assert!(
+            blocks.n_blocks >= 18 && blocks.n_blocks <= 22,
+            "Expected ~20 blocks, got {}",
+            blocks.n_blocks
+        );
+
+        // Check that all SNPs are assigned
+        assert_eq!(blocks.snp_to_block.len(), 100);
+    }
+
+    #[test]
+    fn test_chromosome_boundary_creates_new_block() {
+        // Create SNPs on two chromosomes
+        let mut snps = make_snps_same_chr(5, 1.0);
+        for i in 0..5 {
+            snps.push(Snp::new(
+                format!("rs{}", 100 + i),
+                Chromosome::Autosome(2),
+                (i * 1000) as u32,
+                i as f64 * 0.01, // 1 cM = 0.01 Morgans
+                'A',
+                'G',
+            ));
+        }
+
+        let blocks = BlockDefinition::default().assign_blocks(&snps);
+
+        // Should have 2 blocks (one per chromosome, each <5 cM)
+        assert_eq!(blocks.n_blocks, 2);
+        assert_eq!(blocks.block_of(0), 0); // First chr
+        assert_eq!(blocks.block_of(4), 0);
+        assert_eq!(blocks.block_of(5), 1); // Second chr
+        assert_eq!(blocks.block_of(9), 1);
+    }
+
+    #[test]
+    fn test_empty_snps() {
+        let snps: Vec<Snp> = Vec::new();
+        let blocks = BlockDefinition::default().assign_blocks(&snps);
+
+        assert_eq!(blocks.n_blocks, 0);
+        assert!(blocks.snp_to_block.is_empty());
+    }
+
+    #[test]
+    fn test_custom_block_size() {
+        // 10 SNPs at 1 cM spacing with 2 cM blocks
+        let snps = make_snps_same_chr(10, 1.0);
+        let blocks = BlockDefinition::new(0.02).assign_blocks(&snps); // 2 cM = 0.02 M blocks
+
+        // Allow tolerance for floating point precision at boundaries
+        assert!(
+            blocks.n_blocks >= 4 && blocks.n_blocks <= 6,
+            "Expected ~5 blocks, got {}",
+            blocks.n_blocks
+        );
+    }
+
+    #[test]
+    fn test_block_range() {
+        let snps = make_snps_same_chr(100, 1.0);
+        let blocks = BlockDefinition::default().assign_blocks(&snps);
+
+        // First block should be 0..5
+        assert_eq!(blocks.block_range(0), 0..5);
+        // Second block should be 5..10
+        assert_eq!(blocks.block_range(1), 5..10);
+    }
+}

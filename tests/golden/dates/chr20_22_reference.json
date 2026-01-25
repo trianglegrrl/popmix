@@ -1,0 +1,40 @@
+{
+  "description": "Reference output from DATES v753 on chr20-22 subset of simulated admixture data",
+  "data_file": "family_chr20_22",
+  "simulation_parameters": {
+    "source1": "French",
+    "source2": "Yoruba",
+    "test_population": "Simulation",
+    "n_snps_chr20_22": 21162,
+    "n_admixed_individuals": 1
+  },
+  "dates_output": {
+    "dates_version": 753,
+    "coefficient_source1": 0.263,
+    "estimated_generations": null,
+    "note": "Jackknife unreliable with only 3 chromosomes"
+  },
+  "ld_decay_bins": [
+    {"distance_cm": 0.1, "covariance": 0.000852944, "correlation": 0.137219, "n_pairs": 298384},
+    {"distance_cm": 0.2, "covariance": 0.000560780, "correlation": 0.082825, "n_pairs": 206537},
+    {"distance_cm": 0.3, "covariance": 0.000529637, "correlation": 0.077606, "n_pairs": 207350},
+    {"distance_cm": 0.4, "covariance": 0.000317830, "correlation": 0.046561, "n_pairs": 201217},
+    {"distance_cm": 0.5, "covariance": 0.000248141, "correlation": 0.035980, "n_pairs": 196965},
+    {"distance_cm": 0.6, "covariance": 0.000186267, "correlation": 0.028277, "n_pairs": 195703},
+    {"distance_cm": 0.7, "covariance": 0.000244324, "correlation": 0.037101, "n_pairs": 197920},
+    {"distance_cm": 0.8, "covariance": 0.000193661, "correlation": 0.029589, "n_pairs": 195359},
+    {"distance_cm": 0.9, "covariance": 0.000237522, "correlation": 0.036196, "n_pairs": 194571},
+    {"distance_cm": 1.0, "covariance": 0.000190353, "correlation": 0.028323, "n_pairs": 194246}
+  ],
+  "per_chromosome_fit": [
+    {"chromosome": 20, "n_snps": 10019, "estimate_generations": 37.769},
+    {"chromosome": 21, "n_snps": 5602, "estimate_generations": 36.831},
+    {"chromosome": 22, "n_snps": 5541, "estimate_generations": 37.488}
+  ],
+  "validation_status": {
+    "pair_counts": "Match within 0.1%",
+    "correlations": "Match to 3-4 decimal places",
+    "covariances": "Match to 4-5 decimal places",
+    "note": "Values validated against fresh DATES v753 run on 2024-01-24"
+  }
+}

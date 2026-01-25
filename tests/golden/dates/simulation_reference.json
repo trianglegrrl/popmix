@@ -1,0 +1,50 @@
+{
+  "description": "Reference output from DATES v753 on simulated admixture data",
+  "simulation_parameters": {
+    "source1": "French",
+    "source2": "Yoruba",
+    "test_population": "Simulation",
+    "true_generations": 50,
+    "ancestry_fraction_source1": 0.20,
+    "n_admixed_individuals": 1
+  },
+  "dates_result": {
+    "estimated_generations": 35.738,
+    "standard_error": 6.346
+  },
+  "ld_decay_reference": [
+    {"distance_cm": 0.1, "covariance": 0.000667104, "z_score": 0.113616, "correlation": 0.114598, "n_pairs": 5306642},
+    {"distance_cm": 0.2, "covariance": 0.000325289, "z_score": 0.055036, "correlation": 0.054945, "n_pairs": 4617446},
+    {"distance_cm": 0.3, "covariance": 0.000296282, "z_score": 0.049823, "correlation": 0.049607, "n_pairs": 4602973},
+    {"distance_cm": 0.4, "covariance": 0.000253392, "z_score": 0.042223, "correlation": 0.042258, "n_pairs": 4541965},
+    {"distance_cm": 0.5, "covariance": 0.000233964, "z_score": 0.039059, "correlation": 0.038978, "n_pairs": 4498189},
+    {"distance_cm": 1.0, "covariance": 0.000177321, "z_score": 0.029318, "correlation": 0.029556, "n_pairs": 4432762},
+    {"distance_cm": 2.0, "covariance": 0.000106122, "z_score": 0.017845, "correlation": 0.017848, "n_pairs": 4322688},
+    {"distance_cm": 5.0, "covariance": 0.000060697, "z_score": 0.010040, "correlation": 0.010062, "n_pairs": 4209089},
+    {"distance_cm": 10.0, "covariance": 0.000042498, "z_score": 0.006824, "correlation": 0.006813, "n_pairs": 4078085}
+  ],
+  "jackknife_by_chromosome": [
+    {"chromosome": 1, "n_snps": 29887, "estimate": 38.674},
+    {"chromosome": 2, "n_snps": 31717, "estimate": 35.602},
+    {"chromosome": 3, "n_snps": 26441, "estimate": 36.845},
+    {"chromosome": 4, "n_snps": 22805, "estimate": 39.299},
+    {"chromosome": 5, "n_snps": 24014, "estimate": 38.203},
+    {"chromosome": 6, "n_snps": 25726, "estimate": 35.671},
+    {"chromosome": 7, "n_snps": 20899, "estimate": 35.722},
+    {"chromosome": 8, "n_snps": 21125, "estimate": 34.853},
+    {"chromosome": 9, "n_snps": 18158, "estimate": 34.065},
+    {"chromosome": 10, "n_snps": 20523, "estimate": 38.807},
+    {"chromosome": 11, "n_snps": 18794, "estimate": 36.697},
+    {"chromosome": 12, "n_snps": 18870, "estimate": 36.952},
+    {"chromosome": 13, "n_snps": 14506, "estimate": 37.889},
+    {"chromosome": 14, "n_snps": 12792, "estimate": 35.357},
+    {"chromosome": 15, "n_snps": 11696, "estimate": 34.496},
+    {"chromosome": 16, "n_snps": 11543, "estimate": 37.573},
+    {"chromosome": 17, "n_snps": 10124, "estimate": 36.435},
+    {"chromosome": 18, "n_snps": 11676, "estimate": 36.756},
+    {"chromosome": 19, "n_snps": 6220, "estimate": 37.520},
+    {"chromosome": 20, "n_snps": 10019, "estimate": 37.769},
+    {"chromosome": 21, "n_snps": 5602, "estimate": 36.831},
+    {"chromosome": 22, "n_snps": 5541, "estimate": 37.488}
+  ]
+}

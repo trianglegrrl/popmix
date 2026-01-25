@@ -1,0 +1,61 @@
+{% set name = "popmix" %}
+{% set version = "0.1.0" %}
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+source:
+  path: ..
+
+build:
+  number: 0
+  skip: true  # [py<39]
+  script: |
+    {{ PYTHON }} -m pip install . -vv --no-deps --no-build-isolation
+  entry_points:
+    - popmix = popmix.cli:main
+
+requirements:
+  build:
+    - {{ compiler('c') }}
+    - {{ compiler('cxx') }}
+    - rust >=1.75
+    - maturin >=1.4,<2.0
+  host:
+    - python
+    - pip
+    - maturin >=1.4,<2.0
+  run:
+    - python >=3.9
+    - numpy >=1.21
+    - pandas >=1.5
+    - click >=8.0
+    - rich >=12.0
+
+test:
+  imports:
+    - popmix
+    - popmix._core
+  commands:
+    - popmix --help
+    - popmix --version
+
+about:
+  home: https://github.com/popmix/popmix
+  license: MIT
+  license_family: MIT
+  license_file: LICENSE
+  summary: Population genetics F-statistics and admixture analysis toolkit
+  description: |
+    Popmix is a high-performance Rust/Python reimplementation of admixtools2
+    for computing F-statistics (f2, f3, f4) and running qpAdm/qpWave analyses.
+    It provides identical outputs to admixtools2 with improved performance
+    through Rust-based parallel computation.
+  dev_url: https://github.com/popmix/popmix
+
+extra:
+  recipe-maintainers:
+    - popmix-maintainers
+  identifiers:
+    - biotools:popmix

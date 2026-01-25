@@ -1,0 +1,75 @@
+[build-system]
+requires = ["maturin>=1.4,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "popmix"
+version = "0.1.0"
+description = "Population genetics F-statistics and admixture analysis toolkit"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Rust",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+dependencies = [
+    "numpy>=1.21",
+    "pandas>=1.5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "hypothesis>=6.0",
+    "ruff>=0.1",
+    "mypy>=1.0",
+]
+cli = [
+    "click>=8.0",
+    "rich>=12.0",
+]
+
+[project.scripts]
+popmix = "popmix.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/popmix/popmix"
+Documentation = "https://popmix.readthedocs.io"
+Repository = "https://github.com/popmix/popmix"
+
+[tool.maturin]
+module-name = "popmix._core"
+python-source = "python"
+features = ["pyo3/extension-module"]
+manifest-path = "crates/popmix-python/Cargo.toml"
+
+[tool.pytest.ini_options]
+testpaths = ["tests/python", "tests/golden"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_ignores = true
