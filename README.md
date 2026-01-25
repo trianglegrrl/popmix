@@ -95,7 +95,21 @@ popmix qpadm -i /path/to/genotypes --target French --left Yamnaya,Anatolia_N --r
 ### From PyPI (recommended)
 
 ```bash
+# Full installation (all features)
+pip install popmix[all]
+
+# Basic installation
 pip install popmix
+
+# With CLI enhancements (Rich output, progress bars)
+pip install popmix[cli]
+
+# With HTML report generation
+pip install popmix[reports]
+
+# With MultiQC integration
+pip install popmix[multiqc]
+
 ```
 
 ### From Source
@@ -627,13 +641,118 @@ print(f"Format: {fmt}")  # "PACKEDPED"
 
 ## Output Formats
 
-All CLI commands support three output formats via `--format`:
+All CLI commands support multiple output formats via `--format`:
 
 | Format | Flag | Description |
 |--------|------|-------------|
-| Text | `--format text` | Human-readable (default) |
-| JSON | `--format json` | Machine-readable, nested structure |
+| Text | `--format text` | Human-readable with Rich styling (default) |
+| JSON | `--format json` | Machine-readable, schema-validated |
+| YAML | `--format yaml` | Human-readable config format |
 | TSV | `--format tsv` | Tab-separated, one row per result |
+| Parquet | `--format parquet` | High-performance columnar format |
+| NDJSON | `--format ndjson` | Newline-delimited JSON for streaming |
+
+### Writing to Files
+
+Use `--output-file` / `-o` to write results directly to files:
+
+```bash
+popmix qpadm ... --format json -o results/qpadm_french.json
+popmix dates ... --format parquet -o results/dates.parquet
+```
+
+The format is auto-detected from the file extension if not specified.
+
+### Rich Terminal Output
+
+All terminal output uses Rich for beautiful, informative displays:
+- **Colored significance indicators**: Green (significant), yellow (marginal), gray (not significant)
+- **Confidence intervals**: Automatic 95% CI calculation with display
+- **Progress bars**: For long-running operations like F2 extraction
+- **Formatted tables**: Clean, aligned data presentation
+
+### HTML Reports
+
+Generate standalone, interactive HTML reports with Plotly visualizations:
+
+```bash
+popmix qpadm ... --report qpadm_french.html
+popmix dates ... --report dates_report.html
+```
+
+Reports include:
+- Interactive Plotly charts (bar charts, LD decay curves)
+- Model fit statistics with visual indicators
+- Confidence intervals and uncertainty quantification
+- Responsive design for any screen size
+
+## MultiQC Integration
+
+Popmix includes a MultiQC module for aggregating results from multiple analyses:
+
+```bash
+# Install with MultiQC support
+pip install popmix[multiqc]
+
+# Run MultiQC on popmix output files
+multiqc results/ --module popmix
+```
+
+The module automatically detects:
+- `*_popmix_stats.json` - General statistics
+- `*_qpadm.json` - qpAdm results
+- `*_dates.json` - DATES results
+- `*_f2.json`, `*_f3.json`, `*_f4.json` - F-statistics
+
+MultiQC General Statistics columns include:
+- P-value (qpAdm/qpWave model fit)
+- Generations and Years BP (DATES)
+- R² fit quality
+- Number of source populations
+
+## Batch Analysis Mode
+
+Run analyses on multiple targets efficiently:
+
+```bash
+# qpAdm batch mode
+popmix qpadm-batch \
+  -i data \
+  --targets targets.txt \
+  --left sources.txt \
+  --right outgroups.txt \
+  --output-dir results/ \
+  --report batch_report.html
+
+# DATES batch mode
+popmix dates-batch \
+  -i data \
+  --config dates_config.yaml \
+  --output-dir results/
+```
+
+Batch features:
+- Progress tracking with ETA
+- Individual result files per target
+- Combined summary JSON/YAML
+- Batch summary report with best-fitting models
+- Failure tracking and reporting
+
+Example batch config (YAML):
+```yaml
+targets:
+  - French
+  - Spanish
+  - Italian
+sources:
+  - Yamnaya
+  - Anatolia_N
+  - WHG
+outgroups:
+  - Mbuti
+  - Han
+  - Papuan
+```
 
 ## Performance Tips
 

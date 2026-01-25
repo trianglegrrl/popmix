@@ -37,6 +37,20 @@ cli = [
     "click>=8.0",
     "rich>=12.0",
 ]
+reports = [
+    "jinja2>=3.0",
+    "plotly>=5.0",
+]
+multiqc = [
+    "multiqc>=1.20",
+]
+formats = [
+    "pyyaml>=6.0",
+    "pyarrow>=12.0",
+]
+all = [
+    "popmix[cli,reports,multiqc,formats]",
+]
 
 [project.scripts]
 popmix = "popmix.cli:main"

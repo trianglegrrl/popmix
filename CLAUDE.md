@@ -1,5 +1,22 @@
 # Popmix Development Guide
 
+## MANDATORY: TDD-First Development
+
+**Every feature, bug fix, and refactor starts with a failing test.**
+
+This is not optional. The workflow is:
+
+1. **Write test** that describes expected behavior
+2. **Run test** - confirm it fails (RED)
+3. **Write code** - minimum to pass
+4. **Run test** - confirm it passes (GREEN)
+5. **Refactor** - improve while staying green
+6. **Commit** - test + implementation together
+
+See `.cursor/rules/008-tdd-first.mdc` for detailed patterns and examples.
+
+**Never commit code without tests. No exceptions.**
+
 ## Project Overview
 
 Popmix is a Rust/Python reimplementation of admixtools2 for population genetics

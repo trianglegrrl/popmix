@@ -28,13 +28,25 @@ pytest tests/ -v --run-slow
 | Python quick tests | 26 | All pass | ~3 min | - |
 | Python slow tests | 9 | All pass | ~25 min | `--run-slow` |
 | Convertf 6x6 matrix | 36 | All pass | ~5s | - |
-| **Total** | **257** | **All pass** | **~30 min** | |
+| Rich output tests | 35 | All pass | ~0.2s | - |
+| Formatter tests | 23 | All pass | ~0.5s | - |
+| Statistical rigor tests | 24 | All pass | ~0.1s | - |
+| HTML report tests | 19 | All pass | ~0.1s | - |
+| MultiQC module tests | 16 | All pass | ~0.1s | - |
+| Batch mode tests | 17 | All pass | ~0.1s | - |
+| **Total** | **391** | **All pass** | **~30 min** | |
 
 Quick tests include:
 - DATES validation (7 tests) comparing against DATES v753 reference output
 - Merge tests (4 tests) validating SNP intersection and sample combination
 - Convertf validation ensuring all 36 format conversions (6x6 matrix) preserve genotypes
 - VCF reader tests (11 tests) validating VCF parsing, genotype encoding, and cross-format validation
+- Rich output tests (35 tests) for terminal formatting and display
+- Formatter tests (23 tests) for JSON, YAML, TSV, Parquet, NDJSON output
+- Statistical rigor tests (24 tests) for confidence intervals, significance, effect sizes
+- HTML report tests (19 tests) for Plotly-based report generation
+- MultiQC module tests (16 tests) for result aggregation
+- Batch mode tests (17 tests) for multi-target analysis
 
 ## Test Structure
 
@@ -55,7 +67,13 @@ tests/
 │       ├── family_chr20_22.*  # Simulated admixture data (54 samples, 21k SNPs)
 │       └── chr20_22_reference.json
 ├── python/                    # Python/CLI tests
-│   └── test_cli.py            # CLI command tests
+│   ├── test_cli.py            # CLI command tests
+│   ├── test_rich_output.py    # Rich terminal output tests (35 tests)
+│   ├── test_formatters.py     # Output format tests (23 tests)
+│   ├── test_statistical_rigor.py  # Statistical rigor tests (24 tests)
+│   ├── test_html_reports.py   # HTML report generation tests (19 tests)
+│   ├── test_multiqc_module.py # MultiQC integration tests (16 tests)
+│   └── test_batch_mode.py     # Batch analysis tests (17 tests)
 └── rust/                      # Rust integration tests
 
 crates/popmix-io/
@@ -65,6 +83,25 @@ crates/popmix-io/
     ├── writers.rs             # Format writers (tested via roundtrip)
     ├── ped.rs                 # PED format reader
     └── ancestrymap.rs         # ANCESTRYMAP format reader
+
+python/popmix/
+├── cli/
+│   ├── rich_output.py         # Rich terminal formatting
+│   ├── formatters.py          # Output format handlers
+│   ├── statistics.py          # Statistical rigor utilities
+│   └── batch.py               # Batch analysis mode
+├── reports/
+│   └── html_report.py         # HTML report generation
+├── multiqc/
+│   ├── module.py              # Main MultiQC module
+│   ├── patterns.py            # File pattern detection
+│   ├── parsers.py             # JSON file parsing
+│   ├── aggregator.py          # Result aggregation
+│   └── general_stats.py       # General Statistics columns
+└── schemas/
+    ├── f2_result.json         # F2 JSON schema
+    ├── qpadm_result.json      # qpAdm JSON schema
+    └── dates_result.json      # DATES JSON schema
 ```
 
 ## Running Tests
@@ -477,6 +514,73 @@ rs6 2 0.06 600 A G
 ```
 
 **Expected merge result**: 3 SNPs (rs2, rs3, rs4), 3 samples (IND1, IND2, IND3)
+
+## Ergonomics and Output Tests
+
+The ergonomics tests validate the user-facing output features:
+
+### Running Ergonomics Tests
+
+```bash
+unset CONDA_PREFIX && source .venv/bin/activate
+pytest tests/python/test_rich_output.py tests/python/test_formatters.py \
+       tests/python/test_statistical_rigor.py tests/python/test_html_reports.py \
+       tests/python/test_multiqc_module.py tests/python/test_batch_mode.py -v
+```
+
+Expected output:
+```
+134 passed in ~0.5 seconds
+```
+
+### Test Categories
+
+| Test File | Tests | Description |
+|-----------|-------|-------------|
+| `test_rich_output.py` | 35 | Rich terminal formatting (colors, tables, panels) |
+| `test_formatters.py` | 23 | JSON, YAML, TSV, Parquet, NDJSON output |
+| `test_statistical_rigor.py` | 24 | CIs, Z-scores, effect sizes, model fit |
+| `test_html_reports.py` | 19 | Plotly charts, HTML generation |
+| `test_multiqc_module.py` | 16 | File detection, parsing, aggregation |
+| `test_batch_mode.py` | 17 | Config parsing, job generation, results |
+
+### Key Test Cases
+
+**Rich Output:**
+- Significance coloring (green/yellow/gray based on Z-score)
+- Confidence interval display
+- qpAdm weight tables with percentages
+- DATES timing estimates
+
+**Formatters:**
+- JSON schema validation
+- YAML human-readability
+- Parquet pandas compatibility
+- File extension auto-detection
+
+**Statistical Rigor:**
+- 95%/99% CI calculation accuracy
+- Z-score significance thresholds
+- Cohen's d effect size interpretation
+- qpAdm weight feasibility assessment
+
+**HTML Reports:**
+- Valid HTML5 structure
+- Plotly.js integration
+- Responsive CSS styling
+- qpAdm bar charts, DATES decay curves
+
+**MultiQC:**
+- File pattern matching (`*_qpadm.json`, etc.)
+- JSON parsing for all result types
+- General Statistics column generation
+- Sample aggregation
+
+**Batch Mode:**
+- YAML config parsing
+- Job generation for multiple targets
+- Progress tracking
+- Summary statistics
 
 ## Validation Against Reference Implementations
 

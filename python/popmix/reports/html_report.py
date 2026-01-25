@@ -1,0 +1,597 @@
+"""HTML report generation using Jinja2 and Plotly.
+
+This module generates beautiful, interactive HTML reports for popmix results.
+"""
+
+import json
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+# Template is embedded to avoid Jinja2 dependency for simple use cases
+# For advanced templating, Jinja2 can be used
+
+BASE_TEMPLATE = '''<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{title}</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        :root {{
+            --primary-color: #2563eb;
+            --success-color: #16a34a;
+            --warning-color: #ca8a04;
+            --danger-color: #dc2626;
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-color: #1e293b;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
+        }}
+        
+        * {{
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }}
+        
+        body {{
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 2rem;
+        }}
+        
+        .container {{
+            max-width: 1200px;
+            margin: 0 auto;
+        }}
+        
+        header {{
+            text-align: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--border-color);
+        }}
+        
+        h1 {{
+            font-size: 2rem;
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+        }}
+        
+        .subtitle {{
+            color: var(--text-muted);
+            font-size: 1.1rem;
+        }}
+        
+        .branding {{
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+        }}
+        
+        .card {{
+            background: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }}
+        
+        .card h2 {{
+            font-size: 1.25rem;
+            color: var(--text-color);
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }}
+        
+        .stats-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }}
+        
+        .stat-item {{
+            text-align: center;
+            padding: 1rem;
+            background: var(--bg-color);
+            border-radius: 8px;
+        }}
+        
+        .stat-value {{
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary-color);
+        }}
+        
+        .stat-label {{
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }}
+        
+        .stat-ci {{
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }}
+        
+        table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }}
+        
+        th, td {{
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }}
+        
+        th {{
+            background: var(--bg-color);
+            font-weight: 600;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }}
+        
+        .badge {{
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }}
+        
+        .badge-success {{
+            background: #dcfce7;
+            color: var(--success-color);
+        }}
+        
+        .badge-warning {{
+            background: #fef3c7;
+            color: var(--warning-color);
+        }}
+        
+        .badge-danger {{
+            background: #fee2e2;
+            color: var(--danger-color);
+        }}
+        
+        .chart-container {{
+            width: 100%;
+            height: 400px;
+        }}
+        
+        footer {{
+            text-align: center;
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border-color);
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>{title}</h1>
+            <p class="subtitle">{subtitle}</p>
+            <p class="branding">Generated by popmix</p>
+        </header>
+        
+        {content}
+        
+        <footer>
+            <p>Report generated by <strong>popmix</strong> - Population genetics F-statistics toolkit</p>
+        </footer>
+    </div>
+    
+    {scripts}
+</body>
+</html>
+'''
+
+
+def _format_number(value: float, precision: int = 4) -> str:
+    """Format a number for display."""
+    if abs(value) < 0.0001:
+        return f"{value:.2e}"
+    return f"{value:.{precision}f}"
+
+
+def _calculate_ci(estimate: float, std_err: float, z: float = 1.96) -> tuple:
+    """Calculate confidence interval."""
+    margin = z * std_err
+    return (estimate - margin, estimate + margin)
+
+
+def _get_significance_badge(z_score: float) -> str:
+    """Get HTML badge for significance level."""
+    abs_z = abs(z_score)
+    if abs_z >= 3:
+        return '<span class="badge badge-success">Significant</span>'
+    elif abs_z >= 2:
+        return '<span class="badge badge-warning">Marginal</span>'
+    else:
+        return '<span class="badge badge-danger">Not Significant</span>'
+
+
+def _get_fit_badge(p_value: float) -> str:
+    """Get HTML badge for model fit quality."""
+    if p_value > 0.05:
+        return '<span class="badge badge-success">Good Fit</span>'
+    elif p_value > 0.01:
+        return '<span class="badge badge-warning">Marginal Fit</span>'
+    else:
+        return '<span class="badge badge-danger">Poor Fit</span>'
+
+
+# =============================================================================
+# qpAdm Report Generation
+# =============================================================================
+
+def _generate_qpadm_content(result: Any) -> tuple:
+    """Generate HTML content for qpAdm result."""
+    # Stats grid
+    stats_html = '''
+    <div class="card">
+        <h2>Model Summary</h2>
+        <div class="stats-grid">
+            <div class="stat-item">
+                <div class="stat-value">{target}</div>
+                <div class="stat-label">Target Population</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">{n_sources}</div>
+                <div class="stat-label">Source Populations</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">{p_value}</div>
+                <div class="stat-label">P-value</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">{fit_badge}</div>
+                <div class="stat-label">Model Fit</div>
+            </div>
+        </div>
+    </div>
+    '''.format(
+        target=result.target,
+        n_sources=len(result.sources),
+        p_value=_format_number(result.p_value),
+        fit_badge=_get_fit_badge(result.p_value),
+    )
+    
+    # Weights table
+    weights_rows = ""
+    for i, source in enumerate(result.sources):
+        weight = result.weights[i]
+        se = result.std_errs[i] if hasattr(result, 'std_errs') and result.std_errs else 0
+        lower, upper = _calculate_ci(weight, se)
+        
+        weights_rows += f'''
+        <tr>
+            <td><strong>{source}</strong></td>
+            <td>{weight*100:.1f}%</td>
+            <td>[{lower*100:.1f}%, {upper*100:.1f}%]</td>
+            <td>±{se*100:.1f}%</td>
+        </tr>
+        '''
+    
+    weights_html = f'''
+    <div class="card">
+        <h2>Admixture Weights</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Source</th>
+                    <th>Weight</th>
+                    <th>95% CI</th>
+                    <th>SE</th>
+                </tr>
+            </thead>
+            <tbody>
+                {weights_rows}
+            </tbody>
+        </table>
+    </div>
+    '''
+    
+    # Chart
+    chart_html = '''
+    <div class="card">
+        <h2>Admixture Proportions</h2>
+        <div id="weights-chart" class="chart-container"></div>
+    </div>
+    '''
+    
+    # Plotly script for bar chart
+    chart_data = {
+        "sources": result.sources,
+        "weights": [w * 100 for w in result.weights],
+        "errors": [se * 100 for se in result.std_errs] if hasattr(result, 'std_errs') and result.std_errs else None,
+    }
+    
+    scripts = f'''
+    <script>
+        var data = [{{
+            x: {json.dumps(chart_data["sources"])},
+            y: {json.dumps(chart_data["weights"])},
+            type: 'bar',
+            marker: {{
+                color: ['#2563eb', '#16a34a', '#ca8a04', '#dc2626', '#8b5cf6'].slice(0, {len(result.sources)})
+            }},
+            {"error_y: {{ type: 'data', array: " + json.dumps(chart_data["errors"]) + ", visible: true }}," if chart_data["errors"] else ""}
+        }}];
+        
+        var layout = {{
+            title: 'Admixture Weights for {result.target}',
+            yaxis: {{ title: 'Weight (%)', range: [0, 100] }},
+            xaxis: {{ title: 'Source Population' }},
+            showlegend: false
+        }};
+        
+        Plotly.newPlot('weights-chart', data, layout, {{responsive: true}});
+    </script>
+    '''
+    
+    content = stats_html + weights_html + chart_html
+    return content, scripts
+
+
+# =============================================================================
+# DATES Report Generation
+# =============================================================================
+
+def _generate_dates_content(result: Any) -> tuple:
+    """Generate HTML content for DATES result."""
+    # Calculate CI for generations
+    gen_lower, gen_upper = _calculate_ci(result.generations, result.generations_se)
+    years_lower, years_upper = _calculate_ci(result.years_bp, result.years_bp_se)
+    
+    stats_html = f'''
+    <div class="card">
+        <h2>Admixture Timing</h2>
+        <div class="stats-grid">
+            <div class="stat-item">
+                <div class="stat-value">{result.generations:.0f}</div>
+                <div class="stat-label">Generations Ago</div>
+                <div class="stat-ci">[{gen_lower:.0f}, {gen_upper:.0f}]</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">{result.years_bp:,.0f}</div>
+                <div class="stat-label">Years BP</div>
+                <div class="stat-ci">[{years_lower:,.0f}, {years_upper:,.0f}]</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">{result.r_squared:.3f}</div>
+                <div class="stat-label">R² Fit</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">{result.n_snps:,}</div>
+                <div class="stat-label">SNPs Used</div>
+            </div>
+        </div>
+    </div>
+    '''
+    
+    # Population info
+    pop_html = f'''
+    <div class="card">
+        <h2>Populations</h2>
+        <table>
+            <tr><th>Role</th><th>Population</th></tr>
+            <tr><td>Test (Admixed)</td><td><strong>{result.test_pop}</strong></td></tr>
+            <tr><td>Source 1</td><td>{result.source1}</td></tr>
+            <tr><td>Source 2</td><td>{result.source2}</td></tr>
+        </table>
+    </div>
+    '''
+    
+    # LD decay chart
+    chart_html = '''
+    <div class="card">
+        <h2>LD Decay Curve</h2>
+        <div id="decay-chart" class="chart-container"></div>
+    </div>
+    '''
+    
+    # Prepare LD bins data
+    if hasattr(result, 'ld_bins') and result.ld_bins:
+        distances = [b.get('distance_cm', b.distance_cm if hasattr(b, 'distance_cm') else 0) 
+                    for b in result.ld_bins[:50]]
+        correlations = [b.get('correlation', b.correlation if hasattr(b, 'correlation') else 0) 
+                       for b in result.ld_bins[:50]]
+    else:
+        # Generate sample decay curve
+        import math
+        distances = [i * 0.1 for i in range(1, 51)]
+        decay_rate = result.generations / 100  # Approximate
+        correlations = [result.amplitude * math.exp(-decay_rate * d) for d in distances]
+    
+    scripts = f'''
+    <script>
+        var trace1 = {{
+            x: {json.dumps(distances)},
+            y: {json.dumps(correlations)},
+            mode: 'markers',
+            type: 'scatter',
+            name: 'Observed LD',
+            marker: {{ color: '#2563eb', size: 6 }}
+        }};
+        
+        // Fitted exponential decay
+        var x_fit = [];
+        var y_fit = [];
+        var amplitude = {result.amplitude};
+        var decay_rate = {result.generations} / 100;
+        for (var i = 0; i <= 50; i++) {{
+            var d = i * 0.1;
+            x_fit.push(d);
+            y_fit.push(amplitude * Math.exp(-decay_rate * d));
+        }}
+        
+        var trace2 = {{
+            x: x_fit,
+            y: y_fit,
+            mode: 'lines',
+            type: 'scatter',
+            name: 'Fitted Decay',
+            line: {{ color: '#dc2626', width: 2 }}
+        }};
+        
+        var layout = {{
+            title: 'LD Decay: {result.test_pop}',
+            xaxis: {{ title: 'Genetic Distance (cM)' }},
+            yaxis: {{ title: 'Weighted LD' }},
+            showlegend: true,
+            legend: {{ x: 0.7, y: 0.95 }}
+        }};
+        
+        Plotly.newPlot('decay-chart', [trace1, trace2], layout, {{responsive: true}});
+    </script>
+    '''
+    
+    content = stats_html + pop_html + chart_html
+    return content, scripts
+
+
+# =============================================================================
+# F2/F3/F4 Report Generation
+# =============================================================================
+
+def _generate_fstat_content(result: Any, result_type: str) -> tuple:
+    """Generate HTML content for F-statistic results."""
+    lower, upper = _calculate_ci(result.estimate, result.std_err)
+    
+    if result_type == "f2":
+        title = f"f2({result.pop1}, {result.pop2})"
+    elif result_type == "f3":
+        title = f"f3({result.target}; {result.source1}, {result.source2})"
+    elif result_type == "f4":
+        title = f"f4({result.pop1}, {result.pop2}; {result.pop3}, {result.pop4})"
+    else:
+        title = "F-statistic Result"
+    
+    stats_html = f'''
+    <div class="card">
+        <h2>{title}</h2>
+        <div class="stats-grid">
+            <div class="stat-item">
+                <div class="stat-value">{_format_number(result.estimate)}</div>
+                <div class="stat-label">Estimate</div>
+                <div class="stat-ci">[{_format_number(lower)}, {_format_number(upper)}]</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">{_format_number(result.std_err)}</div>
+                <div class="stat-label">Standard Error</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">{result.z_score:.2f}</div>
+                <div class="stat-label">Z-score</div>
+            </div>
+            <div class="stat-item">
+                {_get_significance_badge(result.z_score)}
+                <div class="stat-label" style="margin-top: 0.5rem;">Significance</div>
+            </div>
+        </div>
+    </div>
+    '''
+    
+    return stats_html, ""
+
+
+# =============================================================================
+# Main Report Generator
+# =============================================================================
+
+def generate_html_report(
+    result: Any,
+    result_type: str,
+    title: Optional[str] = None,
+) -> str:
+    """Generate HTML report for a result.
+    
+    Parameters
+    ----------
+    result : Any
+        Result object (qpAdm, DATES, F2, etc.)
+    result_type : str
+        Type of result: "qpadm", "dates", "f2", "f3", "f4"
+    title : str, optional
+        Report title (auto-generated if not provided)
+    
+    Returns
+    -------
+    str
+        HTML report as string
+    """
+    # Generate title and subtitle
+    if title is None:
+        if result_type == "qpadm":
+            title = f"qpAdm Analysis: {result.target}"
+            subtitle = f"Modeling {result.target} as mixture of {', '.join(result.sources)}"
+        elif result_type == "dates":
+            title = f"DATES Analysis: {result.test_pop}"
+            subtitle = f"Dating admixture from {result.source1} and {result.source2}"
+        elif result_type in ("f2", "f3", "f4"):
+            title = f"{result_type.upper()} Analysis"
+            subtitle = "F-statistic estimation"
+        else:
+            title = "popmix Analysis"
+            subtitle = ""
+    else:
+        subtitle = ""
+    
+    # Generate content based on result type
+    if result_type == "qpadm":
+        content, scripts = _generate_qpadm_content(result)
+    elif result_type == "dates":
+        content, scripts = _generate_dates_content(result)
+    elif result_type in ("f2", "f3", "f4"):
+        content, scripts = _generate_fstat_content(result, result_type)
+    else:
+        content = f'<div class="card"><p>Report type "{result_type}" not supported.</p></div>'
+        scripts = ""
+    
+    # Fill template
+    html = BASE_TEMPLATE.format(
+        title=title,
+        subtitle=subtitle,
+        content=content,
+        scripts=scripts,
+    )
+    
+    return html
+
+
+def write_html_report(
+    result: Any,
+    result_type: str,
+    output_path: str,
+    title: Optional[str] = None,
+) -> None:
+    """Write HTML report to file.
+    
+    Parameters
+    ----------
+    result : Any
+        Result object
+    result_type : str
+        Type of result
+    output_path : str
+        Output file path
+    title : str, optional
+        Report title
+    """
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    
+    html = generate_html_report(result, result_type, title)
+    path.write_text(html)

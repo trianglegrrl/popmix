@@ -7,6 +7,8 @@ globs:
 
 # Testing Guidelines
 
+**IMPORTANT**: All development MUST follow TDD-first methodology. See `.cursor/rules/008-tdd-first.mdc` for the complete TDD guide with examples.
+
 ## Test-Driven Development (TDD) Workflow
 
 Follow this workflow when implementing new features:

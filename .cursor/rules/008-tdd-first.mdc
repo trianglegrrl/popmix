@@ -1,0 +1,227 @@
+---
+description: TDD-first development methodology - MANDATORY for all popmix development
+globs:
+  - "**/*.py"
+  - "**/*.rs"
+alwaysApply: true
+---
+
+# TDD-First Development (MANDATORY)
+
+ALL development in popmix follows Test-Driven Development. No exceptions.
+
+## The TDD Cycle
+
+Every feature, bug fix, and refactor starts with a failing test.
+
+### 1. RED: Write a Failing Test First
+
+Before writing ANY implementation code, write a test that describes expected behavior:
+
+```python
+# tests/python/test_rich_output.py
+def test_qpadm_panel_shows_weights_with_confidence_intervals():
+    """Rich panel should display weights with 95% CI."""
+    result = MockQpAdmResult(weights=[0.45, 0.55], ses=[0.036, 0.036])
+    panel = format_qpadm_result(result)
+    
+    assert "45.2%" in panel
+    assert "[38.1%, 52.3%]" in panel  # 95% CI
+```
+
+Run the test - it MUST fail:
+
+```bash
+pytest tests/python/test_rich_output.py::test_qpadm_panel_shows_weights_with_confidence_intervals -v
+# Expected: FAILED (function doesn't exist yet)
+```
+
+### 2. GREEN: Write Minimum Code to Pass
+
+Implement ONLY what is needed to pass the test:
+
+```python
+# python/popmix/cli/rich_output.py
+def format_qpadm_result(result):
+    """Format qpAdm result for Rich display."""
+    # Minimum implementation to pass test
+    ...
+```
+
+Run test until green:
+
+```bash
+pytest tests/python/test_rich_output.py -v
+# Expected: PASSED
+```
+
+### 3. REFACTOR: Improve While Staying Green
+
+Clean up code, add documentation, optimize - but keep tests passing:
+
+```bash
+# After refactoring, tests must still pass
+pytest tests/python/test_rich_output.py -v
+```
+
+## Test Categories
+
+| Category | Location | Purpose |
+|----------|----------|---------|
+| Unit tests | `tests/python/test_*.py` | Individual functions |
+| Integration tests | `tests/python/test_*_integration.py` | Component interaction |
+| Golden master | `tests/golden/` | admixtools2 comparison |
+| CLI tests | `tests/python/test_cli.py` | End-to-end CLI |
+| Rust unit tests | `crates/*/src/**/*.rs` | Inline `#[test]` |
+| Rust integration | `crates/*/tests/` | Cross-module tests |
+
+## TDD Examples by Component
+
+### CLI Output Formatting
+
+```python
+def test_f2_output_includes_significance_color():
+    """F2 output should color Z-scores by significance."""
+    result = {"estimate": 0.02, "std_err": 0.001, "z_score": 5.2}
+    output = format_f2_result(result, use_color=True)
+    assert "significant" in output.lower() or "green" in output.lower()
+
+def test_f2_output_shows_confidence_interval():
+    """F2 output should include 95% confidence interval."""
+    result = {"estimate": 0.02, "std_err": 0.001, "z_score": 5.2}
+    output = format_f2_result(result)
+    assert "[" in output and "]" in output  # CI brackets
+```
+
+### HTML Reports
+
+```python
+def test_html_report_contains_plotly_chart():
+    """HTML report should include Plotly.js chart."""
+    result = create_mock_dates_result()
+    html = generate_dates_report(result)
+    assert "plotly" in html.lower()
+    assert "ld-decay-chart" in html
+
+def test_html_report_is_valid_html():
+    """Generated HTML should be valid."""
+    html = generate_report(mock_results)
+    assert html.startswith("<!DOCTYPE html>")
+    assert "</html>" in html
+```
+
+### MultiQC Module
+
+```python
+def test_multiqc_finds_popmix_json(tmp_path):
+    """MultiQC module should detect popmix output files."""
+    test_file = tmp_path / "sample_popmix_stats.json"
+    test_file.write_text('{"f2": {"A_B": 0.02}}')
+    
+    module = PopmixModule()
+    found = module.find_log_files(str(tmp_path))
+    assert len(found) == 1
+
+def test_multiqc_parses_qpadm_results(tmp_path):
+    """MultiQC should correctly parse qpAdm JSON."""
+    test_file = tmp_path / "test_qpadm.json"
+    test_file.write_text('{"target": "French", "weights": [0.45, 0.55]}')
+    
+    data = parse_qpadm_json(test_file)
+    assert data["target"] == "French"
+```
+
+### Output Formatters
+
+```python
+def test_json_output_validates_against_schema():
+    """JSON output should conform to schema."""
+    result = compute_f2("A", "B")
+    json_output = format_as_json(result)
+    
+    schema = load_schema("f2_result.json")
+    validate(json_output, schema)  # Should not raise
+
+def test_parquet_output_readable():
+    """Parquet output should be readable by pandas."""
+    result = compute_qpadm(...)
+    write_parquet(result, "test.parquet")
+    
+    df = pd.read_parquet("test.parquet")
+    assert "weights" in df.columns
+```
+
+### Rust Tests
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_confidence_interval_calculation() {
+        // 95% CI = estimate ± 1.96 * std_err
+        let result = F2Result {
+            estimate: 0.02,
+            std_err: 0.001,
+            ..Default::default()
+        };
+        
+        let (lower, upper) = result.confidence_interval(0.95);
+        assert!((lower - 0.01804).abs() < 1e-5);
+        assert!((upper - 0.02196).abs() < 1e-5);
+    }
+}
+```
+
+## Commit Rules
+
+1. **Never commit code without corresponding tests**
+2. **Test files should be committed BEFORE or WITH implementation**
+3. **CI must pass all tests before merge**
+4. **No "TODO: add tests later" comments allowed**
+
+## When You Think "I'll Add Tests Later"
+
+**STOP.** Write the test now. "Later" never comes, and untested code:
+
+- Has more bugs
+- Is harder to refactor
+- Becomes legacy debt
+- Breaks unexpectedly
+
+The 5 minutes spent writing a test saves hours of debugging.
+
+## Test-First Checklist
+
+Before implementing ANY feature, confirm:
+
+- [ ] I have written at least one failing test
+- [ ] The test describes expected behavior clearly
+- [ ] The test runs and fails with a meaningful error
+- [ ] I understand what "passing" looks like
+
+Only then write implementation code.
+
+## Running Tests
+
+```bash
+# Python tests (venv required)
+unset CONDA_PREFIX && source .venv/bin/activate
+pytest tests/python -v
+pytest tests/python/test_rich_output.py -v  # Specific file
+pytest -k "test_qpadm" -v  # By name pattern
+
+# Rust tests
+cargo test --workspace
+cargo test -p popmix-core  # Specific crate
+
+# All tests
+cargo test --workspace && pytest tests/ -v
+```
+
+## Coverage Requirements
+
+- All new code must have >90% test coverage
+- Check coverage with: `pytest --cov=popmix --cov-report=html tests/`
+- Critical paths (statistics, I/O) require 100% coverage
