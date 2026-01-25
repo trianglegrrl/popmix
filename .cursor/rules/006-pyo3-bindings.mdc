@@ -1,0 +1,80 @@
+---
+description: PyO3 bindings development for popmix-python
+globs:
+  - "crates/popmix-python/**/*.rs"
+---
+
+# PyO3 Bindings Development
+
+## Adding New Functionality
+
+1. **Implement in popmix-core** - pure Rust, no Python dependencies
+2. **Create wrapper in popmix-python** - PyO3 bindings
+3. **Export in __init__.py** - make available to users
+4. **Rebuild** - `maturin develop -m crates/popmix-python/Cargo.toml`
+
+## Naming Conventions
+
+- Rust structs exposed to Python: `Py` prefix (e.g., `PyF2Blocks`)
+- Python aliases without prefix (e.g., `F2Blocks = PyF2Blocks`)
+
+## Common Patterns
+
+### Wrapping Rust Structs
+
+```rust
+#[pyclass(name = "F2Blocks")]
+pub struct PyF2Blocks {
+    inner: popmix_core::F2Blocks,
+}
+
+#[pymethods]
+impl PyF2Blocks {
+    fn fst(&self, pop_a: &str, pop_b: &str) -> PyResult<Option<HashMap<String, f64>>> {
+        match self.inner.fst(pop_a, pop_b) {
+            Ok(Some(result)) => Ok(Some(result.to_dict())),
+            Ok(None) => Ok(None),
+            Err(e) => Err(PyValueError::new_err(e.to_string())),
+        }
+    }
+}
+```
+
+### Error Conversion
+
+```rust
+use pyo3::exceptions::PyValueError;
+
+fn convert_error(e: PopmixError) -> PyErr {
+    PyValueError::new_err(e.to_string())
+}
+```
+
+### Returning Results to Python
+
+- Use `HashMap<String, f64>` for result dictionaries
+- Use `Vec<String>` for string lists
+- Use `numpy` crate for array returns
+
+## Building
+
+```bash
+# ALWAYS unset CONDA_PREFIX first
+unset CONDA_PREFIX && source .venv/bin/activate
+
+# Development build (fast, no optimization)
+maturin develop -m crates/popmix-python/Cargo.toml
+
+# Release build (slow, optimized)
+maturin develop --release -m crates/popmix-python/Cargo.toml
+```
+
+## Testing Bindings
+
+```bash
+# Quick smoke test
+python -c "import popmix; print(popmix.__version__)"
+
+# Full test suite
+pytest tests/python -v
+```

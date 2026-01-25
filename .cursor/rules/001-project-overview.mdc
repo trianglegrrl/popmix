@@ -1,0 +1,55 @@
+---
+description: Popmix project overview and environment setup
+globs:
+alwaysApply: true
+---
+
+# Popmix Project Overview
+
+Popmix is a Rust/Python reimplementation of admixtools2 for population genetics F-statistics and admixture analysis.
+
+## Architecture
+
+- **popmix-core**: Pure Rust algorithms (F-statistics, qpAdm, qpGraph, DATES)
+- **popmix-io**: File format I/O (EIGENSTRAT, PLINK, VCF, PackedAncestryMap)
+- **popmix-python**: PyO3 bindings exposing Rust to Python
+- **python/popmix/**: Python package with CLI (Click)
+
+## Environment Setup
+
+**CRITICAL**: Always unset CONDA_PREFIX before activating the venv to prevent maturin build errors:
+
+```bash
+unset CONDA_PREFIX && source /home/a/popmix/.venv/bin/activate
+```
+
+## Build Commands
+
+```bash
+# Rust only (no venv needed)
+cargo build --workspace
+cargo test --workspace
+
+# Python bindings (venv required)
+unset CONDA_PREFIX && source .venv/bin/activate
+maturin develop -m crates/popmix-python/Cargo.toml
+
+# Python tests
+pytest tests/python -v
+pytest tests/golden -v  # Compare with admixtools2
+```
+
+## Test Data Locations
+
+- **AADR v62**: `/references/aadr/v62.0_1240k_public.*` (EIGENSTRAT)
+- **AADR HO**: `/references/aadr_v54.1.p1/HO_public.*` (PLINK)
+- **1000G**: `/8tb/1000genomes/` (PLINK)
+
+## Reference Implementation
+
+admixtools2 R source code is at `/home/a/popmix/admixtools/R/` for algorithm reference:
+- `fstats.R` - F-statistic implementations
+- `qpadm.R` - qpAdm algorithm
+- `io.R` - File format reading
+
+Use system R (not conda): `/usr/bin/R`

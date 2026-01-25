@@ -1,0 +1,53 @@
+name: "popmix_f4"
+description: Compute f4 statistic for testing population relationships
+keywords:
+  - population genetics
+  - f-statistics
+  - phylogeny
+tools:
+  - popmix:
+      description: Population genetics toolkit for F-statistics and admixture analysis
+      homepage: https://github.com/your-repo/popmix
+      documentation: https://github.com/your-repo/popmix
+      licence: ["MIT"]
+
+input:
+  - meta:
+      type: map
+      description: |
+        Groovy Map containing sample information
+        e.g. [ id:'test' ]
+  - f2_blocks:
+      type: directory
+      description: Directory containing pre-computed F2 blocks
+      pattern: "*_f2"
+  - pop_a:
+      type: string
+      description: First population (A in f4(A,B;C,D))
+  - pop_b:
+      type: string
+      description: Second population (B in f4(A,B;C,D))
+  - pop_c:
+      type: string
+      description: Third population (C in f4(A,B;C,D))
+  - pop_d:
+      type: string
+      description: Fourth population (D in f4(A,B;C,D))
+
+output:
+  - meta:
+      type: map
+      description: |
+        Groovy Map containing sample information
+        e.g. [ id:'test' ]
+  - results:
+      type: file
+      description: F4 statistic results in JSON format
+      pattern: "*_f4.json"
+  - versions:
+      type: file
+      description: File containing software versions
+      pattern: "versions.yml"
+
+authors:
+  - "@your-username"

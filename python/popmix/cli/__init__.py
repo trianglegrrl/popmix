@@ -6,12 +6,16 @@ Usage:
 
 Commands:
     info        Show dataset information
+    populations List all populations with sample counts
     extract-f2  Extract F2 blocks from genotype data
     f2          Compute f2 statistic between two populations
     f3          Compute f3 statistic (admixture test)
     f4          Compute f4 statistic (D-statistic)
     qpadm       Estimate admixture weights
     qpwave      Test admixture wave count
+    convertf    Convert between genotype file formats
+    merge       Merge two genotype datasets
+    dates       Estimate admixture date using DATES
 """
 
 import json
@@ -43,6 +47,48 @@ def parse_snp_range(ctx, param, value: Optional[str]) -> Optional[Tuple[int, int
         raise click.BadParameter("SNP range must be integers in format 'start:end'")
 
 
+def format_population_error(invalid_pop: str, prefix: str) -> str:
+    """Format helpful error message for invalid population name."""
+    lines = [f"Population '{invalid_pop}' not found in dataset."]
+
+    try:
+        suggestions = pm.suggest_populations(prefix, invalid_pop, limit=5)
+        if suggestions:
+            lines.append("\nDid you mean one of these?")
+            for pop, count in suggestions:
+                lines.append(f"  - {pop} ({count} samples)")
+    except Exception:
+        pass  # If suggestion fails, just skip it
+
+    lines.append(f"\nTip: List all populations with: popmix populations {prefix}")
+    lines.append(f'Tip: Search populations with: popmix populations {prefix} --filter "{invalid_pop[:4]}*"')
+
+    return "\n".join(lines)
+
+
+def validate_populations(prefix: str, populations: list) -> None:
+    """Validate that all populations exist in the dataset.
+
+    Raises click.ClickException with helpful error message if any population is missing.
+    """
+    if not populations:
+        return
+
+    try:
+        available = {p for p, _ in pm.list_populations(prefix)}
+    except Exception as e:
+        click.echo(f"Warning: Could not validate populations: {e}", err=True)
+        return
+
+    missing = [p for p in populations if p not in available]
+    if missing:
+        # Format error message for the first missing population
+        error_msg = format_population_error(missing[0], prefix)
+        if len(missing) > 1:
+            error_msg += f"\n\nAlso missing: {', '.join(missing[1:])}"
+        raise click.ClickException(error_msg)
+
+
 @click.group()
 @click.option("--threads", "-t", type=int, default=4, help="Number of threads to use (default: 4)")
 @click.version_option(version=pm.__version__, prog_name="popmix")
@@ -58,10 +104,12 @@ def cli(ctx, threads: int):
 
 @cli.command()
 @click.argument("prefix")
-def info(prefix: str):
+@click.option("--populations", "-p", is_flag=True, help="Show all populations with sample counts")
+def info(prefix: str, populations: bool):
     """Show dataset information.
 
-    PREFIX is the path prefix for the genotype files (without extension).
+    PREFIX is the path prefix for the genotype files (without extension),
+    or the full path to a VCF file (with .vcf or .vcf.gz extension).
     """
     try:
         info_dict = pm.dataset_info(prefix)
@@ -70,15 +118,76 @@ def info(prefix: str):
         click.echo(f"Samples: {info_dict.get('n_samples', 'unknown')}")
         click.echo(f"SNPs: {info_dict.get('n_snps', 'unknown')}")
 
-        populations = info_dict.get("populations", [])
-        click.echo(f"Populations: {len(populations)}")
-        if len(populations) <= 10:
-            for pop in populations:
+        pop_list = info_dict.get("populations", [])
+        click.echo(f"Populations: {len(pop_list)}")
+
+        if populations:
+            # Show full population list with counts
+            pop_counts = pm.list_populations(prefix)
+            for pop, count in pop_counts:
+                click.echo(f"  {pop}: {count} samples")
+        elif len(pop_list) <= 10:
+            for pop in pop_list:
                 click.echo(f"  - {pop}")
         else:
-            for pop in populations[:5]:
+            for pop in pop_list[:5]:
                 click.echo(f"  - {pop}")
-            click.echo(f"  ... and {len(populations) - 5} more")
+            click.echo(f"  ... and {len(pop_list) - 5} more")
+            click.echo(f"\nTip: Use --populations to show all populations with counts")
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@cli.command()
+@click.argument("prefix")
+@click.option("--filter", "-f", "pattern", help="Filter populations (supports wildcards like French*)")
+@click.option("--format", "output_format", type=click.Choice(["text", "json", "tsv"]), default="text",
+              help="Output format")
+def populations(prefix: str, pattern: Optional[str], output_format: str):
+    """List all populations in a dataset with sample counts.
+
+    PREFIX is the path prefix for the genotype files (without extension),
+    or the full path to a VCF file (with .vcf or .vcf.gz extension).
+
+    Examples:
+        popmix populations /path/to/data
+        popmix populations /path/to/data.vcf.gz
+        popmix populations /path/to/data --filter "French*"
+        popmix populations /path/to/data --format json
+    """
+    import fnmatch
+    import json
+
+    try:
+        pop_counts = pm.list_populations(prefix)
+
+        # Apply filter if specified
+        if pattern:
+            pop_counts = [(p, c) for p, c in pop_counts if fnmatch.fnmatch(p, pattern)]
+
+        if output_format == "json":
+            data = [{"population": p, "samples": c} for p, c in pop_counts]
+            click.echo(json.dumps(data, indent=2))
+        elif output_format == "tsv":
+            click.echo("population\tsamples")
+            for pop, count in pop_counts:
+                click.echo(f"{pop}\t{count}")
+        else:
+            click.echo(f"Populations in {prefix} ({len(pop_counts)} {'matched' if pattern else 'total'}):")
+            click.echo()
+            click.echo(f"{'Population':<40} Samples")
+            click.echo("-" * 50)
+            for pop, count in pop_counts:
+                click.echo(f"{pop:<40} {count:>6}")
+
+            if not pattern:
+                click.echo()
+                if len(pop_counts) > 0:
+                    example_pops = [p for p, _ in pop_counts[:3]]
+                    click.echo(f'Tip: Use --filter "pattern*" to search')
+                    click.echo(f'Tip: Specify populations with: --populations "{",".join(example_pops)}"')
+
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
@@ -148,6 +257,9 @@ def f2(input_prefix: str, pop1: str, pop2: str, snp_range: Optional[Tuple[int, i
 
     f2(A, B) measures genetic drift between populations A and B.
     """
+    # Validate populations early
+    validate_populations(input_prefix, [pop1, pop2])
+
     try:
         geno = pm.read_genotypes(input_prefix, snp_range=snp_range)
         # Compute frequencies only for the populations we need (much faster)
@@ -191,6 +303,9 @@ def f3(input_prefix: str, target: str, source1: str, source2: str,
     f3(A; B, C) tests whether A is admixed between B and C.
     A negative value indicates admixture.
     """
+    # Validate populations early
+    validate_populations(input_prefix, [target, source1, source2])
+
     try:
         geno = pm.read_genotypes(input_prefix, snp_range=snp_range)
         # Compute frequencies only for the populations we need (much faster)
@@ -236,6 +351,9 @@ def f4(input_prefix: str, pop1: str, pop2: str, pop3: str, pop4: str,
 
     f4(A, B; C, D) tests for gene flow between (A,B) and (C,D) branches.
     """
+    # Validate populations early
+    validate_populations(input_prefix, [pop1, pop2, pop3, pop4])
+
     try:
         geno = pm.read_genotypes(input_prefix, snp_range=snp_range)
         # Compute frequencies only for the populations we need (much faster)
@@ -289,10 +407,13 @@ def qpadm(input_prefix: str, target: str, left: list, right: list,
         click.echo("Error: Need at least 2 outgroup populations in --right", err=True)
         sys.exit(1)
 
+    # Validate populations early
+    all_pops = [target] + list(left) + list(right)
+    validate_populations(input_prefix, all_pops)
+
     try:
         geno = pm.read_genotypes(input_prefix, snp_range=snp_range)
         # Compute frequencies only for the populations we need (much faster)
-        all_pops = [target] + list(left) + list(right)
         af = geno.allele_frequencies(populations=all_pops)
         f2_blocks = pm.f2_from_frequencies(af)
 
@@ -354,10 +475,13 @@ def qpwave(input_prefix: str, left: list, right: list,
         click.echo("Error: Need at least 2 populations in --right", err=True)
         sys.exit(1)
 
+    # Validate populations early
+    all_pops = list(left) + list(right)
+    validate_populations(input_prefix, all_pops)
+
     try:
         geno = pm.read_genotypes(input_prefix, snp_range=snp_range)
         # Compute frequencies only for the populations we need (much faster)
-        all_pops = list(left) + list(right)
         af = geno.allele_frequencies(populations=all_pops)
         f2_blocks = pm.f2_from_frequencies(af)
 
@@ -401,6 +525,127 @@ def qpwave(input_prefix: str, left: list, right: list,
 
 
 @cli.command()
+@click.option("--input", "-i", "input_prefix", required=True, help="Input genotype file prefix (or full path for VCF)")
+@click.option("--output", "-o", "output_prefix", required=True, help="Output genotype file prefix")
+@click.option("--input-format", "-if", "input_format", default=None,
+              type=click.Choice(["ancestrymap", "eigenstrat", "ped", "packedped", "plink", "packedancestrymap", "vcf"]),
+              help="Input format (auto-detected if not specified)")
+@click.option("--output-format", "-of", "output_format", required=True,
+              type=click.Choice(["ancestrymap", "eigenstrat", "ped", "packedped", "plink", "packedancestrymap"]),
+              help="Output format")
+def convertf(input_prefix: str, output_prefix: str, input_format: Optional[str], output_format: str):
+    """Convert between genotype file formats.
+
+    Supports conversion between 6 input formats:
+    - vcf: VCF format (.vcf, .vcf.gz) - pass full path
+    - ancestrymap: Sparse text (.ancestrymapgeno, .snp, .ind)
+    - eigenstrat: Dense text (.geno, .snp, .ind)
+    - packedancestrymap: Binary EIGENSTRAT (.geno, .snp, .ind)
+    - packedped/plink: Binary PLINK (.bed, .bim, .fam)
+    - ped: Text PLINK (.ped, .map, .pedind)
+
+    Note: VCF output is not supported - use plink, eigenstrat, or packedancestrymap.
+    """
+    try:
+        # Detect input format if not specified
+        if input_format is None:
+            detected = pm.detect_format(input_prefix)
+            click.echo(f"Auto-detected input format: {detected}")
+        else:
+            click.echo(f"Input format: {input_format}")
+
+        click.echo(f"Output format: {output_format}")
+        click.echo(f"Converting {input_prefix} -> {output_prefix}...")
+
+        result = pm.convertf(
+            input_prefix=input_prefix,
+            output_prefix=output_prefix,
+            output_format=output_format,
+            input_format=input_format,
+        )
+
+        click.echo(f"Converted {result['n_snps']} SNPs x {result['n_samples']} samples")
+        click.echo(f"Output files written to {output_prefix}")
+
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@cli.command()
+@click.option("--file-a", "-a", required=True, help="First input genotype file (prefix or full VCF path)")
+@click.option("--file-b", "-b", required=True, help="Second input genotype file (prefix or full VCF path)")
+@click.option("--output", "-o", required=True, help="Output genotype file prefix")
+@click.option("--output-format", "-of", required=True,
+              type=click.Choice(["ancestrymap", "eigenstrat", "ped", "packedped", "plink", "packedancestrymap"]),
+              help="Output format")
+@click.option("--input-format-a", "-ifa", default=None,
+              type=click.Choice(["ancestrymap", "eigenstrat", "ped", "packedped", "plink", "packedancestrymap", "vcf"]),
+              help="Format for file A (auto-detected if not specified)")
+@click.option("--input-format-b", "-ifb", default=None,
+              type=click.Choice(["ancestrymap", "eigenstrat", "ped", "packedped", "plink", "packedancestrymap", "vcf"]),
+              help="Format for file B (auto-detected if not specified)")
+def merge(file_a: str, file_b: str, output: str, output_format: str,
+          input_format_a: Optional[str], input_format_b: Optional[str]):
+    """Merge two genotype datasets.
+
+    Combines samples from two genotype files, keeping only SNPs that
+    exist in both datasets. Alleles are matched and genotypes are
+    recoded when REF/ALT are swapped between files.
+
+    Supports VCF input (pass full path with .vcf or .vcf.gz extension).
+    VCF output is not supported.
+
+    Based on PLINK 2.0 merge algorithm by Shaun Purcell & Christopher Chang.
+    """
+    try:
+        # Detect formats if not specified
+        if input_format_a is None:
+            detected_a = pm.detect_format(file_a)
+            click.echo(f"File A format (auto-detected): {detected_a}")
+        else:
+            click.echo(f"File A format: {input_format_a}")
+
+        if input_format_b is None:
+            detected_b = pm.detect_format(file_b)
+            click.echo(f"File B format (auto-detected): {detected_b}")
+        else:
+            click.echo(f"File B format: {input_format_b}")
+
+        click.echo(f"Output format: {output_format}")
+        click.echo(f"Merging {file_a} + {file_b} -> {output}...")
+
+        result = pm.merge(
+            file_a=file_a,
+            file_b=file_b,
+            output=output,
+            output_format=output_format,
+            input_format_a=input_format_a,
+            input_format_b=input_format_b,
+        )
+
+        click.echo()
+        click.echo("Merge complete:")
+        click.echo(f"  SNPs in file A: {result['snps_a']}")
+        click.echo(f"  SNPs in file B: {result['snps_b']}")
+        click.echo(f"  SNPs in common: {result['snps_merged']}")
+        click.echo(f"  Samples in file A: {result['samples_a']}")
+        click.echo(f"  Samples in file B: {result['samples_b']}")
+        click.echo(f"  Total samples: {result['samples_merged']}")
+
+        if result.get('flipped_snps', 0) > 0:
+            click.echo(f"  Flipped SNPs (recoded): {result['flipped_snps']}")
+        if result.get('strand_ambiguous_snps', 0) > 0:
+            click.echo(f"  Strand-ambiguous SNPs (skipped): {result['strand_ambiguous_snps']}")
+
+        click.echo(f"\nOutput files written to {output}")
+
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@cli.command()
 @click.option("--input", "-i", "input_prefix", required=True, help="Input genotype file prefix")
 @click.option("--test-pop", required=True, help="Test (admixed) population")
 @click.option("--source1", required=True, help="First source population")
@@ -416,6 +661,9 @@ def dates(input_prefix: str, test_pop: str, source1: str, source2: str,
     DATES estimates the time since admixture by fitting an exponential decay
     to weighted linkage disequilibrium as a function of genetic distance.
     """
+    # Validate populations early
+    validate_populations(input_prefix, [test_pop, source1, source2])
+
     try:
         click.echo(f"Loading genotypes from {input_prefix}...", err=True)
         geno = pm.read_genotypes(input_prefix)

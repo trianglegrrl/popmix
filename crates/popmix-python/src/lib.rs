@@ -10,11 +10,13 @@ use std::collections::HashMap;
 use numpy::{IntoPyArray, PyArray1, PyArray2};
 use pyo3::prelude::*;
 
-use popmix_core::{AlleleFrequencies, BlockDefinition, F2Blocks, GenotypeMatrix, Ploidy};
+use popmix_core::{AlleleFrequencies, BlockDefinition, F2Blocks, GenotypeMatrix, Ploidy, Sample};
 use popmix_io::{
     compute_allele_frequencies_packedancestrymap, detect_ploidy_packedancestrymap,
-    is_packed_format, read_f2_blocks, write_f2_blocks, EigenstratReader,
-    PackedAncestryMapReader, PlinkReader,
+    is_packed_format, read_f2_blocks, write_f2_blocks, AncestryMapReader, EigenstratReader,
+    GenoFormat, PackedAncestryMapReader, PedReader, PlinkReader, VcfReader,
+    write_ancestrymap, write_eigenstrat, write_packedancestrymap, write_packedped, write_ped,
+    merge::merge_genotypes,
 };
 
 // ============================================================================
@@ -356,9 +358,29 @@ fn read_packedancestrymap(
     Ok(PyGenotypeMatrix { inner: geno })
 }
 
+/// Read genotypes from VCF (Variant Call Format) files.
+///
+/// Supports both plain text (.vcf) and gzip-compressed (.vcf.gz) files.
+///
+/// Args:
+///     path: Path to the VCF file (including .vcf or .vcf.gz extension)
+///
+/// Returns:
+///     PyGenotypeMatrix containing the genotype data and metadata
+///
+/// Note:
+///     VCF files don't include population information. Each sample's
+///     population is set to its sample ID by default.
+#[pyfunction]
+fn read_vcf(path: &str) -> PyResult<PyGenotypeMatrix> {
+    let reader = VcfReader::new(path).map_err(to_py_err)?;
+    let geno = reader.read_all().map_err(to_py_err)?;
+    Ok(PyGenotypeMatrix { inner: geno })
+}
+
 /// Auto-detect file format and read genotypes.
 ///
-/// Detects whether the dataset is PLINK, EIGENSTRAT, or PACKEDANCESTRYMAP format
+/// Detects whether the dataset is PLINK, EIGENSTRAT, PACKEDANCESTRYMAP, or VCF format
 /// and reads it accordingly.
 ///
 /// Args:
@@ -371,6 +393,24 @@ fn read_packedancestrymap(
 #[pyo3(signature = (prefix, snp_range=None))]
 fn read_genotypes(prefix: &str, snp_range: Option<(usize, usize)>) -> PyResult<PyGenotypeMatrix> {
     use std::path::Path;
+
+    // Check for VCF format (full path with extension)
+    if prefix.ends_with(".vcf") || prefix.ends_with(".vcf.gz") {
+        if Path::new(prefix).exists() {
+            // VCF doesn't support snp_range, ignore it
+            return read_vcf(prefix);
+        }
+    }
+
+    // Check for VCF format with prefix
+    let vcf_gz_path = format!("{}.vcf.gz", prefix);
+    if Path::new(&vcf_gz_path).exists() {
+        return read_vcf(&vcf_gz_path);
+    }
+    let vcf_path = format!("{}.vcf", prefix);
+    if Path::new(&vcf_path).exists() {
+        return read_vcf(&vcf_path);
+    }
 
     // Check for PLINK format (.bed file)
     if Path::new(&format!("{}.bed", prefix)).exists() {
@@ -411,6 +451,253 @@ fn read_f2(path: &str) -> PyResult<PyF2Blocks> {
     Ok(PyF2Blocks { inner })
 }
 
+/// Convert genotype data between file formats.
+///
+/// Supported formats:
+/// - ancestrymap: Sparse text format (.ancestrymapgeno, .snp, .ind)
+/// - eigenstrat: Dense text format (.geno, .snp, .ind)
+/// - packedancestrymap: Binary format (.geno, .snp, .ind)
+/// - plink/packedped: Binary PLINK format (.bed, .bim, .fam)
+/// - ped: Text PLINK format (.ped, .map, .pedind)
+///
+/// Args:
+///     input_prefix: Path prefix for the input dataset
+///     output_prefix: Path prefix for the output dataset
+///     output_format: Output format name (see above)
+///     input_format: Optional input format (auto-detected if not specified)
+///
+/// Returns:
+///     Dictionary with conversion info (n_samples, n_snps, output_format)
+#[pyfunction]
+#[pyo3(signature = (input_prefix, output_prefix, output_format, input_format=None))]
+fn convertf(
+    input_prefix: &str,
+    output_prefix: &str,
+    output_format: &str,
+    input_format: Option<&str>,
+) -> PyResult<HashMap<String, PyObject>> {
+    use std::path::Path;
+
+    // Detect or parse input format
+    let in_format = match input_format {
+        Some(fmt) => GenoFormat::from_str(fmt).map_err(to_py_err)?,
+        None => GenoFormat::detect(input_prefix).map_err(to_py_err)?,
+    };
+
+    // Parse output format
+    let out_format = GenoFormat::from_str(output_format).map_err(to_py_err)?;
+
+    // Read the input data
+    let geno = match in_format {
+        GenoFormat::PackedPed => {
+            let mut reader = PlinkReader::new(input_prefix).map_err(to_py_err)?;
+            reader.read_all().map_err(to_py_err)?
+        }
+        GenoFormat::PackedAncestrymap => {
+            let mut reader = PackedAncestryMapReader::new(input_prefix).map_err(to_py_err)?;
+            reader.read_all().map_err(to_py_err)?
+        }
+        GenoFormat::Eigenstrat => {
+            let reader = EigenstratReader::new(input_prefix).map_err(to_py_err)?;
+            reader.read_all().map_err(to_py_err)?
+        }
+        GenoFormat::Ped => {
+            let reader = PedReader::new(input_prefix).map_err(to_py_err)?;
+            reader.read_all().map_err(to_py_err)?
+        }
+        GenoFormat::Ancestrymap => {
+            let reader = AncestryMapReader::new(input_prefix).map_err(to_py_err)?;
+            reader.read_all().map_err(to_py_err)?
+        }
+        GenoFormat::Vcf => {
+            let reader = VcfReader::new(input_prefix).map_err(to_py_err)?;
+            reader.read_all().map_err(to_py_err)?
+        }
+    };
+
+    let n_samples = geno.n_samples();
+    let n_snps = geno.n_snps();
+
+    // Write the output data
+    let out_path = Path::new(output_prefix);
+    match out_format {
+        GenoFormat::Ancestrymap => {
+            write_ancestrymap(out_path, &geno).map_err(to_py_err)?;
+        }
+        GenoFormat::Eigenstrat => {
+            write_eigenstrat(out_path, &geno).map_err(to_py_err)?;
+        }
+        GenoFormat::PackedAncestrymap => {
+            write_packedancestrymap(out_path, &geno).map_err(to_py_err)?;
+        }
+        GenoFormat::PackedPed => {
+            write_packedped(out_path, &geno).map_err(to_py_err)?;
+        }
+        GenoFormat::Ped => {
+            write_ped(out_path, &geno).map_err(to_py_err)?;
+        }
+        GenoFormat::Vcf => {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "VCF output format is not supported. Use plink, eigenstrat, or packedancestrymap."
+            ));
+        }
+    }
+
+    Python::with_gil(|py| {
+        let mut result: HashMap<String, PyObject> = HashMap::new();
+        result.insert("n_samples".to_string(), n_samples.to_object(py));
+        result.insert("n_snps".to_string(), n_snps.to_object(py));
+        result.insert("input_format".to_string(), in_format.name().to_object(py));
+        result.insert("output_format".to_string(), out_format.name().to_object(py));
+        Ok(result)
+    })
+}
+
+/// Merge two genotype datasets.
+///
+/// Merges two genotype files by SNP intersection. SNPs are matched by
+/// chromosome and position. Allele flips are detected and genotypes
+/// are recoded accordingly.
+///
+/// Based on PLINK 2.0 merge algorithm by Shaun Purcell & Christopher Chang.
+///
+/// Args:
+///     file_a: Path prefix for first dataset
+///     file_b: Path prefix for second dataset
+///     output: Path prefix for output dataset
+///     output_format: Output format ("plink", "eigenstrat", "packedancestrymap", etc.)
+///     input_format_a: Optional input format for file_a (auto-detected if not specified)
+///     input_format_b: Optional input format for file_b (auto-detected if not specified)
+///
+/// Returns:
+///     Dictionary with merge statistics:
+///     - snps_only_a: SNPs only in file A
+///     - snps_only_b: SNPs only in file B
+///     - snps_identical: SNPs with identical alleles
+///     - snps_flipped: SNPs with flipped alleles (recoded)
+///     - snps_strand_ambiguous: SNPs skipped due to A/T or C/G ambiguity
+///     - snps_mismatch: SNPs with mismatched alleles
+///     - samples_total: Total samples in merged output
+///     - snps_merged: Total SNPs in merged output
+#[pyfunction]
+#[pyo3(signature = (file_a, file_b, output, output_format, input_format_a=None, input_format_b=None))]
+fn merge(
+    file_a: &str,
+    file_b: &str,
+    output: &str,
+    output_format: &str,
+    input_format_a: Option<&str>,
+    input_format_b: Option<&str>,
+) -> PyResult<HashMap<String, PyObject>> {
+    use std::path::Path;
+
+    // Helper to read genotypes from a prefix
+    fn read_geno(prefix: &str, format: Option<&str>) -> PyResult<GenotypeMatrix> {
+        let fmt = match format {
+            Some(f) => GenoFormat::from_str(f).map_err(to_py_err)?,
+            None => GenoFormat::detect(prefix).map_err(to_py_err)?,
+        };
+
+        match fmt {
+            GenoFormat::PackedPed => {
+                let mut reader = PlinkReader::new(prefix).map_err(to_py_err)?;
+                reader.read_all().map_err(to_py_err)
+            }
+            GenoFormat::PackedAncestrymap => {
+                let mut reader = PackedAncestryMapReader::new(prefix).map_err(to_py_err)?;
+                reader.read_all().map_err(to_py_err)
+            }
+            GenoFormat::Eigenstrat => {
+                let reader = EigenstratReader::new(prefix).map_err(to_py_err)?;
+                reader.read_all().map_err(to_py_err)
+            }
+            GenoFormat::Ped => {
+                let reader = PedReader::new(prefix).map_err(to_py_err)?;
+                reader.read_all().map_err(to_py_err)
+            }
+            GenoFormat::Ancestrymap => {
+                let reader = AncestryMapReader::new(prefix).map_err(to_py_err)?;
+                reader.read_all().map_err(to_py_err)
+            }
+            GenoFormat::Vcf => {
+                let reader = VcfReader::new(prefix).map_err(to_py_err)?;
+                reader.read_all().map_err(to_py_err)
+            }
+        }
+    }
+
+    // Read both input files
+    let geno_a = read_geno(file_a, input_format_a)?;
+    let geno_b = read_geno(file_b, input_format_b)?;
+
+    // Capture input stats before merging
+    let snps_a = geno_a.n_snps();
+    let snps_b = geno_b.n_snps();
+    let samples_a = geno_a.n_samples();
+    let samples_b = geno_b.n_samples();
+
+    // Merge
+    let (merged, stats) = merge_genotypes(&geno_a, &geno_b, false).map_err(to_py_err)?;
+
+    // Write output
+    let out_format = GenoFormat::from_str(output_format).map_err(to_py_err)?;
+    let out_path = Path::new(output);
+
+    match out_format {
+        GenoFormat::Ancestrymap => {
+            write_ancestrymap(out_path, &merged).map_err(to_py_err)?;
+        }
+        GenoFormat::Eigenstrat => {
+            write_eigenstrat(out_path, &merged).map_err(to_py_err)?;
+        }
+        GenoFormat::PackedAncestrymap => {
+            write_packedancestrymap(out_path, &merged).map_err(to_py_err)?;
+        }
+        GenoFormat::PackedPed => {
+            write_packedped(out_path, &merged).map_err(to_py_err)?;
+        }
+        GenoFormat::Ped => {
+            write_ped(out_path, &merged).map_err(to_py_err)?;
+        }
+        GenoFormat::Vcf => {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "VCF output format is not supported. Use plink, eigenstrat, or packedancestrymap."
+            ));
+        }
+    }
+
+    // Return stats
+    Python::with_gil(|py| {
+        let mut result: HashMap<String, PyObject> = HashMap::new();
+        // Input file stats
+        result.insert("snps_a".to_string(), snps_a.to_object(py));
+        result.insert("snps_b".to_string(), snps_b.to_object(py));
+        result.insert("samples_a".to_string(), samples_a.to_object(py));
+        result.insert("samples_b".to_string(), samples_b.to_object(py));
+        // Merge stats
+        result.insert("snps_merged".to_string(), merged.n_snps().to_object(py));
+        result.insert("samples_merged".to_string(), merged.n_samples().to_object(py));
+        result.insert("snps_identical".to_string(), stats.snps_identical.to_object(py));
+        result.insert("flipped_snps".to_string(), stats.snps_flipped.to_object(py));
+        result.insert("strand_ambiguous_snps".to_string(), stats.snps_strand_ambiguous.to_object(py));
+        result.insert("snps_mismatch".to_string(), stats.snps_mismatch.to_object(py));
+        Ok(result)
+    })
+}
+
+/// Detect the genotype file format at a given prefix.
+///
+/// Args:
+///     prefix: Path prefix for the dataset (or full path for VCF files)
+///
+/// Returns:
+///     Format name: "ANCESTRYMAP", "EIGENSTRAT", "PED", "PACKEDPED", "PACKEDANCESTRYMAP", or "VCF"
+#[pyfunction]
+fn detect_format(prefix: &str) -> PyResult<String> {
+    let format = GenoFormat::detect(prefix).map_err(to_py_err)?;
+    Ok(format.name().to_string())
+}
+
 /// Get information about a genotype dataset without reading all data.
 ///
 /// Args:
@@ -424,6 +711,62 @@ fn dataset_info(prefix: &str) -> PyResult<HashMap<String, PyObject>> {
 
     Python::with_gil(|py| {
         let mut info: HashMap<String, PyObject> = HashMap::new();
+
+        // Check for VCF format (full path with extension)
+        if prefix.ends_with(".vcf") || prefix.ends_with(".vcf.gz") {
+            if Path::new(prefix).exists() {
+                let reader = VcfReader::new(prefix).map_err(to_py_err)?;
+                info.insert("format".to_string(), "vcf".to_object(py));
+                info.insert("n_samples".to_string(), reader.num_samples().to_object(py));
+                info.insert("n_snps".to_string(), reader.num_snps().to_object(py));
+
+                let pops: Vec<String> = reader
+                    .samples()
+                    .iter()
+                    .map(|s| s.population.to_string())
+                    .collect::<std::collections::HashSet<_>>()
+                    .into_iter()
+                    .collect();
+                info.insert("populations".to_string(), pops.to_object(py));
+                return Ok(info);
+            }
+        }
+
+        // Check for VCF format with prefix
+        let vcf_gz_path = format!("{}.vcf.gz", prefix);
+        if Path::new(&vcf_gz_path).exists() {
+            let reader = VcfReader::new(&vcf_gz_path).map_err(to_py_err)?;
+            info.insert("format".to_string(), "vcf".to_object(py));
+            info.insert("n_samples".to_string(), reader.num_samples().to_object(py));
+            info.insert("n_snps".to_string(), reader.num_snps().to_object(py));
+
+            let pops: Vec<String> = reader
+                .samples()
+                .iter()
+                .map(|s| s.population.to_string())
+                .collect::<std::collections::HashSet<_>>()
+                .into_iter()
+                .collect();
+            info.insert("populations".to_string(), pops.to_object(py));
+            return Ok(info);
+        }
+        let vcf_path = format!("{}.vcf", prefix);
+        if Path::new(&vcf_path).exists() {
+            let reader = VcfReader::new(&vcf_path).map_err(to_py_err)?;
+            info.insert("format".to_string(), "vcf".to_object(py));
+            info.insert("n_samples".to_string(), reader.num_samples().to_object(py));
+            info.insert("n_snps".to_string(), reader.num_snps().to_object(py));
+
+            let pops: Vec<String> = reader
+                .samples()
+                .iter()
+                .map(|s| s.population.to_string())
+                .collect::<std::collections::HashSet<_>>()
+                .into_iter()
+                .collect();
+            info.insert("populations".to_string(), pops.to_object(py));
+            return Ok(info);
+        }
 
         // Check for PLINK format
         if Path::new(&format!("{}.bed", prefix)).exists() {
@@ -482,6 +825,166 @@ fn dataset_info(prefix: &str) -> PyResult<HashMap<String, PyObject>> {
             format!("No genotype files found for prefix: {}", prefix),
         ))
     })
+}
+
+/// List all populations in a dataset with sample counts.
+///
+/// Args:
+///     prefix: Path prefix for the dataset
+///
+/// Returns:
+///     List of (population_name, sample_count) tuples, sorted by count descending
+#[pyfunction]
+fn list_populations(prefix: &str) -> PyResult<Vec<(String, usize)>> {
+    use std::path::Path;
+    use std::collections::HashMap;
+
+    // Helper to count populations from samples
+    fn count_populations(samples: &[Sample]) -> Vec<(String, usize)> {
+        let mut counts: HashMap<String, usize> = HashMap::new();
+        for sample in samples {
+            *counts.entry(sample.population.to_string()).or_insert(0) += 1;
+        }
+        let mut pop_counts: Vec<(String, usize)> = counts.into_iter().collect();
+        pop_counts.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+        pop_counts
+    }
+
+    // Check for VCF format (full path with extension)
+    if prefix.ends_with(".vcf") || prefix.ends_with(".vcf.gz") {
+        if Path::new(prefix).exists() {
+            let reader = VcfReader::new(prefix).map_err(to_py_err)?;
+            return Ok(count_populations(reader.samples()));
+        }
+    }
+
+    // Check for VCF format with prefix
+    let vcf_gz_path = format!("{}.vcf.gz", prefix);
+    if Path::new(&vcf_gz_path).exists() {
+        let reader = VcfReader::new(&vcf_gz_path).map_err(to_py_err)?;
+        return Ok(count_populations(reader.samples()));
+    }
+    let vcf_path = format!("{}.vcf", prefix);
+    if Path::new(&vcf_path).exists() {
+        let reader = VcfReader::new(&vcf_path).map_err(to_py_err)?;
+        return Ok(count_populations(reader.samples()));
+    }
+
+    // Check for PLINK format
+    if Path::new(&format!("{}.bed", prefix)).exists() {
+        let reader = PlinkReader::new(prefix).map_err(to_py_err)?;
+        return Ok(count_populations(reader.samples()));
+    }
+
+    // Check for EIGENSTRAT/PACKEDANCESTRYMAP format
+    let geno_path = format!("{}.geno", prefix);
+    if Path::new(&geno_path).exists() {
+        if is_packed_format(&geno_path).map_err(to_py_err)? {
+            let reader = PackedAncestryMapReader::new(prefix).map_err(to_py_err)?;
+            return Ok(count_populations(reader.samples()));
+        } else {
+            let reader = EigenstratReader::new(prefix).map_err(to_py_err)?;
+            return Ok(count_populations(reader.samples()));
+        }
+    }
+
+    Err(PyErr::new::<pyo3::exceptions::PyFileNotFoundError, _>(
+        format!("No genotype files found for prefix: {}", prefix),
+    ))
+}
+
+/// Suggest similar population names for typos/errors.
+///
+/// Uses simple string similarity:
+/// 1. Case-insensitive prefix match (highest priority)
+/// 2. Case-insensitive substring match
+/// 3. Levenshtein distance for typos
+///
+/// Args:
+///     prefix: Path prefix for the dataset
+///     query: The population name to find suggestions for
+///     limit: Maximum number of suggestions to return (default: 5)
+///
+/// Returns:
+///     List of (population_name, sample_count) tuples, most similar first
+#[pyfunction]
+#[pyo3(signature = (prefix, query, limit=5))]
+fn suggest_populations(prefix: &str, query: &str, limit: usize) -> PyResult<Vec<(String, usize)>> {
+    let all_pops = list_populations(prefix)?;
+
+    if all_pops.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let query_lower = query.to_lowercase();
+
+    // Score each population by similarity
+    let mut scored: Vec<(i32, String, usize)> = all_pops
+        .into_iter()
+        .map(|(pop, count)| {
+            let pop_lower = pop.to_lowercase();
+
+            // Priority scores (lower = better match)
+            let score = if pop_lower == query_lower && pop != query {
+                0 // Case-different exact match (suggest the correct case)
+            } else if pop_lower == query_lower {
+                -1 // Exact match - skip
+            } else if pop_lower.starts_with(&query_lower) {
+                1 // Prefix match
+            } else if pop_lower.contains(&query_lower) {
+                2 // Substring match
+            } else if query_lower.len() >= 3 && pop_lower.contains(&query_lower[..3]) {
+                3 // First 3 chars match
+            } else {
+                // Levenshtein distance (higher = worse)
+                let dist = levenshtein_distance(&query_lower, &pop_lower);
+                if dist <= 3 {
+                    4 + dist as i32 // Close typo
+                } else {
+                    100 + dist as i32 // Too different
+                }
+            };
+
+            (score, pop, count)
+        })
+        .collect();
+
+    // Sort by score, then by count descending
+    scored.sort_by(|a, b| a.0.cmp(&b.0).then(b.2.cmp(&a.2)));
+
+    // Return top matches (excluding exact matches and poor matches)
+    Ok(scored
+        .into_iter()
+        .filter(|(score, _, _)| *score >= 0 && *score < 100)
+        .take(limit)
+        .map(|(_, pop, count)| (pop, count))
+        .collect())
+}
+
+/// Simple Levenshtein distance implementation.
+fn levenshtein_distance(a: &str, b: &str) -> usize {
+    let a_chars: Vec<char> = a.chars().collect();
+    let b_chars: Vec<char> = b.chars().collect();
+    let (m, n) = (a_chars.len(), b_chars.len());
+
+    if m == 0 { return n; }
+    if n == 0 { return m; }
+
+    let mut prev: Vec<usize> = (0..=n).collect();
+    let mut curr = vec![0; n + 1];
+
+    for i in 1..=m {
+        curr[0] = i;
+        for j in 1..=n {
+            let cost = if a_chars[i - 1] == b_chars[j - 1] { 0 } else { 1 };
+            curr[j] = (prev[j] + 1)
+                .min(curr[j - 1] + 1)
+                .min(prev[j - 1] + cost);
+        }
+        std::mem::swap(&mut prev, &mut curr);
+    }
+
+    prev[n]
 }
 
 // ============================================================================
@@ -1767,6 +2270,26 @@ fn find_graphs(
 fn read_genotypes_internal(prefix: &str) -> PyResult<GenotypeMatrix> {
     use std::path::Path;
 
+    // Check for VCF format (full path with extension)
+    if prefix.ends_with(".vcf") || prefix.ends_with(".vcf.gz") {
+        if Path::new(prefix).exists() {
+            let reader = VcfReader::new(prefix).map_err(to_py_err)?;
+            return reader.read_all().map_err(to_py_err);
+        }
+    }
+
+    // Check for VCF format with prefix
+    let vcf_gz_path = format!("{}.vcf.gz", prefix);
+    if Path::new(&vcf_gz_path).exists() {
+        let reader = VcfReader::new(&vcf_gz_path).map_err(to_py_err)?;
+        return reader.read_all().map_err(to_py_err);
+    }
+    let vcf_path = format!("{}.vcf", prefix);
+    if Path::new(&vcf_path).exists() {
+        let reader = VcfReader::new(&vcf_path).map_err(to_py_err)?;
+        return reader.read_all().map_err(to_py_err);
+    }
+
     // Check for PLINK format (.bed file)
     if Path::new(&format!("{}.bed", prefix)).exists() {
         let mut reader = PlinkReader::new(prefix).map_err(to_py_err)?;
@@ -2022,9 +2545,15 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(read_plink, m)?)?;
     m.add_function(wrap_pyfunction!(read_eigenstrat, m)?)?;
     m.add_function(wrap_pyfunction!(read_packedancestrymap, m)?)?;
+    m.add_function(wrap_pyfunction!(read_vcf, m)?)?;
     m.add_function(wrap_pyfunction!(read_genotypes, m)?)?;
     m.add_function(wrap_pyfunction!(read_f2, m)?)?;
     m.add_function(wrap_pyfunction!(dataset_info, m)?)?;
+    m.add_function(wrap_pyfunction!(list_populations, m)?)?;
+    m.add_function(wrap_pyfunction!(suggest_populations, m)?)?;
+    m.add_function(wrap_pyfunction!(convertf, m)?)?;
+    m.add_function(wrap_pyfunction!(merge, m)?)?;
+    m.add_function(wrap_pyfunction!(detect_format, m)?)?;
 
     // F-statistics functions
     m.add_function(wrap_pyfunction!(extract_f2, m)?)?;

@@ -10,6 +10,7 @@ popmix-core = { path = "../popmix-core" }
 ndarray = { workspace = true }
 memmap2 = { workspace = true }
 byteorder = { workspace = true }
+flate2 = { workspace = true }
 thiserror = { workspace = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

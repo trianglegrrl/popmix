@@ -1,0 +1,105 @@
+---
+description: Testing guidelines and TDD workflow for popmix
+globs:
+  - "tests/**/*"
+  - "crates/**/tests/**/*"
+---
+
+# Testing Guidelines
+
+## Test-Driven Development (TDD) Workflow
+
+Follow this workflow when implementing new features:
+
+### 1. RED: Generate Reference Data from admixtools2
+
+First, compute expected output using admixtools2 in R:
+
+```bash
+/usr/bin/R
+```
+
+```r
+library(admixtools)
+prefix <- "/references/aadr/v62.0_1240k_public"
+f2 <- f2_from_geno(prefix, pops = c("Han.DG", "Yoruba.DG", "Mbuti.DG"))
+
+result <- fst(f2)
+# Save to JSON for golden master test
+```
+
+Save reference data to `tests/golden/<statistic>_reference.json`.
+
+### 2. RED: Write Failing Tests
+
+```rust
+#[test]
+fn test_fst_matches_admixtools2() {
+    let f2_blocks = load_test_f2_blocks();
+    let result = f2_blocks.fst("Han.DG", "Yoruba.DG").unwrap();
+    
+    let expected = 0.0623;  // From admixtools2
+    assert!((result.estimate - expected).abs() < 0.0001);
+}
+```
+
+### 3. GREEN: Implement Minimum Code
+
+Reference admixtools2 source at `/home/a/popmix/admixtools/R/`.
+
+### 4. Add PyO3 Bindings
+
+Add Python wrapper and rebuild.
+
+### 5. Add Golden Master Test
+
+```python
+def test_fst_golden_master():
+    """Compare FST output against admixtools2 reference."""
+    f2 = pm.extract_f2(AADR_PREFIX, populations=["Han.DG", "Yoruba.DG"])
+    result = f2.fst("Han.DG", "Yoruba.DG")
+    
+    with open("tests/golden/fst_reference.json") as f:
+        ref = json.load(f)
+    
+    assert abs(result["estimate"] - ref["estimate"]) < 0.0001
+```
+
+## Numerical Tolerances
+
+When comparing with admixtools2 outputs:
+
+| Statistic | rtol | atol |
+|-----------|------|------|
+| F-statistics | 1e-10 | 1e-15 |
+| Standard errors | 1e-6 | - |
+| Admixture weights | 1e-6 | - |
+| P-values | 1e-4 | - |
+
+## Test Organization
+
+```
+tests/
+├── python/          # pytest tests for Python API
+├── golden/          # admixtools2 comparison tests
+│   ├── generate_reference.R  # Script to generate reference data
+│   └── *.json       # Reference outputs
+├── rust/            # Rust integration tests
+└── fixtures/        # Test data files
+```
+
+## Running Tests
+
+```bash
+# Rust tests
+cargo test --workspace
+cargo test -p popmix-core fst  # Specific tests
+
+# Python tests (venv required)
+unset CONDA_PREFIX && source .venv/bin/activate
+pytest tests/python -v
+pytest tests/golden -v
+
+# Skip slow tests
+pytest -m "not slow" tests/
+```

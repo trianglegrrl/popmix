@@ -1,0 +1,47 @@
+name: "popmix_qpwave"
+description: Test the number of ancestry streams using qpWave
+keywords:
+  - population genetics
+  - admixture
+  - qpwave
+tools:
+  - popmix:
+      description: Population genetics toolkit for F-statistics and admixture analysis
+      homepage: https://github.com/your-repo/popmix
+      documentation: https://github.com/your-repo/popmix
+      licence: ["MIT"]
+
+input:
+  - meta:
+      type: map
+      description: |
+        Groovy Map containing sample information
+        e.g. [ id:'test' ]
+  - f2_blocks:
+      type: directory
+      description: Directory containing pre-computed F2 blocks
+      pattern: "*_f2"
+  - left_pops:
+      type: list
+      description: List of left (test) populations
+  - right_pops:
+      type: list
+      description: List of right (reference/outgroup) populations
+
+output:
+  - meta:
+      type: map
+      description: |
+        Groovy Map containing sample information
+        e.g. [ id:'test' ]
+  - results:
+      type: file
+      description: qpWave results in JSON format
+      pattern: "*_qpwave.json"
+  - versions:
+      type: file
+      description: File containing software versions
+      pattern: "versions.yml"
+
+authors:
+  - "@your-username"

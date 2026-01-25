@@ -1,0 +1,81 @@
+---
+description: Rust code style and development patterns for popmix
+globs:
+  - "crates/**/*.rs"
+  - "Cargo.toml"
+  - "crates/**/Cargo.toml"
+---
+
+# Rust Development Guidelines
+
+## Error Handling
+
+- **NO exception swallowing** - all errors must propagate with context
+- Use `thiserror` for error types (see `popmix-core/src/error.rs`)
+- Use the `Result<T>` type alias from `popmix_core::error`
+- Add context to errors using descriptive struct variants
+
+```rust
+// Good: Explicit error with context
+#[error("Population not found: '{0}'")]
+PopulationNotFound(String),
+
+// Good: Propagate with context
+fn get_pop(&self, name: &str) -> Result<&Population> {
+    self.populations.get(name)
+        .ok_or_else(|| PopmixError::PopulationNotFound(name.to_string()))
+}
+```
+
+## Parallelization
+
+- Use `rayon` for parallel iteration
+- Default thread count: 4 (configurable via `init_thread_pool`)
+- Use `par_iter()` for embarrassingly parallel operations
+- Be mindful of memory allocation in parallel loops
+
+```rust
+use rayon::prelude::*;
+
+// Parallel computation over blocks
+let results: Vec<_> = blocks.par_iter()
+    .map(|block| compute_statistic(block))
+    .collect();
+```
+
+## Code Style
+
+- Run `cargo fmt` and `cargo clippy` before committing
+- Use `//!` doc comments for module-level documentation
+- Use `///` doc comments for public items
+- Group imports: std, external crates, internal modules
+
+## Module Organization
+
+```rust
+// In lib.rs - re-export public API
+pub mod error;
+pub mod fstats;
+
+// Re-exports for convenience
+pub use error::{PopmixError, Result};
+pub use fstats::{F2Blocks, F2Result};
+```
+
+## Testing
+
+```bash
+cargo test --workspace                    # All tests
+cargo test --workspace -- --nocapture     # With output
+cargo test -p popmix-core fst             # Specific tests
+```
+
+## Numerical Precision
+
+Use `approx` crate for floating-point comparisons:
+
+```rust
+use approx::assert_relative_eq;
+
+assert_relative_eq!(result, expected, epsilon = 1e-10);
+```

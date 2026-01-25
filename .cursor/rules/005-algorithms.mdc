@@ -1,0 +1,86 @@
+---
+description: Population genetics algorithm implementations and formulas
+globs:
+  - "crates/popmix-core/**/*.rs"
+---
+
+# Algorithm Implementation Guide
+
+## Key Formulas
+
+### F2-Statistics (Bias-Corrected)
+
+```
+f2(A,B) = E[(pA - pB)²] - bias_correction
+bias_correction = pA(1-pA)/(nA-1) + pB(1-pB)/(nB-1)
+```
+
+### F3/F4 (Derived from F2)
+
+```
+f3(A; B,C) = (f2(A,B) + f2(A,C) - f2(B,C)) / 2
+f4(A,B; C,D) = (f2(A,D) + f2(B,C) - f2(A,C) - f2(B,D)) / 2
+```
+
+### FST (Fixation Index)
+
+```
+FST = mean(f2) / mean(f2_raw + het_a + het_b)
+where:
+  f2_raw = (pA - pB)²  (no bias correction)
+  het = p * (1 - p)    (admixtools2 convention, NOT 2*p*(1-p))
+```
+
+Uses ratio-of-means with jackknife standard errors.
+
+## F2 Block Storage Format (v3)
+
+```
+f2_blocks/
+├── metadata.json       # Version, populations, block info
+├── block_sums.npy      # F2 values (bias-corrected)
+├── block_raw_sums.npy  # Raw squared diffs (for FST)
+├── block_weights.npy   # SNP counts per block
+├── block_het_sums.npy  # Heterozygosity sums
+└── block_het_weights.npy  # Het weights
+```
+
+## Implementation Checklist
+
+When implementing a new algorithm:
+
+1. **Read admixtools2 source** at `/home/a/popmix/admixtools/R/`
+2. **Understand the mathematical formula** - document in code
+3. **Check for bias corrections** - admixtools2 uses small-sample corrections
+4. **Use jackknife for standard errors** - block-based resampling
+5. **Test against admixtools2 output** - use golden master tests
+6. **Handle edge cases** - missing data, small sample sizes
+
+## Threading Configuration
+
+Default: 4 threads. Configure via:
+
+```rust
+// Rust
+popmix_core::init_thread_pool(Some(8));
+```
+
+```python
+# Python
+popmix.init_threads(8)
+```
+
+```bash
+# CLI
+popmix --threads 8 ...
+```
+
+## Reference: admixtools2 Source Files
+
+| Algorithm | R Source File |
+|-----------|---------------|
+| F-statistics | `admixtools/R/fstats.R` |
+| qpAdm/qpWave | `admixtools/R/qpadm.R` |
+| qpGraph | `admixtools/R/qpgraph.R` |
+| File I/O | `admixtools/R/io.R` |
+| DATES | `admixtools/R/dates.R` |

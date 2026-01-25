@@ -1,0 +1,47 @@
+name: "popmix_f2"
+description: Compute f2 statistic between two populations
+keywords:
+  - population genetics
+  - f-statistics
+  - ancestry
+tools:
+  - popmix:
+      description: Population genetics toolkit for F-statistics and admixture analysis
+      homepage: https://github.com/your-repo/popmix
+      documentation: https://github.com/your-repo/popmix
+      licence: ["MIT"]
+
+input:
+  - meta:
+      type: map
+      description: |
+        Groovy Map containing sample information
+        e.g. [ id:'test' ]
+  - f2_blocks:
+      type: directory
+      description: Directory containing pre-computed F2 blocks
+      pattern: "*_f2"
+  - pop_a:
+      type: string
+      description: First population name
+  - pop_b:
+      type: string
+      description: Second population name
+
+output:
+  - meta:
+      type: map
+      description: |
+        Groovy Map containing sample information
+        e.g. [ id:'test' ]
+  - results:
+      type: file
+      description: F2 statistic results in JSON format
+      pattern: "*_f2.json"
+  - versions:
+      type: file
+      description: File containing software versions
+      pattern: "versions.yml"
+
+authors:
+  - "@your-username"

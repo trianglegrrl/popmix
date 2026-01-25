@@ -1,0 +1,70 @@
+---
+description: Population genetics file format handling in popmix-io
+globs:
+  - "crates/popmix-io/**/*.rs"
+---
+
+# File Format Handling
+
+## Supported Formats
+
+| Format | Extensions | Description |
+|--------|------------|-------------|
+| EIGENSTRAT | .geno, .snp, .ind | Text-based genotype format |
+| PackedAncestryMap | .geno (packed), .snp, .ind | Binary-packed EIGENSTRAT |
+| PLINK | .bed, .bim, .fam | Binary genotype format |
+| VCF | .vcf, .vcf.gz | Variant Call Format |
+
+## File Prefix Convention
+
+All formats use a common prefix pattern:
+- EIGENSTRAT: `prefix.geno`, `prefix.snp`, `prefix.ind`
+- PLINK: `prefix.bed`, `prefix.bim`, `prefix.fam`
+
+```rust
+// Detect format automatically
+let format = detect_format(prefix)?;
+let genotypes = match format {
+    Format::Eigenstrat => read_eigenstrat(prefix)?,
+    Format::Plink => read_plink(prefix)?,
+    // ...
+};
+```
+
+## Memory Mapping
+
+Use `memmap2` for large files:
+
+```rust
+use memmap2::Mmap;
+
+let file = File::open(path)?;
+let mmap = unsafe { Mmap::map(&file)? };
+```
+
+## Streaming Reads
+
+For very large datasets, use streaming API:
+
+```rust
+let reader = StreamingGenotypes::new(prefix)?;
+for chunk in reader.chunks(10000) {
+    process_chunk(chunk?);
+}
+```
+
+## Test Data
+
+Real datasets for integration tests:
+- **AADR v62**: `/references/aadr/v62.0_1240k_public.*`
+- **AADR HO**: `/references/aadr_v54.1.p1/HO_public.*`
+- **1000G**: `/8tb/1000genomes/`
+
+## I/O Error Handling
+
+Always provide file context in errors:
+
+```rust
+PopmixError::io_with_path(io_error, path)
+PopmixError::parse(file, line, details)
+```

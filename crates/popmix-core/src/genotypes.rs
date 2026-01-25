@@ -84,6 +84,61 @@ impl Genotype {
     pub fn is_het(self) -> bool {
         matches!(self, Genotype::Het)
     }
+
+    /// Convert to EIGENSTRAT character encoding.
+    ///
+    /// Returns '0', '1', '2', or '9' for missing.
+    #[inline]
+    pub fn to_eigenstrat_char(self) -> u8 {
+        match self {
+            Genotype::HomRef => b'0',
+            Genotype::Het => b'1',
+            Genotype::HomAlt => b'2',
+            Genotype::Missing => b'9',
+        }
+    }
+
+    /// Convert to PLINK 2-bit encoding.
+    ///
+    /// Returns the 2-bit value for PLINK .bed format.
+    /// Note: This is the inverse of `from_plink_bits`.
+    #[inline]
+    pub fn to_plink_bits(self) -> u8 {
+        match self {
+            Genotype::HomRef => 0b11,
+            Genotype::Het => 0b10,
+            Genotype::HomAlt => 0b00,
+            Genotype::Missing => 0b01,
+        }
+    }
+
+    /// Convert to PACKEDANCESTRYMAP 2-bit encoding.
+    ///
+    /// Encoding: 00=HomRef, 01=Het, 10=HomAlt, 11=Missing
+    /// Note: This differs from PLINK encoding!
+    #[inline]
+    pub fn to_packed_bits(self) -> u8 {
+        match self {
+            Genotype::HomRef => 0b00,
+            Genotype::Het => 0b01,
+            Genotype::HomAlt => 0b10,
+            Genotype::Missing => 0b11,
+        }
+    }
+
+    /// Create a genotype from PACKEDANCESTRYMAP 2-bit encoding.
+    ///
+    /// Encoding: 00=HomRef, 01=Het, 10=HomAlt, 11=Missing
+    #[inline]
+    pub fn from_packed_bits(bits: u8) -> Self {
+        match bits & 0b11 {
+            0b00 => Genotype::HomRef,
+            0b01 => Genotype::Het,
+            0b10 => Genotype::HomAlt,
+            0b11 => Genotype::Missing,
+            _ => unreachable!(),
+        }
+    }
 }
 
 impl fmt::Display for Genotype {
@@ -353,5 +408,40 @@ mod tests {
 
         let x_snp = Snp::new("rsX", Chromosome::X, 100, 0.01, 'A', 'G');
         assert!(!x_snp.is_autosomal());
+    }
+
+    #[test]
+    fn test_genotype_to_eigenstrat_char() {
+        assert_eq!(Genotype::HomRef.to_eigenstrat_char(), b'0');
+        assert_eq!(Genotype::Het.to_eigenstrat_char(), b'1');
+        assert_eq!(Genotype::HomAlt.to_eigenstrat_char(), b'2');
+        assert_eq!(Genotype::Missing.to_eigenstrat_char(), b'9');
+    }
+
+    #[test]
+    fn test_genotype_to_plink_bits() {
+        // Verify round-trip
+        assert_eq!(Genotype::from_plink_bits(Genotype::HomRef.to_plink_bits()), Genotype::HomRef);
+        assert_eq!(Genotype::from_plink_bits(Genotype::Het.to_plink_bits()), Genotype::Het);
+        assert_eq!(Genotype::from_plink_bits(Genotype::HomAlt.to_plink_bits()), Genotype::HomAlt);
+        assert_eq!(Genotype::from_plink_bits(Genotype::Missing.to_plink_bits()), Genotype::Missing);
+    }
+
+    #[test]
+    fn test_genotype_packed_bits_roundtrip() {
+        // Verify round-trip for PACKEDANCESTRYMAP encoding
+        assert_eq!(Genotype::from_packed_bits(Genotype::HomRef.to_packed_bits()), Genotype::HomRef);
+        assert_eq!(Genotype::from_packed_bits(Genotype::Het.to_packed_bits()), Genotype::Het);
+        assert_eq!(Genotype::from_packed_bits(Genotype::HomAlt.to_packed_bits()), Genotype::HomAlt);
+        assert_eq!(Genotype::from_packed_bits(Genotype::Missing.to_packed_bits()), Genotype::Missing);
+    }
+
+    #[test]
+    fn test_packed_bits_encoding() {
+        // Verify specific encoding values
+        assert_eq!(Genotype::HomRef.to_packed_bits(), 0b00);
+        assert_eq!(Genotype::Het.to_packed_bits(), 0b01);
+        assert_eq!(Genotype::HomAlt.to_packed_bits(), 0b10);
+        assert_eq!(Genotype::Missing.to_packed_bits(), 0b11);
     }
 }

@@ -1,0 +1,50 @@
+name: "popmix_qpadm"
+description: Estimate admixture proportions using qpAdm
+keywords:
+  - population genetics
+  - admixture
+  - qpadm
+tools:
+  - popmix:
+      description: Population genetics toolkit for F-statistics and admixture analysis
+      homepage: https://github.com/your-repo/popmix
+      documentation: https://github.com/your-repo/popmix
+      licence: ["MIT"]
+
+input:
+  - meta:
+      type: map
+      description: |
+        Groovy Map containing sample information
+        e.g. [ id:'test' ]
+  - geno_files:
+      type: file
+      description: Genotype files (EIGENSTRAT, PLINK, etc.)
+      pattern: "*"
+  - target:
+      type: string
+      description: Target population to model
+  - sources:
+      type: list
+      description: List of source populations
+  - outgroups:
+      type: list
+      description: List of outgroup/reference populations
+
+output:
+  - meta:
+      type: map
+      description: |
+        Groovy Map containing sample information
+        e.g. [ id:'test' ]
+  - results:
+      type: file
+      description: qpAdm results in JSON format
+      pattern: "*_qpadm.json"
+  - versions:
+      type: file
+      description: File containing software versions
+      pattern: "versions.yml"
+
+authors:
+  - "@your-username"

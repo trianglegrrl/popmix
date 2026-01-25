@@ -1,0 +1,51 @@
+name: "popmix_extractf2"
+description: Extract F2 blocks from genotype data for downstream f-statistic analyses
+keywords:
+  - population genetics
+  - f-statistics
+  - admixture
+  - ancient DNA
+tools:
+  - "popmix":
+      description: "Population genetics F-statistics and admixture analysis toolkit"
+      homepage: "https://github.com/your-org/popmix"
+      documentation: "https://github.com/your-org/popmix/blob/main/README.md"
+      licence: ["MIT"]
+
+input:
+  - meta:
+      type: map
+      description: |
+        Groovy Map containing sample information
+        e.g. [ id:'test', prefix:'data' ]
+  - geno_files:
+      type: file
+      description: |
+        Genotype files (PLINK .bed/.bim/.fam, EIGENSTRAT .geno/.snp/.ind, or PACKEDANCESTRYMAP)
+      pattern: "*.{bed,bim,fam,geno,snp,ind}"
+  - populations:
+      type: list
+      description: List of population names to include (optional, defaults to all)
+  - block_size:
+      type: number
+      description: Block size in Morgans for jackknife resampling (default 0.05)
+
+output:
+  - meta:
+      type: map
+      description: |
+        Groovy Map containing sample information
+        e.g. [ id:'test', prefix:'data' ]
+  - f2_blocks:
+      type: directory
+      description: Directory containing F2 block data (metadata.json, *.npy files)
+      pattern: "*_f2"
+  - versions:
+      type: file
+      description: File containing software versions
+      pattern: "versions.yml"
+
+authors:
+  - "@your-username"
+maintainers:
+  - "@your-username"

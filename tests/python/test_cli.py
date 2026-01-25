@@ -342,6 +342,100 @@ class TestDatesCommand:
         assert result.returncode != 0
 
 
+class TestMergeCommand:
+    """Test the 'merge' command for combining genotype datasets."""
+
+    # Test data paths
+    MERGE_A_PREFIX = "tests/fixtures/merge_a"
+    MERGE_B_PREFIX = "tests/fixtures/merge_b"
+
+    @pytest.mark.skipif(
+        not os.path.exists("tests/fixtures/merge_a.geno"),
+        reason="Merge test fixtures not available"
+    )
+    def test_merge_creates_output(self):
+        """popmix merge should create merged genotype files."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "merged"
+
+            result = run_cli(
+                "merge",
+                "--file-a", self.MERGE_A_PREFIX,
+                "--file-b", self.MERGE_B_PREFIX,
+                "--output", str(output),
+                "--output-format", "eigenstrat",
+            )
+
+            assert result.returncode == 0
+            assert (Path(tmpdir) / "merged.geno").exists()
+            assert (Path(tmpdir) / "merged.snp").exists()
+            assert (Path(tmpdir) / "merged.ind").exists()
+
+    @pytest.mark.skipif(
+        not os.path.exists("tests/fixtures/merge_a.geno"),
+        reason="Merge test fixtures not available"
+    )
+    def test_merge_snp_intersection(self):
+        """popmix merge should keep only SNPs present in both files."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "merged"
+
+            result = run_cli(
+                "merge",
+                "--file-a", self.MERGE_A_PREFIX,
+                "--file-b", self.MERGE_B_PREFIX,
+                "--output", str(output),
+                "--output-format", "eigenstrat",
+            )
+
+            assert result.returncode == 0
+            # Should report 3 SNPs in common (rs2, rs3, rs4)
+            assert "SNPs in common: 3" in result.stdout
+
+    @pytest.mark.skipif(
+        not os.path.exists("tests/fixtures/merge_a.geno"),
+        reason="Merge test fixtures not available"
+    )
+    def test_merge_sample_combination(self):
+        """popmix merge should combine samples from both files."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "merged"
+
+            result = run_cli(
+                "merge",
+                "--file-a", self.MERGE_A_PREFIX,
+                "--file-b", self.MERGE_B_PREFIX,
+                "--output", str(output),
+                "--output-format", "eigenstrat",
+            )
+
+            assert result.returncode == 0
+            # merge_a has 2 samples, merge_b has 1 sample
+            assert "Total samples: 3" in result.stdout
+
+    @pytest.mark.skipif(
+        not os.path.exists("tests/fixtures/merge_a.geno"),
+        reason="Merge test fixtures not available"
+    )
+    def test_merge_to_plink_format(self):
+        """popmix merge should support PLINK output format."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "merged"
+
+            result = run_cli(
+                "merge",
+                "--file-a", self.MERGE_A_PREFIX,
+                "--file-b", self.MERGE_B_PREFIX,
+                "--output", str(output),
+                "--output-format", "plink",
+            )
+
+            assert result.returncode == 0
+            assert (Path(tmpdir) / "merged.bed").exists()
+            assert (Path(tmpdir) / "merged.bim").exists()
+            assert (Path(tmpdir) / "merged.fam").exists()
+
+
 class TestThreadsOption:
     """Test the --threads global option."""
 

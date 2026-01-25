@@ -1,0 +1,93 @@
+---
+description: Python code style and development patterns for popmix
+globs:
+  - "python/**/*.py"
+  - "tests/**/*.py"
+  - "pyproject.toml"
+---
+
+# Python Development Guidelines
+
+## Code Style
+
+- **Type hints everywhere** - all function parameters and returns
+- Follow PEP 8, enforced by ruff
+- Write docstrings in **NumPy format**
+- Line length: 100 characters
+
+```python
+def compute_fst(
+    f2_blocks: F2Blocks,
+    pop_a: str,
+    pop_b: str,
+    *,
+    jackknife: bool = True,
+) -> dict[str, float]:
+    """
+    Compute Fst between two populations.
+
+    Parameters
+    ----------
+    f2_blocks : F2Blocks
+        Pre-computed F2 statistics blocks.
+    pop_a : str
+        First population name.
+    pop_b : str
+        Second population name.
+    jackknife : bool, optional
+        Whether to compute jackknife standard errors. Default True.
+
+    Returns
+    -------
+    dict[str, float]
+        Dictionary with 'estimate', 'se', and 'z' keys.
+    """
+```
+
+## PyO3 Bindings
+
+When adding new Rust functionality to Python:
+
+1. Add the Rust implementation in `popmix-core`
+2. Create PyO3 wrapper in `crates/popmix-python/src/lib.rs`
+3. Export from `python/popmix/__init__.py`
+4. Rebuild: `maturin develop -m crates/popmix-python/Cargo.toml`
+
+## CLI Development
+
+Use Click for CLI commands in `python/popmix/cli/`:
+
+```python
+import click
+from rich.console import Console
+
+@click.command()
+@click.argument("prefix")
+@click.option("--populations", "-p", multiple=True)
+def fst(prefix: str, populations: tuple[str, ...]) -> None:
+    """Compute Fst between populations."""
+    console = Console()
+    # Implementation
+```
+
+## Building and Testing
+
+```bash
+# Activate venv (ALWAYS unset CONDA_PREFIX first)
+unset CONDA_PREFIX && source .venv/bin/activate
+
+# Rebuild Python bindings after Rust changes
+maturin develop -m crates/popmix-python/Cargo.toml
+
+# Run tests
+pytest tests/python -v
+pytest tests/golden -v
+```
+
+## Linting
+
+```bash
+ruff check python/ tests/
+ruff format python/ tests/
+mypy python/
+```
