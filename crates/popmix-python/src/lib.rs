@@ -1020,6 +1020,32 @@ impl PyF2Blocks {
         self.inner.block_lengths.clone()
     }
 
+    /// Number of SNPs in each FST block (FST uses its own SNP set and blocks,
+    /// as admixtools2). Empty if the blocks carry no FST data (f2 directories
+    /// saved before storage version 4).
+    #[getter]
+    fn fst_block_lengths(&self) -> Vec<usize> {
+        self.inner
+            .fst
+            .as_ref()
+            .map(|f| f.block_lengths.clone())
+            .unwrap_or_default()
+    }
+
+    /// Per-block FST for a pair of populations, or None if unavailable.
+    fn fst_per_block<'py>(
+        &self,
+        py: Python<'py>,
+        pop_a: &str,
+        pop_b: &str,
+    ) -> Option<Bound<'py, PyArray1<f64>>> {
+        let fst = self.inner.fst.as_ref()?;
+        let pair = self
+            .inner
+            .pair_index(self.inner.pop_index(pop_a)?, self.inner.pop_index(pop_b)?);
+        Some(ndarray::Array1::from(fst.block_values(pair)).into_pyarray_bound(py))
+    }
+
     /// Get population names.
     #[getter]
     fn populations(&self) -> Vec<String> {
@@ -1928,8 +1954,6 @@ fn qpadm(
     let opts = popmix_core::QpAdmOptions {
         fudge: fudge.unwrap_or(1e-4),
         constrained: constrained.unwrap_or(false),
-        max_iter: 100,
-        tolerance: 1e-8,
     };
 
     let result = popmix_core::qpadm(
@@ -1984,8 +2008,6 @@ fn qpadm_multi(
     let opts = popmix_core::QpAdmOptions {
         fudge: fudge.unwrap_or(1e-4),
         constrained: constrained.unwrap_or(false),
-        max_iter: 100,
-        tolerance: 1e-8,
     };
 
     let mut results = Vec::with_capacity(targets.len());

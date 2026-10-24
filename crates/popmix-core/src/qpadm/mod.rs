@@ -11,6 +11,7 @@
 
 mod f4_matrix;
 mod f4ratio;
+mod fit;
 mod qpadm_impl;
 mod qpwave;
 mod qpwave_pairs;

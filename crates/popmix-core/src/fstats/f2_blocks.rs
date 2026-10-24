@@ -52,6 +52,102 @@ pub struct F2Blocks {
 
     /// Block lengths (number of SNPs per block).
     pub block_lengths: Vec<usize>,
+
+    /// FST blocks on admixtools2's FST SNP set, or `None` if not available
+    /// (f2 directories written before storage version 4).
+    pub fst: Option<FstBlocks>,
+}
+
+/// Per-block FST numerator and denominator, as admixtools2 `mats_to_fstarr`.
+///
+/// admixtools2 computes FST on all SNPs kept by `maxmiss`, monomorphic ones
+/// included, with blocks built on those SNPs, so these blocks differ from
+/// the f2 blocks. Per SNP, with allele counts n and frequencies p:
+/// num = (p1 - p2)^2 - p1(1-p1)/(n1-1) - p2(1-p2)/(n2-1) and
+/// den = num + p1(1-p1) n1/(n1-1) + p2(1-p2) n2/(n2-1). SNPs where these are
+/// undefined (a population with one allele) are left out of the block means;
+/// a block with none left is NaN for that pair. [`F2Blocks::fst`] leaves such
+/// blocks out of that pair's jackknife, as admixtools2 `fst(f2_dir, pop1,
+/// pop2)` does when it reads one pair (`read_f2(remove_na = TRUE)`).
+#[derive(Debug, Clone)]
+pub struct FstBlocks {
+    /// SNPs per block.
+    pub block_lengths: Vec<usize>,
+    /// Block mean of the numerator: [n_blocks, n_pairs], pairs as `pair_index`.
+    pub num: Array2<f64>,
+    /// Block mean of the denominator: [n_blocks, n_pairs].
+    pub den: Array2<f64>,
+}
+
+impl FstBlocks {
+    fn compute(af: &AlleleFrequencies, block_def: &BlockDefinition, max_missing: f64) -> Self {
+        let keep = kept_snps(
+            af,
+            &F2Options {
+                max_missing,
+                poly_only: false,
+            },
+        );
+        let snps: Vec<_> = keep.iter().map(|&i| af.snps[i].clone()).collect();
+        let assignment = block_def.assign_blocks(&snps);
+        let n_pops = af.populations.len();
+        let n_pairs = n_pops * (n_pops + 1) / 2;
+
+        let blocks: Vec<(Vec<f64>, Vec<f64>)> = (0..assignment.n_blocks)
+            .into_par_iter()
+            .map(|b| {
+                let mut num = vec![0.0; n_pairs];
+                let mut den = vec![0.0; n_pairs];
+                let mut cnt = vec![0.0; n_pairs];
+                for &snp in &keep[assignment.block_range(b)] {
+                    let p = af.frequencies.row(snp);
+                    let n = af.counts.row(snp);
+                    let mut pair = 0;
+                    for i in 0..n_pops {
+                        for j in i..n_pops {
+                            let (p1, p2) = (p[i], p[j]);
+                            let (n1, n2) = (n[i] as f64, n[j] as f64);
+                            let (h1, h2) = (p1 * (1.0 - p1), p2 * (1.0 - p2));
+                            let nm = (p1 - p2).powi(2) - h1 / (n1 - 1.0) - h2 / (n2 - 1.0);
+                            let dn = nm + h1 * n1 / (n1 - 1.0) + h2 * n2 / (n2 - 1.0);
+                            // R's na.rm drops NaN (0/0 at one allele); a missing
+                            // population (count 0) never reaches here (maxmiss)
+                            if !nm.is_nan() && !dn.is_nan() {
+                                num[pair] += nm;
+                                den[pair] += dn;
+                                cnt[pair] += 1.0;
+                            }
+                            pair += 1;
+                        }
+                    }
+                }
+                let mean =
+                    |v: Vec<f64>| -> Vec<f64> { v.iter().zip(&cnt).map(|(s, c)| s / c).collect() };
+                (mean(num), mean(den))
+            })
+            .collect();
+
+        let mut num = Array2::zeros((blocks.len(), n_pairs));
+        let mut den = Array2::zeros((blocks.len(), n_pairs));
+        for (b, (bn, bd)) in blocks.iter().enumerate() {
+            for pair in 0..n_pairs {
+                num[[b, pair]] = bn[pair];
+                den[[b, pair]] = bd[pair];
+            }
+        }
+        FstBlocks {
+            block_lengths: assignment.block_lengths,
+            num,
+            den,
+        }
+    }
+
+    /// Per-block FST of pair `pair_idx`.
+    pub fn block_values(&self, pair_idx: usize) -> Vec<f64> {
+        (0..self.block_lengths.len())
+            .map(|b| self.num[[b, pair_idx]] / self.den[[b, pair_idx]])
+            .collect()
+    }
 }
 
 /// Which SNPs go into the f2 blocks, as in admixtools2 `extract_f2`.
@@ -117,6 +213,7 @@ impl F2Blocks {
         block_def: &BlockDefinition,
         opts: &F2Options,
     ) -> Self {
+        let fst = Some(FstBlocks::compute(af, block_def, opts.max_missing));
         let keep = kept_snps(af, opts);
         let kept = AlleleFrequencies {
             frequencies: af.frequencies.select(Axis(0), &keep),
@@ -143,6 +240,7 @@ impl F2Blocks {
                 populations,
                 n_blocks: 0,
                 block_lengths: Vec::new(),
+                fst,
             };
         }
 
@@ -188,6 +286,7 @@ impl F2Blocks {
             populations,
             n_blocks,
             block_lengths: block_assignment.block_lengths,
+            fst,
         }
     }
 
@@ -550,6 +649,51 @@ mod tests {
         ];
         let f2 = F2Blocks::from_allele_frequencies(&af_from(&rows), &BlockDefinition::new(0.05));
         assert_eq!(f2.block_lengths, vec![2]);
+    }
+
+    #[test]
+    fn test_fst_blocks_keep_monomorphic_snps() {
+        // admixtools2 computes FST on every SNP kept by maxmiss: the
+        // monomorphic SNP 1 is in the FST block but not the f2 block, and the
+        // SNP missing in PopB is in neither.
+        let rows = [
+            (0.00, [(0.1, 10), (0.5, 10), (0.3, 10)]),
+            (0.01, [(0.2, 10), (0.2, 10), (0.2, 10)]),
+            (0.02, [(0.4, 10), (0.0, 0), (0.5, 10)]),
+            (0.03, [(0.4, 10), (0.6, 10), (0.5, 10)]),
+        ];
+        let f2 = F2Blocks::from_allele_frequencies(&af_from(&rows), &BlockDefinition::new(0.05));
+        assert_eq!(f2.block_lengths, vec![2]);
+        let fst = f2.fst.as_ref().unwrap();
+        assert_eq!(fst.block_lengths, vec![3]);
+
+        // Block FST(A, B) = mean(num) / mean(den) over SNPs 0, 1, 3
+        let (num, den): (Vec<f64>, Vec<f64>) = [0, 1, 3]
+            .iter()
+            .map(|&i| {
+                let ((p1, n1), (p2, n2)) = (rows[i].1[0], rows[i].1[1]);
+                let (n1, n2) = (n1 as f64, n2 as f64);
+                let (h1, h2) = (p1 * (1.0 - p1), p2 * (1.0 - p2));
+                let num = (p1 - p2).powi(2) - h1 / (n1 - 1.0) - h2 / (n2 - 1.0);
+                (num, num + h1 * n1 / (n1 - 1.0) + h2 * n2 / (n2 - 1.0))
+            })
+            .unzip();
+        let expected = num.iter().sum::<f64>() / den.iter().sum::<f64>();
+        let pair = f2.pair_index(0, 1);
+        assert_relative_eq!(fst.block_values(pair)[0], expected, max_relative = 1e-12);
+    }
+
+    #[test]
+    fn test_fst_unavailable_for_a_single_allele_population() {
+        // One allele per SNP: p(1-p)/(n-1) is 0/0 everywhere, so PopA has no
+        // FST blocks; the other pair is unaffected.
+        let rows = [
+            (0.00, [(0.0, 1), (0.5, 10), (0.3, 10)]),
+            (0.10, [(1.0, 1), (0.2, 10), (0.4, 10)]),
+        ];
+        let f2 = F2Blocks::from_allele_frequencies(&af_from(&rows), &BlockDefinition::new(0.05));
+        assert!(f2.fst("PopA", "PopB").is_none());
+        assert!(f2.fst("PopB", "PopC").is_some());
     }
 
     #[test]

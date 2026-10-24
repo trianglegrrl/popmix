@@ -14,16 +14,22 @@
 //!     X   B         C (reference)
 //! ```
 //!
-//! The admixture proportion α (fraction of X from the A branch) is:
+//! The admixture proportion α (fraction of X from the A branch) is, as in
+//! admixtools2 `qpf4ratio(pops = c(A, O, X, B, C))`:
 //!
 //! ```text
-//! α = f4(A, O; X, C) / f4(A, O; B, C)
+//! α = f4(A, O; X, B) / f4(A, O; C, B)
 //! ```
 //!
 //! Where X is admixed between A and B branches, and C is a reference population
-//! on the B branch.
+//! on the B branch. (By f4 additivity this equals 1 - f4(A, O; X, C) / f4(A, O; B, C).)
+//!
+//! The ratio is formed per block and jackknifed as admixtools2 does: blocks
+//! whose denominator is below the threshold are left out, the estimate is the
+//! ratio of the length-weighted mean numerator and denominator, and the
+//! leave-one-out ratios go through `jack_mat_stats` with that total.
 
-use crate::fstats::F2Blocks;
+use crate::fstats::{jackknife_with_total, leave_one_out, F2Blocks};
 use crate::genotypes::PopulationId;
 use crate::{PopmixError, Result};
 
@@ -57,8 +63,8 @@ pub struct F4RatioResult {
 /// Options for f4ratio computation.
 #[derive(Debug, Clone)]
 pub struct F4RatioOptions {
-    /// Minimum absolute value for denominator f4 (default: 1e-6).
-    /// If |f4_denominator| < min_denominator, returns an error.
+    /// Blocks whose denominator f4 is smaller than this in absolute value are
+    /// left out (admixtools2 `thresh`, default: 1e-6).
     pub min_denominator: f64,
 }
 
@@ -72,7 +78,7 @@ impl Default for F4RatioOptions {
 
 /// Compute f4 ratio for admixture proportion estimation.
 ///
-/// Formula: α = f4(A, O; X, C) / f4(A, O; B, C)
+/// Formula: α = f4(A, O; X, B) / f4(A, O; C, B), as admixtools2 `qpf4ratio`
 ///
 /// # Arguments
 /// * `f2_blocks` - Pre-computed F2 blocks
@@ -88,7 +94,6 @@ impl Default for F4RatioOptions {
 ///
 /// # Errors
 /// * If any population is not found in f2_blocks
-/// * If denominator f4 is too close to zero
 /// * If insufficient blocks with valid data
 pub fn f4ratio(
     f2_blocks: &F2Blocks,
@@ -117,82 +122,62 @@ pub fn f4ratio(
         }
     }
 
-    // Compute block-level f4 values for numerator and denominator
-    // f4(A, O; X, C) = (f2(A,C) + f2(O,X) - f2(A,X) - f2(O,C)) / 2
-    // f4(A, O; B, C) = (f2(A,C) + f2(O,B) - f2(A,B) - f2(O,C)) / 2
-
-    let f2_ac = f2_blocks
-        .get_block_f2_values(source_a, reference)
-        .ok_or_else(|| PopmixError::Numerical("Failed to get f2(A,C)".to_string()))?;
-    let f2_ox = f2_blocks
-        .get_block_f2_values(outgroup, test)
-        .ok_or_else(|| PopmixError::Numerical("Failed to get f2(O,X)".to_string()))?;
-    let f2_ax = f2_blocks
-        .get_block_f2_values(source_a, test)
-        .ok_or_else(|| PopmixError::Numerical("Failed to get f2(A,X)".to_string()))?;
-    let f2_oc = f2_blocks
-        .get_block_f2_values(outgroup, reference)
-        .ok_or_else(|| PopmixError::Numerical("Failed to get f2(O,C)".to_string()))?;
-    let f2_ob = f2_blocks
-        .get_block_f2_values(outgroup, source_b)
-        .ok_or_else(|| PopmixError::Numerical("Failed to get f2(O,B)".to_string()))?;
-    let f2_ab = f2_blocks
-        .get_block_f2_values(source_a, source_b)
-        .ok_or_else(|| PopmixError::Numerical("Failed to get f2(A,B)".to_string()))?;
+    let f2 = |a: &str, b: &str| {
+        f2_blocks
+            .get_block_f2_values(a, b)
+            .ok_or_else(|| PopmixError::Numerical(format!("Failed to get f2({a}, {b})")))
+    };
+    let (a, o, x, b, c) = (source_a, outgroup, test, source_b, reference);
+    // f2_f4(f2_14, f2_23, f2_13, f2_24) for f4(A, O; X, B) and f4(A, O; C, B)
+    let (f2_ab, f2_ox, f2_ax, f2_ob) = (f2(a, b)?, f2(o, x)?, f2(a, x)?, f2(o, b)?);
+    let (f2_oc, f2_ac) = (f2(o, c)?, f2(a, c)?);
 
     let n_blocks = f2_blocks.n_blocks;
-
-    // Compute block-level f4 values
-    let mut block_f4_num = Vec::with_capacity(n_blocks);
-    let mut block_f4_den = Vec::with_capacity(n_blocks);
-
-    for i in 0..n_blocks {
-        let f4_num = (f2_ac[i] + f2_ox[i] - f2_ax[i] - f2_oc[i]) / 2.0;
-        let f4_den = (f2_ac[i] + f2_ob[i] - f2_ab[i] - f2_oc[i]) / 2.0;
-
-        // Skip blocks with NaN or zero denominator
-        if f4_num.is_nan() || f4_den.is_nan() || f4_den.abs() < 1e-15 {
-            continue;
+    let mut num = Vec::with_capacity(n_blocks);
+    let mut den = Vec::with_capacity(n_blocks);
+    for k in 0..n_blocks {
+        let nk = (f2_ab[k] + f2_ox[k] - f2_ax[k] - f2_ob[k]) / 2.0;
+        let dk = (f2_ab[k] + f2_oc[k] - f2_ac[k] - f2_ob[k]) / 2.0;
+        // setmiss = abs(f4_den) < thresh
+        if dk.is_nan() || dk.abs() < opts.min_denominator || !nk.is_finite() {
+            num.push(f64::NAN);
+            den.push(f64::NAN);
+        } else {
+            num.push(nk);
+            den.push(dk);
         }
-
-        block_f4_num.push(f4_num);
-        block_f4_den.push(f4_den);
     }
 
-    let valid_blocks = block_f4_num.len();
+    let valid_blocks = den.iter().filter(|v| v.is_finite()).count();
     if valid_blocks < 2 {
         return Err(PopmixError::Numerical(
             "Insufficient valid blocks for f4ratio computation".to_string(),
         ));
     }
 
-    // Compute overall f4 values (mean of block estimates)
-    let f4_numerator: f64 = block_f4_num.iter().sum::<f64>() / valid_blocks as f64;
-    let f4_denominator: f64 = block_f4_den.iter().sum::<f64>() / valid_blocks as f64;
-
-    // Check denominator magnitude
-    if f4_denominator.abs() < opts.min_denominator {
-        return Err(PopmixError::Numerical(format!(
-            "f4 denominator too small: {} (threshold: {})",
-            f4_denominator, opts.min_denominator
-        )));
-    }
-
-    // Compute overall ratio and alpha
-    let ratio = f4_numerator / f4_denominator;
-    // α = 1 - ratio (derived from: f4(A,O;X,C) = (1-α)*f4(A,O;B,C))
-    // α represents the proportion of X from source_a
-    let alpha = 1.0 - ratio;
-
-    // Compute jackknife standard error for the ratio
-    // SE(alpha) = SE(1-ratio) = SE(ratio)
-    let std_err = jackknife_std_err_ratio(&block_f4_num, &block_f4_den, ratio);
-
-    let z_score = if std_err > 0.0 {
-        alpha / std_err
-    } else {
-        0.0
+    let lengths = f2_blocks.block_lengths_f64();
+    let weighted_mean = |v: &[f64]| {
+        let (s, w) = v
+            .iter()
+            .zip(&lengths)
+            .filter(|(x, _)| x.is_finite())
+            .fold((0.0, 0.0), |(s, w), (x, l)| (s + x * l, w + l));
+        s / w
     };
+    let f4_numerator = weighted_mean(&num);
+    let f4_denominator = weighted_mean(&den);
+    let tot = f4_numerator / f4_denominator;
+
+    let loo_ratio: Vec<f64> = leave_one_out(&num, &lengths)
+        .into_iter()
+        .zip(leave_one_out(&den, &lengths))
+        .map(|(n, d)| n / d)
+        .collect();
+    let (alpha, std_err) = jackknife_with_total(&loo_ratio, &lengths, tot).ok_or_else(|| {
+        PopmixError::Numerical("Insufficient valid blocks for f4ratio computation".to_string())
+    })?;
+
+    let z_score = if std_err > 0.0 { alpha / std_err } else { 0.0 };
 
     Ok(F4RatioResult {
         test: PopulationId::new(test),
@@ -207,38 +192,6 @@ pub fn f4ratio(
         f4_numerator,
         f4_denominator,
     })
-}
-
-/// Compute jackknife standard error for a ratio of sums.
-///
-/// For ratio = sum(numerators) / sum(denominators), compute SE using
-/// delete-one jackknife where each LOO estimate is:
-///   (total_num - num_i) / (total_den - den_i)
-fn jackknife_std_err_ratio(
-    block_numerators: &[f64],
-    block_denominators: &[f64],
-    full_estimate: f64,
-) -> f64 {
-    let n = block_numerators.len();
-    if n < 2 {
-        return 0.0;
-    }
-
-    let total_num: f64 = block_numerators.iter().sum();
-    let total_den: f64 = block_denominators.iter().sum();
-
-    let mut sum_sq_diff = 0.0;
-    for i in 0..n {
-        // Leave-one-out estimate using ratio of sums
-        let loo_num = total_num - block_numerators[i];
-        let loo_den = total_den - block_denominators[i];
-        let loo_estimate = loo_num / loo_den;
-        let diff = loo_estimate - full_estimate;
-        sum_sq_diff += diff * diff;
-    }
-
-    let variance = ((n - 1) as f64 / n as f64) * sum_sq_diff;
-    variance.sqrt()
 }
 
 #[cfg(test)]
@@ -337,12 +290,11 @@ mod tests {
         let f2_blocks = create_test_f2_blocks();
 
         let result = f4ratio(
-            &f2_blocks,
-            "PopX",  // test (admixed)
-            "PopA",  // source_a
-            "PopB",  // source_b
-            "PopO",  // outgroup
-            "PopC",  // reference
+            &f2_blocks, "PopX", // test (admixed)
+            "PopA", // source_a
+            "PopB", // source_b
+            "PopO", // outgroup
+            "PopC", // reference
             None,
         )
         .unwrap();
@@ -358,7 +310,10 @@ mod tests {
         assert!(result.alpha.is_finite(), "Alpha should be finite");
 
         // Standard error should be positive (unless all blocks identical)
-        assert!(result.std_err >= 0.0, "Standard error should be non-negative");
+        assert!(
+            result.std_err >= 0.0,
+            "Standard error should be non-negative"
+        );
 
         // Should have at least 2 valid blocks
         assert!(result.n_blocks >= 2, "Should have at least 2 valid blocks");
@@ -396,7 +351,12 @@ mod tests {
         };
 
         let result = f4ratio(
-            &f2_blocks, "PopX", "PopA", "PopB", "PopO", "PopC",
+            &f2_blocks,
+            "PopX",
+            "PopA",
+            "PopB",
+            "PopO",
+            "PopC",
             Some(opts),
         );
 

@@ -1,0 +1,237 @@
+{
+  "admixtools_version": "2.0.10",
+  "models": [
+    {
+      "target": "French.DG",
+      "left": ["Han.DG", "Yoruba.DG"],
+      "right": ["Mbuti.DG", "Chimp.REF", "Papuan.DG"],
+      "constrained": false,
+      "weights": [
+        {
+          "left": "Han.DG",
+          "weight": 0.81203088803628432,
+          "se": 0.007025430884228261
+        },
+        {
+          "left": "Yoruba.DG",
+          "weight": 0.18796911196371571,
+          "se": 0.0070254308842281803
+        }
+      ],
+      "rankdrop": [
+        {
+          "f4rank": 1,
+          "dof": 1,
+          "chisq": 10.268196397420366,
+          "p": 0.0013534304763951766
+        },
+        {
+          "f4rank": 0,
+          "dof": 4,
+          "chisq": 9130.2727335477612,
+          "p": 0
+        }
+      ],
+      "popdrop": [
+        {
+          "pat": "00",
+          "wt": 0,
+          "dof": 1,
+          "chisq": 10.268196397420366,
+          "p": 0.0013534304763951766,
+          "f4rank": 1,
+          "Han.DG": 0.81203088803628432,
+          "Yoruba.DG": 0.18796911196371571,
+          "feasible": true
+        },
+        {
+          "pat": "01",
+          "wt": 1,
+          "dof": 2,
+          "chisq": 624.0862486082483,
+          "p": 3.0296537621244988e-136,
+          "f4rank": 0,
+          "Han.DG": 1,
+          "feasible": true,
+          "best": true,
+          "dofdiff": 0,
+          "chisqdiff": -7418.815346905958,
+          "p_nested": 1
+        },
+        {
+          "pat": "10",
+          "wt": 1,
+          "dof": 2,
+          "chisq": 8042.9015955142058,
+          "p": 0,
+          "f4rank": 0,
+          "Yoruba.DG": 1,
+          "feasible": true,
+          "best": true
+        }
+      ]
+    },
+    {
+      "target": "Papuan.DG",
+      "left": ["Han.DG", "French.DG"],
+      "right": ["Chimp.REF", "Mbuti.DG", "Yoruba.DG"],
+      "constrained": false,
+      "weights": [
+        {
+          "left": "Han.DG",
+          "weight": 6.0637997315881726,
+          "se": 1.896469983747427
+        },
+        {
+          "left": "French.DG",
+          "weight": -5.0637997315881726,
+          "se": 1.8964699837474257
+        }
+      ],
+      "rankdrop": [
+        {
+          "f4rank": 1,
+          "dof": 1,
+          "chisq": 3.0013449219821751,
+          "p": 0.083195427468623476
+        },
+        {
+          "f4rank": 0,
+          "dof": 4,
+          "chisq": 129.5779312957892,
+          "p": 4.7936110108735633e-27
+        }
+      ],
+      "popdrop": [
+        {
+          "pat": "00",
+          "wt": 0,
+          "dof": 1,
+          "chisq": 3.0013449219821751,
+          "p": 0.083195427468623476,
+          "f4rank": 1,
+          "Han.DG": 6.0637997315881726,
+          "French.DG": -5.0637997315881726,
+          "feasible": false
+        },
+        {
+          "pat": "01",
+          "wt": 1,
+          "dof": 2,
+          "chisq": 299.52772323450546,
+          "p": 9.0861794776857441e-66,
+          "f4rank": 0,
+          "Han.DG": 1,
+          "feasible": true,
+          "best": true,
+          "dofdiff": 0,
+          "chisqdiff": -70.349710953874421,
+          "p_nested": 1
+        },
+        {
+          "pat": "10",
+          "wt": 1,
+          "dof": 2,
+          "chisq": 369.87743418837988,
+          "p": 4.8098958848773679e-81,
+          "f4rank": 0,
+          "French.DG": 1,
+          "feasible": true,
+          "best": true
+        }
+      ]
+    },
+    {
+      "target": "Papuan.DG",
+      "left": ["Han.DG", "French.DG"],
+      "right": ["Chimp.REF", "Mbuti.DG", "Yoruba.DG"],
+      "constrained": true,
+      "weights": [
+        {
+          "left": "Han.DG",
+          "weight": 1,
+          "se": 1.1376698354596692e-13
+        },
+        {
+          "left": "French.DG",
+          "weight": 0,
+          "se": 2.2766856713256104e-20
+        }
+      ],
+      "rankdrop": [
+        {
+          "f4rank": 1,
+          "dof": 1,
+          "chisq": 3.0013449219821751,
+          "p": 0.083195427468623476
+        },
+        {
+          "f4rank": 0,
+          "dof": 4,
+          "chisq": 129.5779312957892,
+          "p": 4.7936110108735633e-27
+        }
+      ],
+      "popdrop": [
+        {
+          "pat": "00",
+          "wt": 0,
+          "dof": 1,
+          "chisq": 3.0013449219821751,
+          "p": 0.083195427468623476,
+          "f4rank": 1,
+          "Han.DG": 1,
+          "French.DG": 0,
+          "feasible": true
+        },
+        {
+          "pat": "01",
+          "wt": 1,
+          "dof": 2,
+          "chisq": 299.52772323450546,
+          "p": 9.0861794776857441e-66,
+          "f4rank": 0,
+          "Han.DG": 1,
+          "feasible": true,
+          "best": true,
+          "dofdiff": 0,
+          "chisqdiff": -70.349710953874421,
+          "p_nested": 1
+        },
+        {
+          "pat": "10",
+          "wt": 1,
+          "dof": 2,
+          "chisq": 369.87743418837988,
+          "p": 4.8098958848773679e-81,
+          "f4rank": 0,
+          "French.DG": 1,
+          "feasible": true,
+          "best": true
+        }
+      ]
+    }
+  ],
+  "f4ratio": [
+    {
+      "pop1": "Han.DG",
+      "pop2": "Mbuti.DG",
+      "pop3": "French.DG",
+      "pop4": "Papuan.DG",
+      "pop5": "Yoruba.DG",
+      "alpha": 0.11629172339397534,
+      "se": 0.0085061775183804863,
+      "z": 13.671443270809663
+    },
+    {
+      "pop1": "Chimp.REF",
+      "pop2": "Mbuti.DG",
+      "pop3": "French.DG",
+      "pop4": "Yoruba.DG",
+      "pop5": "Han.DG",
+      "alpha": 1.1950325137770303,
+      "se": 0.16481756445900567,
+      "z": 7.2506381082597873
+    }
+  ]
+}

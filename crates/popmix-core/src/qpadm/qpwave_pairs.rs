@@ -41,12 +41,17 @@ pub struct QpWavePairsResult {
 impl QpWavePairsResult {
     /// Get pairs that pass the cladality test (p > threshold).
     pub fn clades(&self, p_threshold: f64) -> Vec<&QpWavePairResult> {
-        self.pairs.iter().filter(|p| p.p_value > p_threshold).collect()
+        self.pairs
+            .iter()
+            .filter(|p| p.p_value > p_threshold)
+            .collect()
     }
 
     /// Get the pair with highest p-value (most likely clade).
     pub fn best_clade(&self) -> Option<&QpWavePairResult> {
-        self.pairs.iter().max_by(|a, b| a.p_value.partial_cmp(&b.p_value).unwrap())
+        self.pairs
+            .iter()
+            .max_by(|a, b| a.p_value.partial_cmp(&b.p_value).unwrap())
     }
 
     /// Get p-value matrix as a hashmap for easy lookup.
@@ -167,10 +172,10 @@ mod tests {
             for sample_idx in 0..n_samples {
                 let pop_idx = sample_idx / 10;
                 let freq = match pop_idx {
-                    0 => 0.3 + base * 0.2, // PopA
+                    0 => 0.3 + base * 0.2,  // PopA
                     1 => 0.35 + base * 0.2, // PopB (similar to A)
-                    2 => 0.6 + base * 0.2, // PopC (different)
-                    3 => 0.1 + base * 0.1, // Out1
+                    2 => 0.6 + base * 0.2,  // PopC (different)
+                    3 => 0.1 + base * 0.1,  // Out1
                     4 => 0.15 + base * 0.1, // Out2
                     _ => 0.5,
                 };

@@ -9,7 +9,9 @@
 //!
 //! [`block_jackknife_cov`] is the same for several statistics at once, giving
 //! their covariance (`est_to_loo_nafix` + `jack_pairarr_stats`, as used by
-//! qpWave and qpAdm).
+//! qpWave and qpAdm). [`leave_one_out`], [`leave_one_out_nafix`] and
+//! [`jackknife_with_total`] are the separate steps, for statistics that are
+//! not block means (f4 ratios, qpAdm weights).
 
 use ndarray::Array2;
 
@@ -57,6 +59,77 @@ pub fn block_jackknife(values: &[f64], lengths: &[f64]) -> Option<(f64, f64)> {
         .map(|(l, h)| (est - l).powi(2) * (h - 1.0))
         .sum::<f64>()
         / loo.len() as f64;
+    Some((est, var.sqrt()))
+}
+
+/// admixtools2 `est_to_loo`: leave-one-block-out values of a block mean.
+///
+/// Non-finite blocks stay non-finite and are left out of the total.
+pub fn leave_one_out(values: &[f64], lengths: &[f64]) -> Vec<f64> {
+    let (sum, n) = values
+        .iter()
+        .zip(lengths)
+        .filter(|(v, _)| v.is_finite())
+        .fold((0.0, 0.0), |(s, n), (v, l)| (s + v * l, n + l));
+    let tot = sum / n;
+    values
+        .iter()
+        .zip(lengths)
+        .map(|(v, l)| {
+            let rel = l / n;
+            (tot - v * rel) / (1.0 - rel)
+        })
+        .collect()
+}
+
+/// admixtools2 `est_to_loo_nafix`: as [`leave_one_out`], but missing blocks
+/// count as 0 (the total still leaves them out), so every block gets a value.
+pub fn leave_one_out_nafix(values: &[f64], lengths: &[f64]) -> Vec<f64> {
+    let (sum, n_finite) = values
+        .iter()
+        .zip(lengths)
+        .filter(|(v, _)| v.is_finite())
+        .fold((0.0, 0.0), |(s, n), (v, l)| (s + v * l, n + l));
+    let tot = sum / n_finite;
+    let n: f64 = lengths.iter().sum();
+    values
+        .iter()
+        .zip(lengths)
+        .map(|(v, l)| {
+            let v = if v.is_finite() { *v } else { 0.0 };
+            let rel = l / n;
+            (tot - v * rel) / (1.0 - rel)
+        })
+        .collect()
+}
+
+/// admixtools2 `jack_mat_stats` with a given total, for one statistic:
+/// jackknife estimate and standard error from leave-one-out values `loo`
+/// and the full-data value `tot`. Non-finite blocks are left out.
+pub fn jackknife_with_total(loo: &[f64], lengths: &[f64], tot: f64) -> Option<(f64, f64)> {
+    let (loo, bl): (Vec<f64>, Vec<f64>) = loo
+        .iter()
+        .zip(lengths)
+        .filter(|(v, _)| v.is_finite())
+        .map(|(&v, &l)| (v, l))
+        .unzip();
+    if loo.is_empty() {
+        return None;
+    }
+    let n: f64 = bl.iter().sum();
+    let numblocks = loo.len() as f64;
+    let est = loo.iter().map(|v| tot - v).sum::<f64>() / numblocks * numblocks
+        + loo.iter().zip(&bl).map(|(v, l)| v * l).sum::<f64>() / n;
+    let var = loo
+        .iter()
+        .zip(&bl)
+        .map(|(v, l)| {
+            let h = n / l;
+            let xtau = (h * tot - (h - 1.0) * v - est) / (h - 1.0).sqrt();
+            xtau * xtau
+        })
+        .sum::<f64>()
+        / numblocks;
     Some((est, var.sqrt()))
 }
 
@@ -157,6 +230,28 @@ mod tests {
         }
         assert_eq!(cov[[0, 1]], cov[[1, 0]]);
         assert!(cov[[0, 1]] < 0.0, "x and y move in opposite directions");
+    }
+
+    #[test]
+    fn test_jackknife_with_total_of_a_block_mean_is_the_plain_jackknife() {
+        let x = [0.3, -0.1, 0.8, 0.2, 0.5];
+        let lengths = [120.0, 80.0, 95.0, 130.0, 60.0];
+        let tot =
+            x.iter().zip(&lengths).map(|(v, l)| v * l).sum::<f64>() / lengths.iter().sum::<f64>();
+        let loo = leave_one_out(&x, &lengths);
+        let (est, se) = jackknife_with_total(&loo, &lengths, tot).unwrap();
+        let (est2, se2) = block_jackknife(&x, &lengths).unwrap();
+        assert_relative_eq!(est, est2, max_relative = 1e-12);
+        assert_relative_eq!(se, se2, max_relative = 1e-12);
+    }
+
+    #[test]
+    fn test_nafix_counts_missing_blocks_as_zero() {
+        let loo = leave_one_out_nafix(&[1.0, f64::NAN, 3.0], &[1.0, 1.0, 2.0]);
+        // tot = (1 + 6) / 3 over the finite blocks; rel = l / 4
+        let tot = 7.0 / 3.0;
+        assert_relative_eq!(loo[1], tot / 0.75, max_relative = 1e-14);
+        assert_relative_eq!(loo[2], (tot - 3.0 * 0.5) / 0.5, max_relative = 1e-14);
     }
 
     #[test]

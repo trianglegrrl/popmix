@@ -18,6 +18,16 @@ qpwave_f4 (the f4 matrix), qpwave_covariance (its jackknife covariance), and
 qpwave_rank_tests (chi-squared and p-value for each rank). The covariance and
 chi-squared are held to the standard-error tolerance, p-values to 1e-4.
 
+qpadm.json holds qpadm() models, unconstrained and constrained (qpadm_weights:
+weights and SEs at the CLAUDE.md weight tolerance, rtol 1e-6; qpadm_fit:
+chi-squared and p-value of the model's rank), and qpf4ratio() (f4ratio: alpha
+and SE, rtol 1e-6).
+
+fst.json holds fst() for every pair of the config's FST populations (all but
+Chimp.REF, a single pseudo-haploid sample for which admixtools2 cannot compute
+FST), with its own SNP set and blocks: fst_block_lengths (exact), fst_blocks
+(per-block FST, rtol 1e-10) and fst_estimates (est rtol 1e-10, se rtol 1e-6).
+
 Tolerances are those in CLAUDE.md: f-statistics rtol 1e-10, standard errors
 rtol 1e-6. SNP counts and block lengths must match exactly.
 """
@@ -178,8 +188,106 @@ def _check_qpwave_rank_tests(name: str):
                 mismatches.append(f"{label}: df {r.df} != {row['dof']}")
             if not np.isclose(r.chi_sq, row["chisq"], rtol=SE_RTOL, atol=0):
                 mismatches.append(f"{label}: chisq {r.chi_sq!r} != {row['chisq']!r}")
-            if not np.isclose(r.p_value, row["p"], rtol=P_RTOL, atol=0):
+            if "p" not in row:
+                # admixtools2 reports p = NA with 0 degrees of freedom; popmix reports 1
+                if row["dof"] != 0:
+                    mismatches.append(f"{label}: admixtools2 has no p-value")
+            elif not np.isclose(r.p_value, row["p"], rtol=P_RTOL, atol=0):
                 mismatches.append(f"{label}: p {r.p_value!r} != {row['p']!r}")
+    assert not mismatches, "\n".join(mismatches)
+
+
+# Constrained weights on the boundary are exact in popmix; admixtools2's
+# quadprog leaves SEs of ~1e-13 there.
+SE_ATOL = 1e-10
+
+
+def _check_qpadm_weights(name: str):
+    _, f2 = _result_for(name)
+    mismatches = []
+    for m in load_reference(name, "qpadm.json")["models"]:
+        r = pm.qpadm(f2, m["target"], m["left"], m["right"], constrained=m["constrained"])
+        label = f"target={m['target']} left={','.join(m['left'])} constrained={m['constrained']}"
+        for w, se, row in zip(r.weights, r.weight_std_errors, m["weights"]):
+            if not np.isclose(w, row["weight"], rtol=SE_RTOL, atol=SE_ATOL):
+                mismatches.append(f"{label} {row['left']}: weight {w!r} != {row['weight']!r}")
+            if not np.isclose(se, row["se"], rtol=SE_RTOL, atol=SE_ATOL):
+                mismatches.append(f"{label} {row['left']}: se {se!r} != {row['se']!r}")
+    assert not mismatches, "\n".join(mismatches)
+
+
+def _check_qpadm_fit(name: str):
+    _, f2 = _result_for(name)
+    mismatches = []
+    for m in load_reference(name, "qpadm.json")["models"]:
+        r = pm.qpadm(f2, m["target"], m["left"], m["right"], constrained=m["constrained"])
+        label = f"target={m['target']} left={','.join(m['left'])}"
+        row = next(x for x in m["rankdrop"] if x["f4rank"] == len(m["left"]) - 1)
+        if r.df != row["dof"]:
+            mismatches.append(f"{label}: df {r.df} != {row['dof']}")
+        if not np.isclose(r.chi_sq, row["chisq"], rtol=SE_RTOL, atol=0):
+            mismatches.append(f"{label}: chisq {r.chi_sq!r} != {row['chisq']!r}")
+        if "p" in row and not np.isclose(r.p_value, row["p"], rtol=P_RTOL, atol=0):
+            mismatches.append(f"{label}: p {r.p_value!r} != {row['p']!r}")
+    assert not mismatches, "\n".join(mismatches)
+
+
+def _check_f4ratio(name: str):
+    _, f2 = _result_for(name)
+    mismatches = []
+    for row in load_reference(name, "qpadm.json")["f4ratio"]:
+        # admixtools2 qpf4ratio(pops = c(A, O, X, B, C)):
+        # alpha = f4(A, O; X, B) / f4(A, O; C, B)
+        r = pm.qpf4ratio(f2, test=row["pop3"], source_a=row["pop1"], source_b=row["pop4"],
+                         outgroup=row["pop2"], reference=row["pop5"])
+        label = ",".join(row[f"pop{i}"] for i in range(1, 6))
+        if not np.isclose(r.alpha, row["alpha"], rtol=SE_RTOL, atol=0):
+            mismatches.append(f"{label}: alpha {r.alpha!r} != {row['alpha']!r}")
+        if not np.isclose(r.std_err, row["se"], rtol=SE_RTOL, atol=0):
+            mismatches.append(f"{label}: se {r.std_err!r} != {row['se']!r}")
+    assert not mismatches, "\n".join(mismatches)
+
+
+_fst = {}
+
+
+def _fst_result_for(name: str):
+    if name not in _fst:
+        ref = load_reference(name)
+        fst_ref = load_reference(name, "fst.json")
+        if not os.path.exists(f"{ref['prefix']}.geno"):
+            pytest.skip(f"genotype data not available: {ref['prefix']}")
+        f2 = pm.extract_f2(ref["prefix"], fst_ref["pops"], block_size=ref["params"]["blgsize"])
+        _fst[name] = (fst_ref, f2)
+    return _fst[name]
+
+
+def _check_fst_block_lengths(name: str):
+    ref, f2 = _fst_result_for(name)
+    assert list(f2.fst_block_lengths) == ref["block_lengths"]
+
+
+def _check_fst_blocks(name: str):
+    ref, f2 = _fst_result_for(name)
+    mismatches = []
+    for pair, theirs in ref["fst_blocks"].items():
+        ours = np.asarray(f2.fst_per_block(*pair.split("|")))
+        theirs = np.asarray(theirs, dtype=float)
+        if ours.shape != theirs.shape or not np.allclose(ours, theirs, rtol=F_RTOL, atol=F_ATOL):
+            mismatches.append(pair)
+    assert not mismatches, f"FST blocks differ for {mismatches}"
+
+
+def _check_fst_estimates(name: str):
+    ref, f2 = _fst_result_for(name)
+    mismatches = []
+    for row in ref["fst"]:
+        got = f2.fst(row["pop1"], row["pop2"])
+        label = f"{row['pop1']}|{row['pop2']}"
+        if not np.isclose(got["estimate"], row["est"], rtol=F_RTOL, atol=F_ATOL):
+            mismatches.append(f"{label}: est {got['estimate']!r} != {row['est']!r}")
+        if not np.isclose(got["std_err"], row["se"], rtol=SE_RTOL, atol=0):
+            mismatches.append(f"{label}: se {got['std_err']!r} != {row['se']!r}")
     assert not mismatches, "\n".join(mismatches)
 
 
@@ -193,15 +301,18 @@ CHECKS = {
     "qpwave_f4": _check_qpwave_f4,
     "qpwave_covariance": _check_qpwave_covariance,
     "qpwave_rank_tests": _check_qpwave_rank_tests,
+    "qpadm_weights": _check_qpadm_weights,
+    "qpadm_fit": _check_qpadm_fit,
+    "f4ratio": _check_f4ratio,
+    "fst_block_lengths": _check_fst_block_lengths,
+    "fst_blocks": _check_fst_blocks,
+    "fst_estimates": _check_fst_estimates,
 }
 
 
 # Known gaps, each with the work item that closes it. strict=True makes the
 # test fail as soon as the gap is closed, so the mark gets removed.
-KNOWN_GAPS = {
-    "qpwave_rank_tests": "item 4: qpWave rank fit (opt_A/opt_B and fudge) not yet matched; "
-    "the f4 matrix and covariance already match",
-}
+KNOWN_GAPS: dict = {}
 
 
 def _params():

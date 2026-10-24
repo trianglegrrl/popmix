@@ -1,9 +1,0 @@
-{
-  "test1": {
-    "target": "French.DG",
-    "sources": ["Han.DG", "Yoruba.DG"],
-    "outgroups": ["Mbuti.DG", "Chimp.REF", "Papuan.DG"],
-    "weights": [0.81199387992, 0.18800612008],
-    "std_errors": [0.0070291819274, 0.0070291819274]
-  }
-}

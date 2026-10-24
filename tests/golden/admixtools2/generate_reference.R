@@ -21,6 +21,17 @@
 # f2 blocks: the f4 matrix and its jackknife covariance
 # (f2blocks_to_f4stats), then the rank tests.
 #
+# qpadm.json holds qpadm() models (weights and SEs, rankdrop, popdrop) and
+# qpf4ratio() estimates on the same f2 blocks.
+#
+# fst.json holds fst() for every pair. admixtools2 computes FST from the
+# genotype files on its own SNP set (all SNPs kept by maxmiss, monomorphic
+# included) and blocks; fst() is given all of the config's FST populations so
+# the SNP set is that of f2_from_geno on them. Its blocks
+# (f2_from_geno(fst = TRUE)) are recorded too. Chimp.REF is a single
+# pseudo-haploid sample: its p(1-p)/(n-1) is 0/0 at every SNP, so admixtools2
+# discards every FST block and refuses; the FST populations leave it out.
+#
 # Numbers are written with 17 significant digits, enough to round-trip a
 # double exactly.
 
@@ -36,17 +47,36 @@ CONFIGS <- list(
   dg_6pop = list(
     prefix = AADR_PREFIX,
     pops = c("Han.DG", "French.DG", "Yoruba.DG", "Mbuti.DG", "Papuan.DG", "Chimp.REF"),
+    fst_pops = c("Han.DG", "French.DG", "Yoruba.DG", "Mbuti.DG", "Papuan.DG"),
     qpwave = list(
       list(left = c("Han.DG", "French.DG"), right = c("Yoruba.DG", "Mbuti.DG", "Chimp.REF")),
       list(left = c("French.DG", "Han.DG", "Papuan.DG"), right = c("Chimp.REF", "Mbuti.DG", "Yoruba.DG"))
+    ),
+    qpadm = list(
+      list(target = "French.DG", left = c("Han.DG", "Yoruba.DG"), right = c("Mbuti.DG", "Chimp.REF", "Papuan.DG")),
+      list(target = "Papuan.DG", left = c("Han.DG", "French.DG"), right = c("Chimp.REF", "Mbuti.DG", "Yoruba.DG")),
+      list(target = "Papuan.DG", left = c("Han.DG", "French.DG"), right = c("Chimp.REF", "Mbuti.DG", "Yoruba.DG"),
+           constrained = TRUE)
+    ),
+    f4ratio = list(
+      c("Han.DG", "Mbuti.DG", "French.DG", "Papuan.DG", "Yoruba.DG"),
+      c("Chimp.REF", "Mbuti.DG", "French.DG", "Yoruba.DG", "Han.DG")
     )
   ),
   ancient_5pop = list(
     prefix = AADR_PREFIX,
     pops = c("Russia_Samara_EBA_Yamnaya.AG", "Sardinian.DG", "French.DG", "Mbuti.DG", "Chimp.REF"),
+    fst_pops = c("Russia_Samara_EBA_Yamnaya.AG", "Sardinian.DG", "French.DG", "Mbuti.DG"),
     qpwave = list(
       list(left = c("French.DG", "Sardinian.DG", "Russia_Samara_EBA_Yamnaya.AG"),
            right = c("Mbuti.DG", "Chimp.REF"))
+    ),
+    qpadm = list(
+      list(target = "French.DG", left = c("Sardinian.DG", "Russia_Samara_EBA_Yamnaya.AG"),
+           right = c("Chimp.REF", "Mbuti.DG"))
+    ),
+    f4ratio = list(
+      c("Chimp.REF", "Mbuti.DG", "French.DG", "Sardinian.DG", "Russia_Samara_EBA_Yamnaya.AG")
     )
   )
 )
@@ -137,6 +167,35 @@ run_config <- function(name, cfg) {
   write_json(list(admixtools_version = version, models = models), file.path(dest, "qpwave.json"),
              digits = I(17), auto_unbox = TRUE, pretty = TRUE, matrix = "rowmajor")
   cat(sprintf("  %d qpwave models\n", length(models)))
+
+  qpadm_models <- lapply(cfg$qpadm, function(m) {
+    constrained <- isTRUE(m$constrained)
+    qa <- qpadm(f2_blocks, m$left, m$right, m$target, constrained = constrained, verbose = FALSE)
+    list(target = m$target, left = m$left, right = m$right, constrained = constrained,
+         weights = select(qa$weights, left, weight, se),
+         rankdrop = select(qa$rankdrop, f4rank, dof, chisq, p),
+         popdrop = qa$popdrop)
+  })
+  f4ratios <- bind_rows(lapply(cfg$f4ratio, function(p) qpf4ratio(f2_blocks, p)))
+  write_json(list(admixtools_version = version, models = qpadm_models, f4ratio = f4ratios),
+             file.path(dest, "qpadm.json"), digits = I(17), auto_unbox = TRUE, pretty = TRUE)
+  cat(sprintf("  %d qpadm models, %d f4ratio\n", length(qpadm_models), nrow(f4ratios)))
+
+  fpops <- cfg$fst_pops
+  fst_blocks <- f2_from_geno(pref, pops = fpops, blgsize = PARAMS$blgsize, maxmiss = PARAMS$maxmiss,
+                             auto_only = PARAMS$auto_only, adjust_pseudohaploid = PARAMS$adjust_pseudohaploid,
+                             fst = TRUE, verbose = FALSE)
+  fst_bl <- readr::parse_number(dimnames(fst_blocks)[[3]])
+  fblocks <- list()
+  for (i in seq_along(fpops)) for (j in seq_along(fpops)) if (i < j) {
+    fblocks[[paste(fpops[i], fpops[j], sep = "|")]] <- unname(fst_blocks[fpops[i], fpops[j], ])
+  }
+  fst_stats <- fst(pref, pop1 = fpops, blgsize = PARAMS$blgsize, maxmiss = PARAMS$maxmiss,
+                   auto_only = PARAMS$auto_only, adjust_pseudohaploid = PARAMS$adjust_pseudohaploid)
+  write_json(list(admixtools_version = version, pops = fpops, block_lengths = fst_bl, fst_blocks = fblocks,
+                  fst = select(fst_stats, pop1, pop2, est, se)),
+             file.path(dest, "fst.json"), digits = I(17), auto_unbox = TRUE, pretty = TRUE)
+  cat(sprintf("  %d fst pairs, %d fst blocks (%d SNPs)\n", nrow(fst_stats), length(fst_bl), sum(fst_bl)))
   cat(sprintf("  %d read, %d kept, %d polymorphic, %d blocks\n", n_read, n_kept, n_poly, length(block_lengths)))
   print(f2_stats)
 }

@@ -53,7 +53,10 @@ impl QpAdmRotateResult {
 
     /// Get models passing a p-value threshold.
     pub fn passing_models(&self, p_threshold: f64) -> Vec<&RotationModel> {
-        self.models.iter().filter(|m| m.p_value > p_threshold).collect()
+        self.models
+            .iter()
+            .filter(|m| m.p_value > p_threshold)
+            .collect()
     }
 
     /// Get feasible models only.
@@ -125,7 +128,13 @@ pub fn qpadm_rotate(
             let sources: Vec<&str> = combo.iter().map(|&&s| s).collect();
 
             // Run qpAdm for this combination
-            match qpadm(f2_blocks, target, &sources, outgroups, Some(opts.qpadm_opts.clone())) {
+            match qpadm(
+                f2_blocks,
+                target,
+                &sources,
+                outgroups,
+                Some(opts.qpadm_opts.clone()),
+            ) {
                 Ok(result) => {
                     let is_feasible = result.weights.iter().all(|&w| w >= 0.0 && w <= 1.0);
 
@@ -153,7 +162,11 @@ pub fn qpadm_rotate(
     }
 
     // Sort by p-value descending (best fits first)
-    models.sort_by(|a, b| b.p_value.partial_cmp(&a.p_value).unwrap_or(std::cmp::Ordering::Equal));
+    models.sort_by(|a, b| {
+        b.p_value
+            .partial_cmp(&a.p_value)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     let n_feasible = models.iter().filter(|m| m.is_feasible).count();
 
@@ -219,11 +232,11 @@ mod tests {
             for sample_idx in 0..n_samples {
                 let pop_idx = sample_idx / 10;
                 let freq = match pop_idx {
-                    0 => 0.3 + base * 0.2, // Target
-                    1 => 0.2 + base * 0.2, // Source1
-                    2 => 0.5 + base * 0.2, // Source2
-                    3 => 0.4 + base * 0.2, // Source3
-                    4 => 0.1 + base * 0.1, // Out1
+                    0 => 0.3 + base * 0.2,  // Target
+                    1 => 0.2 + base * 0.2,  // Source1
+                    2 => 0.5 + base * 0.2,  // Source2
+                    3 => 0.4 + base * 0.2,  // Source3
+                    4 => 0.1 + base * 0.1,  // Out1
                     5 => 0.15 + base * 0.1, // Out2
                     _ => 0.5,
                 };

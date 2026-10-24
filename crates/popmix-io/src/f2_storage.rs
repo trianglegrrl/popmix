@@ -11,6 +11,9 @@
 //! - `block_weights.npy`: NumPy format 2D array of weights [n_blocks, n_pairs]
 //! - `block_het_sums.npy`: NumPy format 2D array of heterozygosity sums [n_blocks, n_pops] (v2+)
 //! - `block_het_weights.npy`: NumPy format 2D array of het weights [n_blocks, n_pops] (v2+)
+//! - `block_fst_num.npy`, `block_fst_den.npy`: FST numerator and denominator
+//!   block means [n_fst_blocks, n_pairs], with `fst_block_lengths` in the
+//!   metadata (v4+)
 
 use std::fs::{self, File};
 use std::io::{BufReader, BufWriter};
@@ -19,7 +22,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 use crate::npy::{read_npy_f64, write_npy_f64};
-use popmix_core::fstats::F2Blocks;
+use popmix_core::fstats::{F2Blocks, FstBlocks};
 use popmix_core::genotypes::PopulationId;
 use popmix_core::{PopmixError, Result};
 
@@ -29,6 +32,8 @@ struct F2Metadata {
     /// Format version for future compatibility.
     /// v1: F2 only
     /// v2: F2 + heterozygosity (for FST)
+    /// v3: + raw squared differences
+    /// v4: + FST blocks on admixtools2's FST SNP set
     version: u32,
     /// Population names in order.
     populations: Vec<String>,
@@ -41,6 +46,9 @@ struct F2Metadata {
     n_populations: usize,
     /// Number of SNPs per block.
     block_lengths: Vec<usize>,
+    /// SNPs per FST block (v4+); absent if the blocks carry no FST data.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    fst_block_lengths: Option<Vec<usize>>,
     /// Optional source file path.
     #[serde(skip_serializing_if = "Option::is_none")]
     source: Option<String>,
@@ -72,7 +80,7 @@ pub fn read_f2_blocks(dir: &Path) -> Result<F2Blocks> {
     })?;
 
     // Validate version
-    if metadata.version < 1 || metadata.version > 3 {
+    if metadata.version < 1 || metadata.version > 4 {
         return Err(PopmixError::Io(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
             format!(
@@ -165,6 +173,32 @@ pub fn read_f2_blocks(dir: &Path) -> Result<F2Blocks> {
         .map(|s| PopulationId::from(s.as_str()))
         .collect();
 
+    // FST blocks on admixtools2's FST SNP set (v4+)
+    let fst = match (metadata.version >= 4, metadata.fst_block_lengths) {
+        (true, Some(fst_block_lengths)) => {
+            let num = read_npy_f64(&dir.join("block_fst_num.npy"))?;
+            let den = read_npy_f64(&dir.join("block_fst_den.npy"))?;
+            let expected = (fst_block_lengths.len(), metadata.n_pairs);
+            for (name, arr) in [("block_fst_num", &num), ("block_fst_den", &den)] {
+                if arr.dim() != expected {
+                    return Err(PopmixError::Io(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        format!(
+                            "{name} shape {:?} doesn't match metadata {expected:?}",
+                            arr.shape()
+                        ),
+                    )));
+                }
+            }
+            Some(FstBlocks {
+                block_lengths: fst_block_lengths,
+                num,
+                den,
+            })
+        }
+        _ => None,
+    };
+
     Ok(F2Blocks {
         block_sums,
         block_raw_sums,
@@ -174,6 +208,7 @@ pub fn read_f2_blocks(dir: &Path) -> Result<F2Blocks> {
         populations,
         n_blocks: metadata.n_blocks,
         block_lengths: metadata.block_lengths,
+        fst,
     })
 }
 
@@ -205,7 +240,7 @@ pub fn write_f2_blocks(f2_blocks: &F2Blocks, dir: &Path, source: Option<&str>) -
 
     // Build metadata (version 3 includes raw sums for FST)
     let metadata = F2Metadata {
-        version: 3,
+        version: 4,
         populations: f2_blocks
             .populations
             .iter()
@@ -215,6 +250,7 @@ pub fn write_f2_blocks(f2_blocks: &F2Blocks, dir: &Path, source: Option<&str>) -
         n_pairs,
         n_populations,
         block_lengths: f2_blocks.block_lengths.clone(),
+        fst_block_lengths: f2_blocks.fst.as_ref().map(|f| f.block_lengths.clone()),
         source: source.map(|s| s.to_string()),
     };
 
@@ -246,6 +282,12 @@ pub fn write_f2_blocks(f2_blocks: &F2Blocks, dir: &Path, source: Option<&str>) -
         &dir.join("block_het_weights.npy"),
         &f2_blocks.block_het_weights,
     )?;
+
+    // FST blocks (v4+)
+    if let Some(fst) = &f2_blocks.fst {
+        write_npy_f64(&dir.join("block_fst_num.npy"), &fst.num)?;
+        write_npy_f64(&dir.join("block_fst_den.npy"), &fst.den)?;
+    }
 
     Ok(())
 }
@@ -302,6 +344,7 @@ mod tests {
             populations,
             n_blocks,
             block_lengths,
+            fst: None,
         }
     }
 
@@ -326,7 +369,10 @@ mod tests {
 
         // F2 arrays should be exactly equal (no floating point drift in binary format)
         assert_eq!(loaded.block_sums.shape(), f2_blocks.block_sums.shape());
-        assert_eq!(loaded.block_weights.shape(), f2_blocks.block_weights.shape());
+        assert_eq!(
+            loaded.block_weights.shape(),
+            f2_blocks.block_weights.shape()
+        );
 
         for i in 0..f2_blocks.n_blocks {
             for j in 0..6 {
@@ -385,6 +431,31 @@ mod tests {
     }
 
     #[test]
+    fn test_fst_blocks_roundtrip() {
+        let mut f2_blocks = create_test_f2_blocks();
+        let num = Array2::from_shape_fn((3, 6), |(i, j)| (i * 6 + j) as f64 * 0.01);
+        let den = num.mapv(|v| v + 0.5);
+        f2_blocks.fst = Some(FstBlocks {
+            block_lengths: vec![7, 8, 9],
+            num: num.clone(),
+            den: den.clone(),
+        });
+        let dir = tempdir().unwrap();
+        write_f2_blocks(&f2_blocks, dir.path(), None).unwrap();
+        let loaded = read_f2_blocks(dir.path()).unwrap().fst.unwrap();
+        assert_eq!(loaded.block_lengths, vec![7, 8, 9]);
+        assert_eq!(loaded.num, num);
+        assert_eq!(loaded.den, den);
+    }
+
+    #[test]
+    fn test_blocks_without_fst_load_without_fst() {
+        let dir = tempdir().unwrap();
+        write_f2_blocks(&create_test_f2_blocks(), dir.path(), None).unwrap();
+        assert!(read_f2_blocks(dir.path()).unwrap().fst.is_none());
+    }
+
+    #[test]
     fn test_metadata_json_valid() {
         let f2_blocks = create_test_f2_blocks();
         let dir = tempdir().unwrap();
@@ -397,7 +468,7 @@ mod tests {
         let meta: serde_json::Value = serde_json::from_str(&content).unwrap();
 
         // Check required fields
-        assert_eq!(meta["version"], 3); // v3 includes raw sums for FST
+        assert_eq!(meta["version"], 4); // v4 adds FST blocks
         assert!(meta["populations"].is_array());
         assert_eq!(meta["populations"].as_array().unwrap().len(), 3);
         assert_eq!(meta["n_blocks"], 4);

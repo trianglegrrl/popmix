@@ -14,7 +14,7 @@
 
 use ndarray::{Array1, Array2};
 
-use crate::fstats::{block_jackknife_cov, F2Blocks};
+use crate::fstats::{block_jackknife_cov, leave_one_out_nafix, F2Blocks};
 use crate::genotypes::PopulationId;
 use crate::Result;
 
@@ -28,6 +28,9 @@ pub struct F4Matrix {
     /// Covariance matrix of the vectorized F4 values
     /// Shape: ((n_left-1)*(n_right-1), (n_left-1)*(n_right-1))
     pub covariance: Array2<f64>,
+    /// Leave-one-block-out f4 matrices, one per block (admixtools2
+    /// `est_to_loo_nafix`), used for qpAdm weight standard errors.
+    pub leave_one_out: Vec<Array2<f64>>,
     /// Left populations (first is reference)
     pub left_pops: Vec<PopulationId>,
     /// Right populations (first is reference)
@@ -84,12 +87,13 @@ impl F4Matrix {
         }
 
         // Compute full covariance matrix using jackknife
-        let covariance = Self::compute_covariance(f2_blocks, left, right)?;
+        let (covariance, leave_one_out) = Self::compute_covariance(f2_blocks, left, right)?;
 
         Ok(Self {
             values,
             std_errors,
             covariance,
+            leave_one_out,
             left_pops: left.iter().map(|s| PopulationId::from(*s)).collect(),
             right_pops: right.iter().map(|s| PopulationId::from(*s)).collect(),
         })
@@ -107,7 +111,7 @@ impl F4Matrix {
         f2_blocks: &F2Blocks,
         left: &[&str],
         right: &[&str],
-    ) -> Result<Array2<f64>> {
+    ) -> Result<(Array2<f64>, Vec<Array2<f64>>)> {
         let n_rows = left.len() - 1;
         let n_cols = right.len() - 1;
         let n_stats = n_rows * n_cols;
@@ -115,7 +119,7 @@ impl F4Matrix {
 
         if n_blocks < 2 {
             // Not enough blocks for jackknife
-            return Ok(Array2::zeros((n_stats, n_stats)));
+            return Ok((Array2::zeros((n_stats, n_stats)), Vec::new()));
         }
 
         // Compute block-level F4 values for each statistic
@@ -157,7 +161,16 @@ impl F4Matrix {
             None => Array2::zeros((n_stats, n_stats)), // Not enough valid blocks
         };
 
-        Ok(covariance)
+        // Leave-one-out f4 matrices, stats in row-major order
+        let loo: Vec<Vec<f64>> = stats
+            .iter()
+            .map(|x| leave_one_out_nafix(x, &lengths))
+            .collect();
+        let leave_one_out = (0..n_blocks)
+            .map(|k| Array2::from_shape_fn((n_rows, n_cols), |(i, j)| loo[i * n_cols + j][k]))
+            .collect();
+
+        Ok((covariance, leave_one_out))
     }
 
     /// Get the number of rows (n_left - 1).

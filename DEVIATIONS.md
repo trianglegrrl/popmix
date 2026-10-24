@@ -124,9 +124,10 @@ rules for adding one.
 
 ## admixtools2
 
-No deviations. popmix's f2 pipeline follows admixtools2 2.0.10 defaults
-(`maxmiss = 0`, `poly_only = "f2"`, blocks built after filtering, blocks
-weighted by length in the jackknife).
+No deviations. popmix follows admixtools2 2.0.10 defaults: `maxmiss = 0`,
+`poly_only = "f2"`, blocks built after filtering, blocks weighted by length
+in the jackknife, FST on its own SNP set and blocks, and qpWave/qpAdm fits by
+the C++ code path (`cpp = TRUE`, the default).
 
 ### Matched, not corrected
 
@@ -134,6 +135,15 @@ weighted by length in the jackknife).
   pseudo-haploid if it has no heterozygous call among the first 1,000 SNPs
   (`cpp_packedancestrymap_ploidy`). A low-coverage diploid sample with no
   calls there would be misclassified. popmix matches this.
+- **qpAdm weight SEs scale by sqrt(blocks - 1).** admixtools2's C++ path
+  (`cpp_get_weights_covariance`, the default) and its R path
+  (`get_weights_covariance`) scale the leave-one-out weights differently,
+  by sqrt(n - 1) against (n - 1)/sqrt(n). popmix matches the default C++ path.
+- **FST drops missing blocks per pair.** `fst(f2_dir, pop1, pop2)` reads one
+  pair and leaves out that pair's undefined blocks; `fst(prefix)` over many
+  populations leaves out a block for every pair if any pair is undefined
+  there. popmix's `fst(a, b)` matches the former. The two agree whenever no
+  block is undefined, as in every reference config.
 
 ### Not yet verified
 
@@ -142,3 +152,10 @@ weighted by length in the jackknife).
   where popmix drops the block. Nothing with `maxmiss > 0` has been checked
   against admixtools2 yet. If the behaviours differ, deciding between them is
   a deviation decision under the process above.
+- **qpAdm `popdrop`.** admixtools2 also fits every subset of the sources
+  (`popdrop`); popmix does not compute it yet. The reference files record it
+  (`qpadm.json`) for when it is added.
+- **Constrained qpAdm away from the boundary.** The only constrained reference
+  model has weights pinned at (1, 0). popmix solves the same quadratic program
+  exactly, but no reference has an interior or multi-source constrained
+  solution yet.

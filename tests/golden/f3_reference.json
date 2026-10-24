@@ -1,9 +1,0 @@
-{
-  "french_han_yoruba": {
-    "target": "French.DG",
-    "source1": "Han.DG",
-    "source2": "Yoruba.DG",
-    "estimate": 0.011063088168,
-    "std_err": 0.00022225456397
-  }
-}

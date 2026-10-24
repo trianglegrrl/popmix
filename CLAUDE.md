@@ -286,7 +286,9 @@ f2_blocks/
 ├── block_raw_sums.npy  # Raw squared diffs (for FST) [v3+]
 ├── block_weights.npy   # SNP counts per block
 ├── block_het_sums.npy  # Heterozygosity sums [v2+]
-└── block_het_weights.npy  # Het weights [v2+]
+├── block_het_weights.npy  # Het weights [v2+]
+├── block_fst_num.npy   # FST numerator block means, own SNP set/blocks [v4+]
+└── block_fst_den.npy   # FST denominator block means [v4+]
 ```
 
-Current version: 3
+Current version: 4

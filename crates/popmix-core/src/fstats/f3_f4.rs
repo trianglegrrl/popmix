@@ -196,6 +196,27 @@ impl F2Blocks {
 
         let pair_idx = self.pair_index(idx_a, idx_b);
 
+        // admixtools2 fst(): weighted block jackknife of per-block FST on its
+        // own SNP set and blocks
+        if let Some(fst_blocks) = &self.fst {
+            let values = fst_blocks.block_values(pair_idx);
+            let lengths: Vec<f64> = fst_blocks.block_lengths.iter().map(|&l| l as f64).collect();
+            let (estimate, std_err) = block_jackknife(&values, &lengths)?;
+            let n_snps = values
+                .iter()
+                .zip(&fst_blocks.block_lengths)
+                .filter(|(v, _)| v.is_finite())
+                .map(|(_, &l)| l)
+                .sum();
+            return Some(FstResult {
+                estimate,
+                std_err,
+                n_snps,
+            });
+        }
+
+        // F2 directories from storage versions 1-3 have no FST blocks: an
+        // approximation from the f2 blocks (polymorphic SNPs only).
         // Compute per-block FST values (mean-of-ratios approach, matching admixtools2)
         // For each block: FST_block = f2 / (f2 + het_a + het_b)
         // where f2 is bias-corrected and the denominator simplifies to

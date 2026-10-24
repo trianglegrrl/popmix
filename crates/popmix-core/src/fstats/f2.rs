@@ -249,7 +249,14 @@ mod tests {
         use ndarray::array;
 
         let samples = vec![Sample::new("IND1", PopulationId::new("PopA"))];
-        let snps = vec![Snp::new("rs1", Chromosome::Autosome(1), 100, 0.01, 'A', 'G')];
+        let snps = vec![Snp::new(
+            "rs1",
+            Chromosome::Autosome(1),
+            100,
+            0.01,
+            'A',
+            'G',
+        )];
         let data = array![[0]];
 
         let geno = GenotypeMatrix::new(data, samples, snps).unwrap();

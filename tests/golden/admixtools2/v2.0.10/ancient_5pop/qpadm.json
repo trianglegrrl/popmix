@@ -1,0 +1,85 @@
+{
+  "admixtools_version": "2.0.10",
+  "models": [
+    {
+      "target": "French.DG",
+      "left": ["Sardinian.DG", "Russia_Samara_EBA_Yamnaya.AG"],
+      "right": ["Chimp.REF", "Mbuti.DG"],
+      "constrained": false,
+      "weights": [
+        {
+          "left": "Sardinian.DG",
+          "weight": 1.408231664786461,
+          "se": 1.5933899152958055
+        },
+        {
+          "left": "Russia_Samara_EBA_Yamnaya.AG",
+          "weight": -0.40823166478646089,
+          "se": 1.5933899152958053
+        }
+      ],
+      "rankdrop": [
+        {
+          "f4rank": 1,
+          "dof": 0,
+          "chisq": 1.3228245330179941e-08
+        },
+        {
+          "f4rank": 0,
+          "dof": 2,
+          "chisq": 0.77128116653763168,
+          "p": 0.68001489049238695
+        }
+      ],
+      "popdrop": [
+        {
+          "pat": "00",
+          "wt": 0,
+          "dof": 0,
+          "chisq": 1.3228245330179941e-08,
+          "f4rank": 1,
+          "Sardinian.DG": 1.408231664786461,
+          "Russia_Samara_EBA_Yamnaya.AG": -0.40823166478646089,
+          "feasible": false
+        },
+        {
+          "pat": "01",
+          "wt": 1,
+          "dof": 1,
+          "chisq": 0.17774834061821262,
+          "p": 0.67331546464911829,
+          "f4rank": 0,
+          "Sardinian.DG": 1,
+          "feasible": true,
+          "best": true,
+          "dofdiff": 0,
+          "chisqdiff": -0.50319779908885287,
+          "p_nested": 1
+        },
+        {
+          "pat": "10",
+          "wt": 1,
+          "dof": 1,
+          "chisq": 0.68094613970706552,
+          "p": 0.40926111462909098,
+          "f4rank": 0,
+          "Russia_Samara_EBA_Yamnaya.AG": 1,
+          "feasible": true,
+          "best": true
+        }
+      ]
+    }
+  ],
+  "f4ratio": [
+    {
+      "pop1": "Chimp.REF",
+      "pop2": "Mbuti.DG",
+      "pop3": "French.DG",
+      "pop4": "Sardinian.DG",
+      "pop5": "Russia_Samara_EBA_Yamnaya.AG",
+      "alpha": 1.9775053952325017,
+      "se": 1.528840624642914,
+      "z": 1.293467326389486
+    }
+  ]
+}
