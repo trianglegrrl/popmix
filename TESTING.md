@@ -673,7 +673,8 @@ the pipeline:
 | `qpwave_rank_tests` | `qpwave()$rankdrop`, every rank | chisq rtol 1e-6, p rtol 1e-4 |
 | `qpadm_weights` | `qpadm()$weights`, unconstrained and constrained | weight and se rtol 1e-6 (atol 1e-10) |
 | `qpadm_fit` | `qpadm()$rankdrop` at rank sources - 1 | chisq rtol 1e-6, p rtol 1e-4 |
-| `qpadm_popdrop` | `qpadm()$popdrop`, every subset of the sources | as `qpadm_weights` and `qpadm_fit`; flags exact |
+| `qpadm_popdrop` | `qpadm()$popdrop`, every subset of the sources, popmix run with `compat="admixtools2-2.0.10"` | as `qpadm_weights` and `qpadm_fit`; flags exact |
+| `qpadm_popdrop_corrected` | popmix's default nested path (ADMIXTOOLS2-0001): only the nested columns differ from compat, and they follow the nested path walked over admixtools2's own model fits | chisqdiff as chisq, p_nested rtol 1e-4 |
 | `f4ratio` | `qpf4ratio()` | alpha and se rtol 1e-6 |
 | `fst_block_lengths`, `fst_blocks`, `fst_estimates` | `f2_from_geno(fst = TRUE)`, `fst()` | exact; rtol 1e-10; est 1e-10, se 1e-6 |
 
@@ -690,8 +691,9 @@ dg_11pop holds a three-source qpAdm model (Druze = Sardinian + Dinka + Han)
 whose constrained solution has two weights inside (0, 1) and one at 0, and a
 two-source constrained model inside the bounds, which must equal the
 unconstrained one. admixtools2's `qpadm(constrained = TRUE)` fails with three
-or more sources, so that model's reference comes from the admixtools2
-internals `qpadm()` uses for the weights (see DEVIATIONS.md).
+or more sources (ADMIXTOOLS2-0002), so that model's reference (weights, SEs,
+rankdrop, popdrop) comes from the admixtools2 internals `qpadm()` uses (see
+DEVIATIONS.md).
 
 Actual agreement: f2, f3, f4 and FST (1,798 statistics) within 5e-12 relative,
 SEs within 1e-12; qpWave chi-squared within 5e-12; qpAdm weights and SEs within

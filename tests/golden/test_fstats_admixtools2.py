@@ -22,10 +22,14 @@ chi-squared are held to the standard-error tolerance, p-values to 1e-4.
 qpadm.json holds qpadm() models, unconstrained and constrained (qpadm_weights:
 weights and SEs at the CLAUDE.md weight tolerance, rtol 1e-6; qpadm_fit:
 chi-squared and p-value of the model's rank; qpadm_popdrop: the fit of every
-subset of the sources), and qpf4ratio() (f4ratio: alpha and SE, rtol 1e-6).
-qpadm(constrained = TRUE) fails in admixtools2 with three or more sources, so
-for such a model the reference holds only the weights and SEs, computed with
-the internals qpadm() uses for them.
+subset of the sources, run with compat="admixtools2-2.0.10";
+qpadm_popdrop_corrected: popmix's corrected nested path, ADMIXTOOLS2-0001),
+and qpf4ratio() (f4ratio: alpha and SE, rtol 1e-6).
+qpadm(constrained = TRUE) fails in admixtools2 with three or more sources
+(ADMIXTOOLS2-0002), so for such a model the reference is computed with the
+internals qpadm() uses: weights, SEs and popdrop as qpadm() computes them,
+and rankdrop from drop_ranks() run unconstrained (rankdrop never uses the
+weights).
 
 fst.json holds fst() for every pair of the config's FST populations (all but
 Chimp.REF, a single pseudo-haploid sample for which admixtools2 cannot compute
@@ -37,6 +41,7 @@ rtol 1e-6. SNP counts and block lengths must match exactly.
 """
 
 import json
+import math
 import os
 from pathlib import Path
 
@@ -225,7 +230,7 @@ def _check_qpadm_fit(name: str):
     mismatches = []
     for m in load_reference(name, "qpadm.json")["models"]:
         if "rankdrop" not in m:
-            continue  # admixtools2 qpadm() fails on this model; weights only
+            continue
         r = pm.qpadm(f2, m["target"], m["left"], m["right"], constrained=m["constrained"])
         label = f"target={m['target']} left={','.join(m['left'])}"
         row = next(x for x in m["rankdrop"] if x["f4rank"] == len(m["left"]) - 1)
@@ -239,13 +244,18 @@ def _check_qpadm_fit(name: str):
 
 
 def _check_qpadm_popdrop(name: str):
-    """qpadm()$popdrop: every subset of the sources, as admixtools2 orders it."""
+    """qpadm()$popdrop: every subset of the sources, as admixtools2 orders it.
+
+    Run with compat="admixtools2-2.0.10", which reproduces admixtools2's
+    nested path (ADMIXTOOLS2-0001).
+    """
     _, f2 = _result_for(name)
     mismatches = []
     for m in load_reference(name, "qpadm.json")["models"]:
         if "popdrop" not in m:
             continue
-        r = pm.qpadm(f2, m["target"], m["left"], m["right"], constrained=m["constrained"])
+        r = pm.qpadm(f2, m["target"], m["left"], m["right"], constrained=m["constrained"],
+                     compat="admixtools2-2.0.10")
         label = f"target={m['target']} left={','.join(m['left'])} constrained={m['constrained']}"
         ours = r.popdrop
         if [x.pattern for x in ours] != [row["pat"] for row in m["popdrop"]]:
@@ -278,6 +288,67 @@ def _check_qpadm_popdrop(name: str):
                     ours_v is not None and not np.isclose(ours_v, theirs_v, **tol)
                 ):
                     mismatches.append(f"{where}: {field} {ours_v!r} != {theirs_v!r}")
+    assert not mismatches, "\n".join(mismatches)
+
+
+def _reference_nested_path(rows: list) -> list:
+    """The corrected nested path, walked over admixtools2's own model fits.
+
+    From the full model, repeatedly drop the one further source whose model
+    is feasible and fits best, down to a single source.
+    """
+    by_pat = {row["pat"]: row for row in rows}
+    path = ["0" * len(rows[0]["pat"])]
+    while path[-1].count("0") > 1:
+        cur = path[-1]
+        children = [cur[:i] + "1" + cur[i + 1:] for i, c in enumerate(cur) if c == "0"]
+        children = [c for c in children if by_pat[c]["feasible"]]
+        if not children:
+            break
+        path.append(min(children, key=lambda c: by_pat[c]["chisq"]))
+    return path
+
+
+def _check_qpadm_popdrop_corrected(name: str):
+    """ADMIXTOOLS2-0001, live: by default only the nested-path columns differ
+    from admixtools2 (isolation), and they follow the nested path through
+    admixtools2's own model fits (oracle), each step tested against the model
+    it came from with 1 degree of freedom."""
+    _, f2 = _result_for(name)
+    mismatches = []
+    for m in load_reference(name, "qpadm.json")["models"]:
+        if "popdrop" not in m:
+            continue
+        r = pm.qpadm(f2, m["target"], m["left"], m["right"], constrained=m["constrained"])
+        compat = pm.qpadm(f2, m["target"], m["left"], m["right"], constrained=m["constrained"],
+                          compat="admixtools2-2.0.10")
+        label = f"target={m['target']} left={','.join(m['left'])} constrained={m['constrained']}"
+        for x, y in zip(r.popdrop, compat.popdrop):
+            for field in ("pattern", "wt", "dof", "chi_sq", "p_value", "f4rank", "weights",
+                          "feasible"):
+                if getattr(x, field) != getattr(y, field):
+                    mismatches.append(f"{label} pat {x.pattern}: {field} differs from compat")
+        rows = {row["pat"]: row for row in m["popdrop"]}
+        path = _reference_nested_path(m["popdrop"])
+        scale = max(abs(row["chisq"]) for row in m["popdrop"])
+        for x in r.popdrop:
+            where = f"{label} pat {x.pattern}"
+            if x.best != (x.pattern in path):
+                mismatches.append(f"{where}: best {x.best} but path is {path}")
+            k = path.index(x.pattern) if x.pattern in path else 0
+            if k == 0:
+                if (x.dofdiff, x.chisqdiff, x.p_nested) != (None, None, None):
+                    mismatches.append(f"{where}: has a nested comparison, path is {path}")
+                continue
+            child, parent = rows[x.pattern], rows[path[k - 1]]
+            chisqdiff = child["chisq"] - parent["chisq"]
+            p_nested = math.erfc(math.sqrt(chisqdiff / 2)) if chisqdiff > 0 else 1.0
+            if x.dofdiff != child["dof"] - parent["dof"] or x.dofdiff != 1:
+                mismatches.append(f"{where}: dofdiff {x.dofdiff}")
+            if not np.isclose(x.chisqdiff, chisqdiff, rtol=SE_RTOL, atol=SE_RTOL * scale):
+                mismatches.append(f"{where}: chisqdiff {x.chisqdiff!r} != {chisqdiff!r}")
+            if not np.isclose(x.p_nested, p_nested, rtol=P_RTOL, atol=0):
+                mismatches.append(f"{where}: p_nested {x.p_nested!r} != {p_nested!r}")
     assert not mismatches, "\n".join(mismatches)
 
 
@@ -358,6 +429,7 @@ CHECKS = {
     "qpadm_weights": _check_qpadm_weights,
     "qpadm_fit": _check_qpadm_fit,
     "qpadm_popdrop": _check_qpadm_popdrop,
+    "qpadm_popdrop_corrected": _check_qpadm_popdrop_corrected,
     "f4ratio": _check_f4ratio,
     "fst_block_lengths": _check_fst_block_lengths,
     "fst_blocks": _check_fst_blocks,

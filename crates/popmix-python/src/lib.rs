@@ -13,10 +13,9 @@ use pyo3::prelude::*;
 use popmix_core::{AlleleFrequencies, BlockDefinition, F2Blocks, GenotypeMatrix, Ploidy, Sample};
 use popmix_io::{
     compute_allele_frequencies_packedancestrymap, detect_ploidy_packedancestrymap,
-    is_packed_format, read_f2_blocks, write_f2_blocks, AncestryMapReader, EigenstratReader,
-    GenoFormat, PackedAncestryMapReader, PedReader, PlinkReader, VcfReader,
-    write_ancestrymap, write_eigenstrat, write_packedancestrymap, write_packedped, write_ped,
-    merge::merge_genotypes,
+    is_packed_format, merge::merge_genotypes, read_f2_blocks, write_ancestrymap, write_eigenstrat,
+    write_f2_blocks, write_packedancestrymap, write_packedped, write_ped, AncestryMapReader,
+    EigenstratReader, GenoFormat, PackedAncestryMapReader, PedReader, PlinkReader, VcfReader,
 };
 
 // ============================================================================
@@ -187,8 +186,8 @@ impl PyGenotypeMatrix {
         }
 
         // Convert to numpy 2D array
-        let array = ndarray::Array2::from_shape_vec((n_snps, n_samples), arr)
-            .expect("shape mismatch");
+        let array =
+            ndarray::Array2::from_shape_vec((n_snps, n_samples), arr).expect("shape mismatch");
         array.into_pyarray_bound(py)
     }
 
@@ -538,7 +537,7 @@ fn convertf(
         }
         GenoFormat::Vcf => {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "VCF output format is not supported. Use plink, eigenstrat, or packedancestrymap."
+                "VCF output format is not supported. Use plink, eigenstrat, or packedancestrymap.",
             ));
         }
     }
@@ -661,7 +660,7 @@ fn merge(
         }
         GenoFormat::Vcf => {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "VCF output format is not supported. Use plink, eigenstrat, or packedancestrymap."
+                "VCF output format is not supported. Use plink, eigenstrat, or packedancestrymap.",
             ));
         }
     }
@@ -676,11 +675,23 @@ fn merge(
         result.insert("samples_b".to_string(), samples_b.to_object(py));
         // Merge stats
         result.insert("snps_merged".to_string(), merged.n_snps().to_object(py));
-        result.insert("samples_merged".to_string(), merged.n_samples().to_object(py));
-        result.insert("snps_identical".to_string(), stats.snps_identical.to_object(py));
+        result.insert(
+            "samples_merged".to_string(),
+            merged.n_samples().to_object(py),
+        );
+        result.insert(
+            "snps_identical".to_string(),
+            stats.snps_identical.to_object(py),
+        );
         result.insert("flipped_snps".to_string(), stats.snps_flipped.to_object(py));
-        result.insert("strand_ambiguous_snps".to_string(), stats.snps_strand_ambiguous.to_object(py));
-        result.insert("snps_mismatch".to_string(), stats.snps_mismatch.to_object(py));
+        result.insert(
+            "strand_ambiguous_snps".to_string(),
+            stats.snps_strand_ambiguous.to_object(py),
+        );
+        result.insert(
+            "snps_mismatch".to_string(),
+            stats.snps_mismatch.to_object(py),
+        );
         Ok(result)
     })
 }
@@ -836,8 +847,8 @@ fn dataset_info(prefix: &str) -> PyResult<HashMap<String, PyObject>> {
 ///     List of (population_name, sample_count) tuples, sorted by count descending
 #[pyfunction]
 fn list_populations(prefix: &str) -> PyResult<Vec<(String, usize)>> {
-    use std::path::Path;
     use std::collections::HashMap;
+    use std::path::Path;
 
     // Helper to count populations from samples
     fn count_populations(samples: &[Sample]) -> Vec<(String, usize)> {
@@ -967,8 +978,12 @@ fn levenshtein_distance(a: &str, b: &str) -> usize {
     let b_chars: Vec<char> = b.chars().collect();
     let (m, n) = (a_chars.len(), b_chars.len());
 
-    if m == 0 { return n; }
-    if n == 0 { return m; }
+    if m == 0 {
+        return n;
+    }
+    if n == 0 {
+        return m;
+    }
 
     let mut prev: Vec<usize> = (0..=n).collect();
     let mut curr = vec![0; n + 1];
@@ -976,10 +991,12 @@ fn levenshtein_distance(a: &str, b: &str) -> usize {
     for i in 1..=m {
         curr[0] = i;
         for j in 1..=n {
-            let cost = if a_chars[i - 1] == b_chars[j - 1] { 0 } else { 1 };
-            curr[j] = (prev[j] + 1)
-                .min(curr[j - 1] + 1)
-                .min(prev[j - 1] + cost);
+            let cost = if a_chars[i - 1] == b_chars[j - 1] {
+                0
+            } else {
+                1
+            };
+            curr[j] = (prev[j] + 1).min(curr[j - 1] + 1).min(prev[j - 1] + cost);
         }
         std::mem::swap(&mut prev, &mut curr);
     }
@@ -1070,7 +1087,14 @@ impl PyF2Blocks {
                 let mut result = HashMap::new();
                 result.insert("estimate".to_string(), estimate);
                 result.insert("std_err".to_string(), std_err);
-                result.insert("z_score".to_string(), if std_err > 0.0 { estimate / std_err } else { 0.0 });
+                result.insert(
+                    "z_score".to_string(),
+                    if std_err > 0.0 {
+                        estimate / std_err
+                    } else {
+                        0.0
+                    },
+                );
                 result.insert("n_snps".to_string(), n_snps as f64);
                 Ok(Some(result))
             }
@@ -1361,11 +1385,7 @@ fn extract_f2(
         // Compute allele frequencies by streaming through file (SNP by SNP)
         let pop_refs: Vec<&str> = populations.iter().map(|s| s.as_str()).collect();
         let af = compute_allele_frequencies_packedancestrymap(
-            &geno_path,
-            &samples,
-            &snps,
-            &pop_refs,
-            auto_only,
+            &geno_path, &samples, &snps, &pop_refs, auto_only,
         )
         .map_err(to_py_err)?;
 
@@ -1745,7 +1765,11 @@ impl PyQpAdmRotateResult {
 
     /// Get feasible models only.
     fn feasible_models(&self) -> Vec<PyRotationModel> {
-        self.models.iter().filter(|m| m.is_feasible).cloned().collect()
+        self.models
+            .iter()
+            .filter(|m| m.is_feasible)
+            .cloned()
+            .collect()
     }
 }
 
@@ -1929,7 +1953,11 @@ impl PyQpWavePairsResult {
     /// Get pairs that pass the cladality test (p > threshold).
     #[pyo3(signature = (p_threshold=0.05))]
     fn clades(&self, p_threshold: f64) -> Vec<PyQpWavePairResult> {
-        self.pairs.iter().filter(|p| p.p_value > p_threshold).cloned().collect()
+        self.pairs
+            .iter()
+            .filter(|p| p.p_value > p_threshold)
+            .cloned()
+            .collect()
     }
 
     /// Get the pair with highest p-value (most likely clade).
@@ -1993,6 +2021,17 @@ fn qpwave_pairs(
     })
 }
 
+/// Parse a qpAdm `compat` argument.
+fn admixtools2_compat(compat: Option<&str>) -> PyResult<popmix_core::Admixtools2Compat> {
+    match compat {
+        None => Ok(popmix_core::Admixtools2Compat::CORRECTED),
+        Some("admixtools2-2.0.10") => Ok(popmix_core::Admixtools2Compat::V2_0_10),
+        Some(other) => Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "unknown compat {other:?} for qpadm; expected None or \"admixtools2-2.0.10\""
+        ))),
+    }
+}
+
 /// Run qpAdm analysis to estimate admixture weights.
 ///
 /// Estimates the proportion of ancestry in a target population from
@@ -2005,11 +2044,14 @@ fn qpwave_pairs(
 ///     right: Right (outgroup) population names
 ///     constrained: Whether to constrain weights to [0, 1] (default: False)
 ///     fudge: Regularization factor (default: 1e-4)
+///     compat: Reproduce admixtools2's known quirks instead of correcting
+///         them: "admixtools2-2.0.10", or None (default) for popmix's
+///         corrected behaviour. See DEVIATIONS.md.
 ///
 /// Returns:
 ///     PyQpAdmResult with estimated weights and model fit statistics
 #[pyfunction]
-#[pyo3(signature = (f2_blocks, target, sources, right, constrained=None, fudge=None))]
+#[pyo3(signature = (f2_blocks, target, sources, right, constrained=None, fudge=None, compat=None))]
 fn qpadm(
     f2_blocks: &PyF2Blocks,
     target: String,
@@ -2017,6 +2059,7 @@ fn qpadm(
     right: Vec<String>,
     constrained: Option<bool>,
     fudge: Option<f64>,
+    compat: Option<&str>,
 ) -> PyResult<PyQpAdmResult> {
     let sources_refs: Vec<&str> = sources.iter().map(|s| s.as_str()).collect();
     let right_refs: Vec<&str> = right.iter().map(|s| s.as_str()).collect();
@@ -2024,6 +2067,7 @@ fn qpadm(
     let opts = popmix_core::QpAdmOptions {
         fudge: fudge.unwrap_or(1e-4),
         constrained: constrained.unwrap_or(false),
+        compat: admixtools2_compat(compat)?,
     };
 
     let result = popmix_core::qpadm(
@@ -2050,11 +2094,13 @@ fn qpadm(
 ///     right: Right (outgroup) populations
 ///     constrained: Use constrained optimization (weights in [0,1])
 ///     fudge: Regularization parameter
+///     compat: "admixtools2-2.0.10" to reproduce admixtools2's quirks (see
+///         qpadm)
 ///
 /// Returns:
 ///     List of qpAdm results for each target
 #[pyfunction]
-#[pyo3(signature = (f2_blocks, targets, sources, right, constrained=None, fudge=None))]
+#[pyo3(signature = (f2_blocks, targets, sources, right, constrained=None, fudge=None, compat=None))]
 fn qpadm_multi(
     f2_blocks: &PyF2Blocks,
     targets: Vec<String>,
@@ -2062,6 +2108,7 @@ fn qpadm_multi(
     right: Vec<String>,
     constrained: Option<bool>,
     fudge: Option<f64>,
+    compat: Option<&str>,
 ) -> PyResult<Vec<PyQpAdmResult>> {
     let sources_refs: Vec<&str> = sources.iter().map(|s| s.as_str()).collect();
     let right_refs: Vec<&str> = right.iter().map(|s| s.as_str()).collect();
@@ -2069,6 +2116,7 @@ fn qpadm_multi(
     let opts = popmix_core::QpAdmOptions {
         fudge: fudge.unwrap_or(1e-4),
         constrained: constrained.unwrap_or(false),
+        compat: admixtools2_compat(compat)?,
     };
 
     let mut results = Vec::with_capacity(targets.len());
@@ -2310,8 +2358,8 @@ fn fit_graph(
         ..Default::default()
     };
 
-    let result = popmix_core::fit_graph(&graph.inner, &f2_blocks.inner, Some(opts))
-        .map_err(to_py_err)?;
+    let result =
+        popmix_core::fit_graph(&graph.inner, &f2_blocks.inner, Some(opts)).map_err(to_py_err)?;
 
     Ok(PyGraphFitResult {
         score: result.score,

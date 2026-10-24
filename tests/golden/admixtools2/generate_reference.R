@@ -226,8 +226,12 @@ run_config <- function(name, cfg) {
       # qpadm(constrained = TRUE) fails with three or more sources: drop_ranks
       # refits the lower ranks with the constrained solver, where the
       # quadratic program is singular and quadprog stops ("matrix D in
-      # quadratic function is not positive definite"). The model's weights
-      # and SEs are computed with the same internals qpadm() calls for them.
+      # quadratic function is not positive definite"). The model's weights,
+      # SEs and popdrop are computed with the same internals qpadm() calls
+      # for them. Its rankdrop is drop_ranks() run unconstrained: rankdrop
+      # (f4rank, dof, chisq, p) comes from the rank fit alone, and the
+      # weights drop_ranks() computes along the way are discarded
+      # (addweights = FALSE), so this is what qpadm() would report.
       err <- tryCatch({qpadm(f2_blocks, m$left, m$right, m$target, constrained = TRUE, verbose = FALSE); NA},
                       error = function(e) conditionMessage(e))
       st <- admixtools:::f2blocks_to_f4stats(f2_blocks, c(m$target, m$left), m$right)
@@ -239,8 +243,11 @@ run_config <- function(name, cfg) {
       se <- sqrt(diag(admixtools:::cpp_get_weights_covariance(st$f4_lo, qinv, st$block_lengths, 1e-4,
                                                               constrained = TRUE,
                                                               qpsolve = admixtools:::qpsolve)))
+      rankdrop <- admixtools:::drop_ranks(st$est, qinv, 1e-4, constrained = FALSE, cpp = TRUE)
+      popdrop <- admixtools:::drop_pops(st$est, qinv, 1e-4, constrained = TRUE, cpp = TRUE, m$left)
       return(list(target = m$target, left = m$left, right = m$right, constrained = TRUE,
-                  qpadm_error = err, weights = tibble(left = m$left, weight = c(w), se = se)))
+                  qpadm_error = err, weights = tibble(left = m$left, weight = c(w), se = se),
+                  rankdrop = select(rankdrop, f4rank, dof, chisq, p), popdrop = popdrop))
     }
     qa <- qpadm(f2_blocks, m$left, m$right, m$target, constrained = constrained, verbose = FALSE)
     list(target = m$target, left = m$left, right = m$right, constrained = constrained,

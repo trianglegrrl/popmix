@@ -10,6 +10,7 @@
 //! matrix, and the model's chi-squared is the qpWave rank test at that rank.
 //! Weights can be constrained to [0,1] or left unconstrained.
 
+use super::compat::Admixtools2Compat;
 use super::fit;
 use super::qpwave::{qpwave, QpWaveOptions, QpWaveResult};
 use crate::fstats::F2Blocks;
@@ -23,6 +24,8 @@ pub struct QpAdmOptions {
     pub fudge: f64,
     /// Whether to constrain weights to [0, 1] (default: false).
     pub constrained: bool,
+    /// admixtools2 quirks to reproduce (default: none).
+    pub compat: Admixtools2Compat,
 }
 
 impl Default for QpAdmOptions {
@@ -30,6 +33,7 @@ impl Default for QpAdmOptions {
         Self {
             fudge: 1e-4,
             constrained: false,
+            compat: Admixtools2Compat::CORRECTED,
         }
     }
 }
@@ -117,7 +121,7 @@ pub fn qpadm(
     let weights = fit::qpadm_weights(&xmat, &qinv, rnk, opts.fudge, opts.constrained)?;
     let weight_std_errors =
         fit::qpadm_weight_std_errors(&f4.leave_one_out, &qinv, rnk, opts.fudge, opts.constrained)?;
-    let popdrop = fit::drop_pops(&xmat, &qinv, opts.fudge, opts.constrained)?;
+    let popdrop = fit::drop_pops(&xmat, &qinv, opts.fudge, opts.constrained, opts.compat)?;
 
     let (chi_sq, df, p_value) = qpwave_result
         .rank_tests

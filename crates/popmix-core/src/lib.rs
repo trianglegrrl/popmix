@@ -23,18 +23,19 @@ pub mod threading;
 // Re-exports for convenience
 pub use error::{PopmixError, Result};
 pub use fstats::{
-    f2_estimate, f2_single_snp, BlockAssignment, BlockDefinition, F2Blocks, F2Options, F2Result, F3Result,
-    F4Result,
+    f2_estimate, f2_single_snp, BlockAssignment, BlockDefinition, F2Blocks, F2Options, F2Result,
+    F3Result, F4Result,
 };
 pub use genotype_matrix::{AlleleFrequencies, GenotypeMatrix};
 pub use genotypes::{Chromosome, Genotype, Ploidy, PopulationId, Sample, Snp};
 pub use qpadm::{
-    f4ratio, qpadm, qpadm_rotate, qpwave, qpwave_pairs, F4Matrix, F4RatioOptions, F4RatioResult,
-    QpAdmOptions, QpAdmResult, QpAdmRotateOptions, QpAdmRotateResult, QpWavePairResult,
-    QpWavePairsResult, QpWaveOptions, QpWaveResult, RankTest, RotationModel,
+    f4ratio, qpadm, qpadm_rotate, qpwave, qpwave_pairs, Admixtools2Compat, F4Matrix,
+    F4RatioOptions, F4RatioResult, PopDropRow, QpAdmOptions, QpAdmResult, QpAdmRotateOptions,
+    QpAdmRotateResult, QpWaveOptions, QpWavePairResult, QpWavePairsResult, QpWaveResult, RankTest,
+    RotationModel,
 };
 pub use qpgraph::{
-    fit_graph, find_graphs, AdmixGraph, AdmixNode, EdgeType, FitOptions, GraphBuilder,
+    find_graphs, fit_graph, AdmixGraph, AdmixNode, EdgeType, FitOptions, GraphBuilder,
     GraphFitResult, GraphSearchOptions, GraphSearchResult, NodeId,
 };
 pub use threading::init_thread_pool;

@@ -21,6 +21,7 @@ use nalgebra::{DMatrix, DVector};
 use ndarray::Array2;
 use statrs::distribution::{ChiSquared, ContinuousCDF};
 
+use super::compat::Admixtools2Compat;
 use crate::{PopmixError, Result};
 
 /// admixtools2 qpadm_weights `iterations`.
@@ -208,31 +209,25 @@ pub struct PopDropRow {
     pub weights: Vec<Option<f64>>,
     /// Whether every weight lies in [0, 1].
     pub feasible: bool,
-    /// Whether admixtools2 marks this model as on its nested path.
+    /// Whether this model is on the nested path.
     pub best: bool,
-    /// Nested-path comparison with the next model on the path.
+    /// Degrees of freedom gained over the model this one is compared with.
     pub dofdiff: Option<usize>,
-    /// Chi-squared difference with the next model on the path.
+    /// Chi-squared difference with that model.
     pub chisqdiff: Option<f64>,
     /// P-value of `chisqdiff` with `dofdiff` degrees of freedom.
     pub p_nested: Option<f64>,
 }
 
 /// admixtools2 `drop_pops`: fit every non-empty subset of the sources (rows
-/// of `xmat`), using the matching block of the full model's Q⁻¹.
-///
-/// The nested path reproduces admixtools2 2.0.10 as it behaves, not as it
-/// is presumably meant to: its `child_patterns` only finds children when one
-/// model is on the path, but the path starts with every model at rank
-/// (full rank - 1), so for two or more sources nothing below that rank is
-/// ever added. `best`, `dofdiff`, `chisqdiff` and `p_nested` therefore cover
-/// only the models that drop exactly one source, compared with each other in
-/// order. See DEVIATIONS.md.
+/// of `xmat`), using the matching block of the full model's Q⁻¹, and mark
+/// the nested path through them (see [`mark_nested_path`]).
 pub(crate) fn drop_pops(
     xmat: &DMatrix<f64>,
     qinv: &DMatrix<f64>,
     fudge: f64,
     constrained: bool,
+    compat: Admixtools2Compat,
 ) -> Result<Vec<PopDropRow>> {
     let (nr, nc) = xmat.shape();
     let full_rank = nr - 1;
@@ -273,9 +268,34 @@ pub(crate) fn drop_pops(
         }
     }
 
-    // The nested path: models at rank full_rank - 1 (see above), arranged by
-    // decreasing dof (stable), each compared with the next.
-    if full_rank >= 1 {
+    mark_nested_path(&mut rows, full_rank, compat);
+
+    // arrange(dof, pat)
+    rows.sort_by(|a, b| a.dof.cmp(&b.dof).then_with(|| a.pattern.cmp(&b.pattern)));
+    Ok(rows)
+}
+
+/// Mark the nested path through the `popdrop` models, `rows` being in
+/// admixtools2 `power_set` order.
+///
+/// Corrected (ADMIXTOOLS2-0001): the path starts at the full model. Each step
+/// drops one more source, taking among the current model's feasible children
+/// the one with the lowest chi-squared (the first in `power_set` order on a
+/// tie), down to a single source or until no child is feasible. Each step is
+/// compared with the model it came from: `dofdiff` is 1 and `chisqdiff` is
+/// the increase in chi-squared, a likelihood-ratio test of whether the
+/// dropped source is needed.
+///
+/// `compat.popdrop_sibling_path` reproduces admixtools2 2.0.10, whose
+/// `child_patterns` only finds children of the first model on the path while
+/// the path starts with every model at full rank - 1. So nothing below that
+/// rank is added, and those siblings are compared with each other in order
+/// of decreasing dof (stable).
+fn mark_nested_path(rows: &mut [PopDropRow], full_rank: usize, compat: Admixtools2Compat) {
+    if compat.popdrop_sibling_path {
+        if full_rank == 0 {
+            return;
+        }
         let mut nested: Vec<usize> = (0..rows.len())
             .filter(|&i| rows[i].f4rank == full_rank - 1)
             .collect();
@@ -283,18 +303,45 @@ pub(crate) fn drop_pops(
         for (k, &i) in nested.iter().enumerate() {
             rows[i].best = true;
             if let Some(&next) = nested.get(k + 1) {
-                let dofdiff = rows[i].dof - rows[next].dof;
-                let chisqdiff = rows[i].chi_sq - rows[next].chi_sq;
-                rows[i].dofdiff = Some(dofdiff);
-                rows[i].chisqdiff = Some(chisqdiff);
-                rows[i].p_nested = Some(chisq_upper_tail(chisqdiff, dofdiff));
+                compare_nested(rows, i, next);
             }
         }
+        return;
     }
 
-    // arrange(dof, pat)
-    rows.sort_by(|a, b| a.dof.cmp(&b.dof).then_with(|| a.pattern.cmp(&b.pattern)));
-    Ok(rows)
+    let Some(mut current) = rows.iter().position(|r| r.f4rank == full_rank) else {
+        return;
+    };
+    rows[current].best = true;
+    for rank in (0..full_rank).rev() {
+        let dropped = |p: &str| p.chars().map(|c| c == '1').collect::<Vec<_>>();
+        let parent = dropped(&rows[current].pattern);
+        let child = (0..rows.len())
+            .filter(|&i| rows[i].f4rank == rank && rows[i].feasible)
+            .filter(|&i| {
+                dropped(&rows[i].pattern)
+                    .iter()
+                    .zip(&parent)
+                    .all(|(c, p)| *c || !*p)
+            })
+            .fold(None, |best: Option<usize>, i| match best {
+                Some(b) if rows[b].chi_sq <= rows[i].chi_sq => Some(b),
+                _ => Some(i),
+            });
+        let Some(child) = child else { break };
+        rows[child].best = true;
+        compare_nested(rows, child, current);
+        current = child;
+    }
+}
+
+/// admixtools2's nested comparison of row `i` with row `next`, stored on `i`.
+fn compare_nested(rows: &mut [PopDropRow], i: usize, next: usize) {
+    let dofdiff = rows[i].dof - rows[next].dof;
+    let chisqdiff = rows[i].chi_sq - rows[next].chi_sq;
+    rows[i].dofdiff = Some(dofdiff);
+    rows[i].chisqdiff = Some(chisqdiff);
+    rows[i].p_nested = Some(chisq_upper_tail(chisqdiff, dofdiff));
 }
 
 /// All `k`-element subsets of 0..n in lexicographic order (R `combn`).
@@ -483,6 +530,142 @@ mod tests {
         // R: pchisq(-3, 0, lower.tail = FALSE) = 1; pchisq(3, 0, ...) = 0
         assert_eq!(chisq_upper_tail(-3.0, 0), 1.0);
         assert_eq!(chisq_upper_tail(3.0, 0), 0.0);
+    }
+
+    fn row(pattern: &str, f4rank: usize, dof: usize, chi_sq: f64, feasible: bool) -> PopDropRow {
+        PopDropRow {
+            pattern: pattern.to_string(),
+            wt: 2 - f4rank,
+            dof,
+            chi_sq,
+            p_value: chisq_p_value(chi_sq, dof),
+            f4rank,
+            weights: Vec::new(),
+            feasible,
+            best: false,
+            dofdiff: None,
+            chisqdiff: None,
+            p_nested: None,
+        }
+    }
+
+    /// Three sources, in admixtools2 power_set order. Full model 000; of the
+    /// one-drop models 010 fits best but is infeasible, so the path takes
+    /// 001; of 001's children (011, 101) 101 fits best. 110 fits better
+    /// still but is not nested in 001.
+    fn three_source_rows() -> Vec<PopDropRow> {
+        vec![
+            row("011", 0, 5, 100.0, true),
+            row("101", 0, 5, 50.0, true),
+            row("110", 0, 5, 30.0, true),
+            row("001", 1, 4, 12.0, true),
+            row("010", 1, 4, 10.0, false),
+            row("100", 1, 4, 15.0, true),
+            row("000", 2, 3, 8.0, false),
+        ]
+    }
+
+    /// (pattern, dofdiff, chisqdiff, p_nested) of each model on the path.
+    type Nested<'a> = (&'a str, Option<usize>, Option<f64>, Option<f64>);
+
+    fn nested_columns(rows: &[PopDropRow]) -> Vec<Nested<'_>> {
+        rows.iter()
+            .filter(|r| r.best)
+            .map(|r| (r.pattern.as_str(), r.dofdiff, r.chisqdiff, r.p_nested))
+            .collect()
+    }
+
+    #[test]
+    fn test_corrected_popdrop_path_is_nested_and_greedy() {
+        // ADMIXTOOLS2-0001 oracle: each step drops one more source, taking
+        // the feasible child with the lowest chi-squared, and is compared
+        // with the model it came from (1 degree of freedom).
+        let mut rows = three_source_rows();
+        mark_nested_path(&mut rows, 2, Admixtools2Compat::CORRECTED);
+        let mut got = nested_columns(&rows);
+        got.sort_by(|a, b| a.0.cmp(b.0));
+        assert_eq!(
+            got,
+            vec![
+                ("000", None, None, None),
+                ("001", Some(1), Some(4.0), Some(chisq_upper_tail(4.0, 1))),
+                ("101", Some(1), Some(38.0), Some(chisq_upper_tail(38.0, 1))),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_corrected_popdrop_path_stops_without_a_feasible_child() {
+        let mut rows = three_source_rows();
+        for r in rows.iter_mut().filter(|r| r.f4rank == 1) {
+            r.feasible = false;
+        }
+        mark_nested_path(&mut rows, 2, Admixtools2Compat::CORRECTED);
+        assert_eq!(nested_columns(&rows), vec![("000", None, None, None)]);
+    }
+
+    #[test]
+    fn test_v2_0_10_popdrop_compares_the_one_drop_siblings() {
+        // ADMIXTOOLS2-0001 compat: admixtools2 2.0.10 marks every model at
+        // full rank - 1 and compares each with the next (same dof, so
+        // dofdiff 0 and pchisq(x, 0) is 0 for x >= 0, 1 for x < 0).
+        let mut rows = three_source_rows();
+        mark_nested_path(&mut rows, 2, Admixtools2Compat::V2_0_10);
+        assert_eq!(
+            nested_columns(&rows),
+            vec![
+                ("001", Some(0), Some(2.0), Some(0.0)),
+                ("010", Some(0), Some(-5.0), Some(1.0)),
+                ("100", None, None, None),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_popdrop_compat_flag_only_changes_the_nested_columns() {
+        // ADMIXTOOLS2-0001 isolation.
+        let x = DMatrix::from_fn(3, 5, |i, j| {
+            ((i * 5 + j) as f64 * 1.7).sin() + 0.3 * i as f64
+        });
+        let qinv = DMatrix::from_fn(15, 15, |i, j| if i == j { 2.0 } else { 0.1 });
+        let fixed = drop_pops(&x, &qinv, 1e-4, false, Admixtools2Compat::CORRECTED).unwrap();
+        let compat = drop_pops(&x, &qinv, 1e-4, false, Admixtools2Compat::V2_0_10).unwrap();
+        assert_eq!(fixed.len(), 7);
+        for (a, b) in fixed.iter().zip(&compat) {
+            assert_eq!(a.pattern, b.pattern);
+            assert_eq!(
+                (a.wt, a.dof, a.f4rank, a.feasible),
+                (b.wt, b.dof, b.f4rank, b.feasible)
+            );
+            assert_eq!(a.chi_sq.to_bits(), b.chi_sq.to_bits());
+            assert_eq!(a.p_value.to_bits(), b.p_value.to_bits());
+            assert_eq!(a.weights, b.weights);
+        }
+        assert_ne!(nested_columns(&fixed), nested_columns(&compat));
+    }
+
+    #[test]
+    fn test_constrained_popdrop_with_three_sources() {
+        // ADMIXTOOLS2-0002: admixtools2 qpadm(constrained = TRUE) stops here.
+        // Every subset model is fitted at full rank, where the constrained
+        // weights are well defined, and the chi-squareds do not depend on
+        // the weights at all.
+        let x = DMatrix::from_fn(3, 5, |i, j| {
+            ((i * 5 + j) as f64 * 1.7).sin() + 0.3 * i as f64
+        });
+        let qinv = DMatrix::from_fn(15, 15, |i, j| if i == j { 2.0 } else { 0.1 });
+        let free = drop_pops(&x, &qinv, 1e-4, false, Admixtools2Compat::CORRECTED).unwrap();
+        let con = drop_pops(&x, &qinv, 1e-4, true, Admixtools2Compat::CORRECTED).unwrap();
+        for (f, c) in free.iter().zip(&con) {
+            assert_eq!(f.chi_sq.to_bits(), c.chi_sq.to_bits());
+            assert!(
+                c.feasible,
+                "pat {}: constrained weights {:?}",
+                c.pattern, c.weights
+            );
+            let sum: f64 = c.weights.iter().flatten().sum();
+            assert!((sum - 1.0).abs() < 1e-12);
+        }
     }
 
     #[test]

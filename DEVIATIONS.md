@@ -6,6 +6,16 @@ then corrects it by default, but it can still reproduce the reference exactly,
 so parity stays provable. This file lists every such correction and sets the
 rules for adding one.
 
+## Fixed in popmix
+
+| ID | Reference bug | popmix default | Reproduce with |
+|----|---------------|----------------|----------------|
+| DATES-0001 | Mesh FFT lags wrap around | Lags with no real pairs are zero | `compat="dates-v753"` |
+| DATES-0002 | Last FFT lag left unscaled | Every lag scaled | `compat="dates-v753"` |
+| DATES-0003 | Fits the printed (rounded) values | Full precision | `compat="dates-v753"` |
+| ADMIXTOOLS2-0001 | qpAdm `popdrop` nested path compares siblings, not nested models | A real nested path from the full model | `compat="admixtools2-2.0.10"` |
+| ADMIXTOOLS2-0002 | Constrained qpAdm with ≥ 3 sources stops with an error | Returns the full result | nothing to reproduce |
+
 ## The process
 
 1. **Parity first.** popmix must reproduce the reference exactly before
@@ -15,7 +25,8 @@ rules for adding one.
    reproduce it, and only then decide whether to correct it.
 
 2. **One flag per deviation.** Each tool has a compat struct with one boolean
-   per quirk (`popmix_core::dates::DatesCompat`; admixtools2 will get its own).
+   per quirk (`popmix_core::dates::DatesCompat`,
+   `popmix_core::Admixtools2Compat`).
    - `Default` / `CORRECTED` corrects everything; this is what users get.
    - A constant named after the reference version (`DatesCompat::V753`)
      turns every flag on.
@@ -124,10 +135,111 @@ rules for adding one.
 
 ## admixtools2
 
-No deviations. popmix follows admixtools2 2.0.10 defaults: `maxmiss = 0`,
-`poly_only = "f2"`, blocks built after filtering, blocks weighted by length
-in the jackknife, FST on its own SNP set and blocks, and qpWave/qpAdm fits by
-the C++ code path (`cpp = TRUE`, the default).
+`Admixtools2Compat` in `crates/popmix-core/src/qpadm/compat.rs`;
+`compat="admixtools2-2.0.10"` in Python (`qpadm`). The CLI's qpadm output
+has no popdrop table, so it has no `--compat` switch yet.
+
+Apart from the entries below, popmix follows admixtools2 2.0.10 defaults:
+`maxmiss = 0`, `poly_only = "f2"`, blocks built after filtering, blocks
+weighted by length in the jackknife, FST on its own SNP set and blocks, and
+qpWave/qpAdm fits by the C++ code path (`cpp = TRUE`, the default).
+
+### ADMIXTOOLS2-0001: popdrop's nested path compares siblings
+
+- **admixtools2:** `drop_pops` (`R/qpadm.R`) fits every subset of the
+  sources, then is meant to walk a nested path down from the full model: at
+  each rank, among the children of the path so far (one more source
+  dropped), take the feasible model with the lowest χ² (`top_n(1,
+  -jitter(chisq))`, the jitter only breaking ties), and test each step
+  against the one before. Two mistakes stop that:
+  - the path starts with *every* model at full rank − 1, not the full
+    model;
+  - `child_patterns(nested$pat)` reads only `str_locate_all(...)[[1]]`, the
+    children of the first pattern, which are at full rank − 1 again. So
+    nothing below that rank is ever added.
+
+  With two or more sources, `best` marks exactly the models that drop one
+  source. `dofdiff`, `chisqdiff` and `p_nested` compare those siblings with
+  each other: dofdiff is always 0, so p_nested is always 0 or 1.
+- **The intent is clear from both admixtools.** The R loop and its
+  `top_n(1, -chisq)` over feasible children say what was meant. Classic
+  ADMIXTOOLS (`qpAdm.c`, "best pat") does the same thing per level: the
+  feasible pattern with the best p-value, compared with the level above on
+  1 dof and flagged "not nested" when it isn't. It has its own bug: the
+  `nfeas[wt] == 1` branch resets the best on every pattern until a second
+  feasible one turns up, so an infeasible pattern with p = 0 can become the
+  incumbent. Run on Druze = Sardinian + Dinka + Han (8.0.2, AADR v62), it
+  picks 100 (χ² 790) over 001 (χ² 12.7) at level 1, then reports level 2 as
+  "not nested". popmix doesn't target classic ADMIXTOOLS; this is evidence
+  of the intent only.
+- **popmix default:** The path starts at the full model. Each step drops
+  one more source, taking the feasible child with the lowest χ² (the first
+  in `power_set` order on an exact tie, in place of `jitter`). It goes down
+  to a single source, or stops early if no child is feasible. Each step's
+  row compares it with the model it came from: `dofdiff` = 1, `chisqdiff` =
+  the χ² increase, and `p_nested` its upper tail. This is a likelihood-ratio
+  test of whether the source just dropped is needed. Requiring children
+  makes every comparison truly nested, which classic ADMIXTOOLS's per-level
+  choice doesn't guarantee.
+- **Flag:** `popdrop_sibling_path`.
+- **Affects:** Only `best`, `dofdiff`, `chisqdiff` and `p_nested`. Every
+  model fit (χ², p, weights, feasibility) is unchanged. With one source
+  there is no path: admixtools2 marks nothing, popmix marks the full model.
+- **Live numbers** (`best` models; χ² difference / dof, p):
+
+  | Model | admixtools2 2.0.10 | popmix corrected |
+  |-------|--------------------|------------------|
+  | Druze = Sardinian + Dinka + Han | 001 vs 010: −3.54/0, p 1; 010 vs 100: −792.85/0, p 1 | 000 → 001 (drop Han): 6.30/1, p 0.012 → 011 (Sardinian alone): 85.99/1, p 1.8e-20 |
+  | French = Han + Yoruba | 01 vs 10: −7418.82/0, p 1 | 00 → 01: 613.82/1, p 1.7e-135 |
+  | Papuan = Han + French | 01 vs 10: −70.35/0, p 1 | 00 → 01: 296.53/1, p 1.9e-66 |
+  | French = Sardinian + Yamnaya | 01 vs 10: −0.50/0, p 1 | 00 → 01: 0.18/1, p 0.67 |
+  | same, `maxmiss = 0.25` | 01 vs 10: 0.06/0, **p 0** | 00 → 10: 0.00/1, p 0.98 |
+
+  In the last row, admixtools2 calls a χ² difference of 0.06 significant
+  (p = 0, because dofdiff is 0). The constrained models give the same paths
+  as their unconstrained twins.
+- **Tests:**
+  - `fit.rs`: `test_corrected_popdrop_path_is_nested_and_greedy` (oracle,
+    hand-built case: skips an infeasible best child and a better non-child),
+    `test_corrected_popdrop_path_stops_without_a_feasible_child`,
+    `test_v2_0_10_popdrop_compares_the_one_drop_siblings` (compat),
+    `test_popdrop_compat_flag_only_changes_the_nested_columns` (isolation).
+  - `tests/golden/test_fstats_admixtools2.py`: `qpadm_popdrop` (golden,
+    compat mode); `qpadm_popdrop_corrected` (live isolation: only the nested
+    columns differ from compat; live oracle: they follow the nested path
+    walked independently over admixtools2's own model fits).
+  - `tests/python/test_qpadm_compat.py` (the `compat` argument).
+
+### ADMIXTOOLS2-0002: constrained qpAdm stops with three or more sources
+
+- **admixtools2:** `qpadm(constrained = TRUE)` errors with "matrix D in
+  quadratic function is not positive definite". `drop_ranks` refits every
+  lower rank through `qpadm_fit` → `cpp_qpadm_weights`, which always
+  computes weights. At rank r < sources − 1, x = [A 1]′ has only r + 1 rows,
+  so D = x′x (sources × sources) is singular. The unconstrained `solve`
+  tolerates that; quadprog doesn't. Those weights are then thrown away
+  (`addweights = FALSE`): rankdrop's f4rank, dof, χ² and p come from the
+  rank fit alone.
+- **popmix default:** The rank tests never compute weights. Constrained
+  weights are solved only at full rank, for the model and for every popdrop
+  subset, where the problem is well posed. So popmix returns weights, SEs,
+  rankdrop and popdrop.
+- **Flag:** none. There is no admixtools2 output to reproduce.
+- **Verification:** the `dg_11pop` reference for Druze = Sardinian + Dinka +
+  Han (constrained) is built from the admixtools2 internals `qpadm()` uses:
+  - `cpp_qpadm_weights` and `cpp_get_weights_covariance` for the weights
+    and SEs;
+  - `drop_pops(constrained = TRUE)` for popdrop, which runs fine;
+  - `drop_ranks` run unconstrained for rankdrop, which is identical by the
+    argument above.
+
+  popmix matches all four: weights and SEs to 1e-11 relative, the model χ²
+  to 2e-12, the popdrop χ² to 4e-11. Constrained
+  weights 0.9713 / 0.0287 / 0 against unconstrained 1.0087 / 0.0179 /
+  −0.0266.
+- **Tests:** golden `qpadm_weights`, `qpadm_fit`, `qpadm_popdrop`,
+  `qpadm_popdrop_corrected` on `dg_11pop`; `fit.rs`
+  `test_constrained_popdrop_with_three_sources`.
 
 ### Matched, not corrected
 
@@ -151,24 +263,3 @@ the C++ code path (`cpp = TRUE`, the default).
   does the same (`ancient_maxmiss` drops 2 of 713 blocks). Because of this no
   missing block reaches qpWave/qpAdm, so `est_to_loo_nafix`'s zero-filling
   never applies in this pipeline.
-- **qpAdm `popdrop` nested path.** `drop_pops` is meant to walk a nested path
-  of models down from the full one, but `child_patterns` only finds children
-  when one model is on the path, and the path starts with every model at rank
-  (full rank - 1). So for two or more sources `best`, `dofdiff`, `chisqdiff`
-  and `p_nested` cover only the models that drop exactly one source, and
-  `chisqdiff` compares those siblings with each other, not nested models.
-  popmix reproduces this. It is a bug, but the intended search is not
-  recoverable from the code (which model the path should start from, and
-  how ties are broken: admixtools2 uses `jitter`), so a corrected version is
-  an open decision, not yet a deviation.
-
-### Where admixtools2 fails
-
-- **Constrained qpAdm with three or more sources.** `qpadm(constrained =
-  TRUE)` stops with "matrix D in quadratic function is not positive
-  definite": `drop_ranks` refits the lower ranks with the constrained solver,
-  where the quadratic program is singular. popmix returns the weights and
-  SEs. Its reference (`dg_11pop`, Druze = Sardinian + Dinka + Han) is computed
-  with the same admixtools2 internals `qpadm()` uses for them
-  (`cpp_qpadm_weights`, `cpp_get_weights_covariance`), and popmix matches it.
-  This needs no compat flag: there is no admixtools2 output to reproduce.

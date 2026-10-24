@@ -9,6 +9,7 @@
 //! population sets. The right populations serve as outgroups that differentiate
 //! ancestry sources.
 
+mod compat;
 mod f4_matrix;
 mod f4ratio;
 mod fit;
@@ -17,9 +18,10 @@ mod qpwave;
 mod qpwave_pairs;
 mod rotate;
 
+pub use compat::Admixtools2Compat;
 pub use f4_matrix::F4Matrix;
-pub use fit::PopDropRow;
 pub use f4ratio::{f4ratio, F4RatioOptions, F4RatioResult};
+pub use fit::PopDropRow;
 pub use qpadm_impl::{qpadm, QpAdmOptions, QpAdmResult};
 pub use qpwave::{qpwave, QpWaveOptions, QpWaveResult, RankTest};
 pub use qpwave_pairs::{qpwave_pairs, QpWavePairResult, QpWavePairsResult};
