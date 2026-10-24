@@ -225,10 +225,7 @@ impl AdmixGraph {
 
     /// Check if a node is an admixture node (has 2 incoming edges).
     pub fn is_admixed(&self, node: NodeId) -> bool {
-        self.graph
-            .edges_directed(node, Direction::Incoming)
-            .count()
-            == 2
+        self.graph.edges_directed(node, Direction::Incoming).count() == 2
     }
 
     /// Validate the graph structure.

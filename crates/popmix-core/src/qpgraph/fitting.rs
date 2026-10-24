@@ -108,7 +108,11 @@ pub fn fit_graph(
 
     // Get leaf populations that are present in both graph and data
     let graph_leaves = graph.leaf_names();
-    let data_pops: Vec<String> = f2_blocks.populations.iter().map(|p| p.to_string()).collect();
+    let data_pops: Vec<String> = f2_blocks
+        .populations
+        .iter()
+        .map(|p| p.to_string())
+        .collect();
 
     let common_pops: Vec<String> = graph_leaves
         .iter()
@@ -552,7 +556,10 @@ mod tests {
 
         let result = result.unwrap();
         println!("Fit result: score={}, rmse={}", result.score, result.rmse);
-        println!("Iterations: {}, converged: {}", result.iterations, result.converged);
+        println!(
+            "Iterations: {}, converged: {}",
+            result.iterations, result.converged
+        );
     }
 
     #[test]

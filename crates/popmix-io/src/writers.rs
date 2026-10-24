@@ -357,7 +357,12 @@ fn write_snp_file(path: &str, snps: &[Snp]) -> Result<()> {
         writeln!(
             writer,
             "{} {} {:.6} {} {} {}",
-            snp.id, snp.chromosome, snp.position_morgans, snp.position_bp, snp.allele_ref, snp.allele_alt
+            snp.id,
+            snp.chromosome,
+            snp.position_morgans,
+            snp.position_bp,
+            snp.allele_ref,
+            snp.allele_alt
         )?;
     }
 
@@ -390,7 +395,12 @@ fn write_map_file(path: &str, snps: &[Snp]) -> Result<()> {
         writeln!(
             writer,
             "{}\t{}\t{:.6}\t{}\t{}\t{}",
-            snp.chromosome, snp.id, snp.position_morgans, snp.position_bp, snp.allele_ref, snp.allele_alt
+            snp.chromosome,
+            snp.id,
+            snp.position_morgans,
+            snp.position_bp,
+            snp.allele_ref,
+            snp.allele_alt
         )?;
     }
 
@@ -445,11 +455,7 @@ fn write_fam_file(path: &str, samples: &[Sample]) -> Result<()> {
         // PID/MID = 0 (unknown parents)
         // SEX = 0 (unknown)
         // PHENO = -9 (missing)
-        writeln!(
-            writer,
-            "{}\t{}\t0\t0\t0\t-9",
-            sample.population, sample.id
-        )?;
+        writeln!(writer, "{}\t{}\t0\t0\t0\t-9", sample.population, sample.id)?;
     }
 
     Ok(())
@@ -668,8 +674,7 @@ mod tests {
 
         // Include missing genotypes (value 3)
         let data = array![[0, 1, 3], [3, 2, 0], [2, 3, 1]];
-        let matrix =
-            GenotypeMatrix::new(data, make_test_samples(), make_test_snps()).unwrap();
+        let matrix = GenotypeMatrix::new(data, make_test_samples(), make_test_snps()).unwrap();
 
         // Write and read back
         write_eigenstrat(&prefix, &matrix).unwrap();
@@ -689,14 +694,14 @@ mod tests {
 
         // Include missing genotypes
         let data = array![[0, 1, 3], [3, 2, 0], [2, 3, 1]];
-        let matrix =
-            GenotypeMatrix::new(data, make_test_samples(), make_test_snps()).unwrap();
+        let matrix = GenotypeMatrix::new(data, make_test_samples(), make_test_snps()).unwrap();
 
         // Write ANCESTRYMAP
         write_ancestrymap(&prefix, &matrix).unwrap();
 
         // Read the geno file and verify sparse format
-        let geno_content = std::fs::read_to_string(format!("{}.ancestrymapgeno", prefix.display())).unwrap();
+        let geno_content =
+            std::fs::read_to_string(format!("{}.ancestrymapgeno", prefix.display())).unwrap();
         let lines: Vec<&str> = geno_content.lines().collect();
 
         // Should have 6 lines (9 genotypes - 3 missing = 6)

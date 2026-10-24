@@ -5,13 +5,15 @@
 
 use popmix_io::EigenstratReader;
 
-const TEST_PREFIX: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests/fixtures/small_eigenstrat");
+const TEST_PREFIX: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../tests/fixtures/small_eigenstrat"
+);
 
 /// Test that we can open and read basic metadata from EIGENSTRAT dataset.
 #[test]
 fn test_open_eigenstrat_dataset() {
-    let reader = EigenstratReader::new(TEST_PREFIX)
-        .expect("Failed to open EIGENSTRAT dataset");
+    let reader = EigenstratReader::new(TEST_PREFIX).expect("Failed to open EIGENSTRAT dataset");
 
     // Verify expected dimensions
     assert_eq!(reader.num_samples(), 3, "Expected 3 samples");
@@ -34,11 +36,11 @@ fn test_open_eigenstrat_dataset() {
 /// Test reading all SNPs from EIGENSTRAT dataset.
 #[test]
 fn test_read_snps_eigenstrat() {
-    let reader = EigenstratReader::new(TEST_PREFIX)
-        .expect("Failed to open EIGENSTRAT dataset");
+    let reader = EigenstratReader::new(TEST_PREFIX).expect("Failed to open EIGENSTRAT dataset");
 
     // Read all SNPs
-    let geno_matrix = reader.read_snp_range(0..5)
+    let geno_matrix = reader
+        .read_snp_range(0..5)
         .expect("Failed to read SNP range");
 
     assert_eq!(geno_matrix.n_snps(), 5);
@@ -70,12 +72,10 @@ fn test_read_snps_eigenstrat() {
 /// Test ploidy detection on EIGENSTRAT dataset.
 #[test]
 fn test_detect_ploidy_eigenstrat() {
-    let mut reader = EigenstratReader::new(TEST_PREFIX)
-        .expect("Failed to open EIGENSTRAT dataset");
+    let mut reader = EigenstratReader::new(TEST_PREFIX).expect("Failed to open EIGENSTRAT dataset");
 
     // Detect ploidy based on all SNPs
-    reader.detect_ploidy(5)
-        .expect("Failed to detect ploidy");
+    reader.detect_ploidy(5).expect("Failed to detect ploidy");
 
     // All samples should have ploidy set
     for sample in reader.samples() {

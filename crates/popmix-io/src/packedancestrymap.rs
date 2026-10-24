@@ -29,8 +29,7 @@ use popmix_core::{Genotype, GenotypeMatrix, Ploidy, PopmixError, Result, Sample,
 pub fn is_packed_format(geno_path: &str) -> Result<bool> {
     use std::io::Read;
 
-    let mut file = File::open(geno_path)
-        .map_err(|e| PopmixError::io_with_path(e, geno_path))?;
+    let mut file = File::open(geno_path).map_err(|e| PopmixError::io_with_path(e, geno_path))?;
 
     let mut magic = [0u8; 4];
     file.read_exact(&mut magic)
@@ -67,7 +66,8 @@ impl PackedAncestryMapReader {
         if !is_packed_format(&geno_path)? {
             return Err(PopmixError::InvalidFileFormat {
                 file: geno_path,
-                details: "Expected PACKEDANCESTRYMAP format, found EIGENSTRAT text format".to_string(),
+                details: "Expected PACKEDANCESTRYMAP format, found EIGENSTRAT text format"
+                    .to_string(),
             });
         }
 
@@ -113,12 +113,11 @@ impl PackedAncestryMapReader {
     fn ensure_mmap(&mut self) -> Result<&Mmap> {
         if self.geno_mmap.is_none() {
             let geno_path = format!("{}.geno", self.prefix);
-            let file = File::open(&geno_path)
-                .map_err(|e| PopmixError::io_with_path(e, &geno_path))?;
+            let file =
+                File::open(&geno_path).map_err(|e| PopmixError::io_with_path(e, &geno_path))?;
 
-            let mmap = unsafe {
-                Mmap::map(&file).map_err(|e| PopmixError::io_with_path(e, &geno_path))?
-            };
+            let mmap =
+                unsafe { Mmap::map(&file).map_err(|e| PopmixError::io_with_path(e, &geno_path))? };
 
             // Verify magic number
             if mmap.len() < 4 || &mmap[0..4] != b"GENO" {
@@ -212,7 +211,8 @@ impl PackedAncestryMapReader {
                 let offset = header_size + snp_idx * bytes_per_snp;
                 let snp_bytes = &mmap[offset..offset + bytes_per_snp];
 
-                for (sample_idx, geno) in decode_packed_genotypes(snp_bytes, n_samples).enumerate() {
+                for (sample_idx, geno) in decode_packed_genotypes(snp_bytes, n_samples).enumerate()
+                {
                     if geno == Genotype::Het {
                         has_het[sample_idx] = true;
                     }
@@ -295,8 +295,8 @@ mod tests {
         // Sample 3 (bits 0-1): 00 = HomRef
         let genos = decode_packed_byte(0b11_10_01_00);
         assert_eq!(genos[0], Genotype::Missing); // bits 6-7 = 11
-        assert_eq!(genos[1], Genotype::HomAlt);  // bits 4-5 = 10
-        assert_eq!(genos[2], Genotype::Het);     // bits 2-3 = 01
-        assert_eq!(genos[3], Genotype::HomRef);  // bits 0-1 = 00
+        assert_eq!(genos[1], Genotype::HomAlt); // bits 4-5 = 10
+        assert_eq!(genos[2], Genotype::Het); // bits 2-3 = 01
+        assert_eq!(genos[3], Genotype::HomRef); // bits 0-1 = 00
     }
 }

@@ -126,21 +126,23 @@ impl AncestryMapReader {
             })?;
 
             // Look up indices
-            let snp_idx = self.snp_index.get(snp_id).ok_or_else(|| {
-                PopmixError::ParseError {
+            let snp_idx = self
+                .snp_index
+                .get(snp_id)
+                .ok_or_else(|| PopmixError::ParseError {
                     file: self.geno_path.clone(),
                     line: line_num + 1,
                     details: format!("Unknown SNP ID: {}", snp_id),
-                }
-            })?;
+                })?;
 
-            let sample_idx = self.sample_index.get(sample_id).ok_or_else(|| {
-                PopmixError::ParseError {
-                    file: self.geno_path.clone(),
-                    line: line_num + 1,
-                    details: format!("Unknown sample ID: {}", sample_id),
-                }
-            })?;
+            let sample_idx =
+                self.sample_index
+                    .get(sample_id)
+                    .ok_or_else(|| PopmixError::ParseError {
+                        file: self.geno_path.clone(),
+                        line: line_num + 1,
+                        details: format!("Unknown sample ID: {}", sample_id),
+                    })?;
 
             // ANCESTRYMAP count is number of reference alleles (0, 1, or 2)
             // Our encoding: 0=HomRef, 1=Het, 2=HomAlt
@@ -181,10 +183,10 @@ mod tests {
 
         // Write .ancestrymapgeno file
         let mut geno = File::create(format!("{}.ancestrymapgeno", prefix_str)).unwrap();
-        writeln!(geno, "rs1 Sample1 2").unwrap();  // HomRef
-        writeln!(geno, "rs1 Sample2 1").unwrap();  // Het
-        writeln!(geno, "rs2 Sample1 0").unwrap();  // HomAlt
-        // rs2 Sample2 is missing (no entry)
+        writeln!(geno, "rs1 Sample1 2").unwrap(); // HomRef
+        writeln!(geno, "rs1 Sample2 1").unwrap(); // Het
+        writeln!(geno, "rs2 Sample1 0").unwrap(); // HomAlt
+                                                  // rs2 Sample2 is missing (no entry)
 
         prefix_str
     }

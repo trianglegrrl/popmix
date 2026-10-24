@@ -14,10 +14,10 @@ mod qpgraph_fit;
 
 pub use fitting::{fit_graph, FitOptions, GraphFitResult};
 pub use graph::{AdmixGraph, AdmixNode, EdgeType, GraphBuilder, NodeId};
-pub use qpgraph_fit::{
-    qpgraph, QpGraphEdge, QpGraphF3, QpGraphOptions, QpGraphResult, QpGraphStart,
-};
 pub use graph_search::{
     all_graphs, find_graphs, graph_key, GraphSearchMethod, GraphSearchOptions, GraphSearchResult,
     ScoredGraph,
+};
+pub use qpgraph_fit::{
+    qpgraph, QpGraphEdge, QpGraphF3, QpGraphOptions, QpGraphResult, QpGraphStart,
 };

@@ -130,7 +130,10 @@ pub fn read_npy_f64(path: &Path) -> Result<Array2<f64>> {
     let (rows, cols) = parse_shape(&header).ok_or_else(|| {
         PopmixError::Io(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
-            format!("Failed to parse shape from NPY header in {}", path.display()),
+            format!(
+                "Failed to parse shape from NPY header in {}",
+                path.display()
+            ),
         ))
     })?;
 

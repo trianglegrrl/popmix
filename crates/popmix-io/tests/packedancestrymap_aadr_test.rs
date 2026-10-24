@@ -29,13 +29,22 @@ fn test_open_aadr_packedancestrymap_dataset() {
 
     // Check first sample
     let first_sample = &reader.samples()[0];
-    assert!(!first_sample.id.is_empty(), "First sample should have an ID");
-    println!("First sample: {} ({})", first_sample.id, first_sample.population);
+    assert!(
+        !first_sample.id.is_empty(),
+        "First sample should have an ID"
+    );
+    println!(
+        "First sample: {} ({})",
+        first_sample.id, first_sample.population
+    );
 
     // Check first SNP
     let first_snp = &reader.snps()[0];
     assert!(!first_snp.id.is_empty(), "First SNP should have an ID");
-    println!("First SNP: {} at chr{} pos {}", first_snp.id, first_snp.chromosome, first_snp.position_bp);
+    println!(
+        "First SNP: {} at chr{} pos {}",
+        first_snp.id, first_snp.chromosome, first_snp.position_bp
+    );
 }
 
 /// Test reading a small range of SNPs from AADR PACKEDANCESTRYMAP dataset.
@@ -50,7 +59,8 @@ fn test_read_snps_aadr_packedancestrymap() {
         .expect("Failed to open AADR PACKEDANCESTRYMAP dataset");
 
     // Read first 100 SNPs
-    let geno_matrix = reader.read_snp_range(0..100)
+    let geno_matrix = reader
+        .read_snp_range(0..100)
         .expect("Failed to read SNP range");
 
     assert_eq!(geno_matrix.n_snps(), 100);
@@ -113,8 +123,7 @@ fn test_detect_ploidy_aadr_packedancestrymap() {
         .expect("Failed to open AADR PACKEDANCESTRYMAP dataset");
 
     // Detect ploidy based on first 1000 SNPs
-    reader.detect_ploidy(1000)
-        .expect("Failed to detect ploidy");
+    reader.detect_ploidy(1000).expect("Failed to detect ploidy");
 
     let mut diploid_count = 0;
     let mut pseudohaploid_count = 0;
@@ -132,7 +141,10 @@ fn test_detect_ploidy_aadr_packedancestrymap() {
     );
 
     // Should detect at least some samples
-    assert!(diploid_count > 0 || pseudohaploid_count > 0, "Should detect at least some samples");
+    assert!(
+        diploid_count > 0 || pseudohaploid_count > 0,
+        "Should detect at least some samples"
+    );
 }
 
 /// Test reading a single SNP.
@@ -147,8 +159,7 @@ fn test_read_single_snp_aadr_packedancestrymap() {
         .expect("Failed to open AADR PACKEDANCESTRYMAP dataset");
 
     // Read SNP at index 1000
-    let genotypes = reader.read_snp(1000)
-        .expect("Failed to read single SNP");
+    let genotypes = reader.read_snp(1000).expect("Failed to read single SNP");
 
     assert_eq!(genotypes.len(), 17629);
 

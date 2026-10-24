@@ -91,7 +91,8 @@ impl PedReader {
         let n_snps = self.snps.len();
 
         // Build allele lookup from SNPs
-        let allele_lookup: Vec<(char, char)> = self.snps
+        let allele_lookup: Vec<(char, char)> = self
+            .snps
             .iter()
             .map(|s| (s.allele_ref, s.allele_alt))
             .collect();
@@ -159,8 +160,7 @@ fn parse_ped_genotype(a1: &str, a2: &str, (ref_allele, _alt_allele): (char, char
     let c2 = c2.unwrap();
 
     // Count reference alleles
-    let ref_count = (if c1 == ref_allele { 1 } else { 0 })
-        + (if c2 == ref_allele { 1 } else { 0 });
+    let ref_count = (if c1 == ref_allele { 1 } else { 0 }) + (if c2 == ref_allele { 1 } else { 0 });
 
     match ref_count {
         0 => Genotype::HomAlt,

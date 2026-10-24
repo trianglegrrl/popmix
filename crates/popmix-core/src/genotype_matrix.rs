@@ -359,9 +359,7 @@ impl AlleleFrequencies {
         let indices: Vec<(usize, usize)> = populations
             .iter()
             .enumerate()
-            .filter_map(|(new_idx, pop)| {
-                self.pop_index(pop).map(|old_idx| (new_idx, old_idx))
-            })
+            .filter_map(|(new_idx, pop)| self.pop_index(pop).map(|old_idx| (new_idx, old_idx)))
             .collect();
 
         let n_snps = self.n_snps();
@@ -440,7 +438,14 @@ mod tests {
     #[test]
     fn test_population_indices() {
         let data = array![[0, 1, 2, 0]];
-        let snps = vec![Snp::new("rs1", Chromosome::Autosome(1), 100, 0.01, 'A', 'G')];
+        let snps = vec![Snp::new(
+            "rs1",
+            Chromosome::Autosome(1),
+            100,
+            0.01,
+            'A',
+            'G',
+        )];
         let geno = GenotypeMatrix::new(data, make_test_samples(), snps).unwrap();
 
         let pop_a = geno.population_indices(&PopulationId::new("PopA"));
@@ -456,7 +461,14 @@ mod tests {
         // PopA (indices 0,1): (0 + 2) / 4 = 0.5
         // PopB (indices 2,3): (0 + 2) / 4 = 0.5
         let data = array![[0, 2, 0, 2]];
-        let snps = vec![Snp::new("rs1", Chromosome::Autosome(1), 100, 0.01, 'A', 'G')];
+        let snps = vec![Snp::new(
+            "rs1",
+            Chromosome::Autosome(1),
+            100,
+            0.01,
+            'A',
+            'G',
+        )];
         let geno = GenotypeMatrix::new(data, make_test_samples(), snps).unwrap();
 
         let (freq, count) = geno.allele_frequency(0, &[0, 1]);

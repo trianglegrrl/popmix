@@ -41,7 +41,11 @@ impl EigenstratReader {
             return Err(PopmixError::FileNotFound { path: geno_path });
         }
 
-        Ok(EigenstratReader { prefix, samples, snps })
+        Ok(EigenstratReader {
+            prefix,
+            samples,
+            snps,
+        })
     }
 
     /// Get the number of samples.
@@ -82,8 +86,7 @@ impl EigenstratReader {
     /// Returns a GenotypeMatrix with only the specified SNPs.
     pub fn read_snp_range(&self, range: std::ops::Range<usize>) -> Result<GenotypeMatrix> {
         let geno_path = format!("{}.geno", self.prefix);
-        let file =
-            File::open(&geno_path).map_err(|e| PopmixError::io_with_path(e, &geno_path))?;
+        let file = File::open(&geno_path).map_err(|e| PopmixError::io_with_path(e, &geno_path))?;
         let reader = BufReader::new(file);
 
         let n_samples = self.samples.len();
@@ -113,11 +116,7 @@ impl EigenstratReader {
                 return Err(PopmixError::parse(
                     &geno_path,
                     line_num + 1,
-                    format!(
-                        "Expected {} genotypes, got {}",
-                        n_samples,
-                        line_bytes.len()
-                    ),
+                    format!("Expected {} genotypes, got {}", n_samples, line_bytes.len()),
                 ));
             }
 
@@ -151,8 +150,7 @@ impl EigenstratReader {
     /// Read genotypes for a single SNP.
     pub fn read_snp(&self, snp_idx: usize) -> Result<Vec<Genotype>> {
         let geno_path = format!("{}.geno", self.prefix);
-        let file =
-            File::open(&geno_path).map_err(|e| PopmixError::io_with_path(e, &geno_path))?;
+        let file = File::open(&geno_path).map_err(|e| PopmixError::io_with_path(e, &geno_path))?;
         let reader = BufReader::new(file);
 
         let n_samples = self.samples.len();
@@ -171,11 +169,7 @@ impl EigenstratReader {
                 return Err(PopmixError::parse(
                     &geno_path,
                     line_num + 1,
-                    format!(
-                        "Expected {} genotypes, got {}",
-                        n_samples,
-                        line_bytes.len()
-                    ),
+                    format!("Expected {} genotypes, got {}", n_samples, line_bytes.len()),
                 ));
             }
 
@@ -201,8 +195,7 @@ impl EigenstratReader {
         let n_check = n_snps_check.min(self.snps.len());
 
         let geno_path = format!("{}.geno", self.prefix);
-        let file =
-            File::open(&geno_path).map_err(|e| PopmixError::io_with_path(e, &geno_path))?;
+        let file = File::open(&geno_path).map_err(|e| PopmixError::io_with_path(e, &geno_path))?;
         let reader = BufReader::new(file);
 
         let mut has_het = vec![false; n_samples];
@@ -242,8 +235,7 @@ impl EigenstratReader {
 ///
 /// Format: SAMPLE_ID SEX POPULATION (whitespace-separated)
 pub fn read_ind_file(path: &str) -> Result<Vec<Sample>> {
-    let content = std::fs::read_to_string(path)
-        .map_err(|e| PopmixError::io_with_path(e, path))?;
+    let content = std::fs::read_to_string(path).map_err(|e| PopmixError::io_with_path(e, path))?;
 
     let mut samples = Vec::new();
 
@@ -277,8 +269,7 @@ pub fn read_ind_file(path: &str) -> Result<Vec<Sample>> {
 /// Format: SNP_ID CHR CM BP A1 A2 (whitespace-separated)
 /// Note: Column order differs from PLINK .bim (SNP_ID is first, CHR is second)
 pub fn read_snp_file(path: &str) -> Result<Vec<Snp>> {
-    let content = std::fs::read_to_string(path)
-        .map_err(|e| PopmixError::io_with_path(e, path))?;
+    let content = std::fs::read_to_string(path).map_err(|e| PopmixError::io_with_path(e, path))?;
 
     let mut snps = Vec::new();
 
@@ -302,13 +293,24 @@ pub fn read_snp_file(path: &str) -> Result<Vec<Snp>> {
         // SNP files store genetic position in Morgans - keep in Morgans to match DATES
         let position_morgans = fields[2].parse::<f64>().unwrap_or(0.0);
         let position_bp = fields[3].parse::<u32>().map_err(|_| {
-            PopmixError::parse(path, line_num + 1, format!("Invalid BP position: {}", fields[3]))
+            PopmixError::parse(
+                path,
+                line_num + 1,
+                format!("Invalid BP position: {}", fields[3]),
+            )
         })?;
 
         let allele_ref = fields[4].chars().next().unwrap_or('N');
         let allele_alt = fields[5].chars().next().unwrap_or('N');
 
-        snps.push(Snp::new(id, chromosome, position_bp, position_morgans, allele_ref, allele_alt));
+        snps.push(Snp::new(
+            id,
+            chromosome,
+            position_bp,
+            position_morgans,
+            allele_ref,
+            allele_alt,
+        ));
     }
 
     Ok(snps)
@@ -330,7 +332,10 @@ mod tests {
         assert_eq!(Genotype::from_eigenstrat_char(b'0'), Some(Genotype::HomRef));
         assert_eq!(Genotype::from_eigenstrat_char(b'1'), Some(Genotype::Het));
         assert_eq!(Genotype::from_eigenstrat_char(b'2'), Some(Genotype::HomAlt));
-        assert_eq!(Genotype::from_eigenstrat_char(b'9'), Some(Genotype::Missing));
+        assert_eq!(
+            Genotype::from_eigenstrat_char(b'9'),
+            Some(Genotype::Missing)
+        );
         assert_eq!(Genotype::from_eigenstrat_char(b'X'), None);
     }
 }

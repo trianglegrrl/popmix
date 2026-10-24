@@ -113,18 +113,15 @@ pub fn parse_vcf_gt(gt: &str) -> Option<Genotype> {
     // Convert to genotype (count of ALT allele)
     let dosage = a1 + a2;
     match dosage {
-        0 => Some(Genotype::HomRef),  // 0/0
-        1 => Some(Genotype::Het),     // 0/1 or 1/0
-        2 => Some(Genotype::HomAlt),  // 1/1
-        _ => None, // Multi-allelic not supported
+        0 => Some(Genotype::HomRef), // 0/0
+        1 => Some(Genotype::Het),    // 0/1 or 1/0
+        2 => Some(Genotype::HomAlt), // 1/1
+        _ => None,                   // Multi-allelic not supported
     }
 }
 
 /// Parse VCF header and count variants.
-fn parse_vcf_header_and_variants(
-    path: &str,
-    is_gzipped: bool,
-) -> Result<(Vec<Sample>, Vec<Snp>)> {
+fn parse_vcf_header_and_variants(path: &str, is_gzipped: bool) -> Result<(Vec<Sample>, Vec<Snp>)> {
     let file = File::open(path).map_err(|e| PopmixError::io_with_path(e, path))?;
 
     let reader: Box<dyn BufRead> = if is_gzipped {
@@ -174,13 +171,20 @@ fn parse_vcf_header_and_variants(
                 return Err(PopmixError::parse(
                     path,
                     line_num + 1,
-                    format!("VCF data line must have at least 8 columns, got {}", fields.len()),
+                    format!(
+                        "VCF data line must have at least 8 columns, got {}",
+                        fields.len()
+                    ),
                 ));
             }
 
             let chrom = Chromosome::parse(fields[0]);
             let pos = fields[1].parse::<u32>().map_err(|_| {
-                PopmixError::parse(path, line_num + 1, format!("Invalid position: {}", fields[1]))
+                PopmixError::parse(
+                    path,
+                    line_num + 1,
+                    format!("Invalid position: {}", fields[1]),
+                )
             })?;
             let id = if fields[2] == "." {
                 format!("{}:{}", fields[0], pos)
@@ -196,7 +200,11 @@ fn parse_vcf_header_and_variants(
     }
 
     if samples.is_empty() {
-        return Err(PopmixError::parse(path, 0, "No samples found in VCF header"));
+        return Err(PopmixError::parse(
+            path,
+            0,
+            "No samples found in VCF header",
+        ));
     }
 
     Ok((samples, snps))
@@ -240,11 +248,7 @@ fn read_vcf_genotypes(
             return Err(PopmixError::parse(
                 path,
                 line_num + 1,
-                format!(
-                    "Expected {} columns, got {}",
-                    9 + n_samples,
-                    fields.len()
-                ),
+                format!("Expected {} columns, got {}", 9 + n_samples, fields.len()),
             ));
         }
 
@@ -289,10 +293,22 @@ mod tests {
     use super::*;
 
     // Fixture paths relative to workspace root
-    const VCF_FIXTURE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests/fixtures/small_vcf.vcf");
-    const VCF_MISSING_FIXTURE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests/fixtures/small_vcf_missing.vcf");
-    const VCF_PHASED_FIXTURE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests/fixtures/small_vcf_phased.vcf");
-    const EIGENSTRAT_FIXTURE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests/fixtures/small_eigenstrat");
+    const VCF_FIXTURE: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/small_vcf.vcf"
+    );
+    const VCF_MISSING_FIXTURE: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/small_vcf_missing.vcf"
+    );
+    const VCF_PHASED_FIXTURE: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/small_vcf_phased.vcf"
+    );
+    const EIGENSTRAT_FIXTURE: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/small_eigenstrat"
+    );
 
     // TDD RED: Test GT parsing
     #[test]
@@ -365,12 +381,12 @@ mod tests {
         // EIGENSTRAT .geno row 1: 012 → IND1=HomRef, IND2=Het, IND3=HomAlt
         // VCF row 1: IND1=0/0 (HomRef), IND2=0/1 (Het), IND3=1/1 (HomAlt)
         assert_eq!(matrix.get(0, 0), Genotype::HomRef); // IND1, rs1
-        assert_eq!(matrix.get(0, 1), Genotype::Het);    // IND2, rs1
+        assert_eq!(matrix.get(0, 1), Genotype::Het); // IND2, rs1
         assert_eq!(matrix.get(0, 2), Genotype::HomAlt); // IND3, rs1
 
         // EIGENSTRAT .geno row 2: 120 → IND1=Het, IND2=HomAlt, IND3=HomRef
         // VCF row 2: IND1=0/1 (Het), IND2=1/1 (HomAlt), IND3=0/0 (HomRef)
-        assert_eq!(matrix.get(1, 0), Genotype::Het);    // IND1, rs2
+        assert_eq!(matrix.get(1, 0), Genotype::Het); // IND1, rs2
         assert_eq!(matrix.get(1, 1), Genotype::HomAlt); // IND2, rs2
         assert_eq!(matrix.get(1, 2), Genotype::HomRef); // IND3, rs2
     }
@@ -438,7 +454,7 @@ mod tests {
 
         // Phased genotypes should be parsed correctly (same data as unphased, with | instead of /)
         assert_eq!(matrix.get(0, 0), Genotype::HomRef); // 0|0
-        assert_eq!(matrix.get(0, 1), Genotype::Het);    // 0|1
+        assert_eq!(matrix.get(0, 1), Genotype::Het); // 0|1
         assert_eq!(matrix.get(0, 2), Genotype::HomAlt); // 1|1
     }
 }

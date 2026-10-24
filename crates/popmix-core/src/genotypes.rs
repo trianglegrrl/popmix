@@ -356,15 +356,9 @@ mod tests {
 
     #[test]
     fn test_genotype_from_eigenstrat_char() {
-        assert_eq!(
-            Genotype::from_eigenstrat_char(b'0'),
-            Some(Genotype::HomRef)
-        );
+        assert_eq!(Genotype::from_eigenstrat_char(b'0'), Some(Genotype::HomRef));
         assert_eq!(Genotype::from_eigenstrat_char(b'1'), Some(Genotype::Het));
-        assert_eq!(
-            Genotype::from_eigenstrat_char(b'2'),
-            Some(Genotype::HomAlt)
-        );
+        assert_eq!(Genotype::from_eigenstrat_char(b'2'), Some(Genotype::HomAlt));
         assert_eq!(
             Genotype::from_eigenstrat_char(b'9'),
             Some(Genotype::Missing)
@@ -421,19 +415,43 @@ mod tests {
     #[test]
     fn test_genotype_to_plink_bits() {
         // Verify round-trip
-        assert_eq!(Genotype::from_plink_bits(Genotype::HomRef.to_plink_bits()), Genotype::HomRef);
-        assert_eq!(Genotype::from_plink_bits(Genotype::Het.to_plink_bits()), Genotype::Het);
-        assert_eq!(Genotype::from_plink_bits(Genotype::HomAlt.to_plink_bits()), Genotype::HomAlt);
-        assert_eq!(Genotype::from_plink_bits(Genotype::Missing.to_plink_bits()), Genotype::Missing);
+        assert_eq!(
+            Genotype::from_plink_bits(Genotype::HomRef.to_plink_bits()),
+            Genotype::HomRef
+        );
+        assert_eq!(
+            Genotype::from_plink_bits(Genotype::Het.to_plink_bits()),
+            Genotype::Het
+        );
+        assert_eq!(
+            Genotype::from_plink_bits(Genotype::HomAlt.to_plink_bits()),
+            Genotype::HomAlt
+        );
+        assert_eq!(
+            Genotype::from_plink_bits(Genotype::Missing.to_plink_bits()),
+            Genotype::Missing
+        );
     }
 
     #[test]
     fn test_genotype_packed_bits_roundtrip() {
         // Verify round-trip for PACKEDANCESTRYMAP encoding
-        assert_eq!(Genotype::from_packed_bits(Genotype::HomRef.to_packed_bits()), Genotype::HomRef);
-        assert_eq!(Genotype::from_packed_bits(Genotype::Het.to_packed_bits()), Genotype::Het);
-        assert_eq!(Genotype::from_packed_bits(Genotype::HomAlt.to_packed_bits()), Genotype::HomAlt);
-        assert_eq!(Genotype::from_packed_bits(Genotype::Missing.to_packed_bits()), Genotype::Missing);
+        assert_eq!(
+            Genotype::from_packed_bits(Genotype::HomRef.to_packed_bits()),
+            Genotype::HomRef
+        );
+        assert_eq!(
+            Genotype::from_packed_bits(Genotype::Het.to_packed_bits()),
+            Genotype::Het
+        );
+        assert_eq!(
+            Genotype::from_packed_bits(Genotype::HomAlt.to_packed_bits()),
+            Genotype::HomAlt
+        );
+        assert_eq!(
+            Genotype::from_packed_bits(Genotype::Missing.to_packed_bits()),
+            Genotype::Missing
+        );
     }
 
     #[test]

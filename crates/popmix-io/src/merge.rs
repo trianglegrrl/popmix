@@ -116,10 +116,7 @@ pub fn recode_flipped(geno: Genotype) -> Genotype {
 }
 
 /// Build SNP intersection between two datasets
-pub fn build_snp_intersection(
-    snps_a: &[Snp],
-    snps_b: &[Snp],
-) -> (Vec<MergedSnp>, MergeStats) {
+pub fn build_snp_intersection(snps_a: &[Snp], snps_b: &[Snp]) -> (Vec<MergedSnp>, MergeStats) {
     let mut stats = MergeStats::default();
 
     // Build index of SNPs in file B by (chromosome, position)
@@ -445,23 +442,20 @@ mod tests {
         // Create two small genotype matrices and merge them
 
         // File A: 2 samples, 3 SNPs
-        let samples_a = vec![
-            make_sample("A1", "PopA"),
-            make_sample("A2", "PopA"),
-        ];
+        let samples_a = vec![make_sample("A1", "PopA"), make_sample("A2", "PopA")];
         let snps_a = vec![
-            make_snp(1, 100, 'A', 'G'),  // Only in A
-            make_snp(1, 200, 'C', 'T'),  // In both, identical
-            make_snp(1, 300, 'G', 'A'),  // In both, flipped
+            make_snp(1, 100, 'A', 'G'), // Only in A
+            make_snp(1, 200, 'C', 'T'), // In both, identical
+            make_snp(1, 300, 'G', 'A'), // In both, flipped
         ];
         // Genotypes: [n_snps, n_samples]
         // SNP1: A1=HomRef(0), A2=Het(1)
         // SNP2: A1=Het(1), A2=HomAlt(2)
         // SNP3: A1=HomAlt(2), A2=Missing(3)
         let data_a = ndarray::array![
-            [0u8, 1],  // SNP at 100
-            [1u8, 2],  // SNP at 200
-            [2u8, 3],  // SNP at 300
+            [0u8, 1], // SNP at 100
+            [1u8, 2], // SNP at 200
+            [2u8, 3], // SNP at 300
         ];
         let matrix_a = GenotypeMatrix::new(data_a, samples_a, snps_a).unwrap();
 
@@ -472,18 +466,18 @@ mod tests {
             make_sample("B3", "PopB"),
         ];
         let snps_b = vec![
-            make_snp(1, 200, 'C', 'T'),  // In both, identical
-            make_snp(1, 300, 'A', 'G'),  // In both, flipped (G/A -> A/G)
-            make_snp(1, 400, 'T', 'C'),  // Only in B
+            make_snp(1, 200, 'C', 'T'), // In both, identical
+            make_snp(1, 300, 'A', 'G'), // In both, flipped (G/A -> A/G)
+            make_snp(1, 400, 'T', 'C'), // Only in B
         ];
         // Genotypes:
         // SNP1 (200): B1=HomRef(0), B2=Het(1), B3=HomAlt(2)
         // SNP2 (300): B1=HomRef(0), B2=Het(1), B3=HomAlt(2) <- will be recoded
         // SNP3 (400): B1=Het(1), B2=HomRef(0), B3=Missing(3)
         let data_b = ndarray::array![
-            [0u8, 1, 2],  // SNP at 200
-            [0u8, 1, 2],  // SNP at 300 (needs recoding: 0->2, 2->0)
-            [1u8, 0, 3],  // SNP at 400
+            [0u8, 1, 2], // SNP at 200
+            [0u8, 1, 2], // SNP at 300 (needs recoding: 0->2, 2->0)
+            [1u8, 0, 3], // SNP at 400
         ];
         let matrix_b = GenotypeMatrix::new(data_b, samples_b, snps_b).unwrap();
 
@@ -491,15 +485,15 @@ mod tests {
         let (merged, stats) = merge_genotypes(&matrix_a, &matrix_b, false).unwrap();
 
         // Check stats
-        assert_eq!(stats.snps_only_a, 1);      // SNP at 100
-        assert_eq!(stats.snps_only_b, 1);      // SNP at 400
-        assert_eq!(stats.snps_identical, 1);   // SNP at 200
-        assert_eq!(stats.snps_flipped, 1);     // SNP at 300
-        assert_eq!(stats.samples_total, 5);    // 2 + 3
+        assert_eq!(stats.snps_only_a, 1); // SNP at 100
+        assert_eq!(stats.snps_only_b, 1); // SNP at 400
+        assert_eq!(stats.snps_identical, 1); // SNP at 200
+        assert_eq!(stats.snps_flipped, 1); // SNP at 300
+        assert_eq!(stats.samples_total, 5); // 2 + 3
 
         // Check merged matrix dimensions
-        assert_eq!(merged.n_snps(), 2);        // Only intersection (200, 300)
-        assert_eq!(merged.n_samples(), 5);     // A1, A2, B1, B2, B3
+        assert_eq!(merged.n_snps(), 2); // Only intersection (200, 300)
+        assert_eq!(merged.n_samples(), 5); // A1, A2, B1, B2, B3
 
         // Check SNP positions
         assert_eq!(merged.snps()[0].position_bp, 200);
@@ -514,20 +508,20 @@ mod tests {
 
         // Check genotypes at SNP 200 (identical alleles, no recoding)
         // Original A: [1, 2], Original B: [0, 1, 2]
-        assert_eq!(merged.get(0, 0), Genotype::Het);     // A1
-        assert_eq!(merged.get(0, 1), Genotype::HomAlt);  // A2
-        assert_eq!(merged.get(0, 2), Genotype::HomRef);  // B1
-        assert_eq!(merged.get(0, 3), Genotype::Het);     // B2
-        assert_eq!(merged.get(0, 4), Genotype::HomAlt);  // B3
+        assert_eq!(merged.get(0, 0), Genotype::Het); // A1
+        assert_eq!(merged.get(0, 1), Genotype::HomAlt); // A2
+        assert_eq!(merged.get(0, 2), Genotype::HomRef); // B1
+        assert_eq!(merged.get(0, 3), Genotype::Het); // B2
+        assert_eq!(merged.get(0, 4), Genotype::HomAlt); // B3
 
         // Check genotypes at SNP 300 (flipped alleles, B needs recoding)
         // Original A: [2, 3] (HomAlt, Missing)
         // Original B: [0, 1, 2] -> recoded to [2, 1, 0] (HomAlt, Het, HomRef)
-        assert_eq!(merged.get(1, 0), Genotype::HomAlt);  // A1
+        assert_eq!(merged.get(1, 0), Genotype::HomAlt); // A1
         assert_eq!(merged.get(1, 1), Genotype::Missing); // A2
-        assert_eq!(merged.get(1, 2), Genotype::HomAlt);  // B1 (was 0, recoded to 2)
-        assert_eq!(merged.get(1, 3), Genotype::Het);     // B2 (was 1, stays 1)
-        assert_eq!(merged.get(1, 4), Genotype::HomRef);  // B3 (was 2, recoded to 0)
+        assert_eq!(merged.get(1, 2), Genotype::HomAlt); // B1 (was 0, recoded to 2)
+        assert_eq!(merged.get(1, 3), Genotype::Het); // B2 (was 1, stays 1)
+        assert_eq!(merged.get(1, 4), Genotype::HomRef); // B3 (was 2, recoded to 0)
     }
 
     #[test]
@@ -546,7 +540,10 @@ mod tests {
         // Should error due to duplicate sample
         let result = merge_genotypes(&matrix_a, &matrix_b, false);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Duplicate sample IDs"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Duplicate sample IDs"));
     }
 
     #[test]
@@ -558,13 +555,16 @@ mod tests {
         let matrix_a = GenotypeMatrix::new(data_a, samples_a, snps_a).unwrap();
 
         let samples_b = vec![make_sample("B1", "PopB")];
-        let snps_b = vec![make_snp(1, 200, 'C', 'T')];  // Different position
+        let snps_b = vec![make_snp(1, 200, 'C', 'T')]; // Different position
         let data_b = ndarray::array![[1u8]];
         let matrix_b = GenotypeMatrix::new(data_b, samples_b, snps_b).unwrap();
 
         // Should error due to no overlapping SNPs
         let result = merge_genotypes(&matrix_a, &matrix_b, false);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("No overlapping SNPs"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("No overlapping SNPs"));
     }
 }

@@ -21,8 +21,7 @@ fn test_open_aadr_ho_dataset() {
         return;
     }
 
-    let reader = PlinkReader::new(AADR_HO_PREFIX)
-        .expect("Failed to open AADR HO dataset");
+    let reader = PlinkReader::new(AADR_HO_PREFIX).expect("Failed to open AADR HO dataset");
 
     // Verify expected dimensions (from wc -l on .fam and .bim files)
     assert_eq!(reader.num_samples(), 20503, "Expected 20503 samples");
@@ -30,13 +29,22 @@ fn test_open_aadr_ho_dataset() {
 
     // Check first sample
     let first_sample = &reader.samples()[0];
-    assert!(!first_sample.id.is_empty(), "First sample should have an ID");
-    println!("First sample: {} ({})", first_sample.id, first_sample.population);
+    assert!(
+        !first_sample.id.is_empty(),
+        "First sample should have an ID"
+    );
+    println!(
+        "First sample: {} ({})",
+        first_sample.id, first_sample.population
+    );
 
     // Check first SNP
     let first_snp = &reader.snps()[0];
     assert!(!first_snp.id.is_empty(), "First SNP should have an ID");
-    println!("First SNP: {} at chr{} pos {}", first_snp.id, first_snp.chromosome, first_snp.position_bp);
+    println!(
+        "First SNP: {} at chr{} pos {}",
+        first_snp.id, first_snp.chromosome, first_snp.position_bp
+    );
 }
 
 /// Test reading a small range of SNPs from AADR HO dataset.
@@ -47,11 +55,11 @@ fn test_read_snps_aadr_ho() {
         return;
     }
 
-    let mut reader = PlinkReader::new(AADR_HO_PREFIX)
-        .expect("Failed to open AADR HO dataset");
+    let mut reader = PlinkReader::new(AADR_HO_PREFIX).expect("Failed to open AADR HO dataset");
 
     // Read first 100 SNPs
-    let geno_matrix = reader.read_snp_range(0..100)
+    let geno_matrix = reader
+        .read_snp_range(0..100)
         .expect("Failed to read SNP range");
 
     assert_eq!(geno_matrix.n_snps(), 100);
@@ -94,12 +102,10 @@ fn test_detect_ploidy_aadr_ho() {
         return;
     }
 
-    let mut reader = PlinkReader::new(AADR_HO_PREFIX)
-        .expect("Failed to open AADR HO dataset");
+    let mut reader = PlinkReader::new(AADR_HO_PREFIX).expect("Failed to open AADR HO dataset");
 
     // Detect ploidy based on first 1000 SNPs
-    reader.detect_ploidy(1000)
-        .expect("Failed to detect ploidy");
+    reader.detect_ploidy(1000).expect("Failed to detect ploidy");
 
     let mut diploid_count = 0;
     let mut pseudohaploid_count = 0;
@@ -117,5 +123,8 @@ fn test_detect_ploidy_aadr_ho() {
     );
 
     // Ancient DNA typically has a mix
-    assert!(diploid_count > 0 || pseudohaploid_count > 0, "Should detect at least some samples");
+    assert!(
+        diploid_count > 0 || pseudohaploid_count > 0,
+        "Should detect at least some samples"
+    );
 }

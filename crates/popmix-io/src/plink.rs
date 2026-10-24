@@ -88,11 +88,11 @@ impl PlinkReader {
     fn ensure_mmap(&mut self) -> Result<&Mmap> {
         if self.bed_mmap.is_none() {
             let bed_path = format!("{}.bed", self.prefix);
-            let file = File::open(&bed_path).map_err(|e| PopmixError::io_with_path(e, &bed_path))?;
+            let file =
+                File::open(&bed_path).map_err(|e| PopmixError::io_with_path(e, &bed_path))?;
 
-            let mmap = unsafe {
-                Mmap::map(&file).map_err(|e| PopmixError::io_with_path(e, &bed_path))?
-            };
+            let mmap =
+                unsafe { Mmap::map(&file).map_err(|e| PopmixError::io_with_path(e, &bed_path))? };
 
             // Verify magic number and mode
             if mmap.len() < 3 {
@@ -226,8 +226,7 @@ impl PlinkReader {
 /// Format: FID IID PID MID SEX PHENO (space-separated)
 /// We use FID as population and IID as sample ID.
 fn read_fam_file(path: &str) -> Result<Vec<Sample>> {
-    let content =
-        std::fs::read_to_string(path).map_err(|e| PopmixError::io_with_path(e, path))?;
+    let content = std::fs::read_to_string(path).map_err(|e| PopmixError::io_with_path(e, path))?;
 
     let mut samples = Vec::new();
 
@@ -259,8 +258,7 @@ fn read_fam_file(path: &str) -> Result<Vec<Sample>> {
 ///
 /// Format: CHR SNP_ID CM BP A1 A2 (tab or space-separated)
 fn read_bim_file(path: &str) -> Result<Vec<Snp>> {
-    let content =
-        std::fs::read_to_string(path).map_err(|e| PopmixError::io_with_path(e, path))?;
+    let content = std::fs::read_to_string(path).map_err(|e| PopmixError::io_with_path(e, path))?;
 
     let mut snps = Vec::new();
 
@@ -284,7 +282,11 @@ fn read_bim_file(path: &str) -> Result<Vec<Snp>> {
         // PLINK .bim files typically store genetic distance in cM, convert to Morgans
         let position_morgans = fields[2].parse::<f64>().unwrap_or(0.0) / 100.0;
         let position_bp = fields[3].parse::<u32>().map_err(|_| {
-            PopmixError::parse(path, line_num + 1, format!("Invalid BP position: {}", fields[3]))
+            PopmixError::parse(
+                path,
+                line_num + 1,
+                format!("Invalid BP position: {}", fields[3]),
+            )
         })?;
 
         let allele_ref = fields[4].chars().next().unwrap_or('N');

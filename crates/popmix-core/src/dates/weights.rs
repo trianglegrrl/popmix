@@ -2,8 +2,8 @@
 //!
 //! Computes SNP weights based on allele frequency differences between source populations.
 
-use crate::genotype_matrix::AlleleFrequencies;
 use crate::error::PopmixError;
+use crate::genotype_matrix::AlleleFrequencies;
 use crate::Result;
 
 /// Result of weight computation for a single SNP.
@@ -38,12 +38,12 @@ pub fn compute_weights(
     let min_n = min_count.unwrap_or(4); // Default: at least 2 diploid individuals
 
     // Get population indices
-    let idx1 = af.pop_index(source1).ok_or_else(|| {
-        PopmixError::PopulationNotFound(source1.to_string())
-    })?;
-    let idx2 = af.pop_index(source2).ok_or_else(|| {
-        PopmixError::PopulationNotFound(source2.to_string())
-    })?;
+    let idx1 = af
+        .pop_index(source1)
+        .ok_or_else(|| PopmixError::PopulationNotFound(source1.to_string()))?;
+    let idx2 = af
+        .pop_index(source2)
+        .ok_or_else(|| PopmixError::PopulationNotFound(source2.to_string()))?;
 
     let n_snps = af.n_snps();
     let mut weights = vec![f64::NAN; n_snps];
@@ -160,7 +160,7 @@ mod tests {
             // pop1 has higher freq than pop2, so weights should be positive
             assert!(w > 0.0, "Weight at {} should be positive, got {}", idx, w);
             // Check approximate value
-            assert!((w - 4.0/6.0).abs() < 0.01, "Expected ~0.666, got {}", w);
+            assert!((w - 4.0 / 6.0).abs() < 0.01, "Expected ~0.666, got {}", w);
         }
     }
 
