@@ -55,6 +55,8 @@ pub struct QpAdmResult {
     pub constrained: bool,
     /// qpWave result for the left populations (target first, then sources).
     pub qpwave_result: QpWaveResult,
+    /// Fit of every subset of the sources (admixtools2 `popdrop`).
+    pub popdrop: Vec<fit::PopDropRow>,
 }
 
 impl QpAdmResult {
@@ -115,6 +117,7 @@ pub fn qpadm(
     let weights = fit::qpadm_weights(&xmat, &qinv, rnk, opts.fudge, opts.constrained)?;
     let weight_std_errors =
         fit::qpadm_weight_std_errors(&f4.leave_one_out, &qinv, rnk, opts.fudge, opts.constrained)?;
+    let popdrop = fit::drop_pops(&xmat, &qinv, opts.fudge, opts.constrained)?;
 
     let (chi_sq, df, p_value) = qpwave_result
         .rank_tests
@@ -135,6 +138,7 @@ pub fn qpadm(
         p_value,
         constrained: opts.constrained,
         qpwave_result,
+        popdrop,
     })
 }
 

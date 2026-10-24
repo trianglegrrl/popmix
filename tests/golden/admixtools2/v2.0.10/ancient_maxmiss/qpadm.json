@@ -1,0 +1,85 @@
+{
+  "admixtools_version": "2.0.10",
+  "models": [
+    {
+      "target": "French.DG",
+      "left": ["Sardinian.DG", "Russia_Samara_EBA_Yamnaya.AG"],
+      "right": ["Chimp.REF", "Mbuti.DG"],
+      "constrained": false,
+      "weights": [
+        {
+          "left": "Sardinian.DG",
+          "weight": 0.17084981609702266,
+          "se": 9.0964834032014501
+        },
+        {
+          "left": "Russia_Samara_EBA_Yamnaya.AG",
+          "weight": 0.82915018390297734,
+          "se": 9.0964834032014501
+        }
+      ],
+      "rankdrop": [
+        {
+          "f4rank": 1,
+          "dof": 0,
+          "chisq": 6.927052294994534e-10
+        },
+        {
+          "f4rank": 0,
+          "dof": 2,
+          "chisq": 0.067926878301364124,
+          "p": 0.96660684395865659
+        }
+      ],
+      "popdrop": [
+        {
+          "pat": "00",
+          "wt": 0,
+          "dof": 0,
+          "chisq": 6.927052294994534e-10,
+          "f4rank": 1,
+          "Sardinian.DG": 0.17084981609702266,
+          "Russia_Samara_EBA_Yamnaya.AG": 0.82915018390297734,
+          "feasible": true
+        },
+        {
+          "pat": "01",
+          "wt": 1,
+          "dof": 1,
+          "chisq": 0.064815092963093346,
+          "p": 0.79904126290455235,
+          "f4rank": 0,
+          "Sardinian.DG": 1,
+          "feasible": true,
+          "best": true,
+          "dofdiff": 0,
+          "chisqdiff": 0.063978648958040868,
+          "p_nested": 0
+        },
+        {
+          "pat": "10",
+          "wt": 1,
+          "dof": 1,
+          "chisq": 0.00083644400505248294,
+          "p": 0.97692732453419573,
+          "f4rank": 0,
+          "Russia_Samara_EBA_Yamnaya.AG": 1,
+          "feasible": true,
+          "best": true
+        }
+      ]
+    }
+  ],
+  "f4ratio": [
+    {
+      "pop1": "Chimp.REF",
+      "pop2": "Mbuti.DG",
+      "pop3": "French.DG",
+      "pop4": "Sardinian.DG",
+      "pop5": "Russia_Samara_EBA_Yamnaya.AG",
+      "alpha": -42.402499344409108,
+      "se": 9.5895887184506705,
+      "z": -4.4217224105581678
+    }
+  ]
+}

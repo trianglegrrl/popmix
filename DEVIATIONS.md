@@ -145,17 +145,30 @@ the C++ code path (`cpp = TRUE`, the default).
   there. popmix's `fst(a, b)` matches the former. The two agree whenever no
   block is undefined, as in every reference config.
 
-### Not yet verified
+- **f2 blocks with no data for some pair are dropped for every pair.** With
+  `maxmiss > 0` a block can hold no SNP where two populations both have
+  data; `f2_from_geno(remove_na = TRUE)` drops it for all pairs, and popmix
+  does the same (`ancient_maxmiss` drops 2 of 713 blocks). Because of this no
+  missing block reaches qpWave/qpAdm, so `est_to_loo_nafix`'s zero-filling
+  never applies in this pipeline.
+- **qpAdm `popdrop` nested path.** `drop_pops` is meant to walk a nested path
+  of models down from the full one, but `child_patterns` only finds children
+  when one model is on the path, and the path starts with every model at rank
+  (full rank - 1). So for two or more sources `best`, `dofdiff`, `chisqdiff`
+  and `p_nested` cover only the models that drop exactly one source, and
+  `chisqdiff` compares those siblings with each other, not nested models.
+  popmix reproduces this. It is a bug, but the intended search is not
+  recoverable from the code (which model the path should start from, and
+  how ties are broken: admixtools2 uses `jitter`), so a corrected version is
+  an open decision, not yet a deviation.
 
-- **`maxmiss > 0`.** With missing data, admixtools2 sets missing block values
-  to 0 before the qpWave/qpAdm jackknife (`est_to_loo_nafix`, with a warning),
-  where popmix drops the block. Nothing with `maxmiss > 0` has been checked
-  against admixtools2 yet. If the behaviours differ, deciding between them is
-  a deviation decision under the process above.
-- **qpAdm `popdrop`.** admixtools2 also fits every subset of the sources
-  (`popdrop`); popmix does not compute it yet. The reference files record it
-  (`qpadm.json`) for when it is added.
-- **Constrained qpAdm away from the boundary.** The only constrained reference
-  model has weights pinned at (1, 0). popmix solves the same quadratic program
-  exactly, but no reference has an interior or multi-source constrained
-  solution yet.
+### Where admixtools2 fails
+
+- **Constrained qpAdm with three or more sources.** `qpadm(constrained =
+  TRUE)` stops with "matrix D in quadratic function is not positive
+  definite": `drop_ranks` refits the lower ranks with the constrained solver,
+  where the quadratic program is singular. popmix returns the weights and
+  SEs. Its reference (`dg_11pop`, Druze = Sardinian + Dinka + Han) is computed
+  with the same admixtools2 internals `qpadm()` uses for them
+  (`cpp_qpadm_weights`, `cpp_get_weights_covariance`), and popmix matches it.
+  This needs no compat flag: there is no admixtools2 output to reproduce.

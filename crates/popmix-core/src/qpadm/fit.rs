@@ -160,7 +160,14 @@ pub(crate) fn qpadm_weights(
     if rnk == 0 {
         return Ok(vec![1.0]);
     }
-    let fit = fit_rank(xmat, qinv, rnk, fudge)?;
+    weights_from_fit(&fit_rank(xmat, qinv, rnk, fudge)?, rnk, constrained)
+}
+
+/// The weights step of cpp_qpadm_weights for an existing rank `rnk` fit.
+fn weights_from_fit(fit: &RankFit, rnk: usize, constrained: bool) -> Result<Vec<f64>> {
+    if rnk == 0 {
+        return Ok(vec![1.0]);
+    }
     let nr = fit.a.nrows();
     // x = [A 1]' ((rnk + 1) x nr), y = (0, ..., 0, 1)
     let x = DMatrix::from_fn(
@@ -179,6 +186,143 @@ pub(crate) fn qpadm_weights(
     };
     let total = w.sum();
     Ok(w.iter().map(|v| v / total).collect())
+}
+
+/// One row of admixtools2 qpadm `popdrop`: the model fitted to a subset of
+/// the sources.
+#[derive(Debug, Clone)]
+pub struct PopDropRow {
+    /// One character per source: '0' if used, '1' if dropped.
+    pub pattern: String,
+    /// Sources dropped relative to the full model: full rank - `f4rank`.
+    pub wt: usize,
+    /// Degrees of freedom.
+    pub dof: usize,
+    /// Chi-squared of the subset model.
+    pub chi_sq: f64,
+    /// P-value (1 when `dof` is 0, where admixtools2 reports NA).
+    pub p_value: f64,
+    /// Rank of the subset model: number of sources used - 1.
+    pub f4rank: usize,
+    /// Weight of each source, `None` for dropped sources.
+    pub weights: Vec<Option<f64>>,
+    /// Whether every weight lies in [0, 1].
+    pub feasible: bool,
+    /// Whether admixtools2 marks this model as on its nested path.
+    pub best: bool,
+    /// Nested-path comparison with the next model on the path.
+    pub dofdiff: Option<usize>,
+    /// Chi-squared difference with the next model on the path.
+    pub chisqdiff: Option<f64>,
+    /// P-value of `chisqdiff` with `dofdiff` degrees of freedom.
+    pub p_nested: Option<f64>,
+}
+
+/// admixtools2 `drop_pops`: fit every non-empty subset of the sources (rows
+/// of `xmat`), using the matching block of the full model's Q⁻¹.
+///
+/// The nested path reproduces admixtools2 2.0.10 as it behaves, not as it
+/// is presumably meant to: its `child_patterns` only finds children when one
+/// model is on the path, but the path starts with every model at rank
+/// (full rank - 1), so for two or more sources nothing below that rank is
+/// ever added. `best`, `dofdiff`, `chisqdiff` and `p_nested` therefore cover
+/// only the models that drop exactly one source, compared with each other in
+/// order. See DEVIATIONS.md.
+pub(crate) fn drop_pops(
+    xmat: &DMatrix<f64>,
+    qinv: &DMatrix<f64>,
+    fudge: f64,
+    constrained: bool,
+) -> Result<Vec<PopDropRow>> {
+    let (nr, nc) = xmat.shape();
+    let full_rank = nr - 1;
+    let mut rows = Vec::new();
+    // power_set: subsets by size, each size in combn (lexicographic) order
+    for size in 1..=nr {
+        for subset in combinations(nr, size) {
+            let sub_x = DMatrix::from_fn(size, nc, |i, j| xmat[(subset[i], j)]);
+            let idx: Vec<usize> = subset
+                .iter()
+                .flat_map(|&r| (0..nc).map(move |c| r * nc + c))
+                .collect();
+            let sub_q = DMatrix::from_fn(idx.len(), idx.len(), |i, j| qinv[(idx[i], idx[j])]);
+            let rnk = size - 1;
+            let fit = fit_rank(&sub_x, &sub_q, rnk, fudge)?;
+            let (chi_sq, dof) = evaluate_fit(&sub_x, &sub_q, &fit, rnk);
+            let w = weights_from_fit(&fit, rnk, constrained)?;
+            let mut weights = vec![None; nr];
+            for (k, &r) in subset.iter().enumerate() {
+                weights[r] = Some(w[k]);
+            }
+            rows.push(PopDropRow {
+                pattern: (0..nr)
+                    .map(|r| if subset.contains(&r) { '0' } else { '1' })
+                    .collect(),
+                wt: full_rank - rnk,
+                dof,
+                chi_sq,
+                p_value: chisq_p_value(chi_sq, dof),
+                f4rank: rnk,
+                feasible: w.iter().all(|v| (0.0..=1.0).contains(v)),
+                weights,
+                best: false,
+                dofdiff: None,
+                chisqdiff: None,
+                p_nested: None,
+            });
+        }
+    }
+
+    // The nested path: models at rank full_rank - 1 (see above), arranged by
+    // decreasing dof (stable), each compared with the next.
+    if full_rank >= 1 {
+        let mut nested: Vec<usize> = (0..rows.len())
+            .filter(|&i| rows[i].f4rank == full_rank - 1)
+            .collect();
+        nested.sort_by_key(|&i| std::cmp::Reverse(rows[i].dof));
+        for (k, &i) in nested.iter().enumerate() {
+            rows[i].best = true;
+            if let Some(&next) = nested.get(k + 1) {
+                let dofdiff = rows[i].dof - rows[next].dof;
+                let chisqdiff = rows[i].chi_sq - rows[next].chi_sq;
+                rows[i].dofdiff = Some(dofdiff);
+                rows[i].chisqdiff = Some(chisqdiff);
+                rows[i].p_nested = Some(chisq_upper_tail(chisqdiff, dofdiff));
+            }
+        }
+    }
+
+    // arrange(dof, pat)
+    rows.sort_by(|a, b| a.dof.cmp(&b.dof).then_with(|| a.pattern.cmp(&b.pattern)));
+    Ok(rows)
+}
+
+/// All `k`-element subsets of 0..n in lexicographic order (R `combn`).
+fn combinations(n: usize, k: usize) -> Vec<Vec<usize>> {
+    let mut out = Vec::new();
+    let mut idx: Vec<usize> = (0..k).collect();
+    loop {
+        out.push(idx.clone());
+        let Some(i) = (0..k).rev().find(|&i| idx[i] != i + n - k) else {
+            return out;
+        };
+        idx[i] += 1;
+        for j in i + 1..k {
+            idx[j] = idx[j - 1] + 1;
+        }
+    }
+}
+
+/// R `pchisq(x, df, lower.tail = FALSE)`, including df = 0 (a point mass
+/// at 0) and negative x.
+fn chisq_upper_tail(x: f64, df: usize) -> f64 {
+    if df == 0 {
+        return if x < 0.0 { 1.0 } else { 0.0 };
+    }
+    if x <= 0.0 {
+        return 1.0;
+    }
+    chisq_p_value(x, df)
 }
 
 /// Minimise ½ w'Dw - d'w subject to sum(w) = 1 and 0 <= w <= 1: the problem
@@ -325,6 +469,20 @@ mod tests {
         // A strong pull towards the first weight pins it at 1
         let w = simplex_qp(&d, &DVector::from_vec(vec![10.0, -10.0])).unwrap();
         assert_eq!(w.as_slice(), &[1.0, 0.0]);
+    }
+
+    #[test]
+    fn test_combinations_follow_r_combn_order() {
+        assert_eq!(combinations(3, 2), vec![vec![0, 1], vec![0, 2], vec![1, 2]]);
+        assert_eq!(combinations(3, 3), vec![vec![0, 1, 2]]);
+        assert_eq!(combinations(2, 1), vec![vec![0], vec![1]]);
+    }
+
+    #[test]
+    fn test_chisq_upper_tail_with_zero_df() {
+        // R: pchisq(-3, 0, lower.tail = FALSE) = 1; pchisq(3, 0, ...) = 0
+        assert_eq!(chisq_upper_tail(-3.0, 0), 1.0);
+        assert_eq!(chisq_upper_tail(3.0, 0), 0.0);
     }
 
     #[test]

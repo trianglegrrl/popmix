@@ -43,6 +43,8 @@ suppressPackageStartupMessages({
 
 AADR_PREFIX <- "/references/aadr/v62.0_1240k_public"
 
+# Per-config params override PARAMS; constrained qpadm models with three or
+# more sources are run through admixtools2's internals (see qpadm_internal).
 CONFIGS <- list(
   dg_6pop = list(
     prefix = AADR_PREFIX,
@@ -61,6 +63,49 @@ CONFIGS <- list(
     f4ratio = list(
       c("Han.DG", "Mbuti.DG", "French.DG", "Papuan.DG", "Yoruba.DG"),
       c("Chimp.REF", "Mbuti.DG", "French.DG", "Yoruba.DG", "Han.DG")
+    )
+  ),
+  dg_11pop = list(
+    prefix = AADR_PREFIX,
+    pops = c("Druze.DG", "Basque.DG", "Sardinian.DG", "Yoruba.DG", "Han.DG", "Dinka.DG",
+             "Mbuti.DG", "Papuan.DG", "Karitiana.DG", "Ulchi.DG", "Chimp.REF"),
+    fst_pops = c("Druze.DG", "Sardinian.DG", "Dinka.DG", "Han.DG"),
+    qpwave = list(
+      list(left = c("Druze.DG", "Sardinian.DG", "Dinka.DG", "Han.DG"),
+           right = c("Mbuti.DG", "Papuan.DG", "Karitiana.DG", "Ulchi.DG", "Chimp.REF"))
+    ),
+    qpadm = list(
+      list(target = "Druze.DG", left = c("Sardinian.DG", "Dinka.DG", "Han.DG"),
+           right = c("Mbuti.DG", "Papuan.DG", "Karitiana.DG", "Ulchi.DG", "Chimp.REF")),
+      # Unconstrained Han weight is negative: constrained pins it at 0 and
+      # leaves the other two inside (0, 1).
+      list(target = "Druze.DG", left = c("Sardinian.DG", "Dinka.DG", "Han.DG"),
+           right = c("Mbuti.DG", "Papuan.DG", "Karitiana.DG", "Ulchi.DG", "Chimp.REF"),
+           constrained = TRUE),
+      # Unconstrained weights already inside [0, 1]: constrained must agree.
+      list(target = "Druze.DG", left = c("Sardinian.DG", "Dinka.DG"),
+           right = c("Mbuti.DG", "Papuan.DG", "Karitiana.DG", "Ulchi.DG", "Chimp.REF"),
+           constrained = TRUE)
+    ),
+    f4ratio = list(c("Chimp.REF", "Mbuti.DG", "Druze.DG", "Dinka.DG", "Sardinian.DG"))
+  ),
+  # As ancient_5pop, but keeping SNPs missing in one population (of five for
+  # f2, of four for FST).
+  ancient_maxmiss = list(
+    prefix = AADR_PREFIX,
+    params = list(maxmiss = 0.25),
+    pops = c("Russia_Samara_EBA_Yamnaya.AG", "Sardinian.DG", "French.DG", "Mbuti.DG", "Chimp.REF"),
+    fst_pops = c("Russia_Samara_EBA_Yamnaya.AG", "Sardinian.DG", "French.DG", "Mbuti.DG"),
+    qpwave = list(
+      list(left = c("French.DG", "Sardinian.DG", "Russia_Samara_EBA_Yamnaya.AG"),
+           right = c("Mbuti.DG", "Chimp.REF"))
+    ),
+    qpadm = list(
+      list(target = "French.DG", left = c("Sardinian.DG", "Russia_Samara_EBA_Yamnaya.AG"),
+           right = c("Chimp.REF", "Mbuti.DG"))
+    ),
+    f4ratio = list(
+      c("Chimp.REF", "Mbuti.DG", "French.DG", "Sardinian.DG", "Russia_Samara_EBA_Yamnaya.AG")
     )
   ),
   ancient_5pop = list(
@@ -95,6 +140,7 @@ run_config <- function(name, cfg) {
   cat("==", name, "\n")
   pref <- cfg$prefix
   pops <- cfg$pops
+  PARAMS <- modifyList(PARAMS, if (is.null(cfg$params)) list() else cfg$params)
 
   # Ploidy, exactly as packedancestrymap_to_afs assigns it
   ind <- read.table(paste0(pref, ".ind"), col.names = c("id", "sex", "pop"), colClasses = "character")
@@ -113,7 +159,12 @@ run_config <- function(name, cfg) {
                                              maxmaf = PARAMS$maxmaf, auto_only = PARAMS$auto_only,
                                              poly_only = FALSE)
   n_kept <- nrow(afdat$afs)
-  n_poly <- sum(admixtools:::cpp_is_polymorphic(afdat$afs))
+  poly <- as.logical(admixtools:::cpp_is_polymorphic(afdat$afs))
+  n_poly <- sum(poly)
+  # Blocks before f2_from_geno(remove_na = TRUE) drops those where any pair
+  # has no SNP with data in both populations (possible only with maxmiss > 0)
+  block_lengths_all <- admixtools:::get_block_lengths(afdat$snpfile[poly, ], blgsize = PARAMS$blgsize,
+                                                      verbose = FALSE)
 
   # The public pipeline
   f2_blocks <- f2_from_geno(pref, pops = pops, blgsize = PARAMS$blgsize, maxmiss = PARAMS$maxmiss,
@@ -121,7 +172,7 @@ run_config <- function(name, cfg) {
                             adjust_pseudohaploid = PARAMS$adjust_pseudohaploid,
                             poly_only = PARAMS$poly_only, apply_corr = PARAMS$apply_corr, verbose = FALSE)
   block_lengths <- readr::parse_number(dimnames(f2_blocks)[[3]])
-  stopifnot(sum(block_lengths) == n_poly)
+  stopifnot(sum(block_lengths_all) == n_poly)
 
   blocks <- list()
   for (i in seq_along(pops)) for (j in seq_along(pops)) if (i < j) {
@@ -139,6 +190,7 @@ run_config <- function(name, cfg) {
     n_snps_read = n_read,
     n_snps_kept = n_kept,
     n_snps_polymorphic = n_poly,
+    block_lengths_before_remove_na = block_lengths_all,
     block_lengths = block_lengths,
     f2_blocks = blocks,
     f2 = f2_stats
@@ -170,6 +222,26 @@ run_config <- function(name, cfg) {
 
   qpadm_models <- lapply(cfg$qpadm, function(m) {
     constrained <- isTRUE(m$constrained)
+    if (constrained && length(m$left) >= 3) {
+      # qpadm(constrained = TRUE) fails with three or more sources: drop_ranks
+      # refits the lower ranks with the constrained solver, where the
+      # quadratic program is singular and quadprog stops ("matrix D in
+      # quadratic function is not positive definite"). The model's weights
+      # and SEs are computed with the same internals qpadm() calls for them.
+      err <- tryCatch({qpadm(f2_blocks, m$left, m$right, m$target, constrained = TRUE, verbose = FALSE); NA},
+                      error = function(e) conditionMessage(e))
+      st <- admixtools:::f2blocks_to_f4stats(f2_blocks, c(m$target, m$left), m$right)
+      v <- st$var
+      diag(v) <- diag(v) + 1e-4 * sum(diag(v))
+      qinv <- solve(v)
+      w <- admixtools:::cpp_qpadm_weights(st$est, qinv, length(m$left) - 1, 1e-4, constrained = TRUE,
+                                          qpsolve = admixtools:::qpsolve)$weights
+      se <- sqrt(diag(admixtools:::cpp_get_weights_covariance(st$f4_lo, qinv, st$block_lengths, 1e-4,
+                                                              constrained = TRUE,
+                                                              qpsolve = admixtools:::qpsolve)))
+      return(list(target = m$target, left = m$left, right = m$right, constrained = TRUE,
+                  qpadm_error = err, weights = tibble(left = m$left, weight = c(w), se = se)))
+    }
     qa <- qpadm(f2_blocks, m$left, m$right, m$target, constrained = constrained, verbose = FALSE)
     list(target = m$target, left = m$left, right = m$right, constrained = constrained,
          weights = select(qa$weights, left, weight, se),
@@ -190,7 +262,7 @@ run_config <- function(name, cfg) {
   for (i in seq_along(fpops)) for (j in seq_along(fpops)) if (i < j) {
     fblocks[[paste(fpops[i], fpops[j], sep = "|")]] <- unname(fst_blocks[fpops[i], fpops[j], ])
   }
-  fst_stats <- fst(pref, pop1 = fpops, blgsize = PARAMS$blgsize, maxmiss = PARAMS$maxmiss,
+  fst_stats <- fst(pref, pop1 = fpops, verbose = FALSE, blgsize = PARAMS$blgsize, maxmiss = PARAMS$maxmiss,
                    auto_only = PARAMS$auto_only, adjust_pseudohaploid = PARAMS$adjust_pseudohaploid)
   write_json(list(admixtools_version = version, pops = fpops, block_lengths = fst_bl, fst_blocks = fblocks,
                   fst = select(fst_stats, pop1, pop2, est, se)),

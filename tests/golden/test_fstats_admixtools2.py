@@ -5,8 +5,9 @@ are produced by generate_reference.R from admixtools2's own f2_from_geno, f2,
 f3 and f4. f2.json records every stage of the f2 pipeline, so a mismatch
 points at the stage that causes it:
 
-- snp_count: SNPs left after maxmiss and polymorphism filtering
-- block_lengths: polymorphic SNPs per block, block by block
+- snp_count: SNPs in the f2 blocks after maxmiss and polymorphism filtering
+- block_lengths: polymorphic SNPs per block, block by block (with maxmiss > 0,
+  after f2_from_geno drops blocks where some pair has no SNP with data)
 - f2_blocks: the per-block f2 for every pair
 - f2_estimates: f2() estimate and standard error for every pair
 
@@ -20,8 +21,11 @@ chi-squared are held to the standard-error tolerance, p-values to 1e-4.
 
 qpadm.json holds qpadm() models, unconstrained and constrained (qpadm_weights:
 weights and SEs at the CLAUDE.md weight tolerance, rtol 1e-6; qpadm_fit:
-chi-squared and p-value of the model's rank), and qpf4ratio() (f4ratio: alpha
-and SE, rtol 1e-6).
+chi-squared and p-value of the model's rank; qpadm_popdrop: the fit of every
+subset of the sources), and qpf4ratio() (f4ratio: alpha and SE, rtol 1e-6).
+qpadm(constrained = TRUE) fails in admixtools2 with three or more sources, so
+for such a model the reference holds only the weights and SEs, computed with
+the internals qpadm() uses for them.
 
 fst.json holds fst() for every pair of the config's FST populations (all but
 Chimp.REF, a single pseudo-haploid sample for which admixtools2 cannot compute
@@ -42,7 +46,7 @@ import pytest
 import popmix as pm
 
 REF_ROOT = Path(__file__).parent / "admixtools2" / "v2.0.10"
-CONFIGS = ["dg_6pop", "ancient_5pop"]
+CONFIGS = ["dg_6pop", "ancient_5pop", "dg_11pop", "ancient_maxmiss"]
 
 F_RTOL = 1e-10
 F_ATOL = 1e-15
@@ -77,7 +81,7 @@ def _result_for(name: str):
 
 def _check_snp_count(name: str):
     ref, f2 = _result_for(name)
-    assert sum(f2.block_lengths) == ref["n_snps_polymorphic"]
+    assert sum(f2.block_lengths) == sum(ref["block_lengths"])
 
 
 def _check_block_lengths(name: str):
@@ -220,6 +224,8 @@ def _check_qpadm_fit(name: str):
     _, f2 = _result_for(name)
     mismatches = []
     for m in load_reference(name, "qpadm.json")["models"]:
+        if "rankdrop" not in m:
+            continue  # admixtools2 qpadm() fails on this model; weights only
         r = pm.qpadm(f2, m["target"], m["left"], m["right"], constrained=m["constrained"])
         label = f"target={m['target']} left={','.join(m['left'])}"
         row = next(x for x in m["rankdrop"] if x["f4rank"] == len(m["left"]) - 1)
@@ -229,6 +235,49 @@ def _check_qpadm_fit(name: str):
             mismatches.append(f"{label}: chisq {r.chi_sq!r} != {row['chisq']!r}")
         if "p" in row and not np.isclose(r.p_value, row["p"], rtol=P_RTOL, atol=0):
             mismatches.append(f"{label}: p {r.p_value!r} != {row['p']!r}")
+    assert not mismatches, "\n".join(mismatches)
+
+
+def _check_qpadm_popdrop(name: str):
+    """qpadm()$popdrop: every subset of the sources, as admixtools2 orders it."""
+    _, f2 = _result_for(name)
+    mismatches = []
+    for m in load_reference(name, "qpadm.json")["models"]:
+        if "popdrop" not in m:
+            continue
+        r = pm.qpadm(f2, m["target"], m["left"], m["right"], constrained=m["constrained"])
+        label = f"target={m['target']} left={','.join(m['left'])} constrained={m['constrained']}"
+        ours = r.popdrop
+        if [x.pattern for x in ours] != [row["pat"] for row in m["popdrop"]]:
+            mismatches.append(f"{label}: patterns {[x.pattern for x in ours]} != "
+                              f"{[row['pat'] for row in m['popdrop']]}")
+            continue
+        scale = max(abs(row["chisq"]) for row in m["popdrop"])
+        for x, row in zip(ours, m["popdrop"]):
+            where = f"{label} pat {row['pat']}"
+            for field, theirs in (("wt", row["wt"]), ("dof", row["dof"]), ("f4rank", row["f4rank"]),
+                                  ("feasible", row["feasible"]), ("best", row.get("best", False))):
+                if getattr(x, field) != theirs:
+                    mismatches.append(f"{where}: {field} {getattr(x, field)!r} != {theirs!r}")
+            if not np.isclose(x.chi_sq, row["chisq"], rtol=SE_RTOL, atol=0):
+                mismatches.append(f"{where}: chisq {x.chi_sq!r} != {row['chisq']!r}")
+            if "p" in row and not np.isclose(x.p_value, row["p"], rtol=P_RTOL, atol=0):
+                mismatches.append(f"{where}: p {x.p_value!r} != {row['p']!r}")
+            for source, w in zip(m["left"], x.weights):
+                theirs = row.get(source)
+                if (w is None) != (theirs is None) or (
+                    w is not None and not np.isclose(w, theirs, rtol=SE_RTOL, atol=SE_ATOL)
+                ):
+                    mismatches.append(f"{where}: weight {source} {w!r} != {theirs!r}")
+            if row.get("dofdiff") != x.dofdiff:
+                mismatches.append(f"{where}: dofdiff {x.dofdiff!r} != {row.get('dofdiff')!r}")
+            for field, tol in (("chisqdiff", dict(rtol=SE_RTOL, atol=SE_RTOL * scale)),
+                               ("p_nested", dict(rtol=P_RTOL, atol=0))):
+                ours_v, theirs_v = getattr(x, field), row.get(field)
+                if (ours_v is None) != (theirs_v is None) or (
+                    ours_v is not None and not np.isclose(ours_v, theirs_v, **tol)
+                ):
+                    mismatches.append(f"{where}: {field} {ours_v!r} != {theirs_v!r}")
     assert not mismatches, "\n".join(mismatches)
 
 
@@ -257,7 +306,12 @@ def _fst_result_for(name: str):
         fst_ref = load_reference(name, "fst.json")
         if not os.path.exists(f"{ref['prefix']}.geno"):
             pytest.skip(f"genotype data not available: {ref['prefix']}")
-        f2 = pm.extract_f2(ref["prefix"], fst_ref["pops"], block_size=ref["params"]["blgsize"])
+        f2 = pm.extract_f2(
+            ref["prefix"],
+            fst_ref["pops"],
+            block_size=ref["params"]["blgsize"],
+            maxmiss=ref["params"]["maxmiss"],
+        )
         _fst[name] = (fst_ref, f2)
     return _fst[name]
 
@@ -303,6 +357,7 @@ CHECKS = {
     "qpwave_rank_tests": _check_qpwave_rank_tests,
     "qpadm_weights": _check_qpadm_weights,
     "qpadm_fit": _check_qpadm_fit,
+    "qpadm_popdrop": _check_qpadm_popdrop,
     "f4ratio": _check_f4ratio,
     "fst_block_lengths": _check_fst_block_lengths,
     "fst_blocks": _check_fst_blocks,

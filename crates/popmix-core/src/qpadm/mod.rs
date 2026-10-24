@@ -18,6 +18,7 @@ mod qpwave_pairs;
 mod rotate;
 
 pub use f4_matrix::F4Matrix;
+pub use fit::PopDropRow;
 pub use f4ratio::{f4ratio, F4RatioOptions, F4RatioResult};
 pub use qpadm_impl::{qpadm, QpAdmOptions, QpAdmResult};
 pub use qpwave::{qpwave, QpWaveOptions, QpWaveResult, RankTest};

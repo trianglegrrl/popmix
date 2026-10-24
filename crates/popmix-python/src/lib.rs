@@ -1575,6 +1575,76 @@ struct PyQpAdmResult {
     p_value: f64,
     #[pyo3(get)]
     constrained: bool,
+    /// Fit of every subset of the sources (admixtools2 ``popdrop``).
+    #[pyo3(get)]
+    popdrop: Vec<PyPopDropRow>,
+}
+
+/// One row of qpAdm ``popdrop``: the model fitted to a subset of the sources.
+///
+/// ``pattern`` has one character per source, "1" if it is dropped; ``weights``
+/// is None for dropped sources. ``best``, ``dofdiff``, ``chisqdiff`` and
+/// ``p_nested`` follow admixtools2 2.0.10's nested-model columns.
+#[pyclass]
+#[derive(Clone)]
+struct PyPopDropRow {
+    #[pyo3(get)]
+    pattern: String,
+    #[pyo3(get)]
+    wt: usize,
+    #[pyo3(get)]
+    dof: usize,
+    #[pyo3(get)]
+    chi_sq: f64,
+    #[pyo3(get)]
+    p_value: f64,
+    #[pyo3(get)]
+    f4rank: usize,
+    #[pyo3(get)]
+    weights: Vec<Option<f64>>,
+    #[pyo3(get)]
+    feasible: bool,
+    #[pyo3(get)]
+    best: bool,
+    #[pyo3(get)]
+    dofdiff: Option<usize>,
+    #[pyo3(get)]
+    chisqdiff: Option<f64>,
+    #[pyo3(get)]
+    p_nested: Option<f64>,
+}
+
+impl From<popmix_core::QpAdmResult> for PyQpAdmResult {
+    fn from(result: popmix_core::QpAdmResult) -> Self {
+        PyQpAdmResult {
+            target: result.target.to_string(),
+            sources: result.sources.iter().map(|s| s.to_string()).collect(),
+            weights: result.weights,
+            weight_std_errors: result.weight_std_errors,
+            chi_sq: result.chi_sq,
+            df: result.df,
+            p_value: result.p_value,
+            constrained: result.constrained,
+            popdrop: result
+                .popdrop
+                .into_iter()
+                .map(|r| PyPopDropRow {
+                    pattern: r.pattern,
+                    wt: r.wt,
+                    dof: r.dof,
+                    chi_sq: r.chi_sq,
+                    p_value: r.p_value,
+                    f4rank: r.f4rank,
+                    weights: r.weights,
+                    feasible: r.feasible,
+                    best: r.best,
+                    dofdiff: r.dofdiff,
+                    chisqdiff: r.chisqdiff,
+                    p_nested: r.p_nested,
+                })
+                .collect(),
+        }
+    }
 }
 
 #[pymethods]
@@ -1965,16 +2035,7 @@ fn qpadm(
     )
     .map_err(to_py_err)?;
 
-    Ok(PyQpAdmResult {
-        target: result.target.to_string(),
-        sources: result.sources.iter().map(|s| s.to_string()).collect(),
-        weights: result.weights,
-        weight_std_errors: result.weight_std_errors,
-        chi_sq: result.chi_sq,
-        df: result.df,
-        p_value: result.p_value,
-        constrained: result.constrained,
-    })
+    Ok(PyQpAdmResult::from(result))
 }
 
 /// Run qpAdm for multiple targets with the same sources and outgroups.
@@ -2021,16 +2082,7 @@ fn qpadm_multi(
             Some(opts.clone()),
         ) {
             Ok(result) => {
-                results.push(PyQpAdmResult {
-                    target: result.target.to_string(),
-                    sources: result.sources.iter().map(|s| s.to_string()).collect(),
-                    weights: result.weights,
-                    weight_std_errors: result.weight_std_errors,
-                    chi_sq: result.chi_sq,
-                    df: result.df,
-                    p_value: result.p_value,
-                    constrained: result.constrained,
-                });
+                results.push(PyQpAdmResult::from(result));
             }
             Err(e) => {
                 return Err(to_py_err(e));
@@ -2681,6 +2733,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyRankTest>()?;
     m.add_class::<PyQpWaveResult>()?;
     m.add_class::<PyQpAdmResult>()?;
+    m.add_class::<PyPopDropRow>()?;
     m.add_class::<PyF4RatioResult>()?;
     m.add_class::<PyRotationModel>()?;
     m.add_class::<PyQpAdmRotateResult>()?;

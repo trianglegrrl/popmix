@@ -277,15 +277,26 @@ impl F2Blocks {
             }
         }
 
+        // f2_from_geno(remove_na = TRUE): drop blocks where some pair (or a
+        // population on its own) has no SNP with data, for every pair. Only
+        // possible with max_missing > 0.
+        let keep_blocks: Vec<usize> = (0..n_blocks)
+            .filter(|&b| block_weights.row(b).iter().all(|&w| w > 0.0))
+            .collect();
+        let block_lengths: Vec<usize> = keep_blocks
+            .iter()
+            .map(|&b| block_assignment.block_lengths[b])
+            .collect();
+
         F2Blocks {
-            block_sums,
-            block_raw_sums,
-            block_weights,
-            block_het_sums,
-            block_het_weights,
+            block_sums: block_sums.select(Axis(0), &keep_blocks),
+            block_raw_sums: block_raw_sums.select(Axis(0), &keep_blocks),
+            block_weights: block_weights.select(Axis(0), &keep_blocks),
+            block_het_sums: block_het_sums.select(Axis(0), &keep_blocks),
+            block_het_weights: block_het_weights.select(Axis(0), &keep_blocks),
             populations,
-            n_blocks,
-            block_lengths: block_assignment.block_lengths,
+            n_blocks: keep_blocks.len(),
+            block_lengths,
             fst,
         }
     }
@@ -694,6 +705,31 @@ mod tests {
         let f2 = F2Blocks::from_allele_frequencies(&af_from(&rows), &BlockDefinition::new(0.05));
         assert!(f2.fst("PopA", "PopB").is_none());
         assert!(f2.fst("PopB", "PopC").is_some());
+    }
+
+    #[test]
+    fn test_blocks_without_data_for_some_pair_are_dropped() {
+        // maxmiss = 1/3 keeps SNPs missing in one population. In the first
+        // block PopA and PopC never have data at the same SNP, so admixtools2
+        // f2_from_geno(remove_na = TRUE) drops the block for every pair.
+        let rows = [
+            (0.00, [(0.1, 10), (0.5, 10), (0.0, 0)]),
+            (0.01, [(0.0, 0), (0.5, 10), (0.3, 10)]),
+            (0.10, [(0.2, 10), (0.6, 10), (0.4, 10)]),
+            (0.11, [(0.3, 10), (0.7, 10), (0.5, 10)]),
+        ];
+        let opts = F2Options {
+            max_missing: 1.0 / 3.0,
+            poly_only: true,
+        };
+        let f2 = F2Blocks::from_allele_frequencies_with_options(
+            &af_from(&rows),
+            &BlockDefinition::new(0.05),
+            &opts,
+        );
+        assert_eq!(f2.block_lengths, vec![2]);
+        assert_eq!(f2.n_blocks, 1);
+        assert_eq!(f2.block_sums.nrows(), 1);
     }
 
     #[test]

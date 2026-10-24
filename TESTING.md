@@ -673,6 +673,7 @@ the pipeline:
 | `qpwave_rank_tests` | `qpwave()$rankdrop`, every rank | chisq rtol 1e-6, p rtol 1e-4 |
 | `qpadm_weights` | `qpadm()$weights`, unconstrained and constrained | weight and se rtol 1e-6 (atol 1e-10) |
 | `qpadm_fit` | `qpadm()$rankdrop` at rank sources - 1 | chisq rtol 1e-6, p rtol 1e-4 |
+| `qpadm_popdrop` | `qpadm()$popdrop`, every subset of the sources | as `qpadm_weights` and `qpadm_fit`; flags exact |
 | `f4ratio` | `qpf4ratio()` | alpha and se rtol 1e-6 |
 | `fst_block_lengths`, `fst_blocks`, `fst_estimates` | `f2_from_geno(fst = TRUE)`, `fst()` | exact; rtol 1e-10; est 1e-10, se 1e-6 |
 
@@ -682,11 +683,20 @@ Configs (`tests/golden/admixtools2/v2.0.10/<config>/`):
 |--------|-------------|-----------|--------|
 | dg_6pop | Han.DG, French.DG, Yoruba.DG, Mbuti.DG, Papuan.DG, Chimp.REF | 1,050,751 | 710 |
 | ancient_5pop | Russia_Samara_EBA_Yamnaya.AG (pseudo-haploid), Sardinian.DG, French.DG, Mbuti.DG, Chimp.REF | 985,987 | 710 |
+| dg_11pop | Druze, Basque, Sardinian, Yoruba, Han, Dinka, Mbuti, Papuan, Karitiana, Ulchi (.DG), Chimp.REF | 1,030,026 | 709 |
+| ancient_maxmiss | as ancient_5pop, `maxmiss = 0.25` (one population may be missing) | 1,047,766 | 711 |
 
-Actual agreement: f2, f3, f4 and FST (226 statistics) within 2e-13 relative,
-SEs included; qpWave chi-squared within 5e-12; qpAdm weights and SEs within
+dg_11pop holds a three-source qpAdm model (Druze = Sardinian + Dinka + Han)
+whose constrained solution has two weights inside (0, 1) and one at 0, and a
+two-source constrained model inside the bounds, which must equal the
+unconstrained one. admixtools2's `qpadm(constrained = TRUE)` fails with three
+or more sources, so that model's reference comes from the admixtools2
+internals `qpadm()` uses for the weights (see DEVIATIONS.md).
+
+Actual agreement: f2, f3, f4 and FST (1,798 statistics) within 5e-12 relative,
+SEs within 1e-12; qpWave chi-squared within 5e-12; qpAdm weights and SEs within
 1e-9 (the worst case is an ill-conditioned model with weights 6.06 and -5.06),
-model chi-squared within 1e-11; f4ratio within 5e-14.
+model and popdrop chi-squared within 5e-11; f4ratio within 5e-14.
 
 FST uses its own SNP set (all SNPs kept by `maxmiss`, monomorphic included)
 and blocks, as admixtools2 does, and leaves out Chimp.REF: a single
