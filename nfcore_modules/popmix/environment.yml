@@ -1,7 +1,0 @@
-name: popmix
-channels:
-  - conda-forge
-  - bioconda
-  - defaults
-dependencies:
-  - popmix=0.1.0

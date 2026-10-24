@@ -156,105 +156,202 @@ class TestExtractF2Command:
             assert result.returncode != 0
 
 
+SMALL_PREFIX = "tests/golden/dates/family_chr20_22"
+small_data = pytest.mark.skipif(not os.path.exists(f"{SMALL_PREFIX}.geno"), reason="test data not available")
+aadr_data = pytest.mark.skipif(not os.path.exists(f"{AADR_PREFIX}.geno"), reason="AADR data not available")
+
+
 class TestF2Command:
     """Test the 'f2' command for computing f2 statistics."""
 
-    @pytest.mark.skipif(not os.path.exists(f"{AADR_PREFIX}.geno"), reason="AADR data not available")
-    @pytest.mark.slow
+    @small_data
     def test_f2_computes_statistic(self):
-        """popmix f2 should compute f2 between two populations."""
-        result = run_cli(
-            "f2",
-            "--input", AADR_PREFIX,
-            "--pop1", POP_HAN,
-            "--pop2", POP_YORUBA,
-            "--snp-range", "0:1000",
-        )
-
-        assert result.returncode == 0
-        # Should output the f2 value
-        assert "f2" in result.stdout.lower() or "estimate" in result.stdout.lower()
+        result = run_cli("f2", "--input", SMALL_PREFIX, "--pop1", "French", "--pop2", "Yoruba",
+                         "--all-chromosomes")
+        assert "f2(French, Yoruba)" in result.stdout
+        assert "estimate" in result.stdout.lower()
 
 
 class TestF3Command:
     """Test the 'f3' command for computing f3 statistics."""
 
-    @pytest.mark.skipif(not os.path.exists(f"{AADR_PREFIX}.geno"), reason="AADR data not available")
-    @pytest.mark.slow
+    @small_data
     def test_f3_computes_statistic(self):
-        """popmix f3 should compute f3(A; B, C)."""
-        result = run_cli(
-            "f3",
-            "--input", AADR_PREFIX,
-            "--target", POP_FRENCH,
-            "--source1", POP_HAN,
-            "--source2", POP_YORUBA,
-            "--snp-range", "0:1000",
-        )
-
-        assert result.returncode == 0
-        assert "f3" in result.stdout.lower() or "estimate" in result.stdout.lower()
+        result = run_cli("f3", "--input", SMALL_PREFIX, "--target", "Simulation",
+                         "--source1", "French", "--source2", "Yoruba", "--all-chromosomes")
+        assert "f3(Simulation; French, Yoruba)" in result.stdout
 
 
 class TestF4Command:
     """Test the 'f4' command for computing f4/D statistics."""
 
-    @pytest.mark.skipif(not os.path.exists(f"{AADR_PREFIX}.geno"), reason="AADR data not available")
-    @pytest.mark.slow
+    @small_data
     def test_f4_computes_statistic(self):
-        """popmix f4 should compute f4(A, B; C, D)."""
-        result = run_cli(
-            "f4",
-            "--input", AADR_PREFIX,
-            "--pop1", POP_FRENCH,
-            "--pop2", POP_HAN,
-            "--pop3", POP_YORUBA,
-            "--pop4", POP_MBUTI,
-            "--snp-range", "0:1000",
-        )
-
-        assert result.returncode == 0
-        assert "f4" in result.stdout.lower() or "estimate" in result.stdout.lower()
+        result = run_cli("f4", "--input", SMALL_PREFIX, "--pop1", "Simulation", "--pop2", "Simulation.1",
+                         "--pop3", "French", "--pop4", "Yoruba", "--all-chromosomes")
+        assert "f4(Simulation, Simulation.1; French, Yoruba)" in result.stdout
 
 
 class TestQpAdmCommand:
     """Test the 'qpadm' command."""
 
-    @pytest.mark.skipif(not os.path.exists(f"{AADR_PREFIX}.geno"), reason="AADR data not available")
-    @pytest.mark.slow
+    @small_data
     def test_qpadm_computes_weights(self):
-        """popmix qpadm should estimate admixture weights."""
-        result = run_cli(
-            "qpadm",
-            "--input", AADR_PREFIX,
-            "--target", POP_FRENCH,
-            "--left", f"{POP_HAN},{POP_YORUBA}",
-            "--right", f"{POP_MBUTI},Ignore_Yoruba(discovery).DG",
-            "--snp-range", "0:1000",
-        )
-
-        assert result.returncode == 0
-        # Should show weights
-        assert "weight" in result.stdout.lower() or "proportion" in result.stdout.lower()
+        result = run_cli("qpadm", "--input", SMALL_PREFIX, "--target", "Simulation", "--left", "French",
+                         "--right", "Yoruba,Simulation.1", "--all-chromosomes")
+        assert "weight" in result.stdout.lower()
 
 
 class TestQpWaveCommand:
     """Test the 'qpwave' command."""
 
-    @pytest.mark.skipif(not os.path.exists(f"{AADR_PREFIX}.geno"), reason="AADR data not available")
-    @pytest.mark.slow
+    @small_data
     def test_qpwave_computes_rank(self):
-        """popmix qpwave should compute rank tests."""
-        result = run_cli(
-            "qpwave",
-            "--input", AADR_PREFIX,
-            "--left", f"{POP_FRENCH},{POP_HAN},{POP_YORUBA}",
-            "--right", f"{POP_MBUTI},Ignore_Yoruba(discovery).DG",
-            "--snp-range", "0:1000",
-        )
+        result = run_cli("qpwave", "--input", SMALL_PREFIX, "--left", "Simulation,French",
+                         "--right", "Yoruba,Simulation.1", "--all-chromosomes")
+        assert "rank" in result.stdout.lower()
 
-        assert result.returncode == 0
-        assert "rank" in result.stdout.lower() or "p-value" in result.stdout.lower()
+
+DG6_REF = Path("tests/golden/admixtools2/v2.0.10/dg_6pop")
+
+
+def _dg6(file: str) -> dict:
+    return json.loads((DG6_REF / file).read_text())
+
+
+@pytest.fixture(scope="module")
+def dg6_f2_dir(tmp_path_factory):
+    """f2 blocks for the dg_6pop reference populations, from 'popmix extract-f2'."""
+    if not os.path.exists(f"{AADR_PREFIX}.geno"):
+        pytest.skip("AADR data not available")
+    out = tmp_path_factory.mktemp("dg6") / "f2"
+    run_cli("extract-f2", "--input", AADR_PREFIX, "--output", str(out),
+            "--populations", ",".join(_dg6("f2.json")["pops"]), timeout=1800)
+    return str(out)
+
+
+@pytest.mark.slow
+class TestCommandsMatchAdmixtools2:
+    """The f-statistic commands reproduce admixtools2 2.0.10 on AADR.
+
+    The populations are extracted once with 'popmix extract-f2' and read back
+    with --f2-dir, as admixtools2's extract_f2() and f2_from_precomp() work,
+    so the SNP set is the reference's.
+    """
+
+    def test_f2(self, dg6_f2_dir):
+        for row in _dg6("f2.json")["f2"]:
+            out = json.loads(run_cli("f2", "--f2-dir", dg6_f2_dir, "--pop1", row["pop1"],
+                                     "--pop2", row["pop2"], "--format", "json").stdout)
+            assert out["estimate"] == pytest.approx(row["est"], rel=1e-10, abs=1e-15)
+            assert out["std_err"] == pytest.approx(row["se"], rel=1e-6)
+
+    def test_f3(self, dg6_f2_dir):
+        for row in _dg6("f3_f4.json")["f3"][:10]:
+            out = json.loads(run_cli("f3", "--f2-dir", dg6_f2_dir, "--target", row["pop1"],
+                                     "--source1", row["pop2"], "--source2", row["pop3"],
+                                     "--format", "json").stdout)
+            assert out["estimate"] == pytest.approx(row["est"], rel=1e-10, abs=1e-15)
+            assert out["std_err"] == pytest.approx(row["se"], rel=1e-6)
+
+    def test_f4(self, dg6_f2_dir):
+        for row in _dg6("f3_f4.json")["f4"][:10]:
+            out = json.loads(run_cli("f4", "--f2-dir", dg6_f2_dir, "--pop1", row["pop1"], "--pop2", row["pop2"],
+                                     "--pop3", row["pop3"], "--pop4", row["pop4"], "--format", "json").stdout)
+            assert out["estimate"] == pytest.approx(row["est"], rel=1e-10, abs=1e-15)
+            assert out["std_err"] == pytest.approx(row["se"], rel=1e-6)
+
+    def test_qpwave(self, dg6_f2_dir):
+        for m in _dg6("qpwave.json")["models"]:
+            out = json.loads(run_cli("qpwave", "--f2-dir", dg6_f2_dir, "--left", ",".join(m["left"]),
+                                     "--right", ",".join(m["right"]), "--format", "json").stdout)
+            ours = {t["rank"]: t for t in out["rank_tests"]}
+            for row in m["rankdrop"]:
+                t = ours[row["f4rank"]]
+                assert t["df"] == row["dof"]
+                assert t["chi_sq"] == pytest.approx(row["chisq"], rel=1e-6)
+                if "p" in row:
+                    assert t["p_value"] == pytest.approx(row["p"], rel=1e-4)
+
+    def test_qpadm(self, dg6_f2_dir):
+        for m in _dg6("qpadm.json")["models"]:
+            args = ["qpadm", "--f2-dir", dg6_f2_dir, "--target", m["target"], "--left", ",".join(m["left"]),
+                    "--right", ",".join(m["right"]), "--format", "json"]
+            if m["constrained"]:
+                args.append("--constrained")
+            out = json.loads(run_cli(*args).stdout)
+            for row in m["weights"]:
+                assert out["weights"][row["left"]] == pytest.approx(row["weight"], rel=1e-6, abs=1e-10)
+                assert out["std_errors"][row["left"]] == pytest.approx(row["se"], rel=1e-6, abs=1e-10)
+            if "rankdrop" in m:
+                row = next(x for x in m["rankdrop"] if x["f4rank"] == len(m["left"]) - 1)
+                assert out["df"] == row["dof"]
+                assert out["chi_sq"] == pytest.approx(row["chisq"], rel=1e-6)
+                if "p" in row:
+                    assert out["p_value"] == pytest.approx(row["p"], rel=1e-4)
+
+    def test_genotype_input_uses_extract_f2(self):
+        """Without --f2-dir the command extracts just its own populations, as pm.extract_f2 does."""
+        if not os.path.exists(f"{AADR_PREFIX}.geno"):
+            pytest.skip("AADR data not available")
+        pops = ["Han.DG", "French.DG", "Yoruba.DG", "Mbuti.DG"]
+        import popmix as pm
+        expected = pm.extract_f2(AADR_PREFIX, pops).f4(*pops)
+        out = json.loads(run_cli("f4", "--input", AADR_PREFIX, "--pop1", pops[0], "--pop2", pops[1],
+                                 "--pop3", pops[2], "--pop4", pops[3], "--format", "json",
+                                 timeout=1800).stdout)
+        assert out["estimate"] == expected["estimate"]
+        assert out["std_err"] == expected["std_err"]
+
+
+class TestF2Source:
+    """Where the f-statistic commands take their f2 blocks from."""
+
+    @small_data
+    def test_f2_dir_and_genotypes_agree(self, tmp_path):
+        out = tmp_path / "f2"
+        pops = "French,Yoruba,Simulation"
+        run_cli("extract-f2", "--input", SMALL_PREFIX, "--output", str(out), "--populations", pops,
+                "--all-chromosomes")
+        args = ["f3", "--target", "Simulation", "--source1", "French", "--source2", "Yoruba", "--format", "json"]
+        from_dir = json.loads(run_cli(*args, "--f2-dir", str(out)).stdout)
+        from_geno = json.loads(run_cli(*args, "--input", SMALL_PREFIX, "--all-chromosomes").stdout)
+        assert from_dir == from_geno
+
+    @small_data
+    def test_extract_f2_defaults_to_every_population(self, tmp_path):
+        import popmix as pm
+        out = tmp_path / "f2"
+        run_cli("extract-f2", "--input", SMALL_PREFIX, "--output", str(out), "--all-chromosomes",
+                "--maxmiss", "0.5")
+        saved = pm.read_f2(str(out))
+        pops = ["French", "Simulation", "Simulation.1", "Yoruba"]
+        assert sorted(saved.populations) == pops
+        direct = pm.extract_f2(SMALL_PREFIX, sorted(saved.populations, key=saved.populations.index),
+                               auto_only=False, maxmiss=0.5)
+        assert list(saved.block_lengths) == list(direct.block_lengths)
+
+    @small_data
+    def test_needs_input_or_f2_dir(self):
+        result = run_cli("f2", "--pop1", "French", "--pop2", "Yoruba", check=False)
+        assert result.returncode != 0
+        assert "--input" in result.stderr and "--f2-dir" in result.stderr
+
+    @small_data
+    def test_rejects_input_and_f2_dir_together(self, tmp_path):
+        result = run_cli("f2", "--input", SMALL_PREFIX, "--f2-dir", str(tmp_path), "--pop1", "French",
+                         "--pop2", "Yoruba", check=False)
+        assert result.returncode != 0
+        assert "not both" in result.stderr
+
+    @small_data
+    def test_f2_dir_missing_population(self, tmp_path):
+        out = tmp_path / "f2"
+        run_cli("extract-f2", "--input", SMALL_PREFIX, "--output", str(out), "--populations", "French,Yoruba",
+                "--all-chromosomes")
+        result = run_cli("f2", "--f2-dir", str(out), "--pop1", "French", "--pop2", "Simulation", check=False)
+        assert result.returncode != 0
+        assert "Simulation" in result.stderr
 
 
 class TestDatesCommand:
@@ -490,41 +587,128 @@ class TestThreadsOption:
 class TestOutputFormats:
     """Test output format options."""
 
-    @pytest.mark.skipif(not os.path.exists(f"{AADR_PREFIX}.geno"), reason="AADR data not available")
-    @pytest.mark.slow
+    @small_data
     def test_json_output(self):
-        """--format json should output valid JSON."""
-        result = run_cli(
-            "f2",
-            "--input", AADR_PREFIX,
-            "--pop1", POP_HAN,
-            "--pop2", POP_YORUBA,
-            "--snp-range", "0:100",
-            "--format", "json",
-        )
-
-        assert result.returncode == 0
-        # Should be valid JSON
+        result = run_cli("f2", "--input", SMALL_PREFIX, "--pop1", "French", "--pop2", "Yoruba",
+                         "--all-chromosomes", "--format", "json")
         data = json.loads(result.stdout)
-        assert "estimate" in data or "f2" in data
+        assert "estimate" in data
+
+    @small_data
+    def test_tsv_output(self):
+        result = run_cli("f2", "--input", SMALL_PREFIX, "--pop1", "French", "--pop2", "Yoruba",
+                         "--all-chromosomes", "--format", "tsv")
+        rows = [line.split("\t") for line in result.stdout.strip().splitlines()]
+        assert rows[0][:2] == ["pop1", "pop2"]
+        assert len(rows) == 2
+
+
+
+
+class TestQpGraphCommand:
+    """Test the 'qpgraph' command (admixtools2 qpgraph)."""
+
+    REF = Path("tests/golden/admixtools2/v2.0.10/dg_6pop/qpgraph.json")
+
+    @staticmethod
+    def write_graph(tmp_path, edges, name="graph.txt"):
+        path = tmp_path / name
+        lines = ["# from to"] + [f"{a}\t{b}" for a, b in edges]
+        path.write_text("\n".join(lines) + "\n")
+        return str(path)
+
+    def reference(self, graph_name):
+        return next(g for g in json.loads(self.REF.read_text())["graphs"] if g["name"] == graph_name)
 
     @pytest.mark.skipif(not os.path.exists(f"{AADR_PREFIX}.geno"), reason="AADR data not available")
-    @pytest.mark.slow
-    def test_tsv_output(self):
-        """--format tsv should output tab-separated values."""
-        result = run_cli(
-            "f2",
-            "--input", AADR_PREFIX,
-            "--pop1", POP_HAN,
-            "--pop2", POP_YORUBA,
-            "--snp-range", "0:100",
-            "--format", "tsv",
-        )
+    def test_qpgraph_json_matches_admixtools2(self, tmp_path):
+        """The CLI fit of a 1-admixture graph reaches admixtools2's score."""
+        ref = self.reference("admix1")
+        graph = self.write_graph(tmp_path, ref["edges"])
+        result = run_cli("qpgraph", "--input", AADR_PREFIX, "--graph", graph, "--format", "json")
+        out = json.loads(result.stdout)
+        assert out["pops"] == ref["pops"]
+        assert out["score"] == pytest.approx(ref["score"], rel=1e-10)
+        admix = {(e["from"], e["to"]): e["weight"] for e in out["edges"] if e["type"] == "admix"}
+        for e in ref["fit_edges"]:
+            if e["type"] == "admix":
+                # within admixtools2's own spread over its random starts
+                assert admix[(e["from"], e["to"])] == pytest.approx(e["weight"], abs=3e-4)
 
-        assert result.returncode == 0
-        # Should have tab-separated values
-        assert "\t" in result.stdout
+    @pytest.mark.skipif(not os.path.exists(f"{AADR_PREFIX}.geno"), reason="AADR data not available")
+    def test_qpgraph_fixed_weights_match_admixtools2_exactly(self, tmp_path):
+        ref = self.reference("admix1")
+        fixed = ref["fixed"][1]
+        assert fixed["admix_weights"] == 0.3
+        graph = self.write_graph(tmp_path, ref["edges"])
+        result = run_cli("qpgraph", "--input", AADR_PREFIX, "--graph", graph,
+                         "--admix-weights", "0.3", "--format", "json")
+        out = json.loads(result.stdout)
+        assert out["score"] == pytest.approx(fixed["score"], rel=1e-10)
+        weights = [e["weight"] for e in out["edges"]]
+        assert weights == pytest.approx(fixed["weight"], rel=1e-10, abs=1e-15)
+
+    @pytest.mark.skipif(not os.path.exists("tests/golden/dates/family_chr20_22.geno"),
+                        reason="test data not available")
+    def test_qpgraph_text_and_tsv_output(self, tmp_path):
+        graph = self.write_graph(tmp_path, [("R", "Yoruba"), ("R", "a"), ("a", "French"),
+                                            ("a", "b"), ("b", "Simulation"), ("b", "Simulation.1")])
+        text = run_cli("qpgraph", "--input", SMALL_PREFIX, "--graph", graph, "--all-chromosomes")
+        assert "score" in text.stdout.lower()
+        assert "French" in text.stdout
+        tsv = run_cli("qpgraph", "--input", SMALL_PREFIX, "--graph", graph, "--all-chromosomes",
+                      "--format", "tsv")
+        rows = [line.split("\t") for line in tsv.stdout.strip().splitlines()]
+        assert rows[0] == ["from", "to", "type", "weight", "low", "high"]
+        assert len(rows) == 1 + 6
+
+    @pytest.mark.skipif(not os.path.exists("tests/golden/dates/family_chr20_22.geno"),
+                        reason="test data not available")
+    def test_qpgraph_rejects_a_graph_with_two_roots(self, tmp_path):
+        graph = self.write_graph(tmp_path, [("R", "Yoruba"), ("R", "French"), ("S", "Simulation")])
+        result = run_cli("qpgraph", "--input", SMALL_PREFIX, "--graph", graph, check=False)
+        assert result.returncode != 0
+        assert "root" in result.stderr.lower()
 
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+class TestFindGraphsCommand:
+    """Test the 'find-graphs' command."""
+
+    POPS = "Yoruba,French,Simulation,Simulation.1"
+
+    @small_data
+    def test_json_matches_python_api(self):
+        import popmix as pm
+        out = json.loads(run_cli("find-graphs", "--input", SMALL_PREFIX, "--populations", self.POPS,
+                                 "--all-chromosomes", "--method", "exhaustive", "--top", "3",
+                                 "--format", "json").stdout)
+        f2 = pm.extract_f2(SMALL_PREFIX, self.POPS.split(","), auto_only=False)
+        graphs, n = pm.find_graphs(f2, self.POPS.split(","), method="exhaustive")
+        assert out["n_evaluated"] == n == 15
+        assert [g["score"] for g in out["graphs"]] == [g.score for g in graphs[:3]]
+        assert [[tuple(e) for e in g["edges"]] for g in out["graphs"]] == [g.edges for g in graphs[:3]]
+
+    @small_data
+    def test_best_graph_file_refits_with_qpgraph(self, tmp_path):
+        best = tmp_path / "best.txt"
+        text = run_cli("find-graphs", "--input", SMALL_PREFIX, "--populations", self.POPS, "--nadmix", "1",
+                       "--all-chromosomes", "--output-graph", str(best))
+        assert "score" in text.stdout.lower()
+        found = json.loads(run_cli("find-graphs", "--input", SMALL_PREFIX, "--populations", self.POPS,
+                                   "--nadmix", "1", "--all-chromosomes", "--top", "1",
+                                   "--format", "json").stdout)
+        refit = json.loads(run_cli("qpgraph", "--input", SMALL_PREFIX, "--graph", str(best),
+                                   "--all-chromosomes", "--format", "json").stdout)
+        # qpgraph extracts its f2 blocks in leaf order, so only the last bits may differ
+        assert refit["score"] == pytest.approx(found["graphs"][0]["score"], rel=1e-10)
+
+    @small_data
+    def test_outgroup_must_be_a_population(self):
+        result = run_cli("find-graphs", "--input", SMALL_PREFIX, "--populations", self.POPS,
+                         "--outgroup", "Mbuti", "--all-chromosomes", check=False)
+        assert result.returncode != 0
+        assert "outgroup" in result.stderr.lower()

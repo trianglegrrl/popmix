@@ -20,11 +20,35 @@ use popmix_core::{AlleleFrequencies, Ploidy, PopmixError, PopulationId, Result, 
 #[inline]
 fn decode_packed_byte(byte: u8) -> [u8; 4] {
     [
-        (byte >> 6) & 0b11,  // Individual 0: bits 6-7 (high bits)
-        (byte >> 4) & 0b11,  // Individual 1: bits 4-5
-        (byte >> 2) & 0b11,  // Individual 2: bits 2-3
-        byte & 0b11,         // Individual 3: bits 0-1 (low bits)
+        (byte >> 6) & 0b11, // Individual 0: bits 6-7 (high bits)
+        (byte >> 4) & 0b11, // Individual 1: bits 4-5
+        (byte >> 2) & 0b11, // Individual 2: bits 2-3
+        byte & 0b11,        // Individual 3: bits 0-1 (low bits)
     ]
+}
+
+/// Bytes per record (the header and each SNP) of a PACKEDANCESTRYMAP file.
+///
+/// Records are padded to at least 48 bytes, so this is not ceil(n / 4) for
+/// fewer than 189 samples. As admixtools2 (`cpp_packedancestrymap_to_afs`),
+/// it is the file size over the number of records; a file whose size is not
+/// a whole number of records long enough for every sample is an error.
+fn record_length(geno_path: &str, n_samples: usize, n_snps: usize) -> Result<usize> {
+    let len = std::fs::metadata(geno_path)
+        .map_err(|e| PopmixError::io_with_path(e, geno_path))?
+        .len() as usize;
+    let records = n_snps + 1;
+    let bytes = len / records;
+    if !len.is_multiple_of(records) || bytes < n_samples.div_ceil(4) {
+        return Err(PopmixError::InvalidFileFormat {
+            file: geno_path.to_string(),
+            details: format!(
+                "{len} bytes is not {records} records (header and {n_snps} SNPs) of at least {} bytes",
+                n_samples.div_ceil(4)
+            ),
+        });
+    }
+    Ok(bytes)
 }
 
 /// Compute allele frequencies by streaming through a PACKEDANCESTRYMAP file.
@@ -84,12 +108,10 @@ pub fn compute_allele_frequencies_packedancestrymap(
         }
     }
 
-    // Calculate bytes per SNP (ceil(n_samples / 4))
-    let bytes_per_snp = n_samples.div_ceil(4);
+    let bytes_per_snp = record_length(geno_path, n_samples, n_snps_total)?;
 
     // Open file
-    let mut file = File::open(geno_path)
-        .map_err(|e| PopmixError::io_with_path(e, geno_path))?;
+    let mut file = File::open(geno_path).map_err(|e| PopmixError::io_with_path(e, geno_path))?;
 
     // Verify magic number
     let mut magic = [0u8; 4];
@@ -174,10 +196,8 @@ pub fn compute_allele_frequencies_packedancestrymap(
     }
 
     // Create population IDs
-    let population_ids: Vec<PopulationId> = populations
-        .iter()
-        .map(|&p| PopulationId::new(p))
-        .collect();
+    let population_ids: Vec<PopulationId> =
+        populations.iter().map(|&p| PopulationId::new(p)).collect();
 
     Ok(AlleleFrequencies {
         frequencies,
@@ -198,10 +218,9 @@ pub fn detect_ploidy_packedancestrymap(
 ) -> Result<()> {
     let n_samples = samples.len();
     let n_check = n_snps_check.min(n_snps_total);
-    let bytes_per_snp = n_samples.div_ceil(4);
+    let bytes_per_snp = record_length(geno_path, n_samples, n_snps_total)?;
 
-    let mut file = File::open(geno_path)
-        .map_err(|e| PopmixError::io_with_path(e, geno_path))?;
+    let mut file = File::open(geno_path).map_err(|e| PopmixError::io_with_path(e, geno_path))?;
 
     // Skip header
     file.seek(SeekFrom::Start(bytes_per_snp as u64))
@@ -242,5 +261,66 @@ pub fn detect_ploidy_packedancestrymap(
 
 #[cfg(test)]
 mod tests {
-    // Tests would go here using fixture data
+    use super::*;
+    use crate::eigenstrat::{read_ind_file, read_snp_file};
+    use crate::PackedAncestryMapReader;
+
+    const SMALL: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/golden/dates/family_chr20_22"
+    );
+
+    /// 54 samples: each record is padded to 48 bytes, not ceil(54 / 4) = 14.
+    #[test]
+    fn small_files_stream_with_48_byte_records() {
+        let geno_path = format!("{SMALL}.geno");
+        let mut samples = read_ind_file(&format!("{SMALL}.ind")).unwrap();
+        let snps = read_snp_file(&format!("{SMALL}.snp")).unwrap();
+        assert_eq!(samples.len(), 54);
+        detect_ploidy_packedancestrymap(&geno_path, &mut samples, 1000, snps.len()).unwrap();
+        let pops = ["French", "Yoruba"];
+        let streamed =
+            compute_allele_frequencies_packedancestrymap(&geno_path, &samples, &snps, &pops, false)
+                .unwrap();
+
+        let geno = PackedAncestryMapReader::new(SMALL)
+            .unwrap()
+            .read_all()
+            .unwrap();
+        let in_memory = AlleleFrequencies::from_genotypes_for_populations(&geno, Some(&pops));
+        assert_eq!(streamed.n_snps(), in_memory.n_snps());
+        for (col, pop) in pops.iter().enumerate() {
+            let other = in_memory.pop_index(pop).unwrap();
+            for snp in 0..streamed.n_snps() {
+                let (a, b) = (
+                    streamed.frequencies[[snp, col]],
+                    in_memory.frequencies[[snp, other]],
+                );
+                assert!(
+                    a == b || (a.is_nan() && b.is_nan()),
+                    "{pop} SNP {snp}: {a} != {b}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_truncated_file_is_an_error() {
+        let dir = std::env::temp_dir().join(format!("popmix-streaming-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let geno_path = dir.join("short.geno");
+        let full = std::fs::read(format!("{SMALL}.geno")).unwrap();
+        std::fs::write(&geno_path, &full[..full.len() - 10]).unwrap();
+        let samples = read_ind_file(&format!("{SMALL}.ind")).unwrap();
+        let snps = read_snp_file(&format!("{SMALL}.snp")).unwrap();
+        let err = compute_allele_frequencies_packedancestrymap(
+            geno_path.to_str().unwrap(),
+            &samples,
+            &snps,
+            &["French"],
+            false,
+        );
+        assert!(err.is_err());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 }

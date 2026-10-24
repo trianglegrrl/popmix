@@ -1,0 +1,115 @@
+{
+  "admixtools_version": "2.0.10",
+  "f3": [
+    {
+      "pop1": "French",
+      "pop2": "Simulation",
+      "pop3": "Simulation.1",
+      "est": 0.034595657409630359,
+      "se": 0.0021493523468785374
+    },
+    {
+      "pop1": "French",
+      "pop2": "Yoruba",
+      "pop3": "Simulation",
+      "est": 0.043700855875724781,
+      "se": 0.0025481606185709018
+    },
+    {
+      "pop1": "French",
+      "pop2": "Yoruba",
+      "pop3": "Simulation.1",
+      "est": 0.046057304095057566,
+      "se": 0.0015652023683334175
+    },
+    {
+      "pop1": "Simulation",
+      "pop2": "French",
+      "pop3": "Yoruba",
+      "est": -0.0078965656264131691,
+      "se": 0.0025736323580514658
+    },
+    {
+      "pop1": "Simulation",
+      "pop2": "Simulation.1",
+      "pop3": "French",
+      "est": 0.0012086328396812491,
+      "se": 0.0029801340166468789
+    },
+    {
+      "pop1": "Simulation",
+      "pop2": "Simulation.1",
+      "pop3": "Yoruba",
+      "est": 0.0035650810590140435,
+      "se": 0.0029703264241336593
+    },
+    {
+      "pop1": "Simulation.1",
+      "pop2": "French",
+      "pop3": "Simulation",
+      "est": 0.002650814164927059,
+      "se": 0.0023373696194143984
+    },
+    {
+      "pop1": "Simulation.1",
+      "pop2": "French",
+      "pop3": "Yoruba",
+      "est": -0.0088108325205001579,
+      "se": 0.00080926857013096916
+    },
+    {
+      "pop1": "Simulation.1",
+      "pop2": "Yoruba",
+      "pop3": "Simulation",
+      "est": 0.00029436594559426396,
+      "se": 0.0010351750451489596
+    },
+    {
+      "pop1": "Yoruba",
+      "pop2": "Simulation",
+      "pop3": "French",
+      "est": 0.013055730865104689,
+      "se": 0.0022230533097840274
+    },
+    {
+      "pop1": "Yoruba",
+      "pop2": "Simulation",
+      "pop3": "Simulation.1",
+      "est": 0.0015940841796774727,
+      "se": 0.00079406080513330722
+    },
+    {
+      "pop1": "Yoruba",
+      "pop2": "Simulation.1",
+      "pop3": "French",
+      "est": 0.010699282645771892,
+      "se": 0.0010564710165773057
+    }
+  ],
+  "f4": [
+    {
+      "pop1": "French",
+      "pop2": "Yoruba",
+      "pop3": "Simulation",
+      "pop4": "Simulation.1",
+      "est": 0.0023564482193327947,
+      "se": 0.0026546305962560132
+    },
+    {
+      "pop1": "French",
+      "pop2": "Simulation",
+      "pop3": "Yoruba",
+      "pop4": "Simulation.1",
+      "est": -0.0091051984660944149,
+      "se": 0.0012416094012883869
+    },
+    {
+      "pop1": "French",
+      "pop2": "Simulation.1",
+      "pop3": "Yoruba",
+      "pop4": "Simulation",
+      "est": -0.011461646685427214,
+      "se": 0.0019725779704540636
+    }
+  ]
+}

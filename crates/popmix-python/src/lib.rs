@@ -5,10 +5,11 @@
 // PyO3 macro expansions generate these warnings
 #![allow(clippy::useless_conversion)]
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use numpy::{IntoPyArray, PyArray1, PyArray2};
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
 
 use popmix_core::{AlleleFrequencies, BlockDefinition, F2Blocks, GenotypeMatrix, Ploidy, Sample};
 use popmix_io::{
@@ -1081,10 +1082,10 @@ impl PyF2Blocks {
     ///
     /// Returns:
     ///     Dictionary with keys: estimate, std_err, z_score, n_snps
-    fn f2(&self, pop_a: &str, pop_b: &str) -> PyResult<Option<HashMap<String, f64>>> {
+    fn f2(&self, pop_a: &str, pop_b: &str) -> PyResult<Option<BTreeMap<String, f64>>> {
         match self.inner.f2(pop_a, pop_b) {
             Some((estimate, std_err, n_snps)) => {
-                let mut result = HashMap::new();
+                let mut result = BTreeMap::new();
                 result.insert("estimate".to_string(), estimate);
                 result.insert("std_err".to_string(), std_err);
                 result.insert(
@@ -1113,10 +1114,10 @@ impl PyF2Blocks {
     ///
     /// Returns:
     ///     Dictionary with keys: estimate, std_err, z_score, n_blocks
-    fn f3(&self, pop_a: &str, pop_b: &str, pop_c: &str) -> PyResult<Option<HashMap<String, f64>>> {
+    fn f3(&self, pop_a: &str, pop_b: &str, pop_c: &str) -> PyResult<Option<BTreeMap<String, f64>>> {
         match self.inner.f3(pop_a, pop_b, pop_c) {
             Some(result) => {
-                let mut out = HashMap::new();
+                let mut out = BTreeMap::new();
                 out.insert("estimate".to_string(), result.estimate);
                 out.insert("std_err".to_string(), result.std_err);
                 out.insert("z_score".to_string(), result.z_score);
@@ -1143,10 +1144,10 @@ impl PyF2Blocks {
         pop_b: &str,
         pop_c: &str,
         pop_d: &str,
-    ) -> PyResult<Option<HashMap<String, f64>>> {
+    ) -> PyResult<Option<BTreeMap<String, f64>>> {
         match self.inner.f4(pop_a, pop_b, pop_c, pop_d) {
             Some(result) => {
-                let mut out = HashMap::new();
+                let mut out = BTreeMap::new();
                 out.insert("estimate".to_string(), result.estimate);
                 out.insert("std_err".to_string(), result.std_err);
                 out.insert("z_score".to_string(), result.z_score);
@@ -1164,7 +1165,7 @@ impl PyF2Blocks {
         pop_b: &str,
         pop_c: &str,
         pop_d: &str,
-    ) -> PyResult<Option<HashMap<String, f64>>> {
+    ) -> PyResult<Option<BTreeMap<String, f64>>> {
         self.f4(pop_a, pop_b, pop_c, pop_d)
     }
 
@@ -1180,10 +1181,10 @@ impl PyF2Blocks {
     ///
     /// Returns:
     ///     Dictionary with keys: estimate, std_err, n_snps
-    fn fst(&self, pop_a: &str, pop_b: &str) -> PyResult<Option<HashMap<String, f64>>> {
+    fn fst(&self, pop_a: &str, pop_b: &str) -> PyResult<Option<BTreeMap<String, f64>>> {
         match self.inner.fst(pop_a, pop_b) {
             Some(result) => {
-                let mut out = HashMap::new();
+                let mut out = BTreeMap::new();
                 out.insert("estimate".to_string(), result.estimate);
                 out.insert("std_err".to_string(), result.std_err);
                 out.insert("n_snps".to_string(), result.n_snps as f64);
@@ -1603,8 +1604,11 @@ struct PyQpAdmResult {
 /// One row of qpAdm ``popdrop``: the model fitted to a subset of the sources.
 ///
 /// ``pattern`` has one character per source, "1" if it is dropped; ``weights``
-/// is None for dropped sources. ``best``, ``dofdiff``, ``chisqdiff`` and
-/// ``p_nested`` follow admixtools2 2.0.10's nested-model columns.
+/// is None for dropped sources. ``best`` marks the nested path from the full
+/// model, each step dropping one more source; ``dofdiff``, ``chisqdiff`` and
+/// ``p_nested`` compare a step with the model it came from. With
+/// ``compat="admixtools2-2.0.10"`` they reproduce admixtools2's columns
+/// instead (DEVIATIONS.md, ADMIXTOOLS2-0001).
 #[pyclass]
 #[derive(Clone)]
 struct PyPopDropRow {
@@ -1680,13 +1684,13 @@ impl PyQpAdmResult {
         self.weights.iter().all(|&w| (0.0..=1.0).contains(&w))
     }
 
-    /// Get weights as a dictionary mapping source name to weight.
-    fn weights_dict(&self) -> HashMap<String, f64> {
-        self.sources
-            .iter()
-            .cloned()
-            .zip(self.weights.iter().copied())
-            .collect()
+    /// Get weights as a dictionary mapping source name to weight, in source order.
+    fn weights_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let dict = PyDict::new_bound(py);
+        for (source, weight) in self.sources.iter().zip(&self.weights) {
+            dict.set_item(source, weight)?;
+        }
+        Ok(dict)
     }
 }
 
@@ -1719,13 +1723,13 @@ impl PyRotationModel {
         )
     }
 
-    /// Get weights as a dictionary mapping source name to weight.
-    fn weights_dict(&self) -> HashMap<String, f64> {
-        self.sources
-            .iter()
-            .cloned()
-            .zip(self.weights.iter().copied())
-            .collect()
+    /// Get weights as a dictionary mapping source name to weight, in source order.
+    fn weights_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let dict = PyDict::new_bound(py);
+        for (source, weight) in self.sources.iter().zip(&self.weights) {
+            dict.set_item(source, weight)?;
+        }
+        Ok(dict)
     }
 }
 
@@ -2235,64 +2239,6 @@ impl PyGraphFitResult {
     }
 }
 
-/// Result of graph search.
-#[pyclass]
-struct PyGraphSearchResult {
-    #[pyo3(get)]
-    n_evaluated: usize,
-    #[pyo3(get)]
-    n_passing: usize,
-    best_fit: popmix_core::GraphFitResult,
-    all_fits: Vec<popmix_core::GraphFitResult>,
-}
-
-#[pymethods]
-impl PyGraphSearchResult {
-    /// Get the best fitting graph.
-    fn get_best_graph(&self) -> PyAdmixGraph {
-        PyAdmixGraph {
-            inner: self.best_fit.graph.clone(),
-        }
-    }
-
-    /// Get the best fit result.
-    fn get_best_fit(&self) -> PyGraphFitResult {
-        PyGraphFitResult {
-            score: self.best_fit.score,
-            rmse: self.best_fit.rmse,
-            n_constraints: self.best_fit.n_constraints,
-            iterations: self.best_fit.iterations,
-            converged: self.best_fit.converged,
-            graph: self.best_fit.graph.clone(),
-            residuals: self.best_fit.residuals.clone(),
-        }
-    }
-
-    /// Get the N best fits.
-    fn top_n(&self, n: usize) -> Vec<PyGraphFitResult> {
-        let mut sorted = self.all_fits.clone();
-        sorted.sort_by(|a, b| a.score.partial_cmp(&b.score).unwrap());
-        sorted
-            .into_iter()
-            .take(n)
-            .map(|f| PyGraphFitResult {
-                score: f.score,
-                rmse: f.rmse,
-                n_constraints: f.n_constraints,
-                iterations: f.iterations,
-                converged: f.converged,
-                graph: f.graph,
-                residuals: f.residuals,
-            })
-            .collect()
-    }
-
-    /// Get all scores.
-    fn all_scores(&self) -> Vec<f64> {
-        self.all_fits.iter().map(|f| f.score).collect()
-    }
-}
-
 /// Build a simple tree graph using the builder pattern.
 ///
 /// Args:
@@ -2331,7 +2277,8 @@ fn build_tree(
 /// Fit an admixture graph to observed f-statistics.
 ///
 /// Optimizes edge lengths to minimize discrepancy between predicted
-/// and observed f2 values.
+/// and observed f2 values. This is popmix's own f2 least-squares fit; it is
+/// not admixtools2's qpgraph. Use qpgraph() for that.
 ///
 /// Args:
 ///     graph: The admixture graph to fit (topology is fixed)
@@ -2372,51 +2319,303 @@ fn fit_graph(
     })
 }
 
-/// Search for the best admixture graph topology.
+/// One graph found by find_graphs.
+#[pyclass]
+#[derive(Clone)]
+struct PyScoredGraph {
+    /// The graph as (from, to) pairs; the path from the root to the first
+    /// population comes first, so it is the f3 base.
+    #[pyo3(get)]
+    edges: Vec<(String, String)>,
+    /// qpgraph score.
+    #[pyo3(get)]
+    score: f64,
+}
+
+#[pymethods]
+impl PyScoredGraph {
+    fn __repr__(&self) -> String {
+        format!(
+            "ScoredGraph(score={:.6}, {} edges)",
+            self.score,
+            self.edges.len()
+        )
+    }
+}
+
+/// Search for the admixture graphs that best fit the data.
 ///
-/// Generates candidate topologies and fits each to the data.
+/// Every candidate graph has the populations as leaves and ``nadmix``
+/// admixture nodes and is fitted with qpgraph(); ``populations[0]`` is the f3
+/// base population of every fit.
 ///
 /// Args:
-///     populations: List of population names to include
-///     f2_blocks: Observed f-statistics
-///     outgroup: Optional outgroup population (used as root constraint)
-///     max_admix: Maximum admixture events (default: 2)
-///     max_graphs: Maximum graphs to evaluate (default: 1000)
-///     score_threshold: Score threshold for "passing" graphs (default: 0.01)
-///     seed: Random seed for reproducibility
+///     f2_blocks: Precomputed F2 blocks containing every population
+///     populations: The graph's leaves
+///     nadmix: Number of admixture nodes (default: 0)
+///     outgroup: Only graphs whose root has this population as a direct child
+///     method: "stepwise" (default): add the populations, then the admixture
+///         edges, one at a time, keeping the ``beam_width`` best graphs after
+///         each step. "exhaustive": every graph admixtools2
+///         generate_all_graphs() returns (feasible for about 5 populations
+///         with 1 admixture, or 4 with 2).
+///     beam_width: Graphs kept after each stepwise step (default: 20)
+///     numstart, seed, diag, diag_f3, constrained: as for qpgraph()
 ///
 /// Returns:
-///     PyGraphSearchResult with best graph and all evaluated graphs
+///     (graphs, n_evaluated): the graphs of the last step, best first, and
+///     the number of qpgraph fits made
 #[pyfunction]
-#[pyo3(signature = (populations, f2_blocks, outgroup=None, max_admix=None, max_graphs=None, score_threshold=None, seed=None))]
+#[pyo3(signature = (f2_blocks, populations, nadmix=0, outgroup=None, method="stepwise", beam_width=20, numstart=10, seed=1, diag=1e-4, diag_f3=1e-5, constrained=true))]
+#[allow(clippy::too_many_arguments)]
 fn find_graphs(
-    populations: Vec<String>,
     f2_blocks: &PyF2Blocks,
+    populations: Vec<String>,
+    nadmix: usize,
     outgroup: Option<String>,
-    max_admix: Option<usize>,
-    max_graphs: Option<usize>,
-    score_threshold: Option<f64>,
-    seed: Option<u64>,
-) -> PyResult<PyGraphSearchResult> {
-    let pop_refs: Vec<&str> = populations.iter().map(|s| s.as_str()).collect();
-    let outgroup_ref = outgroup.as_deref();
-
-    let opts = popmix_core::GraphSearchOptions {
-        max_admix: max_admix.unwrap_or(2),
-        max_graphs: max_graphs.unwrap_or(1000),
-        score_threshold: score_threshold.unwrap_or(0.01),
-        seed,
-        ..Default::default()
+    method: &str,
+    beam_width: usize,
+    numstart: usize,
+    seed: u64,
+    diag: f64,
+    diag_f3: f64,
+    constrained: bool,
+) -> PyResult<(Vec<PyScoredGraph>, usize)> {
+    let method = match method {
+        "stepwise" => popmix_core::GraphSearchMethod::Stepwise { beam_width },
+        "exhaustive" => popmix_core::GraphSearchMethod::Exhaustive,
+        other => {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "method must be \"stepwise\" or \"exhaustive\", got {other:?}"
+            )))
+        }
     };
+    let opts = popmix_core::GraphSearchOptions {
+        nadmix,
+        outgroup,
+        method,
+        qpgraph: popmix_core::QpGraphOptions {
+            diag,
+            diag_f3,
+            constrained,
+            numstart,
+            seed,
+            admix_weights: None,
+        },
+    };
+    let pop_refs: Vec<&str> = populations.iter().map(|s| s.as_str()).collect();
+    let result =
+        popmix_core::find_graphs(&f2_blocks.inner, &pop_refs, Some(opts)).map_err(to_py_err)?;
+    let graphs = result
+        .graphs
+        .into_iter()
+        .map(|g| PyScoredGraph {
+            edges: g.edges,
+            score: g.score,
+        })
+        .collect();
+    Ok((graphs, result.n_evaluated))
+}
 
-    let result = popmix_core::find_graphs(&pop_refs, &f2_blocks.inner, outgroup_ref, Some(opts))
-        .map_err(to_py_err)?;
+/// Every admixture graph with these leaves and ``nadmix`` admixture nodes,
+/// as admixtools2 generate_all_graphs() returns them, in its order.
+///
+/// Each graph is a list of (from, to) pairs whose path from the root to
+/// ``leaves[0]`` comes first.
+#[pyfunction]
+#[pyo3(signature = (leaves, nadmix=0))]
+fn all_graphs(leaves: Vec<String>, nadmix: usize) -> PyResult<Vec<Vec<(String, String)>>> {
+    let refs: Vec<&str> = leaves.iter().map(|s| s.as_str()).collect();
+    popmix_core::all_graphs(&refs, nadmix).map_err(to_py_err)
+}
 
-    Ok(PyGraphSearchResult {
-        n_evaluated: result.n_evaluated,
-        n_passing: result.n_passing,
-        best_fit: result.best_fit,
-        all_fits: result.all_fits,
+/// The value admixtools2 graph_hash() digests for a simplified graph: two
+/// graphs are the same graph to admixtools2 exactly when their keys are equal.
+#[pyfunction]
+fn graph_key(edges: Vec<(String, String)>) -> PyResult<Vec<String>> {
+    popmix_core::graph_key(&edges).map_err(to_py_err)
+}
+
+/// One fitted qpgraph edge.
+#[pyclass]
+#[derive(Clone)]
+struct PyQpGraphEdge {
+    #[pyo3(get)]
+    from_node: String,
+    #[pyo3(get)]
+    to_node: String,
+    /// "edge" (drift) or "admix", as in admixtools2.
+    #[pyo3(get)]
+    kind: String,
+    /// Drift length, or admixture weight.
+    #[pyo3(get)]
+    weight: f64,
+    /// Admixture edges: lowest and highest weight over the random starts.
+    #[pyo3(get)]
+    low: Option<f64>,
+    #[pyo3(get)]
+    high: Option<f64>,
+}
+
+/// One fitted f3(pop1; pop2, pop3) of a qpgraph fit.
+#[pyclass]
+#[derive(Clone)]
+struct PyQpGraphF3 {
+    #[pyo3(get)]
+    pop1: String,
+    #[pyo3(get)]
+    pop2: String,
+    #[pyo3(get)]
+    pop3: String,
+    #[pyo3(get)]
+    est: f64,
+    #[pyo3(get)]
+    se: f64,
+    #[pyo3(get)]
+    fit: f64,
+    #[pyo3(get)]
+    diff: f64,
+    #[pyo3(get)]
+    z: f64,
+    #[pyo3(get)]
+    p: f64,
+}
+
+/// One random start of the qpgraph admixture weight optimization.
+#[pyclass]
+#[derive(Clone)]
+struct PyQpGraphStart {
+    #[pyo3(get)]
+    start: Vec<f64>,
+    #[pyo3(get)]
+    weights: Vec<f64>,
+    #[pyo3(get)]
+    score: f64,
+    #[pyo3(get)]
+    iterations: usize,
+    #[pyo3(get)]
+    converged: bool,
+}
+
+/// Result of qpgraph().
+#[pyclass]
+#[derive(Clone)]
+struct PyQpGraphResult {
+    /// Leaves in graph order; the first is the f3 base population.
+    #[pyo3(get)]
+    pops: Vec<String>,
+    #[pyo3(get)]
+    score: f64,
+    #[pyo3(get)]
+    edges: Vec<PyQpGraphEdge>,
+    #[pyo3(get)]
+    f3: Vec<PyQpGraphF3>,
+    #[pyo3(get)]
+    opt: Vec<PyQpGraphStart>,
+    /// Inverse of the regularized f3 covariance, rows in ``f3`` order.
+    #[pyo3(get)]
+    ppinv: Vec<Vec<f64>>,
+}
+
+#[pymethods]
+impl PyQpGraphResult {
+    fn __repr__(&self) -> String {
+        format!(
+            "QpGraphResult(score={:.4}, pops={}, edges={})",
+            self.score,
+            self.pops.len(),
+            self.edges.len()
+        )
+    }
+}
+
+/// Fit an admixture graph, as admixtools2 ``qpgraph`` does.
+///
+/// Drift lengths minimise the covariance-weighted residual of f3(base; i, j)
+/// for all pairs of leaves, with lengths >= 0; admixture weights are optimized
+/// over [0, 1] from ``numstart`` random starts. The populations are the
+/// graph's leaves in order of first appearance in ``edges``; the first is the
+/// f3 base population.
+///
+/// Args:
+///     f2_blocks: Precomputed F2 blocks containing every leaf
+///     edges: The graph as (from, to) pairs. A node with two incoming edges is
+///         an admixture node.
+///     admix_weights: Fit at these weights instead of optimizing them, one
+///         per admixture node in order of first appearance: the weight of the
+///         incoming edge whose source node appears first.
+///     numstart: Random starts for the admixture weights (default: 10)
+///     seed: Seed for the random starts (default: 1)
+///     diag: Regularization of the edge-length fit (default: 1e-4)
+///     diag_f3: Regularization of the f3 covariance (default: 1e-5)
+///     constrained: Lengths >= 0 and weights in [0, 1] (default: True)
+///
+/// Returns:
+///     PyQpGraphResult with fitted edges, score, f3 fits and the random starts
+#[pyfunction]
+#[pyo3(signature = (f2_blocks, edges, admix_weights=None, numstart=10, seed=1, diag=1e-4, diag_f3=1e-5, constrained=true))]
+#[allow(clippy::too_many_arguments)]
+fn qpgraph(
+    f2_blocks: &PyF2Blocks,
+    edges: Vec<(String, String)>,
+    admix_weights: Option<Vec<f64>>,
+    numstart: usize,
+    seed: u64,
+    diag: f64,
+    diag_f3: f64,
+    constrained: bool,
+) -> PyResult<PyQpGraphResult> {
+    let opts = popmix_core::QpGraphOptions {
+        diag,
+        diag_f3,
+        constrained,
+        numstart,
+        seed,
+        admix_weights,
+    };
+    let r = popmix_core::qpgraph(&f2_blocks.inner, &edges, Some(opts)).map_err(to_py_err)?;
+    Ok(PyQpGraphResult {
+        pops: r.pops,
+        score: r.score,
+        edges: r
+            .edges
+            .into_iter()
+            .map(|e| PyQpGraphEdge {
+                from_node: e.from,
+                to_node: e.to,
+                kind: if e.admix { "admix" } else { "edge" }.to_string(),
+                weight: e.weight,
+                low: e.low,
+                high: e.high,
+            })
+            .collect(),
+        f3: r
+            .f3
+            .into_iter()
+            .map(|f| PyQpGraphF3 {
+                pop1: f.pop1,
+                pop2: f.pop2,
+                pop3: f.pop3,
+                est: f.est,
+                se: f.se,
+                fit: f.fit,
+                diff: f.diff,
+                z: f.z,
+                p: f.p,
+            })
+            .collect(),
+        opt: r
+            .opt
+            .into_iter()
+            .map(|o| PyQpGraphStart {
+                start: o.start,
+                weights: o.weights,
+                score: o.score,
+                iterations: o.iterations,
+                converged: o.converged,
+            })
+            .collect(),
+        ppinv: r.ppinv.outer_iter().map(|row| row.to_vec()).collect(),
     })
 }
 
@@ -2587,19 +2786,19 @@ impl PyDatesResult {
     }
 
     /// Get LD decay data as a list of dictionaries for easy pandas conversion.
-    fn to_ld_dataframe(&self) -> Vec<HashMap<String, f64>> {
+    fn to_ld_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyDict>>> {
         self.ld_bins
             .iter()
             .map(|b| {
-                let mut d = HashMap::new();
-                d.insert("distance_cm".to_string(), b.distance_cm);
-                d.insert("weighted_ld".to_string(), b.weighted_ld);
-                d.insert("z_score".to_string(), b.z_score);
-                d.insert("correlation".to_string(), b.correlation);
-                d.insert("regression_coef".to_string(), b.regression_coef);
-                d.insert("n_pairs".to_string(), b.n_pairs as f64);
-                d.insert("std_err".to_string(), b.std_err);
-                d
+                let d = PyDict::new_bound(py);
+                d.set_item("distance_cm", b.distance_cm)?;
+                d.set_item("weighted_ld", b.weighted_ld)?;
+                d.set_item("z_score", b.z_score)?;
+                d.set_item("correlation", b.correlation)?;
+                d.set_item("regression_coef", b.regression_coef)?;
+                d.set_item("n_pairs", b.n_pairs as f64)?;
+                d.set_item("std_err", b.std_err)?;
+                Ok(d)
             })
             .collect()
     }
@@ -2767,7 +2966,10 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // qpGraph functions
     m.add_function(wrap_pyfunction!(build_tree, m)?)?;
     m.add_function(wrap_pyfunction!(fit_graph, m)?)?;
+    m.add_function(wrap_pyfunction!(qpgraph, m)?)?;
     m.add_function(wrap_pyfunction!(find_graphs, m)?)?;
+    m.add_function(wrap_pyfunction!(all_graphs, m)?)?;
+    m.add_function(wrap_pyfunction!(graph_key, m)?)?;
 
     // DATES functions
     m.add_function(wrap_pyfunction!(dates, m)?)?;
@@ -2782,6 +2984,10 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyQpWaveResult>()?;
     m.add_class::<PyQpAdmResult>()?;
     m.add_class::<PyPopDropRow>()?;
+    m.add_class::<PyQpGraphResult>()?;
+    m.add_class::<PyQpGraphEdge>()?;
+    m.add_class::<PyQpGraphF3>()?;
+    m.add_class::<PyQpGraphStart>()?;
     m.add_class::<PyF4RatioResult>()?;
     m.add_class::<PyRotationModel>()?;
     m.add_class::<PyQpAdmRotateResult>()?;
@@ -2789,7 +2995,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyQpWavePairsResult>()?;
     m.add_class::<PyAdmixGraph>()?;
     m.add_class::<PyGraphFitResult>()?;
-    m.add_class::<PyGraphSearchResult>()?;
+    m.add_class::<PyScoredGraph>()?;
     m.add_class::<PyLdBin>()?;
     m.add_class::<PyDecayFit>()?;
     m.add_class::<PyDatesResult>()?;

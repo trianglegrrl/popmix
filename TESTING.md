@@ -676,6 +676,9 @@ the pipeline:
 | `qpadm_popdrop` | `qpadm()$popdrop`, every subset of the sources, popmix run with `compat="admixtools2-2.0.10"` | as `qpadm_weights` and `qpadm_fit`; flags exact |
 | `qpadm_popdrop_corrected` | popmix's default nested path (ADMIXTOOLS2-0001): only the nested columns differ from compat, and they follow the nested path walked over admixtools2's own model fits | chisqdiff as chisq, p_nested rtol 1e-4 |
 | `f4ratio` | `qpf4ratio()` | alpha and se rtol 1e-6 |
+| `qpgraph_f3` | `qpgraph()$f3` est and se, and `ppinv` (inverse f3 covariance) | est rtol 1e-10, se and ppinv rtol 1e-6 |
+| `qpgraph_fixed` | `qpgraph` internals at fixed admixture weights (admixtools2's best, and 0.3): edge lengths, fitted f3, score | rtol 1e-10 |
+| `qpgraph_fit` | `qpgraph(seed = 1)`, weights optimized | score at most admixtools2's (rtol 1e-10); weights within 1e-6 or admixtools2's spread over its starts |
 | `fst_block_lengths`, `fst_blocks`, `fst_estimates` | `f2_from_geno(fst = TRUE)`, `fst()` | exact; rtol 1e-10; est 1e-10, se 1e-6 |
 
 Configs (`tests/golden/admixtools2/v2.0.10/<config>/`):
@@ -686,6 +689,11 @@ Configs (`tests/golden/admixtools2/v2.0.10/<config>/`):
 | ancient_5pop | Russia_Samara_EBA_Yamnaya.AG (pseudo-haploid), Sardinian.DG, French.DG, Mbuti.DG, Chimp.REF | 985,987 | 710 |
 | dg_11pop | Druze, Basque, Sardinian, Yoruba, Han, Dinka, Mbuti, Papuan, Karitiana, Ulchi (.DG), Chimp.REF | 1,030,026 | 709 |
 | ancient_maxmiss | as ancient_5pop, `maxmiss = 0.25` (one population may be missing) | 1,047,766 | 711 |
+| family_4pop | French, Yoruba, Simulation, Simulation.1 (DATES' simulated data, chr 20-22, 54 samples) | 21,080 | 50 |
+
+family_4pop is the only config with fewer than 189 samples, where each
+PACKEDANCESTRYMAP record is padded to 48 bytes rather than ceil(n / 4); it
+caught popmix's streaming reader assuming the latter.
 
 dg_11pop holds a three-source qpAdm model (Druze = Sardinian + Dinka + Han)
 whose constrained solution has two weights inside (0, 1) and one at 0, and a
@@ -695,10 +703,53 @@ or more sources (ADMIXTOOLS2-0002), so that model's reference (weights, SEs,
 rankdrop, popdrop) comes from the admixtools2 internals `qpadm()` uses (see
 DEVIATIONS.md).
 
+qpGraph graphs: a 6-population tree and a 1-admixture graph (dg_6pop), a
+1-admixture graph with Yamnaya (ancient_5pop), and a 9-population graph with
+two admixtures, one weight on its bound (dg_11pop).
+
 Actual agreement: f2, f3, f4 and FST (1,798 statistics) within 5e-12 relative,
 SEs within 1e-12; qpWave chi-squared within 5e-12; qpAdm weights and SEs within
 1e-9 (the worst case is an ill-conditioned model with weights 6.06 and -5.06),
-model and popdrop chi-squared within 5e-11; f4ratio within 5e-14.
+model and popdrop chi-squared within 5e-11; f4ratio within 5e-14; qpGraph f3
+within 3e-15 (SEs 3e-12), and edge lengths, fitted f3 and score at fixed
+weights within 3e-12; optimized scores within 3e-12, weights within 1e-7
+except the flat dg_6pop graph (8e-6, inside admixtools2's 2.6e-4 spread).
+
+`tests/golden/test_find_graphs_admixtools2.py` checks the graph search
+against `all_graphs.json` (dg_6pop f2 blocks; 5 populations with 0 and 1
+admixtures, 4 with 1 and 2; 2976 graphs):
+
+| Check | Compared against | Tolerance |
+|-------|------------------|-----------|
+| `test_same_graphs_in_the_same_order` | `generate_all_graphs()`: every graph, in order, by its `graph_hash()` key | exact |
+| `test_graph_key_of_admixtools2_graphs` | `graph_hash()` key of each admixtools2 graph | exact |
+| `test_qpgraph_at_admixtools2_weights` | `qpgraph()` score of every graph, popmix fitted at admixtools2's best weights | rtol 1e-10 |
+| `test_qpgraph_tree_scores` | `qpgraph()` score of every tree (nothing to optimize) | rtol 1e-10 |
+| `test_qpgraph_optimized_score_of_every_graph` | strict xfail: the weight optimizers find different local minima on some graphs (DEVIATIONS.md) | |
+| `test_exhaustive_search` | `find_graphs(method="exhaustive")` fits the same graphs; its best is at most admixtools2's best | trees rtol 1e-10; best rtol 1e-6 |
+| `test_stepwise_search_finds_the_exhaustive_optimum` | stepwise search, 5 populations, 1 admixture | best of all 1485, rtol 1e-10 |
+
+Regenerate with `/usr/bin/Rscript tests/golden/admixtools2/generate_all_graphs.R`
+(about 6 minutes).
+
+`tests/python/test_cli.py::TestCommandsMatchAdmixtools2` (`--run-slow`) runs
+the CLI itself (`popmix extract-f2`, then `f2`, `f3`, `f4`, `qpwave`, `qpadm`
+with `--f2-dir`) on the dg_6pop populations and compares with the same
+references at the same tolerances.
+
+`tests/python/test_extract_f2_formats.py` converts the small dataset to
+PACKEDANCESTRYMAP, EIGENSTRAT and PLINK with `popmix convertf` and requires
+`extract_f2` to give the same f2 blocks from each, and the result dicts and
+CLI JSON to have a fixed key order.
+
+`tests/nextflow/test_nfcore_modules.py` (`--run-slow`; needs `nextflow` and
+the popmix modules in an nf-core/modules checkout, `NFCORE_MODULES`, default
+`~/nf-core/modules`) runs the modules in Nextflow: extract-f2, f2, f3, f4,
+qpwave, qpadm and qpgraph on the dg_6pop populations against admixtools2;
+findgraphs, dates, convertf and merge on the small dataset against popmix run
+directly; and the `geno_fstats_admixture_popmix` subworkflow, whose f3 and f4
+are compared with family_4pop. The modules' own nf-tests run with
+`nf-test test` in the checkout (24 tests, snapshots included).
 
 FST uses its own SNP set (all SNPs kept by `maxmiss`, monomorphic included)
 and blocks, as admixtools2 does, and leaves out Chimp.REF: a single
@@ -838,6 +889,8 @@ The `chr20_22_reference.json` contains:
 | `f3_f4.json` | `f3()` and `f4()` for every combination |
 | `qpwave.json` | qpWave f4 matrix, covariance, rank tests |
 | `qpadm.json` | qpAdm weights, SEs, rankdrop, popdrop (unconstrained and constrained); `qpf4ratio()` |
+| `qpgraph.json` | `qpgraph()` fits (edges, score, f3, multistart table, ppinv) and fits at fixed admixture weights |
+| `all_graphs.json` (dg_6pop) | every `generate_all_graphs()` graph for four cases: `graph_hash()` key, edges, `qpgraph()` score and best weights |
 | `fst.json` | FST block lengths and blocks, `fst()` |
 
 ### Test Data Requirements by Test Type

@@ -16,6 +16,8 @@ Commands:
     convertf    Convert between genotype file formats
     merge       Merge two genotype datasets
     dates       Estimate admixture date using DATES
+    qpgraph     Fit an admixture graph
+    find-graphs Search for the best-fitting admixture graphs
 """
 
 import json
@@ -87,6 +89,52 @@ def validate_populations(prefix: str, populations: list) -> None:
         if len(missing) > 1:
             error_msg += f"\n\nAlso missing: {', '.join(missing[1:])}"
         raise click.ClickException(error_msg)
+
+
+def f2_source_options(command):
+    """Add the options that say where an f-statistic command gets its f2 blocks."""
+    options = [
+        click.option("--input", "-i", "input_prefix", default=None,
+                     help="Input genotype file prefix; f2 blocks are extracted for the command's populations"),
+        click.option("--f2-dir", default=None, type=click.Path(exists=True, file_okay=False),
+                     help="Read f2 blocks saved by 'popmix extract-f2' instead of genotypes"),
+        click.option("--block-size", type=float, default=0.05,
+                     help="With --input: block size in Morgans (default: 0.05)"),
+        click.option("--maxmiss", type=click.FloatRange(0, 1), default=0.0,
+                     help="With --input: drop SNPs missing in more than this fraction of populations "
+                          "(default: 0)"),
+        click.option("--all-chromosomes", is_flag=True, default=False,
+                     help="With --input: use all chromosomes, not only autosomes 1-22"),
+    ]
+    for option in reversed(options):
+        command = option(command)
+    return command
+
+
+def load_f2_blocks(input_prefix: Optional[str], f2_dir: Optional[str], populations: list,
+                   block_size: float, maxmiss: float, all_chromosomes: bool):
+    """f2 blocks for POPULATIONS, as admixtools2's extract_f2() computes them.
+
+    From genotypes, the blocks are extracted for exactly these populations,
+    so with maxmiss = 0 the SNPs are those with data in all of them. To use
+    the SNP set of a larger population set, as admixtools2 does with
+    precomputed f2, extract it once with 'popmix extract-f2' and pass --f2-dir.
+    """
+    if input_prefix is None and f2_dir is None:
+        raise click.UsageError("Missing --input (genotypes) or --f2-dir (saved f2 blocks)")
+    if input_prefix is not None and f2_dir is not None:
+        raise click.UsageError("Give --input or --f2-dir, not both")
+    pops = list(dict.fromkeys(populations))
+    if f2_dir is not None:
+        f2_blocks = pm.read_f2(f2_dir)
+        available = set(f2_blocks.populations)
+        missing = [p for p in pops if p not in available]
+        if missing:
+            raise click.ClickException(f"Not in the f2 blocks in {f2_dir}: {', '.join(missing)}")
+        return f2_blocks
+    validate_populations(input_prefix, pops)
+    return pm.extract_f2(input_prefix, pops, auto_only=not all_chromosomes, block_size=block_size,
+                         maxmiss=maxmiss)
 
 
 @click.group()
@@ -196,33 +244,39 @@ def populations(prefix: str, pattern: Optional[str], output_format: str):
 @cli.command("extract-f2")
 @click.option("--input", "-i", "input_prefix", required=True, help="Input genotype file prefix")
 @click.option("--output", "-o", "output_dir", required=True, help="Output directory for F2 blocks")
-@click.option("--snp-range", callback=parse_snp_range, help="SNP range to process (format: start:end)")
+@click.option("--snp-range", callback=parse_snp_range,
+              help="Only SNPs start:end, by index (computed outside admixtools2's extract_f2 pipeline)")
 @click.option("--block-size", type=float, default=0.05, help="Block size in Morgans (default: 0.05)")
-@click.option("--populations", callback=parse_population_list, help="Comma-separated list of populations to include")
+@click.option("--populations", callback=parse_population_list,
+              help="Comma-separated list of populations to include (default: all)")
+@click.option("--maxmiss", type=click.FloatRange(0, 1), default=0.0,
+              help="Drop SNPs missing in more than this fraction of populations (default: 0)")
 @click.option("--auto-only/--all-chromosomes", default=True, help="Use only autosomal SNPs (default: auto-only)")
 def extract_f2(input_prefix: str, output_dir: str, snp_range: Optional[Tuple[int, int]],
-               block_size: float, populations: list, auto_only: bool):
-    """Extract F2 blocks from genotype data.
+               block_size: float, populations: list, maxmiss: float, auto_only: bool):
+    """Extract F2 blocks from genotype data, as admixtools2's extract_f2().
 
     Computes pairwise F2 statistics for all population pairs and saves them
-    for use in downstream analyses (f3, f4, qpAdm, etc.).
+    for use in downstream analyses (f3, f4, qpAdm, etc. with --f2-dir).
     """
-    import os
     try:
-        # Use efficient streaming extraction when populations are specified
-        # and no SNP range filter is needed
-        if populations and not snp_range:
+        if not snp_range:
+            if not populations:
+                populations = [p for p, _ in pm.list_populations(input_prefix)]
+            else:
+                validate_populations(input_prefix, populations)
             click.echo(f"Streaming F2 extraction from {input_prefix}...")
             click.echo(f"Populations: {', '.join(populations)}")
             f2_blocks = pm.extract_f2(
                 input_prefix,
                 populations,
                 auto_only=auto_only,
-                block_size=block_size
+                block_size=block_size,
+                maxmiss=maxmiss,
             )
             click.echo(f"Computed {f2_blocks.n_blocks} blocks for {f2_blocks.n_populations} populations")
         else:
-            # Fall back to loading genotypes when SNP range is specified
+            # A SNP index range needs the genotypes in memory
             click.echo(f"Reading genotypes from {input_prefix}...")
             geno = pm.read_genotypes(input_prefix, snp_range=snp_range)
             click.echo(f"Loaded {geno.n_snps} SNPs x {geno.n_samples} samples")
@@ -246,25 +300,19 @@ def extract_f2(input_prefix: str, output_dir: str, snp_range: Optional[Tuple[int
 
 
 @cli.command()
-@click.option("--input", "-i", "input_prefix", required=True, help="Input genotype file prefix")
 @click.option("--pop1", required=True, help="First population")
 @click.option("--pop2", required=True, help="Second population")
-@click.option("--snp-range", callback=parse_snp_range, help="SNP range to process (format: start:end)")
+@f2_source_options
 @click.option("--format", "output_format", type=click.Choice(["text", "json", "tsv"]), default="text",
               help="Output format")
-def f2(input_prefix: str, pop1: str, pop2: str, snp_range: Optional[Tuple[int, int]], output_format: str):
+def f2(pop1: str, pop2: str, input_prefix: Optional[str], f2_dir: Optional[str], block_size: float,
+       maxmiss: float, all_chromosomes: bool, output_format: str):
     """Compute f2 statistic between two populations.
 
     f2(A, B) measures genetic drift between populations A and B.
     """
-    # Validate populations early
-    validate_populations(input_prefix, [pop1, pop2])
-
     try:
-        geno = pm.read_genotypes(input_prefix, snp_range=snp_range)
-        # Compute frequencies only for the populations we need (much faster)
-        af = geno.allele_frequencies(populations=[pop1, pop2])
-        f2_blocks = pm.f2_from_frequencies(af)
+        f2_blocks = load_f2_blocks(input_prefix, f2_dir, [pop1, pop2], block_size, maxmiss, all_chromosomes)
 
         result = f2_blocks.f2(pop1, pop2)
         if result is None:
@@ -289,28 +337,21 @@ def f2(input_prefix: str, pop1: str, pop2: str, snp_range: Optional[Tuple[int, i
 
 
 @cli.command()
-@click.option("--input", "-i", "input_prefix", required=True, help="Input genotype file prefix")
 @click.option("--target", required=True, help="Target population (potentially admixed)")
 @click.option("--source1", required=True, help="First source population")
 @click.option("--source2", required=True, help="Second source population")
-@click.option("--snp-range", callback=parse_snp_range, help="SNP range to process (format: start:end)")
+@f2_source_options
 @click.option("--format", "output_format", type=click.Choice(["text", "json", "tsv"]), default="text",
               help="Output format")
-def f3(input_prefix: str, target: str, source1: str, source2: str,
-       snp_range: Optional[Tuple[int, int]], output_format: str):
+def f3(target: str, source1: str, source2: str, input_prefix: Optional[str], f2_dir: Optional[str],
+       block_size: float, maxmiss: float, all_chromosomes: bool, output_format: str):
     """Compute f3 statistic (admixture test).
 
     f3(A; B, C) tests whether A is admixed between B and C.
     A negative value indicates admixture.
     """
-    # Validate populations early
-    validate_populations(input_prefix, [target, source1, source2])
-
     try:
-        geno = pm.read_genotypes(input_prefix, snp_range=snp_range)
-        # Compute frequencies only for the populations we need (much faster)
-        af = geno.allele_frequencies(populations=[target, source1, source2])
-        f2_blocks = pm.f2_from_frequencies(af)
+        f2_blocks = load_f2_blocks(input_prefix, f2_dir, [target, source1, source2], block_size, maxmiss, all_chromosomes)
 
         result = f2_blocks.f3(target, source1, source2)
         if result is None:
@@ -337,28 +378,21 @@ def f3(input_prefix: str, target: str, source1: str, source2: str,
 
 
 @cli.command()
-@click.option("--input", "-i", "input_prefix", required=True, help="Input genotype file prefix")
 @click.option("--pop1", required=True, help="Population 1")
 @click.option("--pop2", required=True, help="Population 2")
 @click.option("--pop3", required=True, help="Population 3")
 @click.option("--pop4", required=True, help="Population 4")
-@click.option("--snp-range", callback=parse_snp_range, help="SNP range to process (format: start:end)")
+@f2_source_options
 @click.option("--format", "output_format", type=click.Choice(["text", "json", "tsv"]), default="text",
               help="Output format")
-def f4(input_prefix: str, pop1: str, pop2: str, pop3: str, pop4: str,
-       snp_range: Optional[Tuple[int, int]], output_format: str):
+def f4(pop1: str, pop2: str, pop3: str, pop4: str, input_prefix: Optional[str], f2_dir: Optional[str],
+       block_size: float, maxmiss: float, all_chromosomes: bool, output_format: str):
     """Compute f4 statistic (D-statistic / ABBA-BABA test).
 
     f4(A, B; C, D) tests for gene flow between (A,B) and (C,D) branches.
     """
-    # Validate populations early
-    validate_populations(input_prefix, [pop1, pop2, pop3, pop4])
-
     try:
-        geno = pm.read_genotypes(input_prefix, snp_range=snp_range)
-        # Compute frequencies only for the populations we need (much faster)
-        af = geno.allele_frequencies(populations=[pop1, pop2, pop3, pop4])
-        f2_blocks = pm.f2_from_frequencies(af)
+        f2_blocks = load_f2_blocks(input_prefix, f2_dir, [pop1, pop2, pop3, pop4], block_size, maxmiss, all_chromosomes)
 
         result = f2_blocks.f4(pop1, pop2, pop3, pop4)
         if result is None:
@@ -385,16 +419,16 @@ def f4(input_prefix: str, pop1: str, pop2: str, pop3: str, pop4: str,
 
 
 @cli.command()
-@click.option("--input", "-i", "input_prefix", required=True, help="Input genotype file prefix")
 @click.option("--target", required=True, help="Target population to model")
 @click.option("--left", required=True, callback=parse_population_list, help="Source populations (comma-separated)")
 @click.option("--right", required=True, callback=parse_population_list, help="Outgroup populations (comma-separated)")
-@click.option("--snp-range", callback=parse_snp_range, help="SNP range to process (format: start:end)")
 @click.option("--constrained/--unconstrained", default=False, help="Constrain weights to [0, 1]")
+@f2_source_options
 @click.option("--format", "output_format", type=click.Choice(["text", "json", "tsv"]), default="text",
               help="Output format")
-def qpadm(input_prefix: str, target: str, left: list, right: list,
-          snp_range: Optional[Tuple[int, int]], constrained: bool, output_format: str):
+def qpadm(target: str, left: list, right: list, constrained: bool, input_prefix: Optional[str],
+          f2_dir: Optional[str], block_size: float, maxmiss: float, all_chromosomes: bool,
+          output_format: str):
     """Estimate admixture weights using qpAdm.
 
     Models TARGET as a mixture of LEFT (source) populations, using RIGHT
@@ -407,15 +441,9 @@ def qpadm(input_prefix: str, target: str, left: list, right: list,
         click.echo("Error: Need at least 2 outgroup populations in --right", err=True)
         sys.exit(1)
 
-    # Validate populations early
     all_pops = [target] + list(left) + list(right)
-    validate_populations(input_prefix, all_pops)
-
     try:
-        geno = pm.read_genotypes(input_prefix, snp_range=snp_range)
-        # Compute frequencies only for the populations we need (much faster)
-        af = geno.allele_frequencies(populations=all_pops)
-        f2_blocks = pm.f2_from_frequencies(af)
+        f2_blocks = load_f2_blocks(input_prefix, f2_dir, all_pops, block_size, maxmiss, all_chromosomes)
 
         result = pm.qpadm(f2_blocks, target, left, right, constrained=constrained)
 
@@ -424,6 +452,7 @@ def qpadm(input_prefix: str, target: str, left: list, right: list,
                 "target": result.target,
                 "sources": result.sources,
                 "weights": dict(zip(result.sources, result.weights)),
+                "std_errors": dict(zip(result.sources, result.weight_std_errors)),
                 "chi_sq": result.chi_sq,
                 "df": result.df,
                 "p_value": result.p_value,
@@ -455,14 +484,13 @@ def qpadm(input_prefix: str, target: str, left: list, right: list,
 
 
 @cli.command()
-@click.option("--input", "-i", "input_prefix", required=True, help="Input genotype file prefix")
 @click.option("--left", required=True, callback=parse_population_list, help="Left populations (comma-separated)")
 @click.option("--right", required=True, callback=parse_population_list, help="Right populations (comma-separated)")
-@click.option("--snp-range", callback=parse_snp_range, help="SNP range to process (format: start:end)")
+@f2_source_options
 @click.option("--format", "output_format", type=click.Choice(["text", "json", "tsv"]), default="text",
               help="Output format")
-def qpwave(input_prefix: str, left: list, right: list,
-           snp_range: Optional[Tuple[int, int]], output_format: str):
+def qpwave(left: list, right: list, input_prefix: Optional[str], f2_dir: Optional[str],
+           block_size: float, maxmiss: float, all_chromosomes: bool, output_format: str):
     """Test admixture wave count using qpWave.
 
     Tests whether LEFT populations can be modeled as mixtures of common
@@ -475,15 +503,9 @@ def qpwave(input_prefix: str, left: list, right: list,
         click.echo("Error: Need at least 2 populations in --right", err=True)
         sys.exit(1)
 
-    # Validate populations early
     all_pops = list(left) + list(right)
-    validate_populations(input_prefix, all_pops)
-
     try:
-        geno = pm.read_genotypes(input_prefix, snp_range=snp_range)
-        # Compute frequencies only for the populations we need (much faster)
-        af = geno.allele_frequencies(populations=all_pops)
-        f2_blocks = pm.f2_from_frequencies(af)
+        f2_blocks = load_f2_blocks(input_prefix, f2_dir, all_pops, block_size, maxmiss, all_chromosomes)
 
         result = pm.qpwave(f2_blocks, left, right)
 
@@ -740,6 +762,170 @@ def dates(input_prefix: str, test_pop: str, source1: str, source2: str,
             click.echo("  Dist(cM)  Pairs      Correlation")
             for b in result.ld_bins[:10]:
                 click.echo(f"  {b.distance_cm:6.1f}    {b.n_pairs:9d}  {b.correlation:+.6f}")
+
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+def read_graph_file(path: str) -> list:
+    """Read an admixture graph: one edge per line, "from to" (whitespace-
+    separated). Blank lines and text after "#" are ignored."""
+    edges = []
+    with open(path) as f:
+        for n, line in enumerate(f, 1):
+            fields = line.split("#", 1)[0].split()
+            if not fields:
+                continue
+            if len(fields) != 2:
+                raise click.BadParameter(f"{path}:{n}: expected 'from to', got {line.strip()!r}",
+                                         param_hint="--graph")
+            edges.append((fields[0], fields[1]))
+    if not edges:
+        raise click.BadParameter(f"{path} has no edges", param_hint="--graph")
+    return edges
+
+
+def graph_leaves(edges: list) -> list:
+    """Leaves (nodes without outgoing edges) in order of first appearance."""
+    order, sources = [], set()
+    for a, b in edges:
+        sources.add(a)
+        for v in (a, b):
+            if v not in order:
+                order.append(v)
+    return [v for v in order if v not in sources]
+
+
+@cli.command()
+@click.option("--graph", "graph_file", required=True, type=click.Path(exists=True, dir_okay=False),
+              help='Graph file: one edge per line, "from to"; the leaves are the populations')
+@click.option("--admix-weights", default=None,
+              help="Fit at these admixture weights (comma-separated, one per admixture node) "
+                   "instead of optimizing them")
+@click.option("--numstart", type=click.IntRange(min=1), default=10,
+              help="Random starts for the admixture weights (default: 10)")
+@click.option("--seed", type=int, default=1, help="Seed for the random starts (default: 1)")
+@click.option("--diag", type=float, default=1e-4, help="Edge-length regularization (default: 1e-4)")
+@click.option("--diag-f3", type=float, default=1e-5, help="f3 covariance regularization (default: 1e-5)")
+@click.option("--unconstrained", is_flag=True, default=False,
+              help="Allow negative drift lengths and weights outside [0, 1]")
+@f2_source_options
+@click.option("--format", "output_format", type=click.Choice(["text", "json", "tsv"]), default="text",
+              help="Output format")
+def qpgraph(graph_file: str, admix_weights: Optional[str], numstart: int, seed: int, diag: float,
+            diag_f3: float, unconstrained: bool, input_prefix: Optional[str], f2_dir: Optional[str],
+            block_size: float, maxmiss: float, all_chromosomes: bool, output_format: str):
+    """Fit an admixture graph, as admixtools2 qpgraph does.
+
+    Fits drift lengths and admixture weights to f3(base; i, j) for all pairs
+    of the graph's leaves; the first leaf in the file is the base. A node
+    with two incoming edges is an admixture node, and --admix-weights gives
+    the weight of its incoming edge whose source node appears first.
+    """
+    edges = read_graph_file(graph_file)
+    pops = graph_leaves(edges)
+    weights = None
+    if admix_weights is not None:
+        try:
+            weights = [float(w) for w in admix_weights.split(",")]
+        except ValueError:
+            raise click.BadParameter(f"not a list of numbers: {admix_weights!r}", param_hint="--admix-weights")
+
+    try:
+        f2_blocks = load_f2_blocks(input_prefix, f2_dir, pops, block_size, maxmiss, all_chromosomes)
+        result = pm.qpgraph(f2_blocks, edges, admix_weights=weights, numstart=numstart, seed=seed,
+                            diag=diag, diag_f3=diag_f3, constrained=not unconstrained)
+
+        if output_format == "json":
+            output = {
+                "pops": result.pops,
+                "score": result.score,
+                "edges": [{"from": e.from_node, "to": e.to_node, "type": e.kind, "weight": e.weight,
+                           "low": e.low, "high": e.high} for e in result.edges],
+                "f3": [{"pop1": f.pop1, "pop2": f.pop2, "pop3": f.pop3, "est": f.est, "se": f.se,
+                        "fit": f.fit, "diff": f.diff, "z": f.z, "p": f.p} for f in result.f3],
+                "opt": [{"start": o.start, "weights": o.weights, "score": o.score,
+                         "iterations": o.iterations, "converged": o.converged} for o in result.opt],
+            }
+            click.echo(json.dumps(output, indent=2))
+        elif output_format == "tsv":
+            click.echo("from\tto\ttype\tweight\tlow\thigh")
+            for e in result.edges:
+                low = "" if e.low is None else f"{e.low:.6g}"
+                high = "" if e.high is None else f"{e.high:.6g}"
+                click.echo(f"{e.from_node}\t{e.to_node}\t{e.kind}\t{e.weight:.6g}\t{low}\t{high}")
+        else:
+            worst = max(result.f3, key=lambda f: abs(f.z))
+            click.echo(f"qpGraph: {len(pops)} populations, {len(edges)} edges")
+            click.echo(f"f3 base population: {result.pops[0]}")
+            click.echo(f"Score: {result.score:.4f}")
+            click.echo(f"Worst f3 residual: f3({worst.pop1}; {worst.pop2}, {worst.pop3}) "
+                       f"z = {worst.z:.2f}")
+            click.echo()
+            click.echo(f"  {'from':<16} {'to':<16} {'type':<6} weight")
+            for e in result.edges:
+                click.echo(f"  {e.from_node:<16} {e.to_node:<16} {e.kind:<6} {e.weight:.6f}")
+
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@cli.command("find-graphs")
+@click.option("--populations", required=True, callback=parse_population_list,
+              help="The graph's leaves (comma-separated); the first is the f3 base of every fit")
+@click.option("--nadmix", type=click.IntRange(min=0), default=0, help="Number of admixture nodes (default: 0)")
+@click.option("--outgroup", default=None, help="Only graphs whose root has this population as a direct child")
+@click.option("--method", type=click.Choice(["stepwise", "exhaustive"]), default="stepwise",
+              help="stepwise (default): add populations, then admixture edges, one at a time, keeping the "
+                   "--beam-width best graphs; exhaustive: every graph, as admixtools2 generate_all_graphs()")
+@click.option("--beam-width", type=click.IntRange(min=1), default=20,
+              help="Graphs kept after each stepwise step (default: 20)")
+@click.option("--top", type=click.IntRange(min=1), default=5, help="Graphs to report (default: 5)")
+@click.option("--output-graph", type=click.Path(dir_okay=False, writable=True), default=None,
+              help="Write the best graph here, in the format 'popmix qpgraph --graph' reads")
+@click.option("--numstart", type=click.IntRange(min=1), default=10,
+              help="Random starts for the admixture weights of each fit (default: 10)")
+@click.option("--seed", type=int, default=1, help="Seed for the random starts (default: 1)")
+@f2_source_options
+@click.option("--format", "output_format", type=click.Choice(["text", "json"]), default="text",
+              help="Output format")
+def find_graphs(populations: list, nadmix: int, outgroup: Optional[str], method: str, beam_width: int,
+                top: int, output_graph: Optional[str], numstart: int, seed: int, input_prefix: Optional[str],
+                f2_dir: Optional[str], block_size: float, maxmiss: float, all_chromosomes: bool,
+                output_format: str):
+    """Search for the admixture graphs that best fit the data.
+
+    Each candidate graph has POPULATIONS as leaves and NADMIX admixture nodes
+    and is fitted as 'popmix qpgraph' fits it.
+    """
+    try:
+        f2_blocks = load_f2_blocks(input_prefix, f2_dir, populations, block_size, maxmiss, all_chromosomes)
+        graphs, n_evaluated = pm.find_graphs(f2_blocks, populations, nadmix=nadmix, outgroup=outgroup,
+                                             method=method, beam_width=beam_width, numstart=numstart,
+                                             seed=seed)
+        if output_graph is not None:
+            with open(output_graph, "w") as f:
+                f.write(f"# popmix find-graphs: score {graphs[0].score!r}\n")
+                for a, b in graphs[0].edges:
+                    f.write(f"{a}\t{b}\n")
+
+        shown = graphs[:top]
+        if output_format == "json":
+            output = {
+                "n_evaluated": n_evaluated,
+                "graphs": [{"score": g.score, "edges": g.edges} for g in shown],
+            }
+            click.echo(json.dumps(output, indent=2))
+        else:
+            click.echo(f"find-graphs: {len(populations)} populations, {nadmix} admixture, {method} search")
+            click.echo(f"Graphs fitted: {n_evaluated}")
+            for rank, g in enumerate(shown, 1):
+                click.echo()
+                click.echo(f"#{rank}  score {g.score:.4f}")
+                for a, b in g.edges:
+                    click.echo(f"  {a}\t{b}")
 
     except Exception as e:
         click.echo(f"Error: {e}", err=True)

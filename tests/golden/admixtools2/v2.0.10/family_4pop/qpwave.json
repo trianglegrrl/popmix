@@ -1,0 +1,23 @@
+{
+  "admixtools_version": "2.0.10",
+  "models": [
+    {
+      "left": ["Simulation", "French"],
+      "right": ["Yoruba", "Simulation.1"],
+      "f4_est": [
+        [0.0091051984660944253]
+      ],
+      "f4_var": [
+        [1.5415939053677307e-06]
+      ],
+      "rankdrop": [
+        {
+          "f4rank": 0,
+          "dof": 1,
+          "chisq": 53.773142968054906,
+          "p": 2.2502784671058242e-13
+        }
+      ]
+    }
+  ]
+}

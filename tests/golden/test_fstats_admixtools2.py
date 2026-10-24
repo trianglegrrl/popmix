@@ -31,6 +31,13 @@ internals qpadm() uses: weights, SEs and popdrop as qpadm() computes them,
 and rankdrop from drop_ranks() run unconstrained (rankdrop never uses the
 weights).
 
+qpgraph.json holds qpgraph() fits of fixed graphs (seed 1): qpgraph_f3 (the
+f3 statistics it fits, est and se, and their inverse covariance ppinv);
+qpgraph_fixed (edge lengths, fitted f3 and score at fixed admixture weights,
+admixtools2's best and all 0.3, at rtol 1e-10: no optimizer is involved);
+qpgraph_fit (with weights optimized: the score must reach admixtools2's, and
+the weights agree to 1e-6 or within admixtools2's spread over its starts).
+
 fst.json holds fst() for every pair of the config's FST populations (all but
 Chimp.REF, a single pseudo-haploid sample for which admixtools2 cannot compute
 FST), with its own SNP set and blocks: fst_block_lengths (exact), fst_blocks
@@ -51,7 +58,7 @@ import pytest
 import popmix as pm
 
 REF_ROOT = Path(__file__).parent / "admixtools2" / "v2.0.10"
-CONFIGS = ["dg_6pop", "ancient_5pop", "dg_11pop", "ancient_maxmiss"]
+CONFIGS = ["dg_6pop", "ancient_5pop", "dg_11pop", "ancient_maxmiss", "family_4pop"]
 
 F_RTOL = 1e-10
 F_ATOL = 1e-15
@@ -368,6 +375,94 @@ def _check_f4ratio(name: str):
     assert not mismatches, "\n".join(mismatches)
 
 
+def _qpgraph_reference(name: str) -> list:
+    path = REF_ROOT / name / "qpgraph.json"
+    if not path.exists():
+        pytest.skip(f"{name} has no qpgraph graphs")
+    return json.loads(path.read_text())["graphs"]
+
+
+def _as_list(x) -> list:
+    return x if isinstance(x, list) else [x]
+
+
+def _check_qpgraph_f3(name: str):
+    """qpgraph()$f3 est and se, and the inverse f3 covariance it fits with."""
+    _, f2 = _result_for(name)
+    mismatches = []
+    for g in _qpgraph_reference(name):
+        # the f3 statistics do not depend on the admixture weights
+        r = pm.qpgraph(f2, [tuple(e) for e in g["edges"]], numstart=1)
+        if r.pops != g["pops"]:
+            mismatches.append(f"{g['name']}: pops {r.pops} != {g['pops']}")
+            continue
+        for x, row in zip(r.f3, g["f3"]):
+            where = f"{g['name']} f3({row['pop1']}; {row['pop2']}, {row['pop3']})"
+            if (x.pop1, x.pop2, x.pop3) != (row["pop1"], row["pop2"], row["pop3"]):
+                mismatches.append(f"{where}: popmix has f3({x.pop1}; {x.pop2}, {x.pop3})")
+            if not np.isclose(x.est, row["est"], rtol=F_RTOL, atol=F_ATOL):
+                mismatches.append(f"{where}: est {x.est!r} != {row['est']!r}")
+            if not np.isclose(x.se, row["se"], rtol=SE_RTOL, atol=0):
+                mismatches.append(f"{where}: se {x.se!r} != {row['se']!r}")
+        ppinv, ref = np.array(r.ppinv), np.array(g["ppinv"])
+        if not np.allclose(ppinv, ref, rtol=SE_RTOL, atol=SE_RTOL * np.abs(ref).max()):
+            mismatches.append(f"{g['name']}: ppinv differs by {np.abs(ppinv - ref).max():.3g}")
+    assert not mismatches, "\n".join(mismatches)
+
+
+def _check_qpgraph_fixed(name: str):
+    """At fixed admixture weights a qpgraph fit has no optimizer in it: edge
+    lengths, fitted f3 and score are exact functions of the f3 statistics."""
+    _, f2 = _result_for(name)
+    mismatches = []
+    for g in _qpgraph_reference(name):
+        edges = [tuple(e) for e in g["edges"]]
+        for fx in g["fixed"]:
+            w = _as_list(fx["admix_weights"])
+            r = pm.qpgraph(f2, edges, admix_weights=w)
+            where = f"{g['name']} at weights {w}"
+            ours = np.array([e.weight for e in r.edges])
+            ref = np.array(fx["weight"], dtype=float)
+            # lengths at the zero bound: quadprog leaves rounding noise there
+            if not np.allclose(ours, ref, rtol=F_RTOL, atol=F_RTOL * np.abs(ref).max()):
+                worst = int(np.argmax(np.abs(ours - ref)))
+                mismatches.append(f"{where}: edge {edges[worst]} {ours[worst]!r} != {ref[worst]!r}")
+            fit = np.array([f.fit for f in r.f3])
+            if not np.allclose(fit, fx["f3_fit"], rtol=F_RTOL, atol=F_ATOL):
+                mismatches.append(f"{where}: f3 fit differs by {np.abs(fit - fx['f3_fit']).max():.3g}")
+            if not np.isclose(r.score, fx["score"], rtol=F_RTOL, atol=0):
+                mismatches.append(f"{where}: score {r.score!r} != {fx['score']!r}")
+    assert not mismatches, "\n".join(mismatches)
+
+
+def _check_qpgraph_fit(name: str):
+    """qpgraph() with its admixture weights optimized.
+
+    admixtools2 optimizes with R's L-BFGS-B; popmix with its own search. The
+    score must reach admixtools2's to rounding. The weights must agree to the
+    weight tolerance, or, where the score is too flat to pin them down,
+    within the spread of admixtools2's own random starts.
+    """
+    _, f2 = _result_for(name)
+    mismatches = []
+    for g in _qpgraph_reference(name):
+        r = pm.qpgraph(f2, [tuple(e) for e in g["edges"]])
+        if not r.score <= g["score"] * (1 + F_RTOL):
+            mismatches.append(f"{g['name']}: score {r.score!r} > admixtools2's {g['score']!r}")
+        ref_w = {(e["from"], e["to"]): e["weight"] for e in g["fit_edges"] if e["type"] == "admix"}
+        ends = [k for k in (g["opt"][0] if g["opt"] else {}) if k.startswith("e.")]
+        spread = max((max(row[k] for row in g["opt"]) - min(row[k] for row in g["opt"])
+                      for k in ends), default=0.0)
+        for e in r.edges:
+            if e.kind != "admix":
+                continue
+            theirs = ref_w[(e.from_node, e.to_node)]
+            if abs(e.weight - theirs) > max(SE_RTOL, spread):
+                mismatches.append(f"{g['name']} {e.from_node}->{e.to_node}: weight {e.weight!r} != "
+                                  f"{theirs!r} (admixtools2 spread {spread:.3g})")
+    assert not mismatches, "\n".join(mismatches)
+
+
 _fst = {}
 
 
@@ -431,6 +526,9 @@ CHECKS = {
     "qpadm_popdrop": _check_qpadm_popdrop,
     "qpadm_popdrop_corrected": _check_qpadm_popdrop_corrected,
     "f4ratio": _check_f4ratio,
+    "qpgraph_f3": _check_qpgraph_f3,
+    "qpgraph_fixed": _check_qpgraph_fixed,
+    "qpgraph_fit": _check_qpgraph_fit,
     "fst_block_lengths": _check_fst_block_lengths,
     "fst_blocks": _check_fst_blocks,
     "fst_estimates": _check_fst_estimates,

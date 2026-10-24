@@ -33,9 +33,12 @@ from popmix._core import (
     qpadm_rotate,
     qpwave_pairs,
     # qpGraph functions
+    qpgraph,
     build_tree,
     fit_graph,
     find_graphs,
+    all_graphs,
+    graph_key,
     # DATES functions
     dates,
     # Classes
@@ -54,7 +57,7 @@ from popmix._core import (
     PyQpWavePairsResult,
     PyAdmixGraph,
     PyGraphFitResult,
-    PyGraphSearchResult,
+    PyScoredGraph,
     PyLdBin,
     PyDecayFit,
     PyDatesResult,
@@ -76,7 +79,7 @@ QpWavePairResult = PyQpWavePairResult
 QpWavePairsResult = PyQpWavePairsResult
 AdmixGraph = PyAdmixGraph
 GraphFitResult = PyGraphFitResult
-GraphSearchResult = PyGraphSearchResult
+ScoredGraph = PyScoredGraph
 LdBin = PyLdBin
 DecayFit = PyDecayFit
 DatesResult = PyDatesResult
@@ -111,8 +114,11 @@ __all__ = [
     "qpwave_pairs",
     # qpGraph functions
     "build_tree",
+    "qpgraph",
     "fit_graph",
     "find_graphs",
+    "all_graphs",
+    "graph_key",
     # DATES functions
     "dates",
     # Classes
@@ -131,7 +137,7 @@ __all__ = [
     "QpWavePairsResult",
     "AdmixGraph",
     "GraphFitResult",
-    "GraphSearchResult",
+    "ScoredGraph",
     "LdBin",
     "DecayFit",
     "DatesResult",

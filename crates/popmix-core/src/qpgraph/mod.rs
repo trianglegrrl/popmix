@@ -4,12 +4,20 @@
 //! - AdmixGraph: Directed acyclic graph with drift and admixture edges
 //! - Path computation for expected f-statistics
 //! - Edge length optimization to fit observed data
-//! - Graph search algorithms for finding optimal topologies
+//! - qpgraph: admixtools2's graph fit
+//! - Graph search over topologies, scored by qpgraph
 
-mod graph;
 mod fitting;
-mod search;
+mod graph;
+mod graph_search;
+mod qpgraph_fit;
 
+pub use fitting::{fit_graph, FitOptions, GraphFitResult};
 pub use graph::{AdmixGraph, AdmixNode, EdgeType, GraphBuilder, NodeId};
-pub use fitting::{fit_graph, GraphFitResult, FitOptions};
-pub use search::{find_graphs, GraphSearchOptions, GraphSearchResult};
+pub use qpgraph_fit::{
+    qpgraph, QpGraphEdge, QpGraphF3, QpGraphOptions, QpGraphResult, QpGraphStart,
+};
+pub use graph_search::{
+    all_graphs, find_graphs, graph_key, GraphSearchMethod, GraphSearchOptions, GraphSearchResult,
+    ScoredGraph,
+};

@@ -24,6 +24,13 @@
 # qpadm.json holds qpadm() models (weights and SEs, rankdrop, popdrop) and
 # qpf4ratio() estimates on the same f2 blocks.
 #
+# qpgraph.json holds qpgraph() fits of fixed graphs on the same f2 blocks:
+# the f3-statistics it fits and the inverse of their covariance, the fitted
+# edges and score, and the multistart table (seed 1). Because the admixture
+# weights come from R's optim, each graph is also evaluated at fixed weights
+# (qpgraph()'s own best weights and all 0.3) through the internals qpgraph()
+# uses, which gives exact, optimizer-free reference values.
+#
 # fst.json holds fst() for every pair. admixtools2 computes FST from the
 # genotype files on its own SNP set (all SNPs kept by maxmiss, monomorphic
 # included) and blocks; fst() is given all of the config's FST populations so
@@ -41,7 +48,22 @@ suppressPackageStartupMessages({
   library(dplyr)
 })
 
+# admixtools2 2.0.10 passes igraph vertex sequences to get.edge.ids(), which
+# igraph >= 2 rejects ("Only two-column data.frames and matrices, and vectors
+# are allowed"). Passing the same vertex ids as a plain vector keeps igraph
+# 1.x's meaning (consecutive pairs), so qpgraph() runs unchanged.
+local({
+  imports <- parent.env(asNamespace("admixtools"))
+  shim <- function(graph, vp, ...) igraph::get_edge_ids(graph, as.vector(vp), ...)
+  unlockBinding("get.edge.ids", imports)
+  assign("get.edge.ids", shim, envir = imports)
+  lockBinding("get.edge.ids", imports)
+})
+
 AADR_PREFIX <- "/references/aadr/v62.0_1240k_public"
+
+# A qpgraph graph: (from, to) pairs, one edge per row.
+edgelist <- function(...) matrix(c(...), ncol = 2, byrow = TRUE)
 
 # Per-config params override PARAMS; constrained qpadm models with three or
 # more sources are run through admixtools2's internals (see qpadm_internal).
@@ -63,6 +85,11 @@ CONFIGS <- list(
     f4ratio = list(
       c("Han.DG", "Mbuti.DG", "French.DG", "Papuan.DG", "Yoruba.DG"),
       c("Chimp.REF", "Mbuti.DG", "French.DG", "Yoruba.DG", "Han.DG")
+    ),
+    qpgraph = list(
+      tree = edgelist("R","Chimp.REF", "R","n1", "n1","Mbuti.DG", "n1","n2", "n2","Yoruba.DG", "n2","n3", "n3","French.DG", "n3","n4", "n4","Han.DG", "n4","Papuan.DG"),
+      # French as a mix of a West Eurasian and a basal Eurasian lineage
+      admix1 = edgelist("R","Chimp.REF", "R","n1", "n1","Mbuti.DG", "n1","n2", "n2","Yoruba.DG", "n2","n2b", "n2b","bE", "n2b","n3", "n3","n4", "n3","eW", "n4","Han.DG", "n4","Papuan.DG", "eW","adm", "bE","adm", "adm","French.DG")
     )
   ),
   dg_11pop = list(
@@ -87,7 +114,28 @@ CONFIGS <- list(
            right = c("Mbuti.DG", "Papuan.DG", "Karitiana.DG", "Ulchi.DG", "Chimp.REF"),
            constrained = TRUE)
     ),
-    f4ratio = list(c("Chimp.REF", "Mbuti.DG", "Druze.DG", "Dinka.DG", "Sardinian.DG"))
+    f4ratio = list(c("Chimp.REF", "Mbuti.DG", "Druze.DG", "Dinka.DG", "Sardinian.DG")),
+    qpgraph = list(
+      # Karitiana: East + West Eurasian; Sardinian: West + basal Eurasian
+      admix2 = edgelist("R","Chimp.REF", "R","a", "a","Mbuti.DG", "a","b", "b","Yoruba.DG", "b","c", "c","bE", "c","ooa", "ooa","east", "ooa","west", "east","Han.DG", "east","e2", "e2","Papuan.DG", "e2","kar", "west","w1", "west","w2", "w1","kar", "w1","Basque.DG", "w2","sar", "w2","Druze.DG", "bE","sar", "kar","Karitiana.DG", "sar","Sardinian.DG")
+    )
+  ),
+  # DATES' simulated data: 54 samples, so each PACKEDANCESTRYMAP record is
+  # padded to 48 bytes, not ceil(54 / 4) = 14. Paths are relative to the
+  # repository root.
+  family_4pop = list(
+    prefix = "tests/golden/dates/family_chr20_22",
+    pops = c("French", "Yoruba", "Simulation", "Simulation.1"),
+    fst_pops = c("French", "Yoruba", "Simulation.1"),
+    qpwave = list(
+      list(left = c("Simulation", "French"), right = c("Yoruba", "Simulation.1"))
+    ),
+    qpadm = list(
+      list(target = "Simulation", left = c("French"), right = c("Yoruba", "Simulation.1"))
+    ),
+    qpgraph = list(
+      tree = edgelist("R","Yoruba", "R","a", "a","French", "a","b", "b","Simulation", "b","Simulation.1")
+    )
   ),
   # As ancient_5pop, but keeping SNPs missing in one population (of five for
   # f2, of four for FST).
@@ -122,9 +170,43 @@ CONFIGS <- list(
     ),
     f4ratio = list(
       c("Chimp.REF", "Mbuti.DG", "French.DG", "Sardinian.DG", "Russia_Samara_EBA_Yamnaya.AG")
+    ),
+    qpgraph = list(
+      # French as a mix of Yamnaya- and Sardinian-related lineages
+      admix1 = edgelist("R","Chimp.REF", "R","a", "a","Mbuti.DG", "a","b", "b","y", "b","s", "y","Russia_Samara_EBA_Yamnaya.AG", "y","fy", "s","Sardinian.DG", "s","fs", "fy","fr", "fs","fr", "fr","French.DG")
     )
   )
 )
+
+# qpgraph() fit at fixed admixture weights `w`, through the internals
+# qpgraph() uses after its weight optimization (default diag, diag_f3).
+qpgraph_fixed <- function(f2_blocks, edges, w) {
+  g <- igraph::graph_from_edgelist(edges)
+  pops <- admixtools:::get_leafnames(g)
+  pre <- admixtools:::qpgraph_precompute_f3(f2_blocks, pops)
+  nedges <- length(igraph::E(g))
+  admixnodes <- which(igraph::degree(g, mode = "in") == 2)
+  admixedgesfull <- sapply(seq_along(admixnodes),
+                           function(i) igraph::incident_edges(g, admixnodes, mode = "in")[[i]][1:2])
+  normedges <- setdiff(1:nedges, admixedgesfull)
+  cmb <- combn(0:(length(pops) - 1), 2) + (1:0)
+  pwts <- admixtools:::graph_to_pwts(g, pops)
+  if (length(admixnodes) > 0) {
+    wi <- admixtools:::graph_to_weightind(g)
+    pwts <- admixtools:::cpp_fill_pwts(pwts, w, wi[[1]], wi[[2]], wi[[3]])
+  }
+  pwts <- pwts[, -1] - pwts[, 1]
+  ppwts_2d <- t(pwts[, cmb[1, ]] * pwts[, cmb[2, ]])
+  bl <- admixtools:::cpp_opt_edge_lengths(ppwts_2d, pre$ppinv, pre$f3_est, admixtools:::qpsolve,
+                                         rep(0, length(normedges)),
+                                         rep(.Machine$integer.max, length(normedges)), 1e-4, TRUE)
+  f3_fit <- c(ppwts_2d %*% bl)
+  weight <- rep(NA, nedges)
+  weight[normedges] <- bl
+  if (length(admixnodes) > 0) weight[c(t(admixedgesfull))] <- c(w, 1 - w)
+  list(admix_weights = w, weight = weight, f3_fit = f3_fit,
+       score = admixtools:::qpgraph_score(f3_fit, pre$f3_est, pre$ppinv))
+}
 
 # admixtools2 defaults, stated explicitly so the reference records them.
 PARAMS <- list(blgsize = 0.05, maxmiss = 0, minmaf = 0, maxmaf = 0.5,
@@ -250,7 +332,8 @@ run_config <- function(name, cfg) {
                   rankdrop = select(rankdrop, f4rank, dof, chisq, p), popdrop = popdrop))
     }
     qa <- qpadm(f2_blocks, m$left, m$right, m$target, constrained = constrained, verbose = FALSE)
-    list(target = m$target, left = m$left, right = m$right, constrained = constrained,
+    # I(): a single source stays a JSON array
+    list(target = m$target, left = I(m$left), right = I(m$right), constrained = constrained,
          weights = select(qa$weights, left, weight, se),
          rankdrop = select(qa$rankdrop, f4rank, dof, chisq, p),
          popdrop = qa$popdrop)
@@ -259,6 +342,27 @@ run_config <- function(name, cfg) {
   write_json(list(admixtools_version = version, models = qpadm_models, f4ratio = f4ratios),
              file.path(dest, "qpadm.json"), digits = I(17), auto_unbox = TRUE, pretty = TRUE)
   cat(sprintf("  %d qpadm models, %d f4ratio\n", length(qpadm_models), nrow(f4ratios)))
+
+  qpgraph_fits <- lapply(names(cfg$qpgraph), function(gname) {
+    el <- cfg$qpgraph[[gname]]
+    fit <- qpgraph(f2_blocks, el, seed = 1)
+    # the first incoming edge of each admixture node carries w
+    g <- igraph::graph_from_edgelist(el)
+    admixnodes <- which(igraph::degree(g, mode = "in") == 2)
+    first_in <- vapply(seq_along(admixnodes),
+                       function(i) as.integer(igraph::incident_edges(g, admixnodes, mode = "in")[[i]][1]), 1L)
+    w_best <- fit$edges$weight[first_in]
+    at_best <- qpgraph_fixed(f2_blocks, el, w_best)
+    stopifnot(isTRUE(all.equal(at_best$score, fit$score, tolerance = 1e-12)),
+              isTRUE(all.equal(at_best$weight, fit$edges$weight, tolerance = 1e-12)))
+    list(name = gname, edges = el, pops = admixtools:::get_leafnames(g),
+         score = fit$score, fit_edges = fit$edges, f3 = fit$f3, opt = fit$opt,
+         ppinv = unname(fit$ppinv),
+         fixed = list(at_best, qpgraph_fixed(f2_blocks, el, rep(0.3, length(admixnodes)))))
+  })
+  write_json(list(admixtools_version = version, graphs = qpgraph_fits), file.path(dest, "qpgraph.json"),
+             digits = I(17), auto_unbox = TRUE, pretty = TRUE, matrix = "rowmajor", na = "null")
+  cat(sprintf("  %d qpgraph fits\n", length(qpgraph_fits)))
 
   fpops <- cfg$fst_pops
   fst_blocks <- f2_from_geno(pref, pops = fpops, blgsize = PARAMS$blgsize, maxmiss = PARAMS$maxmiss,

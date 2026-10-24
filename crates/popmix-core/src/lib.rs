@@ -35,8 +35,10 @@ pub use qpadm::{
     RotationModel,
 };
 pub use qpgraph::{
-    find_graphs, fit_graph, AdmixGraph, AdmixNode, EdgeType, FitOptions, GraphBuilder,
-    GraphFitResult, GraphSearchOptions, GraphSearchResult, NodeId,
+    all_graphs, find_graphs, fit_graph, graph_key, qpgraph, AdmixGraph, AdmixNode, EdgeType,
+    FitOptions, GraphBuilder, GraphFitResult, GraphSearchMethod, GraphSearchOptions,
+    GraphSearchResult, NodeId, QpGraphEdge, QpGraphF3, QpGraphOptions, QpGraphResult,
+    QpGraphStart, ScoredGraph,
 };
 pub use threading::init_thread_pool;
 

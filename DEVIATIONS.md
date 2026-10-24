@@ -251,6 +251,48 @@ qpWave/qpAdm fits by the C++ code path (`cpp = TRUE`, the default).
   (`cpp_get_weights_covariance`, the default) and its R path
   (`get_weights_covariance`) scale the leave-one-out weights differently,
   by sqrt(n - 1) against (n - 1)/sqrt(n). popmix matches the default C++ path.
+- **qpGraph admixture weights come from popmix's own optimizer.**
+  admixtools2 optimizes them with R's `optim(method = "L-BFGS-B")`
+  (finite-difference gradients with step 1e-3, default `factr`) from
+  `numstart` random starts. popmix uses a bounded quasi-Newton search with
+  central differences, converged more tightly, from its own seeded starts.
+  Everything that follows from the weights is reproduced exactly: the f3
+  statistics and their covariance, the edge lengths (the same quadratic
+  program `qpgraph` passes to quadprog, solved exactly by an active-set
+  method), the fitted f3 and the score, all within 3e-12 at the same
+  weights. At the optimum the scores agree to 3e-12 too. The weights agree
+  to 1e-7 where the score pins them down, and otherwise within admixtools2's
+  own spread across its starts. On `dg_6pop` `admix1` the score is so flat
+  that double-precision rounding (3e-10 on 258) leaves the weight undetermined
+  over about 3e-4: admixtools2's ten starts end between 0.35922 and 0.35948,
+  and popmix gives 0.35944. The `low`/`high` columns (the range over the
+  starts) depend on the starts and are not compared.
+
+  Over every graph admixtools2 `generate_all_graphs()` makes for 4 and 5
+  `dg_6pop` populations with one or two admixtures (2871 graphs,
+  `all_graphs.json`), the objective still agrees exactly: fitted at
+  admixtools2's best weights, every graph scores admixtools2's score to
+  1e-10. The optimized scores do not always agree. Many of these graphs are
+  unidentifiable, and their score has several local minima in the weights,
+  some a single point on the boundary or a basin narrower than 0.01, so
+  the two optimizers, from different random starts, end in different minima:
+
+  | graphs | same score (1e-6) | popmix lower | admixtools2 lower |
+  |---|---|---|---|
+  | 4 populations, 1 admixture (84) | 59 | 11 | 14 |
+  | 5 populations, 1 admixture (1485) | 1310 | 27 | 148 |
+  | 4 populations, 2 admixtures (1302) | 825 | 316 | 161 |
+
+  The best graph of each set scores no worse in popmix (2.382203 against
+  2.382203; 0.00192 against 0.00406; 0.00095 against 0.00114). The golden
+  test `test_qpgraph_optimized_score_of_every_graph` is a strict xfail that
+  records this. Matching graph by graph would need admixtools2's starts
+  (R's Mersenne Twister after `set.seed`) and R's L-BFGS-B, finite
+  differences included.
+- **admixtools2 2.0.10 needs igraph 1.x for qpGraph.** It passes vertex
+  sequences to `get.edge.ids()`, which igraph 2 rejects. The reference
+  generator shims that one call (same vertex ids, as a plain vector) and
+  records it; this affects only how the reference is produced.
 - **FST drops missing blocks per pair.** `fst(f2_dir, pop1, pop2)` reads one
   pair and leaves out that pair's undefined blocks; `fst(prefix)` over many
   populations leaves out a block for every pair if any pair is undefined
