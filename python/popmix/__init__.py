@@ -63,6 +63,18 @@ from popmix._core import (
     PyDatesResult,
 )
 
+from popmix.dstats import (
+    cluster_order,
+    dstat_matrix,
+    f3blockdat_from_geno,
+    f4blockdat_from_geno,
+    fstat_combinations,
+    outgroup_f3_matrix,
+    qp3pop,
+    qpdstat,
+    sample_ploidy,
+)
+
 # Convenient aliases
 Sample = PySample
 Snp = PySnp
@@ -106,6 +118,15 @@ __all__ = [
     # F-statistics functions
     "extract_f2",
     "f2_from_frequencies",
+    "qpdstat",
+    "qp3pop",
+    "fstat_combinations",
+    "f4blockdat_from_geno",
+    "f3blockdat_from_geno",
+    "sample_ploidy",
+    "outgroup_f3_matrix",
+    "dstat_matrix",
+    "cluster_order",
     # qpAdm/qpWave functions
     "qpwave",
     "qpadm",

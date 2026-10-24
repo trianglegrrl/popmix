@@ -13,12 +13,17 @@ pub mod blocks;
 pub mod f2;
 pub mod f2_blocks;
 pub mod f3_f4;
+pub mod geno_fstats;
 pub mod jackknife;
 
 pub use blocks::{BlockAssignment, BlockDefinition};
 pub use f2::{f2_estimate, f2_single_snp, F2Result};
 pub use f2_blocks::{F2Blocks, F2Options, FstBlocks};
 pub use f3_f4::{F3Result, F4Result, FstResult};
+pub use geno_fstats::{
+    f3_from_genotypes, f4_from_genotypes, F3GenoOptions, F4Mode, GenoPopulations, GenoStat,
+    GenoStatBlocks, GenoStats, GenotypeRows, MatrixRows,
+};
 pub use jackknife::{
     block_jackknife, block_jackknife_cov, jackknife_with_total, leave_one_out, leave_one_out_nafix,
 };

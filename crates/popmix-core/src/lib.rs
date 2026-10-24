@@ -23,8 +23,9 @@ pub mod threading;
 // Re-exports for convenience
 pub use error::{PopmixError, Result};
 pub use fstats::{
-    f2_estimate, f2_single_snp, BlockAssignment, BlockDefinition, F2Blocks, F2Options, F2Result,
-    F3Result, F4Result,
+    f2_estimate, f2_single_snp, f3_from_genotypes, f4_from_genotypes, BlockAssignment,
+    BlockDefinition, F2Blocks, F2Options, F2Result, F3GenoOptions, F3Result, F4Mode, F4Result,
+    GenoPopulations, GenoStat, GenoStatBlocks, GenoStats, GenotypeRows, MatrixRows,
 };
 pub use genotype_matrix::{AlleleFrequencies, GenotypeMatrix};
 pub use genotypes::{Chromosome, Genotype, Ploidy, PopulationId, Sample, Snp};
@@ -37,8 +38,8 @@ pub use qpadm::{
 pub use qpgraph::{
     all_graphs, find_graphs, fit_graph, graph_key, qpgraph, AdmixGraph, AdmixNode, EdgeType,
     FitOptions, GraphBuilder, GraphFitResult, GraphSearchMethod, GraphSearchOptions,
-    GraphSearchResult, NodeId, QpGraphEdge, QpGraphF3, QpGraphOptions, QpGraphResult,
-    QpGraphStart, ScoredGraph,
+    GraphSearchResult, NodeId, QpGraphEdge, QpGraphF3, QpGraphOptions, QpGraphResult, QpGraphStart,
+    ScoredGraph,
 };
 pub use threading::init_thread_pool;
 

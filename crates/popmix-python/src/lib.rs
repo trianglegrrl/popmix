@@ -5,6 +5,8 @@
 // PyO3 macro expansions generate these warnings
 #![allow(clippy::useless_conversion)]
 
+mod geno_fstats;
+
 use std::collections::{BTreeMap, HashMap};
 
 use numpy::{IntoPyArray, PyArray1, PyArray2};
@@ -1158,7 +1160,10 @@ impl PyF2Blocks {
         }
     }
 
-    /// Compute D-statistic (Patterson's D), equivalent to f4.
+    /// f4(A, B; C, D) from the f2 blocks, under its old name.
+    ///
+    /// This is f4, not Patterson's D: D is normalized per SNP and needs the
+    /// genotypes (``popmix.qpdstat(prefix, ..., f4mode=False)``).
     fn d_stat(
         &self,
         pop_a: &str,
@@ -2954,6 +2959,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // F-statistics functions
     m.add_function(wrap_pyfunction!(extract_f2, m)?)?;
     m.add_function(wrap_pyfunction!(f2_from_frequencies, m)?)?;
+    geno_fstats::register(m)?;
 
     // qpAdm/qpWave functions
     m.add_function(wrap_pyfunction!(qpwave, m)?)?;

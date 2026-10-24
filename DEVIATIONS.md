@@ -305,3 +305,18 @@ qpWave/qpAdm fits by the C++ code path (`cpp = TRUE`, the default).
   does the same (`ancient_maxmiss` drops 2 of 713 blocks). Because of this no
   missing block reaches qpWave/qpAdm, so `est_to_loo_nafix`'s zero-filling
   never applies in this pipeline.
+
+### Interface differences
+
+These change no number that both tools compute.
+
+- **qpdstat D mode on f2 blocks is an error.** admixtools2 ignores
+  `f4mode = FALSE` when given f2 blocks and returns f4; D needs genotypes.
+  popmix raises an error rather than return f4 under the name D.
+- **Statistics that cannot be estimated report n = 0.** admixtools2 returns
+  NA for every column, `n` included (for example f3 with a single
+  pseudo-haploid target, whose bias correction is 0/0 at every SNP); popmix
+  returns NaN for the statistic and 0 for `n`.
+- **qp3pop on f2 blocks keeps the combination order.** admixtools2 returns
+  it sorted by population (a side effect of dplyr `summarize`), but keeps the
+  order from genotypes and in qpdstat; popmix keeps it in every case.

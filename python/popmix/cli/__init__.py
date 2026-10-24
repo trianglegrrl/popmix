@@ -18,6 +18,10 @@ Commands:
     dates       Estimate admixture date using DATES
     qpgraph     Fit an admixture graph
     find-graphs Search for the best-fitting admixture graphs
+    qpdstat     f4- or D-statistics for many population combinations
+    qp3pop      f3-statistics for many population combinations
+    outgroup-f3 Outgroup f3 matrix, with an optional heatmap
+    dstat-matrix D-statistic matrix for pairs of populations, with an optional heatmap
 """
 
 import json
@@ -331,6 +335,217 @@ def f2(pop1: str, pop2: str, input_prefix: Optional[str], f2_dir: Optional[str],
             click.echo(f"  Z-score: {result['z_score']:.3f}")
             click.echo(f"  N SNPs: {int(result['n_snps'])}")
 
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+def stat_source_options(command):
+    """Options that say where a statistic scan gets its data: genotypes or saved f2 blocks."""
+    options = [
+        click.option("--input", "-i", "input_prefix", default=None,
+                     help="Genotype prefix; statistics are computed from the genotypes, each with "
+                          "the SNPs that have data in its populations (as admixtools2 qpdstat/qp3pop "
+                          "on genotypes)"),
+        click.option("--f2-dir", default=None, type=click.Path(exists=True, file_okay=False),
+                     help="Use f2 blocks saved by 'popmix extract-f2' instead (f4 and f3 only)"),
+        click.option("--block-size", type=float, default=0.05,
+                     help="With --input: block size in Morgans (default: 0.05)"),
+        click.option("--all-chromosomes", is_flag=True, default=False,
+                     help="With --input: use all chromosomes, not only autosomes 1-22"),
+    ]
+    for option in reversed(options):
+        command = option(command)
+    return command
+
+
+def stat_source(input_prefix: Optional[str], f2_dir: Optional[str], populations: list):
+    """The genotype prefix, or the saved f2 blocks, for a statistic scan."""
+    if (input_prefix is None) == (f2_dir is None):
+        raise click.UsageError("Give one of --input (genotypes) or --f2-dir (saved f2 blocks)")
+    pops = list(dict.fromkeys(populations))
+    if input_prefix is not None:
+        validate_populations(input_prefix, pops)
+        return input_prefix
+    f2_blocks = pm.read_f2(f2_dir)
+    missing = [p for p in pops if p not in set(f2_blocks.populations)]
+    if missing:
+        raise click.ClickException(f"Not in the f2 blocks in {f2_dir}: {', '.join(missing)}")
+    return f2_blocks
+
+
+def write_table(df, output_format: str, output: Optional[str], index: bool = False) -> None:
+    """Write a result table as TSV or JSON records to OUTPUT or stdout."""
+    if output_format == "json":
+        text = df.to_json(orient="index" if index else "records", indent=2, double_precision=15)
+    else:
+        text = df.to_csv(sep="\t", index=index, float_format="%.12g")
+    if output:
+        with open(output, "w") as f:
+            f.write(text)
+    else:
+        click.echo(text, nl=False)
+
+
+def write_matrix(matrix, order: str, output_format: str, output: Optional[str], heatmap: Optional[str],
+                 title: str, center: Optional[float]) -> None:
+    """Order a population matrix, write it, and optionally draw its heatmap."""
+    if order == "cluster":
+        labels = pm.cluster_order(matrix)
+        matrix = matrix.loc[labels, labels]
+    write_table(matrix, output_format, output, index=True)
+    if heatmap:
+        from popmix import plot
+
+        plot.heatmap(matrix, title=title, center=center, path=heatmap)
+
+
+scan_output_options = [
+    click.option("--format", "output_format", type=click.Choice(["tsv", "json"]), default="tsv",
+                 help="Output format (default: tsv)"),
+    click.option("--output", "-o", default=None, help="Write the table here instead of stdout"),
+]
+
+
+def with_options(options):
+    def apply(command):
+        for option in reversed(options):
+            command = option(command)
+        return command
+    return apply
+
+
+@cli.command()
+@click.option("--pop1", required=True, callback=parse_population_list,
+              help="Comma-separated populations; alone, every distinct statistic on them")
+@click.option("--pop2", callback=parse_population_list, help="Comma-separated populations")
+@click.option("--pop3", callback=parse_population_list, help="Comma-separated populations")
+@click.option("--pop4", callback=parse_population_list, help="Comma-separated populations")
+@click.option("--d-mode", is_flag=True, default=False,
+              help="D-statistics instead of f4 (needs --input)")
+@stat_source_options
+@with_options(scan_output_options)
+def qpdstat(pop1: list, pop2: list, pop3: list, pop4: list, d_mode: bool, input_prefix: Optional[str],
+            f2_dir: Optional[str], block_size: float, all_chromosomes: bool, output_format: str,
+            output: Optional[str]):
+    """f4- or D-statistics f(pop1, pop2; pop3, pop4) for many combinations, as admixtools2 qpdstat.
+
+    With --pop2, --pop3 and --pop4, every combination of one population from
+    each list; with --pop1 alone, every distinct statistic on those
+    populations. Columns: pop1-pop4, est, se, z, p and (from genotypes) n,
+    the number of SNPs used.
+    """
+    try:
+        data = stat_source(input_prefix, f2_dir, pop1 + pop2 + pop3 + pop4)
+        df = pm.qpdstat(data, pop1, pop2 or None, pop3 or None, pop4 or None, f4mode=not d_mode,
+                        block_size=block_size, auto_only=not all_chromosomes)
+        write_table(df, output_format, output)
+    except click.ClickException:
+        raise
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@cli.command()
+@click.option("--pop1", required=True, callback=parse_population_list,
+              help="Comma-separated targets; alone, every distinct f3 on these populations")
+@click.option("--pop2", callback=parse_population_list, help="Comma-separated populations")
+@click.option("--pop3", callback=parse_population_list, help="Comma-separated populations")
+@click.option("--outgroup-mode", is_flag=True, default=False,
+              help="With --input: do not normalize by the target's heterozygosity (outgroup f3)")
+@click.option("--no-bias-correction", is_flag=True, default=False,
+              help="With --input: do not subtract the target's sampling bias")
+@stat_source_options
+@with_options(scan_output_options)
+def qp3pop(pop1: list, pop2: list, pop3: list, outgroup_mode: bool, no_bias_correction: bool,
+           input_prefix: Optional[str], f2_dir: Optional[str], block_size: float, all_chromosomes: bool,
+           output_format: str, output: Optional[str]):
+    """f3-statistics f3(pop1; pop2, pop3) for many combinations, as admixtools2 qp3pop.
+
+    From genotypes, f3 is normalized by the target's heterozygosity unless
+    --outgroup-mode is given; from f2 blocks it is never normalized.
+    """
+    try:
+        data = stat_source(input_prefix, f2_dir, pop1 + pop2 + pop3)
+        df = pm.qp3pop(data, pop1, pop2 or None, pop3 or None, outgroupmode=outgroup_mode,
+                       apply_corr=not no_bias_correction, block_size=block_size,
+                       auto_only=not all_chromosomes)
+        write_table(df, output_format, output)
+    except click.ClickException:
+        raise
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+matrix_options = [
+    click.option("--value", type=click.Choice(["est", "se", "z", "p"]), default="est",
+                 help="Statistic in the matrix (default: est)"),
+    click.option("--order", type=click.Choice(["input", "cluster"]), default="input",
+                 help="Row and column order: as given, or clustered so similar populations are adjacent"),
+    click.option("--heatmap", default=None, help="Also draw a heatmap to this image file (needs popmix[plot])"),
+]
+
+
+@cli.command("outgroup-f3")
+@click.option("--outgroup", required=True, help="Outgroup population (the f3 target)")
+@click.option("--populations", required=True, callback=parse_population_list,
+              help="Comma-separated populations: the matrix rows and columns")
+@with_options(matrix_options)
+@stat_source_options
+@with_options(scan_output_options)
+def outgroup_f3(outgroup: str, populations: list, value: str, order: str, heatmap: Optional[str],
+                input_prefix: Optional[str], f2_dir: Optional[str], block_size: float,
+                all_chromosomes: bool, output_format: str, output: Optional[str]):
+    """Matrix of outgroup f3(outgroup; A, B) for every pair of populations.
+
+    Higher values mean more shared drift. With --heatmap, also a heatmap.
+    """
+    try:
+        data = stat_source(input_prefix, f2_dir, [outgroup] + populations)
+        m = pm.outgroup_f3_matrix(data, outgroup, populations, value=value, block_size=block_size,
+                                  auto_only=not all_chromosomes)
+        write_matrix(m, order, output_format, output, heatmap, f"f3({outgroup}; X, Y) {value}",
+                     None if value != "z" else 0.0)
+    except click.ClickException:
+        raise
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@cli.command("dstat-matrix")
+@click.option("--populations", required=True, callback=parse_population_list,
+              help="Comma-separated populations X, Y: the matrix rows and columns")
+@click.option("--pop1", default=None, help="Fixed pop1: entries are D(pop1, pop2; X, Y)")
+@click.option("--pop2", default=None, help="Fixed pop2")
+@click.option("--pop3", default=None, help="Fixed pop3: entries are D(X, Y; pop3, pop4)")
+@click.option("--pop4", default=None, help="Fixed pop4")
+@click.option("--f4-mode", is_flag=True, default=False, help="f4 instead of D")
+@with_options(matrix_options)
+@stat_source_options
+@with_options(scan_output_options)
+def dstat_matrix(populations: list, pop1: Optional[str], pop2: Optional[str], pop3: Optional[str],
+                 pop4: Optional[str], f4_mode: bool, value: str, order: str, heatmap: Optional[str],
+                 input_prefix: Optional[str], f2_dir: Optional[str], block_size: float,
+                 all_chromosomes: bool, output_format: str, output: Optional[str]):
+    """Matrix of D- (or f4-) statistics for every pair X, Y of populations.
+
+    Give --pop3 and --pop4 for D(X, Y; pop3, pop4), or --pop1 and --pop2 for
+    D(pop1, pop2; X, Y). The matrix is antisymmetric.
+    """
+    try:
+        fixed = [p for p in (pop1, pop2, pop3, pop4) if p]
+        data = stat_source(input_prefix, f2_dir, fixed + populations)
+        m = pm.dstat_matrix(data, populations, pop1=pop1, pop2=pop2, pop3=pop3, pop4=pop4, value=value,
+                            f4mode=f4_mode, block_size=block_size, auto_only=not all_chromosomes)
+        stat = "f4" if f4_mode else "D"
+        title = f"{stat}(X, Y; {pop3}, {pop4})" if pop3 else f"{stat}({pop1}, {pop2}; X, Y)"
+        write_matrix(m, order, output_format, output, heatmap, f"{title} {value}",
+                     0.0 if value in ("est", "z") else None)
+    except click.ClickException:
+        raise
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)

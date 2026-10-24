@@ -259,6 +259,79 @@ pub fn detect_ploidy_packedancestrymap(
     Ok(())
 }
 
+/// Genotype rows streamed from a PACKEDANCESTRYMAP file: the SNPs marked in
+/// `keep`, in file order, for the given samples (by index in the .ind file).
+pub struct PackedRows {
+    file: std::io::BufReader<File>,
+    path: String,
+    keep: Vec<bool>,
+    samples: Vec<usize>,
+    buffer: Vec<u8>,
+    next_snp: usize,
+}
+
+impl PackedRows {
+    pub fn open(
+        geno_path: &str,
+        n_samples: usize,
+        keep: Vec<bool>,
+        samples: Vec<usize>,
+    ) -> Result<Self> {
+        let bytes_per_snp = record_length(geno_path, n_samples, keep.len())?;
+        if let Some(&bad) = samples.iter().find(|&&s| s >= n_samples) {
+            return Err(PopmixError::InvalidFileFormat {
+                file: geno_path.to_string(),
+                details: format!("sample {bad} out of range for {n_samples} samples"),
+            });
+        }
+        let mut file =
+            File::open(geno_path).map_err(|e| PopmixError::io_with_path(e, geno_path))?;
+        let mut magic = [0u8; 4];
+        file.read_exact(&mut magic)
+            .map_err(|e| PopmixError::io_with_path(e, geno_path))?;
+        if &magic != b"GENO" {
+            return Err(PopmixError::InvalidFileFormat {
+                file: geno_path.to_string(),
+                details: "Expected PACKEDANCESTRYMAP format".to_string(),
+            });
+        }
+        file.seek(SeekFrom::Start(bytes_per_snp as u64))
+            .map_err(|e| PopmixError::io_with_path(e, geno_path))?;
+        Ok(PackedRows {
+            file: std::io::BufReader::with_capacity(1 << 22, file),
+            path: geno_path.to_string(),
+            keep,
+            samples,
+            buffer: vec![0u8; bytes_per_snp],
+            next_snp: 0,
+        })
+    }
+}
+
+impl popmix_core::GenotypeRows for PackedRows {
+    fn next_row(&mut self, out: &mut [u8]) -> Result<()> {
+        loop {
+            if self.next_snp >= self.keep.len() {
+                return Err(PopmixError::InvalidFileFormat {
+                    file: self.path.clone(),
+                    details: "read past the last SNP".to_string(),
+                });
+            }
+            self.file
+                .read_exact(&mut self.buffer)
+                .map_err(|e| PopmixError::io_with_path(e, &self.path))?;
+            self.next_snp += 1;
+            if self.keep[self.next_snp - 1] {
+                break;
+            }
+        }
+        for (o, &s) in out.iter_mut().zip(&self.samples) {
+            *o = decode_packed_byte(self.buffer[s / 4])[s % 4];
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -322,5 +395,25 @@ mod tests {
         );
         assert!(err.is_err());
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn packed_rows_match_the_in_memory_genotypes() {
+        use popmix_core::GenotypeRows;
+        let geno = PackedAncestryMapReader::new(SMALL)
+            .unwrap()
+            .read_all()
+            .unwrap();
+        let keep: Vec<bool> = (0..geno.n_snps()).map(|i| i % 3 != 1).collect();
+        let samples = vec![53, 0, 7, 20];
+        let mut rows =
+            PackedRows::open(&format!("{SMALL}.geno"), 54, keep.clone(), samples.clone()).unwrap();
+        let mut row = vec![0u8; samples.len()];
+        for snp in (0..geno.n_snps()).filter(|&i| keep[i]) {
+            rows.next_row(&mut row).unwrap();
+            let want: Vec<u8> = samples.iter().map(|&s| geno.snp_raw(snp)[s]).collect();
+            assert_eq!(row, want, "SNP {snp}");
+        }
+        assert!(rows.next_row(&mut row).is_err());
     }
 }

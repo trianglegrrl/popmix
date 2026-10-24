@@ -732,6 +732,41 @@ admixtures, 4 with 1 and 2; 2976 graphs):
 Regenerate with `/usr/bin/Rscript tests/golden/admixtools2/generate_all_graphs.R`
 (about 6 minutes).
 
+### f4-, D- and f3-statistic scans vs admixtools2 2.0.10
+
+`tests/golden/test_dstat_admixtools2.py` checks `qpdstat` and `qp3pop` given
+a genotype prefix against admixtools2's `qpdstat()` and `qp3pop()` given the
+same prefix (`dstat.json`, from `generate_dstat.R`). These are computed from
+the genotypes, not from f2 blocks: every autosomal SNP is used, blocks are
+formed over all of them, and each statistic uses the SNPs with data in its
+own populations (`allsnps = TRUE`).
+
+| Check | Compared against | Tolerance |
+|-------|------------------|-----------|
+| `test_ploidy` | ploidy admixtools2 assigns each sample | exact |
+| `test_f4_blocks` | `f4blockdat_from_geno(f4mode = FALSE)`: per-block numerator, denominator, SNP count | rtol 1e-10; counts exact |
+| `test_f3_blocks` | `f3blockdat_from_geno`: per-block numerator, denominator, estimate, SNP count | rtol 1e-10; counts exact |
+| `test_combinations` | the combinations `qpdstat`/`qp3pop` make from a population list, and from vectors | exact, in order |
+| `test_qpdstat_f4`, `test_qpdstat_d`, `test_qpdstat_grid_d` | `qpdstat(prefix, ...)`, f4 and D mode | est rtol 1e-10; se and z 1e-6; p 1e-4; n exact |
+| `test_qp3pop`, `test_qp3pop_outgroup` | `qp3pop(prefix, ...)`, normalized and `outgroupmode = TRUE` | as qpdstat |
+| `test_scans_from_f2_blocks` | `f4()`, `f3()` on f2 blocks (`f3_f4.json`) | est 1e-10, se 1e-6 |
+
+Configs: family_4pop (always run), and with `--run-slow` dg_6pop,
+ancient_5pop (a pseudo-haploid population) and mixed_ploidy (AADR samples
+relabeled so one population mixes pseudo-haploid and diploid samples, where
+the frequencies, which count every sample as diploid, and the f3 correction,
+which counts a pseudo-haploid sample once, differ; the test rebuilds the
+relabeled .ind beside symlinks to the AADR files). f3 with Chimp.REF (one
+pseudo-haploid sample) as target cannot be estimated in either tool.
+Actual agreement is within rtol 1e-10 everywhere. Regenerate with
+`/usr/bin/Rscript tests/golden/admixtools2/generate_dstat.R [config...]`
+(about 95 s per AADR config).
+
+`tests/python/test_dstats.py` checks what is built on the scans, on the small
+dataset: combination generation, the outgroup-f3 and D matrices (symmetry,
+entries equal to the scans), clustering order, heatmaps, and the `qpdstat`,
+`qp3pop`, `outgroup-f3` and `dstat-matrix` commands.
+
 `tests/python/test_cli.py::TestCommandsMatchAdmixtools2` (`--run-slow`) runs
 the CLI itself (`popmix extract-f2`, then `f2`, `f3`, `f4`, `qpwave`, `qpadm`
 with `--f2-dir`) on the dg_6pop populations and compares with the same

@@ -155,9 +155,10 @@ impl F2Blocks {
         })
     }
 
-    /// Compute D-statistic (Patterson's D), which is equivalent to f4.
+    /// f4(A, B; C, D), under its old name.
     ///
-    /// D(A, B; C, D) = f4(A, B; C, D)
+    /// This is f4, not Patterson's D, which is normalized per SNP and needs
+    /// the genotypes ([`crate::f4_from_genotypes`] with [`crate::F4Mode::D`]).
     pub fn d_stat(&self, pop_a: &str, pop_b: &str, pop_c: &str, pop_d: &str) -> Option<F4Result> {
         self.f4(pop_a, pop_b, pop_c, pop_d)
     }
