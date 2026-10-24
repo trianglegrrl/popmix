@@ -1,0 +1,11 @@
+--- a/dates.c
++++ b/dates.c
+@@ -330,7 +330,7 @@
+   double *xnum, *xden, *xdenq ;
+   double *znum, *zden ;
+   double **xxnum, **xxden ;
+-  int numbins  ;  
++  int numbins = nnint(maxdis/binsize) + 5 ;  /* popmix: was used uninitialized before line ~449 */
+   double co1, co2, dis, yran ;     
+   double wtmean, wtnum ; 
+   CORR **corrbins ;

@@ -586,16 +586,73 @@ Expected output:
 
 ### DATES vs DATES v753
 
-The `scripts/compare_dates.py` script validates popmix DATES against the original DATES v753:
+`tests/golden/test_dates_v753.py` runs popmix on the same data and parameters
+as stored DATES v753 runs and checks every stage:
 
-1. Runs DATES v753 on test data
-2. Runs popmix on the same data
-3. Compares pair counts (must match **exactly**)
-4. Compares correlations (must match within 1e-6)
+| Check | Compared against | Tolerance |
+|-------|------------------|-----------|
+| LD table, every bin | `.out` pair counts, covariance, yreg, correlation | pairs exact; others printed precision |
+| Full-data fit | `expfit` "mean (generations)" | 5e-4 + DATES simplex tolerance (1e-6 in r = 1e-3 gen) |
+| Per-chromosome jackknife | `.jin` | as full-data fit |
+| Jackknife estimate and SE | `.jout` | propagated input error, (g + 2) × fit tolerance |
+| `default_ld_table` | corrected default vs `.out` | only the bins a correction targets differ; the rest as LD table |
+| `default_result` | corrected default vs `.jout` | as jackknife; skipped where a correction changes the LD table |
+| `default_vs_exact_mode` | corrected mesh vs DATES exact-mode `.out` | pair counts within 1/qbin per bin |
 
-**Validation results:**
-- Total pair count difference: **0** (exact match across all 1000 bins)
-- Maximum correlation difference: **4.99e-07** (within 1e-6 tolerance)
+The first four checks run with `compat="dates-v753"`, which reproduces DATES
+exactly. The `default_*` checks cover popmix's corrected default. See
+DEVIATIONS.md for what is corrected and why.
+
+`crates/popmix-core/tests/dates_v753_golden.rs` checks the fit and the
+weighted jackknife on DATES's own intermediate files, so each stage is
+tested on its own.
+
+Configs (`tests/golden/dates/v753/<config>/`):
+
+| Config | Data | qbin | maxdis | DATES v753 | popmix |
+|--------|------|------|--------|------------|--------|
+| chr20_22_q0 | simulated, chr20-22 | 0 | 1.0 | 1.217 ± 3.648 | matches |
+| chr20_22_q10 | simulated, chr20-22 | 10 | 1.0 | 0.751 ± 3.411 | matches |
+| simulation_q0 | simulated genome (true: 50) | 0 | 1.0 | 35.680 ± 6.333 | matches |
+| simulation_q10 | simulated genome (true: 50) | 10 | 1.0 | 35.738 ± 6.346 | matches |
+| aadr_french_q10 | AADR v62: French.DG = Sardinian.DG + Russia_Samara_EBA_Yamnaya.AG | 10 | 0.5 | 140.595 ± 25.037 | matches |
+
+"matches" means `compat="dates-v753"`. The corrected default differs on the
+two `_q10` configs with maxdis 1.0 (DATES-0001); DEVIATIONS.md has the numbers.
+
+The simulation and AADR configs are `--run-slow` tests.
+
+DATES fits the correlations it printed to `.out` (6 decimals) and runs the
+jackknife on estimates printed to `.jin` (3 decimals). Compat mode does the
+same round trip (DATES-0003). On AADR the full-precision default fit differs
+by 0.002 generations.
+
+DATES keeps a SNP once each source population has one called sample. It
+reads `mincount` from the parameter file but ignores it ("mincount stripped"
+in `dates.c`), so popmix defaults `min_source_count` to 1 as well.
+
+**Regenerating references.** Run
+`DATES_BIN=<dir> tests/golden/dates/generate_dates_reference.sh [config...]`.
+`DATES_BIN` must hold `dates` built with `tests/golden/dates/dates_numbins_fix.patch`,
+the DATES helper scripts, and `dowtjack` (upstream builds it only into `src/`).
+Unpatched v753 reads an uninitialized `numbins` when sizing buffers, so
+`qbin: 0` runs crash or not depending on stack contents. The patch changes
+only buffer sizes; mesh-mode output is byte-identical to the unpatched binary.
+
+**Mesh mode (`qbin > 0`) corrects two DATES FFT quirks** (DATES-0001,
+DATES-0002): lags past each chromosome's FFT window wrap around, and the
+last lag is left unscaled. On chr20-22 with maxdis 1.0 the full-data fit is
+3.165 generations in exact mode, 3.160 for popmix's corrected mesh, and
+2.890 for DATES's mesh (`compat="dates-v753"`). Exact mode (`qbin = 0`, the
+default) has neither quirk.
+
+### Parity and corrections
+
+When a reference tool has a bug that changes results, popmix corrects it by
+default and reproduces it under `compat`, so the golden tests can still
+require exact agreement. DEVIATIONS.md defines the process (one flag per
+deviation; golden, isolation and oracle tests; live numbers) and lists every
+deviation.
 
 ### admixtools2 Golden Master Tests
 

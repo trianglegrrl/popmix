@@ -2,13 +2,14 @@
 //!
 //! Estimates admixture timing from LD decay patterns.
 
-use super::exponential_fit::{fit_exponential, jackknife_decay_rate, DecayFit, FitOptions};
-use super::ld_decay::{compute_ld_decay, LdBin, LdOptions};
+use super::compat::DatesCompat;
+use super::exponential_fit::{fit_exponential, weighted_jackknife, DecayFit, FitOptions};
+use super::ld_decay::{compute_ld_decay_by_chromosome, LdBin, LdOptions};
 use super::weights::{compute_weights, WeightResult};
 use crate::genotype_matrix::{AlleleFrequencies, GenotypeMatrix};
-use crate::genotypes::{Chromosome, PopulationId};
+use crate::genotypes::PopulationId;
 use crate::Result;
-use std::collections::HashMap;
+use rayon::prelude::*;
 
 /// Options for DATES algorithm.
 #[derive(Debug, Clone)]
@@ -19,10 +20,16 @@ pub struct DatesOptions {
     pub fit_options: FitOptions,
     /// Generation time in years (for converting to years BP). Default: 29.0
     pub generation_time: f64,
-    /// Minimum allele count in source populations for weight computation.
+    /// Minimum observed allele count in each source population for a SNP to
+    /// be used. Default: 1, so one called sample suffices, as in DATES v753
+    /// (which reads `mincount` but ignores it: "mincount stripped").
     pub min_source_count: u32,
     /// Run jackknife for standard error estimation. Default: true
     pub run_jackknife: bool,
+    /// DATES v753 quirks to reproduce. Applies to every stage, overriding
+    /// `ld_options.compat`. Default: none, all corrected; use
+    /// [`DatesCompat::V753`] to compare against DATES output.
+    pub compat: DatesCompat,
 }
 
 impl Default for DatesOptions {
@@ -31,9 +38,31 @@ impl Default for DatesOptions {
             ld_options: LdOptions::default(),
             fit_options: FitOptions::default(),
             generation_time: 29.0,
-            min_source_count: 4,
+            min_source_count: 1,
             run_jackknife: true,
+            compat: DatesCompat::CORRECTED,
         }
+    }
+}
+
+/// Round to `decimals` places as printf would print it.
+fn round_printed(x: f64, decimals: usize) -> f64 {
+    format!("{x:.decimals$}").parse().unwrap_or(x)
+}
+
+/// Fit LD bins, first rounding correlations as DATES prints them if asked.
+fn fit_bins(bins: &[LdBin], opts: &DatesOptions) -> Result<DecayFit> {
+    if opts.compat.fit_printed_values {
+        let rounded: Vec<LdBin> = bins
+            .iter()
+            .map(|b| LdBin {
+                correlation: round_printed(b.correlation, 6),
+                ..b.clone()
+            })
+            .collect();
+        fit_exponential(&rounded, Some(opts.fit_options.clone()))
+    } else {
+        fit_exponential(bins, Some(opts.fit_options.clone()))
     }
 }
 
@@ -46,7 +75,9 @@ pub struct DatesResult {
     pub source1: PopulationId,
     /// Second source population.
     pub source2: PopulationId,
-    /// Estimated number of generations since admixture.
+    /// Estimated number of generations since admixture: the weighted
+    /// jackknife estimate if the jackknife ran (as DATES reports), otherwise
+    /// the full-data fit.
     pub generations: f64,
     /// Standard error of generations (from jackknife).
     pub generations_se: f64,
@@ -64,6 +95,19 @@ pub struct DatesResult {
     pub weights: WeightResult,
     /// Number of chromosomes used.
     pub n_chromosomes: usize,
+    /// Per-chromosome jackknife blocks, empty if the jackknife did not run.
+    pub jackknife_by_chromosome: Vec<JackknifeBlock>,
+}
+
+/// One leave-one-chromosome-out jackknife block (a row of the DATES `.jin`).
+#[derive(Debug, Clone)]
+pub struct JackknifeBlock {
+    /// Chromosome left out (1..=22).
+    pub chromosome: u8,
+    /// Block weight: number of SNPs on the chromosome in the input.
+    pub weight: f64,
+    /// Generations estimated without this chromosome.
+    pub generations: f64,
 }
 
 /// Estimate admixture time using the DATES algorithm.
@@ -118,8 +162,7 @@ pub fn dates(
         Some(af) => af,
         None => {
             let pops = vec![test_pop, source1, source2];
-            owned_af =
-                AlleleFrequencies::from_genotypes_for_populations(geno, Some(&pops));
+            owned_af = AlleleFrequencies::from_genotypes_for_populations(geno, Some(&pops));
             &owned_af
         }
     };
@@ -136,12 +179,12 @@ pub fn dates(
     }
 
     // Get source population frequency arrays
-    let source1_idx = af.pop_index(source1).ok_or_else(|| {
-        crate::error::PopmixError::PopulationNotFound(source1.to_string())
-    })?;
-    let source2_idx = af.pop_index(source2).ok_or_else(|| {
-        crate::error::PopmixError::PopulationNotFound(source2.to_string())
-    })?;
+    let source1_idx = af
+        .pop_index(source1)
+        .ok_or_else(|| crate::error::PopmixError::PopulationNotFound(source1.to_string()))?;
+    let source2_idx = af
+        .pop_index(source2)
+        .ok_or_else(|| crate::error::PopmixError::PopulationNotFound(source2.to_string()))?;
 
     let source1_freqs: Vec<f64> = (0..geno.n_snps())
         .map(|i| af.frequencies[[i, source1_idx]])
@@ -150,18 +193,21 @@ pub fn dates(
         .map(|i| af.frequencies[[i, source2_idx]])
         .collect();
 
-    // Step 2: Compute LD decay
-    let ld_bins = compute_ld_decay(
+    // Step 2: Compute LD decay, for all chromosomes and leaving each one out
+    let ld = compute_ld_decay_by_chromosome(
         geno,
         af,
         test_pop,
         &weights.weights,
         &source1_freqs,
         &source2_freqs,
-        Some(opts.ld_options.clone()),
+        Some(LdOptions {
+            compat: opts.compat,
+            ..opts.ld_options.clone()
+        }),
     )?;
 
-    if ld_bins.is_empty() {
+    if ld.bins.is_empty() {
         return Err(crate::error::PopmixError::InsufficientData {
             context: "No LD bins computed".to_string(),
             required: 10,
@@ -170,28 +216,38 @@ pub fn dates(
     }
 
     // Step 3: Fit exponential decay
-    let mut fit = fit_exponential(&ld_bins, Some(opts.fit_options.clone()))?;
+    let mut fit = fit_bins(&ld.bins, &opts)?;
 
-    // Step 4: Jackknife for standard error (if enabled)
-    let (generations, generations_se) = if opts.run_jackknife {
-        // Group LD bins by chromosome
-        let ld_bins_by_chrom = compute_ld_by_chromosome(
-            geno,
-            af,
-            test_pop,
-            &weights.weights,
-            Some(opts.ld_options.clone()),
-        )?;
-
-        match jackknife_decay_rate(&ld_bins_by_chrom, Some(opts.fit_options.clone())) {
-            Ok((mean, se)) => {
-                fit.decay_rate_se = se;
-                (mean, se)
+    // Step 4: Weighted jackknife over chromosomes (DATES dates_wtjack + dowtjack)
+    let (generations, generations_se, jackknife_by_chromosome) = if opts.run_jackknife {
+        let blocks = ld
+            .chromosomes
+            .par_iter()
+            .map(|c| {
+                let loo = fit_bins(&c.leave_one_out, &opts)?;
+                Ok(JackknifeBlock {
+                    chromosome: c.chromosome,
+                    weight: c.n_snps as f64,
+                    generations: loo.decay_rate,
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let printed = |x: f64| {
+            if opts.compat.fit_printed_values {
+                round_printed(x, 3)
+            } else {
+                x
             }
-            Err(_) => (fit.decay_rate, f64::NAN),
-        }
+        };
+        let estimates: Vec<(f64, f64)> = blocks
+            .iter()
+            .map(|b| (b.weight, printed(b.generations)))
+            .collect();
+        let (est, se) = weighted_jackknife(printed(fit.decay_rate), &estimates)?;
+        fit.decay_rate_se = se;
+        (est, se, blocks)
     } else {
-        (fit.decay_rate, f64::NAN)
+        (fit.decay_rate, f64::NAN, Vec::new())
     };
 
     // Convert to years
@@ -219,240 +275,19 @@ pub fn dates(
         generations_se,
         years_bp,
         years_bp_se,
-        ld_bins,
+        ld_bins: ld.bins,
         fit,
         n_snps: weights.n_valid,
         weights,
         n_chromosomes,
+        jackknife_by_chromosome,
     })
-}
-
-/// Compute LD decay separately for each chromosome.
-fn compute_ld_by_chromosome(
-    geno: &GenotypeMatrix,
-    _af: &AlleleFrequencies,
-    test_pop: &str,
-    weights: &[f64],
-    options: Option<LdOptions>,
-) -> Result<Vec<Vec<LdBin>>> {
-    let opts = options.unwrap_or_default();
-
-    // Get indices of test population samples
-    let test_pop_id = PopulationId::new(test_pop);
-    let test_indices = geno.population_indices(&test_pop_id);
-
-    if test_indices.is_empty() {
-        return Err(crate::error::PopmixError::PopulationNotFound(
-            test_pop.to_string(),
-        ));
-    }
-
-    // Group SNPs by chromosome
-    let snps = geno.snps();
-    let mut snps_by_chrom: HashMap<Chromosome, Vec<usize>> = HashMap::new();
-    for (idx, snp) in snps.iter().enumerate() {
-        if snp.is_autosomal() && weights[idx].is_finite() {
-            snps_by_chrom
-                .entry(snp.chromosome.clone())
-                .or_default()
-                .push(idx);
-        }
-    }
-
-    // Sort chromosomes
-    let mut chroms: Vec<_> = snps_by_chrom.keys().cloned().collect();
-    chroms.sort();
-
-    // Compute LD for each chromosome
-    let mut results = Vec::with_capacity(chroms.len());
-
-    for chrom in chroms {
-        let chrom_snps = &snps_by_chrom[&chrom];
-        if chrom_snps.len() < 10 {
-            continue;
-        }
-
-        // Create a filtered genotype view for this chromosome
-        // For now, just compute all LD and filter by chromosome
-        // This is less efficient but simpler
-        let n_bins = (opts.max_distance_cm / opts.bin_width_cm).ceil() as usize;
-        let chrom_bins = compute_chromosome_ld(
-            geno,
-            snps,
-            chrom_snps,
-            &test_indices,
-            weights,
-            &opts,
-            n_bins,
-        );
-
-        if !chrom_bins.is_empty() {
-            results.push(chrom_bins);
-        }
-    }
-
-    Ok(results)
-}
-
-/// Compute LD for a single chromosome and return as LdBin vector.
-fn compute_chromosome_ld(
-    geno: &GenotypeMatrix,
-    snps: &[crate::genotypes::Snp],
-    chrom_snps: &[usize],
-    test_indices: &[usize],
-    weights: &[f64],
-    opts: &LdOptions,
-    n_bins: usize,
-) -> Vec<LdBin> {
-    // Initialize bins
-    let mut bin_sums = vec![0.0_f64; n_bins];
-    let mut bin_sum_sq = vec![0.0_f64; n_bins];
-    let mut bin_weight_sums = vec![0.0_f64; n_bins];
-    let mut bin_counts = vec![0_usize; n_bins];
-
-    // Pre-compute genotype means
-    let mut snp_data: HashMap<usize, (f64, Vec<f64>)> = HashMap::new();
-    for &snp_idx in chrom_snps {
-        let (mean, genos) = compute_snp_stats_for_chrom(geno, snp_idx, test_indices);
-        if mean.is_finite() {
-            snp_data.insert(snp_idx, (mean, genos));
-        }
-    }
-
-    // Sort SNPs by position
-    let mut sorted_snps: Vec<usize> = chrom_snps
-        .iter()
-        .filter(|&&idx| snp_data.contains_key(&idx))
-        .copied()
-        .collect();
-    sorted_snps.sort_by(|&a, &b| {
-        snps[a]
-            .position_morgans
-            .partial_cmp(&snps[b].position_morgans)
-            .unwrap()
-    });
-
-    // Convert options to Morgans to match DATES exactly
-    let binsize_morgans = opts.bin_width_cm / 100.0;
-    let max_distance_morgans = opts.max_distance_cm / 100.0;
-
-    // Compute pairwise LD
-    for (i, &snp_i) in sorted_snps.iter().enumerate() {
-        let pos_i = snps[snp_i].position_morgans;
-        let (mean_i, genos_i) = &snp_data[&snp_i];
-        let w_i = weights[snp_i];
-
-        for &snp_j in sorted_snps.iter().skip(i + 1) {
-            let pos_j = snps[snp_j].position_morgans;
-            let dis = pos_j - pos_i;
-
-            if dis >= max_distance_morgans {
-                break;
-            }
-
-            let bin_idx = (dis / binsize_morgans) as usize;
-            if bin_idx >= n_bins {
-                continue;
-            }
-
-            let (mean_j, genos_j) = &snp_data[&snp_j];
-            let w_j = weights[snp_j];
-
-            let cov = compute_cov_for_chrom(genos_i, genos_j, *mean_i, *mean_j);
-            let weighted_ld = cov * w_i * w_j;
-            let weight_product = w_i * w_j;
-
-            bin_sums[bin_idx] += weighted_ld;
-            bin_sum_sq[bin_idx] += weighted_ld * weighted_ld;
-            bin_weight_sums[bin_idx] += weight_product.abs();
-            bin_counts[bin_idx] += 1;
-        }
-    }
-
-    // Convert to LdBin
-    let mut results = Vec::new();
-    for bin_idx in 0..n_bins {
-        let count = bin_counts[bin_idx];
-        if count >= opts.min_pairs_per_bin {
-            let distance_cm = (bin_idx as f64 + 0.5) * opts.bin_width_cm;
-            let mean_ld = bin_sums[bin_idx] / count as f64;
-            let variance = (bin_sum_sq[bin_idx] / count as f64) - mean_ld * mean_ld;
-            let std_err = if count > 1 {
-                (variance / count as f64).sqrt()
-            } else {
-                f64::NAN
-            };
-            let z_score = if std_err > 0.0 && std_err.is_finite() {
-                mean_ld / std_err
-            } else {
-                f64::NAN
-            };
-            let correlation = if bin_weight_sums[bin_idx].abs() > 1e-15 {
-                bin_sums[bin_idx] / bin_weight_sums[bin_idx]
-            } else {
-                f64::NAN
-            };
-
-            results.push(LdBin {
-                distance_cm,
-                weighted_ld: mean_ld,
-                z_score,
-                correlation,
-                n_pairs: count,
-                std_err,
-            });
-        }
-    }
-
-    results
-}
-
-fn compute_snp_stats_for_chrom(
-    geno: &GenotypeMatrix,
-    snp_idx: usize,
-    sample_indices: &[usize],
-) -> (f64, Vec<f64>) {
-    let mut sum = 0.0;
-    let mut count = 0;
-    let mut genos = Vec::with_capacity(sample_indices.len());
-
-    for &sample_idx in sample_indices {
-        let g = geno.snp_raw(snp_idx)[sample_idx];
-        if g <= 2 {
-            genos.push(g as f64);
-            sum += g as f64;
-            count += 1;
-        } else {
-            genos.push(f64::NAN);
-        }
-    }
-
-    let mean = if count > 0 { sum / count as f64 } else { f64::NAN };
-    (mean, genos)
-}
-
-fn compute_cov_for_chrom(genos_i: &[f64], genos_j: &[f64], mean_i: f64, mean_j: f64) -> f64 {
-    let mut sum = 0.0;
-    let mut count = 0;
-
-    for (gi, gj) in genos_i.iter().zip(genos_j.iter()) {
-        if gi.is_finite() && gj.is_finite() {
-            sum += (gi - mean_i) * (gj - mean_j);
-            count += 1;
-        }
-    }
-
-    if count > 1 {
-        sum / (count - 1) as f64
-    } else {
-        f64::NAN
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::genotypes::{Sample, Snp};
+    use crate::genotypes::{Chromosome, Sample, Snp};
     use ndarray::Array2;
 
     fn create_test_genotypes() -> GenotypeMatrix {

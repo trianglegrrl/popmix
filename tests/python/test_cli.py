@@ -329,6 +329,42 @@ class TestDatesCommand:
         # Should have header
         assert "distance_cm" in result.stdout.lower()
 
+    @pytest.mark.skipif(
+        not os.path.exists("tests/golden/dates/family_chr20_22.geno"),
+        reason="DATES test data not available"
+    )
+    def test_dates_qbin_matches_dates_v753_mesh_mode(self):
+        """popmix dates --qbin 10 --compat dates-v753 should reproduce DATES v753 run with qbin: 10."""
+        ref_dir = Path("tests/golden/dates/v753/chr20_22_q10")
+        ref_est, ref_se = (float(x) for x in (ref_dir / "dates.jout").read_text().split())
+        ref_full = next(
+            float(line.split(":")[1])
+            for line in (ref_dir / "dates.flog").read_text().splitlines()
+            if line.startswith("mean (generations):")
+        )
+
+        result = run_cli(
+            "dates",
+            "--input", self.DATES_TEST_PREFIX,
+            "--test-pop", "Simulation",
+            "--source1", "French",
+            "--source2", "Yoruba",
+            "--qbin", "10",
+            "--min-distance", "0.45",
+            "--compat", "dates-v753",
+            "--format", "json",
+            timeout=120,
+        )
+
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert data["qbin"] == 10
+        assert data["compat"] == "dates-v753"
+        # DATES optimizer tolerance plus printed precision; see tests/golden/test_dates_v753.py
+        assert abs(data["fit"]["decay_rate"] - ref_full) <= 1.5e-3
+        assert abs(data["generations"] - ref_est) <= 0.008
+        assert abs(data["generations_se"] - ref_se) <= 0.008
+
     def test_dates_missing_input_errors(self):
         """popmix dates with missing input should error."""
         result = run_cli(

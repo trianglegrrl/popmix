@@ -41,7 +41,7 @@ pub use threading::init_thread_pool;
 
 // DATES re-exports
 pub use dates::{
-    compute_ld_decay, compute_weights, dates, fit_exponential, jackknife_decay_rate, DatesOptions,
+    compute_ld_decay, compute_weights, dates, fit_exponential, weighted_jackknife, DatesOptions,
     DatesResult, DecayFit, LdBin, LdOptions, WeightResult,
 };
 // Note: FitOptions for dates is available as dates::FitOptions to avoid collision with qpgraph::FitOptions

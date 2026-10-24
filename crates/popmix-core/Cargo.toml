@@ -13,6 +13,7 @@ thiserror = { workspace = true }
 petgraph = { workspace = true }
 itertools = { workspace = true }
 ordered-float = { workspace = true }
+rustfft = "6.2"  # FFT for O(N log N) LD computation in DATES
 
 [dev-dependencies]
 approx = { workspace = true }

@@ -652,10 +652,19 @@ def merge(file_a: str, file_b: str, output: str, output_format: str,
 @click.option("--source2", required=True, help="Second source population")
 @click.option("--bin-width", type=float, default=0.1, help="Distance bin width in cM (default: 0.1)")
 @click.option("--max-distance", type=float, default=100.0, help="Maximum genetic distance in cM (default: 100)")
+@click.option("--min-distance", type=float, default=0.45,
+              help="Fit bins from this distance in cM, DATES lovalfit (default: 0.45)")
+@click.option("--qbin", type=click.IntRange(min=0), default=0,
+              help="DATES qbin: 0 visits every SNP pair; N > 0 uses an FFT mesh of N cells "
+                   "per bin, faster and approximate (default: 0)")
+@click.option("--compat", type=click.Choice(["dates-v753"]), default=None,
+              help="Reproduce DATES v753's known quirks instead of correcting them, "
+                   "for output identical to DATES (see DEVIATIONS.md)")
 @click.option("--format", "output_format", type=click.Choice(["text", "json", "tsv"]), default="text",
               help="Output format")
 def dates(input_prefix: str, test_pop: str, source1: str, source2: str,
-          bin_width: float, max_distance: float, output_format: str):
+          bin_width: float, max_distance: float, min_distance: float, qbin: int,
+          compat: Optional[str], output_format: str):
     """Estimate admixture date using DATES algorithm.
 
     DATES estimates the time since admixture by fitting an exponential decay
@@ -677,6 +686,9 @@ def dates(input_prefix: str, test_pop: str, source1: str, source2: str,
             source2=source2,
             bin_width_cm=bin_width,
             max_distance_cm=max_distance,
+            min_distance_cm=min_distance,
+            qbin=qbin,
+            compat=compat,
         )
 
         if output_format == "json":
@@ -691,6 +703,8 @@ def dates(input_prefix: str, test_pop: str, source1: str, source2: str,
                 "years_bp_se": result.years_bp_se,
                 "n_snps": result.n_snps,
                 "n_bins": len(result.ld_bins),
+                "qbin": qbin,
+                "compat": compat,
                 "fit": {
                     "amplitude": result.fit.amplitude,
                     "decay_rate": result.fit.decay_rate,
@@ -701,6 +715,7 @@ def dates(input_prefix: str, test_pop: str, source1: str, source2: str,
                         "distance_cm": b.distance_cm,
                         "n_pairs": b.n_pairs,
                         "correlation": b.correlation,
+                        "regression_coef": b.regression_coef,
                         "weighted_ld": b.weighted_ld,
                     }
                     for b in result.ld_bins[:20]  # First 20 bins

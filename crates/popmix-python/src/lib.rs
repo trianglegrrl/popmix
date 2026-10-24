@@ -2330,6 +2330,8 @@ struct PyLdBin {
     #[pyo3(get)]
     correlation: f64,
     #[pyo3(get)]
+    regression_coef: f64,
+    #[pyo3(get)]
     n_pairs: usize,
     #[pyo3(get)]
     std_err: f64,
@@ -2342,6 +2344,7 @@ impl From<&popmix_core::LdBin> for PyLdBin {
             weighted_ld: b.weighted_ld,
             z_score: b.z_score,
             correlation: b.correlation,
+            regression_coef: b.regression_coef,
             n_pairs: b.n_pairs,
             std_err: b.std_err,
         }
@@ -2402,10 +2405,21 @@ struct PyDatesResult {
     n_chromosomes: usize,
     ld_bins: Vec<popmix_core::LdBin>,
     fit: popmix_core::DecayFit,
+    jackknife: Vec<popmix_core::dates::JackknifeBlock>,
 }
 
 #[pymethods]
 impl PyDatesResult {
+    /// Per-chromosome jackknife blocks as (chromosome, weight, generations),
+    /// matching the DATES `.jin` file. Empty if the jackknife did not run.
+    #[getter]
+    fn jackknife_by_chromosome(&self) -> Vec<(u8, f64, f64)> {
+        self.jackknife
+            .iter()
+            .map(|b| (b.chromosome, b.weight, b.generations))
+            .collect()
+    }
+
     /// Get the LD decay bins.
     #[getter]
     fn ld_bins(&self) -> Vec<PyLdBin> {
@@ -2428,6 +2442,7 @@ impl PyDatesResult {
                 d.insert("weighted_ld".to_string(), b.weighted_ld);
                 d.insert("z_score".to_string(), b.z_score);
                 d.insert("correlation".to_string(), b.correlation);
+                d.insert("regression_coef".to_string(), b.regression_coef);
                 d.insert("n_pairs".to_string(), b.n_pairs as f64);
                 d.insert("std_err".to_string(), b.std_err);
                 d
@@ -2461,13 +2476,22 @@ impl PyDatesResult {
 ///     source1: Name of first source population
 ///     source2: Name of second source population
 ///     generation_time: Generation time in years (default: 29)
-///     min_distance_cm: Minimum distance for fitting (default: 0.45)
-///     max_distance_cm: Maximum distance for computation (default: 50.0)
-///     bin_width_cm: Width of distance bins (default: 0.1)
+///     min_distance_cm: Minimum distance for fitting, DATES lovalfit (default: 0.45)
+///     max_distance_cm: Maximum distance, DATES maxdis x 100 (default: 100.0)
+///     bin_width_cm: Width of distance bins, DATES binsize x 100 (default: 0.1)
 ///     run_jackknife: Run jackknife for SE estimation (default: True)
+///     qbin: DATES qbin. 0 visits every SNP pair; > 0 uses an FFT mesh of
+///         qbin cells per bin, which is faster and slightly approximate
+///         (default: 0, the DATES default)
+///     compat: Reproduce a reference implementation's known quirks instead
+///         of correcting them. None (default) corrects them all;
+///         "dates-v753" gives output identical to DATES v753, for checking
+///         against it. See DEVIATIONS.md for what each quirk changes.
 ///
 /// Returns:
-///     DatesResult with estimated admixture timing
+///     DatesResult with estimated admixture timing. ``generations`` and
+///     ``generations_se`` are the weighted jackknife estimate and SE that
+///     DATES reports; ``fit.decay_rate`` is the full-data fit.
 ///
 /// Example:
 ///     >>> geno = pm.read_packedancestrymap("/path/to/data")
@@ -2475,7 +2499,7 @@ impl PyDatesResult {
 ///     >>> print(f"Admixture time: {result.generations:.0f} generations")
 ///     >>> print(f"Years BP: {result.years_bp:.0f}")
 #[pyfunction]
-#[pyo3(signature = (geno, test_pop, source1, source2, generation_time=None, min_distance_cm=None, max_distance_cm=None, bin_width_cm=None, run_jackknife=None))]
+#[pyo3(signature = (geno, test_pop, source1, source2, generation_time=None, min_distance_cm=None, max_distance_cm=None, bin_width_cm=None, run_jackknife=None, qbin=None, compat=None))]
 fn dates(
     geno: &PyGenotypeMatrix,
     test_pop: &str,
@@ -2486,8 +2510,22 @@ fn dates(
     max_distance_cm: Option<f64>,
     bin_width_cm: Option<f64>,
     run_jackknife: Option<bool>,
+    qbin: Option<usize>,
+    compat: Option<&str>,
 ) -> PyResult<PyDatesResult> {
+    let compat = match compat {
+        None => popmix_core::dates::DatesCompat::CORRECTED,
+        Some("dates-v753") => popmix_core::dates::DatesCompat::V753,
+        Some(other) => {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "unknown compat {other:?} for dates; expected None or \"dates-v753\""
+            )))
+        }
+    };
     let mut ld_options = popmix_core::LdOptions::default();
+    if let Some(q) = qbin {
+        ld_options.qbin = q;
+    }
     if let Some(bw) = bin_width_cm {
         ld_options.bin_width_cm = bw;
     }
@@ -2496,6 +2534,9 @@ fn dates(
     }
 
     let mut fit_options = popmix_core::dates::FitOptions::default();
+    if let Some(bw) = bin_width_cm {
+        fit_options.bin_size_cm = bw;
+    }
     if let Some(min_d) = min_distance_cm {
         fit_options.min_distance_cm = min_d;
     }
@@ -2507,8 +2548,9 @@ fn dates(
         ld_options,
         fit_options,
         generation_time: generation_time.unwrap_or(29.0),
-        min_source_count: 4,
         run_jackknife: run_jackknife.unwrap_or(true),
+        compat,
+        ..Default::default()
     };
 
     let result = popmix_core::dates(&geno.inner, None, test_pop, source1, source2, Some(opts))
@@ -2526,6 +2568,7 @@ fn dates(
         n_chromosomes: result.n_chromosomes,
         ld_bins: result.ld_bins,
         fit: result.fit,
+        jackknife: result.jackknife_by_chromosome,
     })
 }
 

@@ -35,12 +35,16 @@
 //! - Covariance computed in the test population
 //! - Weights from reference/source populations
 
+mod compat;
 mod dating;
 mod exponential_fit;
 mod ld_decay;
 mod weights;
 
-pub use dating::{dates, DatesOptions, DatesResult};
-pub use exponential_fit::{fit_exponential, jackknife_decay_rate, DecayFit, FitOptions};
-pub use ld_decay::{compute_ld_decay, LdBin, LdOptions};
+pub use compat::DatesCompat;
+pub use dating::{dates, DatesOptions, DatesResult, JackknifeBlock};
+pub use exponential_fit::{fit_exponential, weighted_jackknife, DecayFit, FitOptions};
+pub use ld_decay::{
+    compute_ld_decay, compute_ld_decay_by_chromosome, ChromosomeLd, LdBin, LdDecay, LdOptions,
+};
 pub use weights::{compute_weights, WeightResult};

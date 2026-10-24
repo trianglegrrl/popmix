@@ -1,0 +1,14 @@
+genotypename: /home/a/popmix/tests/golden/dates/family_chr20_22.geno
+snpname: /home/a/popmix/tests/golden/dates/family_chr20_22.snp
+indivname: /home/a/popmix/tests/golden/dates/family_chr20_22.ind
+admixlist: admixlist
+binsize: 0.001
+maxdis: 1.0
+seed: 77
+runmode: 1
+chithresh: 0.0
+mincount: 4
+qbin: 10
+runfit: YES
+afffit: YES
+lovalfit: 0.45
