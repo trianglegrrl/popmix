@@ -23,7 +23,7 @@ pub mod threading;
 // Re-exports for convenience
 pub use error::{PopmixError, Result};
 pub use fstats::{
-    f2_estimate, f2_single_snp, BlockAssignment, BlockDefinition, F2Blocks, F2Result, F3Result,
+    f2_estimate, f2_single_snp, BlockAssignment, BlockDefinition, F2Blocks, F2Options, F2Result, F3Result,
     F4Result,
 };
 pub use genotype_matrix::{AlleleFrequencies, GenotypeMatrix};

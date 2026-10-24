@@ -13,8 +13,10 @@ pub mod blocks;
 pub mod f2;
 pub mod f2_blocks;
 pub mod f3_f4;
+pub mod jackknife;
 
 pub use blocks::{BlockAssignment, BlockDefinition};
 pub use f2::{f2_estimate, f2_single_snp, F2Result};
-pub use f2_blocks::F2Blocks;
+pub use f2_blocks::{F2Blocks, F2Options};
+pub use jackknife::{block_jackknife, block_jackknife_cov};
 pub use f3_f4::{F3Result, F4Result, FstResult};

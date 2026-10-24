@@ -1014,6 +1014,12 @@ impl PyF2Blocks {
         self.inner.n_blocks
     }
 
+    /// Number of SNPs in each block (the jackknife weights).
+    #[getter]
+    fn block_lengths(&self) -> Vec<usize> {
+        self.inner.block_lengths.clone()
+    }
+
     /// Get population names.
     #[getter]
     fn populations(&self) -> Vec<String> {
@@ -1277,18 +1283,34 @@ impl PyF2Blocks {
 ///     populations: List of populations to compute F2 for (REQUIRED)
 ///     auto_only: If True (default), only use autosomal SNPs (chr 1-22)
 ///     block_size: Block size in Morgans (default: 0.05 = 5 cM)
+///     maxmiss: Drop SNPs missing in more than this fraction of populations,
+///         as admixtools2 ``maxmiss`` (default: 0, every population needs data)
+///     poly_only: Use only SNPs whose frequency differs between populations,
+///         as admixtools2 ``poly_only = "f2"`` (default: True)
 ///
 /// Returns:
 ///     PyF2Blocks object for computing f2, f3, f4 statistics
 #[pyfunction]
-#[pyo3(signature = (prefix, populations, auto_only=true, block_size=None))]
+#[pyo3(signature = (prefix, populations, auto_only=true, block_size=None, maxmiss=0.0, poly_only=true))]
 fn extract_f2(
     prefix: &str,
     populations: Vec<String>,
     auto_only: bool,
     block_size: Option<f64>,
+    maxmiss: f64,
+    poly_only: bool,
 ) -> PyResult<PyF2Blocks> {
     use std::path::Path;
+
+    if !(0.0..=1.0).contains(&maxmiss) {
+        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+            "maxmiss must be between 0 and 1, got {maxmiss}"
+        )));
+    }
+    let f2_options = popmix_core::F2Options {
+        max_missing: maxmiss,
+        poly_only,
+    };
 
     // Create block definition
     let block_def = match block_size {
@@ -1322,7 +1344,8 @@ fn extract_f2(
         .map_err(to_py_err)?;
 
         // Compute F2 blocks
-        let f2_blocks = F2Blocks::from_allele_frequencies(&af, &block_def);
+        let f2_blocks =
+            F2Blocks::from_allele_frequencies_with_options(&af, &block_def, &f2_options);
 
         return Ok(PyF2Blocks { inner: f2_blocks });
     }
@@ -1342,7 +1365,7 @@ fn extract_f2(
     let af = AlleleFrequencies::from_genotypes_for_populations(&geno, Some(&pop_refs));
 
     // Compute F2 blocks
-    let f2_blocks = F2Blocks::from_allele_frequencies(&af, &block_def);
+    let f2_blocks = F2Blocks::from_allele_frequencies_with_options(&af, &block_def, &f2_options);
 
     Ok(PyF2Blocks { inner: f2_blocks })
 }
@@ -1390,6 +1413,12 @@ struct PyQpWaveResult {
     left_pops: Vec<String>,
     #[pyo3(get)]
     right_pops: Vec<String>,
+    /// f4(left[i+1], left[0]; right[j+1], right[0]), as rows i, columns j.
+    #[pyo3(get)]
+    f4_matrix: Vec<Vec<f64>>,
+    /// Jackknife covariance of the f4 matrix flattened by rows (left first).
+    #[pyo3(get)]
+    f4_covariance: Vec<Vec<f64>>,
 }
 
 #[pymethods]
@@ -1743,11 +1772,14 @@ fn qpwave(
         })
         .collect();
 
+    let rows = |m: &ndarray::Array2<f64>| m.outer_iter().map(|r| r.to_vec()).collect();
     Ok(PyQpWaveResult {
         rank_tests,
         estimated_rank: result.estimated_rank,
         left_pops: left,
         right_pops: right,
+        f4_matrix: rows(&result.f4_matrix.values),
+        f4_covariance: rows(&result.f4_matrix.covariance),
     })
 }
 

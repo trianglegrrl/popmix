@@ -8,16 +8,13 @@
 //! This matrix has dimensions (n-1) x (m-1) because L1 and R1 serve as
 //! reference populations.
 //!
-//! The covariance matrix is computed using the weighted block jackknife
-//! formula from admixtools2, which accounts for variable block sizes:
-//!
-//! h_k = n / block_lengths_k
-//! xtau_k = (est * h_k - loo_k * (h_k - 1) - block_k) / sqrt(h_k - 1)
-//! var = sum(xtau * xtau') / numblocks
+//! The covariance matrix is the weighted block jackknife of admixtools2
+//! (`est_to_loo_nafix` + `jack_pairarr_stats`), with blocks weighted by
+//! their length in SNPs; see [`block_jackknife_cov`].
 
 use ndarray::{Array1, Array2};
 
-use crate::fstats::F2Blocks;
+use crate::fstats::{block_jackknife_cov, F2Blocks};
 use crate::genotypes::PopulationId;
 use crate::Result;
 
@@ -47,11 +44,7 @@ impl F4Matrix {
     ///
     /// # Returns
     /// F4Matrix with values, standard errors, and covariance matrix
-    pub fn from_f2_blocks(
-        f2_blocks: &F2Blocks,
-        left: &[&str],
-        right: &[&str],
-    ) -> Result<Self> {
+    pub fn from_f2_blocks(f2_blocks: &F2Blocks, left: &[&str], right: &[&str]) -> Result<Self> {
         if left.len() < 2 {
             return Err(crate::PopmixError::Validation(
                 "qpWave/qpAdm requires at least 2 left populations".to_string(),
@@ -157,61 +150,12 @@ impl F4Matrix {
             }
         }
 
-        let mut covariance = Array2::zeros((n_stats, n_stats));
-
-        // Find valid blocks (no NaN in any statistic)
-        let valid_blocks: Vec<usize> = (0..n_blocks)
-            .filter(|&k| block_f4s.iter().all(|vals| vals[k].is_finite()))
-            .collect();
-
-        let n_valid = valid_blocks.len();
-        if n_valid < 2 {
-            return Ok(covariance); // Not enough valid blocks
-        }
-
-        // Compute full estimates as mean of block values
-        let mut full_estimates: Vec<f64> = Vec::with_capacity(n_stats);
-        for block_vals in &block_f4s {
-            let total: f64 = valid_blocks.iter().map(|&k| block_vals[k]).sum();
-            full_estimates.push(total / n_valid as f64);
-        }
-
-        // Compute covariance using standard block jackknife formula:
-        // Cov(X, Y) = (n-1)/n * sum_k((loo_X_k - X_mean) * (loo_Y_k - Y_mean))
-        //
-        // This is the standard jackknife covariance for block resampling.
-        // The (n-1)/n factor comes from the jackknife bias correction.
-        let n = n_valid as f64;
-
-        // Compute LOO estimates for each statistic and block
-        let mut loo_estimates: Vec<Vec<f64>> = Vec::with_capacity(n_stats);
-
-        for block_vals in &block_f4s {
-            let total: f64 = valid_blocks.iter().map(|&k| block_vals[k]).sum();
-
-            let loo: Vec<f64> = valid_blocks
-                .iter()
-                .map(|&k| (total - block_vals[k]) / (n - 1.0))
-                .collect();
-            loo_estimates.push(loo);
-        }
-
-        // Compute covariance matrix using standard jackknife formula
-        for i in 0..n_stats {
-            for j in i..n_stats {
-                let cov_sum: f64 = loo_estimates[i]
-                    .iter()
-                    .zip(loo_estimates[j].iter())
-                    .map(|(&loo_i, &loo_j)| {
-                        (loo_i - full_estimates[i]) * (loo_j - full_estimates[j])
-                    })
-                    .sum();
-                // Standard jackknife covariance formula
-                let cov = (n - 1.0) / n * cov_sum;
-                covariance[[i, j]] = cov;
-                covariance[[j, i]] = cov;
-            }
-        }
+        let stats: Vec<Vec<f64>> = block_f4s.iter().map(|b| b.to_vec()).collect();
+        let lengths: Vec<f64> = f2_blocks.block_lengths.iter().map(|&l| l as f64).collect();
+        let covariance = match block_jackknife_cov(&stats, &lengths) {
+            Some((_, cov)) => cov,
+            None => Array2::zeros((n_stats, n_stats)), // Not enough valid blocks
+        };
 
         Ok(covariance)
     }
@@ -284,7 +228,9 @@ mod tests {
         let af = AlleleFrequencies::new(
             freqs,
             counts,
-            pops.iter().map(|s| crate::genotypes::PopulationId::from(*s)).collect(),
+            pops.iter()
+                .map(|s| crate::genotypes::PopulationId::from(*s))
+                .collect(),
             chromosomes,
             positions,
         );

@@ -1,0 +1,787 @@
+{
+  "admixtools_version": "2.0.10",
+  "f3": [
+    {
+      "pop1": "Chimp.REF",
+      "pop2": "French.DG",
+      "pop3": "Mbuti.DG",
+      "est": 0.15876418955791574,
+      "se": 0.00045067328117058086
+    },
+    {
+      "pop1": "Chimp.REF",
+      "pop2": "French.DG",
+      "pop3": "Papuan.DG",
+      "est": 0.20337258971375261,
+      "se": 0.00069326891155976824
+    },
+    {
+      "pop1": "Chimp.REF",
+      "pop2": "French.DG",
+      "pop3": "Yoruba.DG",
+      "est": 0.17060164151338233,
+      "se": 0.00046275928485027805
+    },
+    {
+      "pop1": "Chimp.REF",
+      "pop2": "Han.DG",
+      "pop3": "French.DG",
+      "est": 0.20845838383421098,
+      "se": 0.00066264230930985623
+    },
+    {
+      "pop1": "Chimp.REF",
+      "pop2": "Han.DG",
+      "pop3": "Mbuti.DG",
+      "est": 0.15854518736513551,
+      "se": 0.00046288503096381778
+    },
+    {
+      "pop1": "Chimp.REF",
+      "pop2": "Han.DG",
+      "pop3": "Papuan.DG",
+      "est": 0.21121201556966362,
+      "se": 0.00075980044587974733
+    },
+    {
+      "pop1": "Chimp.REF",
+      "pop2": "Han.DG",
+      "pop3": "Yoruba.DG",
+      "est": 0.17012174976766883,
+      "se": 0.00047335498944233486
+    },
+    {
+      "pop1": "Chimp.REF",
+      "pop2": "Mbuti.DG",
+      "pop3": "Papuan.DG",
+      "est": 0.15663743426324067,
+      "se": 0.00048643843952453624
+    },
+    {
+      "pop1": "Chimp.REF",
+      "pop2": "Yoruba.DG",
+      "pop3": "Mbuti.DG",
+      "est": 0.15753526707059268,
+      "se": 0.00043625479330910213
+    },
+    {
+      "pop1": "Chimp.REF",
+      "pop2": "Yoruba.DG",
+      "pop3": "Papuan.DG",
+      "est": 0.16778505452248185,
+      "se": 0.00051563676235836685
+    },
+    {
+      "pop1": "French.DG",
+      "pop2": "Chimp.REF",
+      "pop3": "Han.DG",
+      "est": 0.012080640749119893,
+      "se": 0.00026977288673420347
+    },
+    {
+      "pop1": "French.DG",
+      "pop2": "Mbuti.DG",
+      "pop3": "Chimp.REF",
+      "est": 0.061774835025415122,
+      "se": 0.00046273017596255107
+    },
+    {
+      "pop1": "French.DG",
+      "pop2": "Mbuti.DG",
+      "pop3": "Han.DG",
+      "est": 0.011861638556339886,
+      "se": 0.00024627045382378707
+    },
+    {
+      "pop1": "French.DG",
+      "pop2": "Mbuti.DG",
+      "pop3": "Papuan.DG",
+      "est": 0.015039679574903276,
+      "se": 0.0003326587225062213
+    },
+    {
+      "pop1": "French.DG",
+      "pop2": "Papuan.DG",
+      "pop3": "Chimp.REF",
+      "est": 0.017166434869578286,
+      "se": 0.00041142123431392431
+    },
+    {
+      "pop1": "French.DG",
+      "pop2": "Papuan.DG",
+      "pop3": "Han.DG",
+      "est": 0.019920066605031001,
+      "se": 0.00033847175102245063
+    },
+    {
+      "pop1": "French.DG",
+      "pop2": "Yoruba.DG",
+      "pop3": "Chimp.REF",
+      "est": 0.049937383069948237,
+      "se": 0.00039986192507851666
+    },
+    {
+      "pop1": "French.DG",
+      "pop2": "Yoruba.DG",
+      "pop3": "Han.DG",
+      "est": 0.011600749003406042,
+      "se": 0.00023302700268429204
+    },
+    {
+      "pop1": "French.DG",
+      "pop2": "Yoruba.DG",
+      "pop3": "Mbuti.DG",
+      "est": 0.048708460582625283,
+      "se": 0.00037352052480103468
+    },
+    {
+      "pop1": "French.DG",
+      "pop2": "Yoruba.DG",
+      "pop3": "Papuan.DG",
+      "est": 0.014349847878677631,
+      "se": 0.000303542069742262
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "French.DG",
+      "pop3": "Chimp.REF",
+      "est": 0.020960360813012637,
+      "se": 0.00031143973260853498
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "French.DG",
+      "pop3": "Mbuti.DG",
+      "est": 0.021179363005792637,
+      "se": 0.00029137260699861075
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "French.DG",
+      "pop3": "Papuan.DG",
+      "est": 0.013120934957101515,
+      "se": 0.00026672351132054825
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "French.DG",
+      "pop3": "Yoruba.DG",
+      "est": 0.021440252558726468,
+      "se": 0.00029376260545433335
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "Mbuti.DG",
+      "pop3": "Chimp.REF",
+      "est": 0.070873557282087857,
+      "se": 0.00055003629933911844
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "Mbuti.DG",
+      "pop3": "Papuan.DG",
+      "est": 0.016298975975664935,
+      "se": 0.00034252216930770999
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "Papuan.DG",
+      "pop3": "Chimp.REF",
+      "est": 0.018206729077559922,
+      "se": 0.00042039070339744736
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "Yoruba.DG",
+      "pop3": "Chimp.REF",
+      "est": 0.059296994879554789,
+      "se": 0.00049225758404187244
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "Yoruba.DG",
+      "pop3": "Mbuti.DG",
+      "est": 0.058287074585012033,
+      "se": 0.00047761988839739122
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "Yoruba.DG",
+      "pop3": "Papuan.DG",
+      "est": 0.01587003383237312,
+      "se": 0.00032623210847073828
+    },
+    {
+      "pop1": "Mbuti.DG",
+      "pop2": "Chimp.REF",
+      "pop3": "French.DG",
+      "est": 0.010326296834152442,
+      "se": 0.00025272740834868463
+    },
+    {
+      "pop1": "Mbuti.DG",
+      "pop2": "Chimp.REF",
+      "pop3": "Han.DG",
+      "est": 0.010545299026932468,
+      "se": 0.00026790886662285456
+    },
+    {
+      "pop1": "Mbuti.DG",
+      "pop2": "Chimp.REF",
+      "pop3": "Yoruba.DG",
+      "est": 0.011555219321475307,
+      "se": 0.00020053441310614471
+    },
+    {
+      "pop1": "Mbuti.DG",
+      "pop2": "French.DG",
+      "pop3": "Yoruba.DG",
+      "est": 0.023392671276942115,
+      "se": 0.00027064820538524425
+    },
+    {
+      "pop1": "Mbuti.DG",
+      "pop2": "Han.DG",
+      "pop3": "French.DG",
+      "est": 0.060239493303227497,
+      "se": 0.00049221722081707728
+    },
+    {
+      "pop1": "Mbuti.DG",
+      "pop2": "Han.DG",
+      "pop3": "Yoruba.DG",
+      "est": 0.023131781724008284,
+      "se": 0.0002748671304752571
+    },
+    {
+      "pop1": "Mbuti.DG",
+      "pop2": "Papuan.DG",
+      "pop3": "Chimp.REF",
+      "est": 0.012453052128827453,
+      "se": 0.0003094868080974938
+    },
+    {
+      "pop1": "Mbuti.DG",
+      "pop2": "Papuan.DG",
+      "pop3": "French.DG",
+      "est": 0.057061452284664201,
+      "se": 0.00048528165309461566
+    },
+    {
+      "pop1": "Mbuti.DG",
+      "pop2": "Papuan.DG",
+      "pop3": "Han.DG",
+      "est": 0.065119880333355376,
+      "se": 0.00056940192715327254
+    },
+    {
+      "pop1": "Mbuti.DG",
+      "pop2": "Papuan.DG",
+      "pop3": "Yoruba.DG",
+      "est": 0.022702839580716453,
+      "se": 0.00027896597797027372
+    },
+    {
+      "pop1": "Papuan.DG",
+      "pop2": "Chimp.REF",
+      "pop3": "French.DG",
+      "est": 0.041769811026722926,
+      "se": 0.00050909664063555188
+    },
+    {
+      "pop1": "Papuan.DG",
+      "pop2": "Chimp.REF",
+      "pop3": "Han.DG",
+      "est": 0.033930385170811837,
+      "se": 0.00046456218689122961
+    },
+    {
+      "pop1": "Papuan.DG",
+      "pop2": "Chimp.REF",
+      "pop3": "Mbuti.DG",
+      "est": 0.088504966477234603,
+      "se": 0.00069413735121277343
+    },
+    {
+      "pop1": "Papuan.DG",
+      "pop2": "Chimp.REF",
+      "pop3": "Yoruba.DG",
+      "est": 0.077357346217993492,
+      "se": 0.0006406158325065757
+    },
+    {
+      "pop1": "Papuan.DG",
+      "pop2": "French.DG",
+      "pop3": "Mbuti.DG",
+      "est": 0.043896566321397955,
+      "se": 0.00044626140769980023
+    },
+    {
+      "pop1": "Papuan.DG",
+      "pop2": "French.DG",
+      "pop3": "Yoruba.DG",
+      "est": 0.044586398017623603,
+      "se": 0.00044383490515492681
+    },
+    {
+      "pop1": "Papuan.DG",
+      "pop2": "Han.DG",
+      "pop3": "French.DG",
+      "est": 0.039016179291270242,
+      "se": 0.00043054895704060941
+    },
+    {
+      "pop1": "Papuan.DG",
+      "pop2": "Han.DG",
+      "pop3": "Mbuti.DG",
+      "est": 0.035838138272706842,
+      "se": 0.00041689276315999151
+    },
+    {
+      "pop1": "Papuan.DG",
+      "pop2": "Han.DG",
+      "pop3": "Yoruba.DG",
+      "est": 0.03626708041599859,
+      "se": 0.00040495004647473422
+    },
+    {
+      "pop1": "Papuan.DG",
+      "pop2": "Yoruba.DG",
+      "pop3": "Mbuti.DG",
+      "est": 0.07825517902534572,
+      "se": 0.00058270438426410022
+    },
+    {
+      "pop1": "Yoruba.DG",
+      "pop2": "Chimp.REF",
+      "pop3": "French.DG",
+      "est": 0.0015867360820633009,
+      "se": 0.00019034658820316056
+    },
+    {
+      "pop1": "Yoruba.DG",
+      "pop2": "Chimp.REF",
+      "pop3": "Han.DG",
+      "est": 0.0020666278277771586,
+      "se": 0.0002060058075913528
+    },
+    {
+      "pop1": "Yoruba.DG",
+      "pop2": "Han.DG",
+      "pop3": "French.DG",
+      "est": 0.03992337014860544,
+      "se": 0.0003773092372760541
+    },
+    {
+      "pop1": "Yoruba.DG",
+      "pop2": "Mbuti.DG",
+      "pop3": "Chimp.REF",
+      "est": 0.014653110524852971,
+      "se": 0.00018811121033587434
+    },
+    {
+      "pop1": "Yoruba.DG",
+      "pop2": "Mbuti.DG",
+      "pop3": "French.DG",
+      "est": 0.0028156585693861571,
+      "se": 0.0001325114912303056
+    },
+    {
+      "pop1": "Yoruba.DG",
+      "pop2": "Mbuti.DG",
+      "pop3": "Han.DG",
+      "est": 0.0030765481223199971,
+      "se": 0.00013963330159007017
+    },
+    {
+      "pop1": "Yoruba.DG",
+      "pop2": "Mbuti.DG",
+      "pop3": "Papuan.DG",
+      "est": 0.0035054902656118181,
+      "se": 0.00015707215395249931
+    },
+    {
+      "pop1": "Yoruba.DG",
+      "pop2": "Papuan.DG",
+      "pop3": "Chimp.REF",
+      "est": 0.0044033230729639697,
+      "se": 0.00028218560195099931
+    },
+    {
+      "pop1": "Yoruba.DG",
+      "pop2": "Papuan.DG",
+      "pop3": "French.DG",
+      "est": 0.037174271273333934,
+      "se": 0.0003903457930381678
+    },
+    {
+      "pop1": "Yoruba.DG",
+      "pop2": "Papuan.DG",
+      "pop3": "Han.DG",
+      "est": 0.045493588874958864,
+      "se": 0.00048050101695297438
+    }
+  ],
+  "f4": [
+    {
+      "pop1": "Han.DG",
+      "pop2": "French.DG",
+      "pop3": "Yoruba.DG",
+      "pop4": "Mbuti.DG",
+      "est": -0.00026088955293384524,
+      "se": 9.722672463329447e-05
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "Yoruba.DG",
+      "pop3": "French.DG",
+      "pop4": "Mbuti.DG",
+      "est": 0.036846822026285468,
+      "se": 0.0003900317701132272
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "Mbuti.DG",
+      "pop3": "French.DG",
+      "pop4": "Yoruba.DG",
+      "est": 0.037107711579219271,
+      "se": 0.00038088382578897414
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "French.DG",
+      "pop3": "Yoruba.DG",
+      "pop4": "Papuan.DG",
+      "est": -0.0083193176016249457,
+      "se": 0.00031980382087107583
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "Yoruba.DG",
+      "pop3": "French.DG",
+      "pop4": "Papuan.DG",
+      "est": -0.0055702187263533603,
+      "se": 0.00037331393375073007
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "Papuan.DG",
+      "pop3": "French.DG",
+      "pop4": "Yoruba.DG",
+      "est": 0.0027490988752715897,
+      "se": 0.00025258715488410389
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "French.DG",
+      "pop3": "Yoruba.DG",
+      "pop4": "Chimp.REF",
+      "est": -0.00047989174571385561,
+      "se": 0.00014922653484493535
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "Yoruba.DG",
+      "pop3": "French.DG",
+      "pop4": "Chimp.REF",
+      "est": 0.037856742320828349,
+      "se": 0.00041577326248634568
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "Chimp.REF",
+      "pop3": "French.DG",
+      "pop4": "Yoruba.DG",
+      "est": 0.038336634066542169,
+      "se": 0.00040633319450551032
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "French.DG",
+      "pop3": "Mbuti.DG",
+      "pop4": "Papuan.DG",
+      "est": -0.0080584280486911027,
+      "se": 0.00032549427129654411
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "Mbuti.DG",
+      "pop3": "French.DG",
+      "pop4": "Papuan.DG",
+      "est": -0.0048803870301277015,
+      "se": 0.00039077982861335854
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "Papuan.DG",
+      "pop3": "French.DG",
+      "pop4": "Mbuti.DG",
+      "est": 0.0031780410185634055,
+      "se": 0.00028439387774286008
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "French.DG",
+      "pop3": "Mbuti.DG",
+      "pop4": "Chimp.REF",
+      "est": -0.00021900219278000999,
+      "se": 0.00014204743710878761
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "Mbuti.DG",
+      "pop3": "French.DG",
+      "pop4": "Chimp.REF",
+      "est": 0.049694194276295116,
+      "se": 0.0004770382754840183
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "Chimp.REF",
+      "pop3": "French.DG",
+      "pop4": "Mbuti.DG",
+      "est": 0.049913196469075161,
+      "se": 0.0004781148206295756
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "French.DG",
+      "pop3": "Papuan.DG",
+      "pop4": "Chimp.REF",
+      "est": 0.0078394258559110874,
+      "se": 0.00034531886780518617
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "Papuan.DG",
+      "pop3": "French.DG",
+      "pop4": "Chimp.REF",
+      "est": 0.0050857941204583996,
+      "se": 0.00037180616556944669
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "Chimp.REF",
+      "pop3": "French.DG",
+      "pop4": "Papuan.DG",
+      "est": -0.0027536317354526921,
+      "se": 0.00047150741562397726
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "Yoruba.DG",
+      "pop3": "Mbuti.DG",
+      "pop4": "Papuan.DG",
+      "est": -0.042417040752638809,
+      "se": 0.00048648203331620016
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "Mbuti.DG",
+      "pop3": "Yoruba.DG",
+      "pop4": "Papuan.DG",
+      "est": -0.041988098609347047,
+      "se": 0.00048641870477107718
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "Papuan.DG",
+      "pop3": "Yoruba.DG",
+      "pop4": "Mbuti.DG",
+      "est": 0.00042894214329181442,
+      "se": 0.0001259830676913187
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "Yoruba.DG",
+      "pop3": "Mbuti.DG",
+      "pop4": "Chimp.REF",
+      "est": 0.001009920294542842,
+      "se": 0.00018784393405000979
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "Mbuti.DG",
+      "pop3": "Yoruba.DG",
+      "pop4": "Chimp.REF",
+      "est": 0.012586482697075812,
+      "se": 0.00026158776939648535
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "Chimp.REF",
+      "pop3": "Yoruba.DG",
+      "pop4": "Mbuti.DG",
+      "est": 0.011576562402532976,
+      "se": 0.00023125025720651413
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "Yoruba.DG",
+      "pop3": "Papuan.DG",
+      "pop4": "Chimp.REF",
+      "est": 0.043426961047181696,
+      "se": 0.00049209726583990092
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "Papuan.DG",
+      "pop3": "Yoruba.DG",
+      "pop4": "Chimp.REF",
+      "est": 0.0023366952451868107,
+      "se": 0.00023604866369715178
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "Chimp.REF",
+      "pop3": "Yoruba.DG",
+      "pop4": "Papuan.DG",
+      "est": -0.041090265801994881,
+      "se": 0.00054763647328790637
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "Mbuti.DG",
+      "pop3": "Papuan.DG",
+      "pop4": "Chimp.REF",
+      "est": 0.054574581306422815,
+      "se": 0.00054113112670097212
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "Papuan.DG",
+      "pop3": "Mbuti.DG",
+      "pop4": "Chimp.REF",
+      "est": 0.0019077531018949967,
+      "se": 0.00020705899889866334
+    },
+    {
+      "pop1": "Han.DG",
+      "pop2": "Chimp.REF",
+      "pop3": "Mbuti.DG",
+      "pop4": "Papuan.DG",
+      "est": -0.052666828204527838,
+      "se": 0.00059335721848170417
+    },
+    {
+      "pop1": "French.DG",
+      "pop2": "Yoruba.DG",
+      "pop3": "Mbuti.DG",
+      "pop4": "Papuan.DG",
+      "est": -0.03435861270394773,
+      "se": 0.0003909357537617374
+    },
+    {
+      "pop1": "French.DG",
+      "pop2": "Mbuti.DG",
+      "pop3": "Yoruba.DG",
+      "pop4": "Papuan.DG",
+      "est": -0.033668781007722068,
+      "se": 0.00040285715795232907
+    },
+    {
+      "pop1": "French.DG",
+      "pop2": "Papuan.DG",
+      "pop3": "Yoruba.DG",
+      "pop4": "Mbuti.DG",
+      "est": 0.00068983169622565961,
+      "se": 0.00013183582122938776
+    },
+    {
+      "pop1": "French.DG",
+      "pop2": "Yoruba.DG",
+      "pop3": "Mbuti.DG",
+      "pop4": "Chimp.REF",
+      "est": 0.0012289224873228532,
+      "se": 0.00016832177053788616
+    },
+    {
+      "pop1": "French.DG",
+      "pop2": "Mbuti.DG",
+      "pop3": "Yoruba.DG",
+      "pop4": "Chimp.REF",
+      "est": 0.013066374442789666,
+      "se": 0.00024973265993872537
+    },
+    {
+      "pop1": "French.DG",
+      "pop2": "Chimp.REF",
+      "pop3": "Yoruba.DG",
+      "pop4": "Mbuti.DG",
+      "est": 0.011837451955466805,
+      "se": 0.00022200363594878283
+    },
+    {
+      "pop1": "French.DG",
+      "pop2": "Yoruba.DG",
+      "pop3": "Papuan.DG",
+      "pop4": "Chimp.REF",
+      "est": 0.035587535191270558,
+      "se": 0.00041656168747518705
+    },
+    {
+      "pop1": "French.DG",
+      "pop2": "Papuan.DG",
+      "pop3": "Yoruba.DG",
+      "pop4": "Chimp.REF",
+      "est": 0.002816586990900666,
+      "se": 0.00025348504233357275
+    },
+    {
+      "pop1": "French.DG",
+      "pop2": "Chimp.REF",
+      "pop3": "Yoruba.DG",
+      "pop4": "Papuan.DG",
+      "est": -0.032770948200369986,
+      "se": 0.00047657684019315234
+    },
+    {
+      "pop1": "French.DG",
+      "pop2": "Mbuti.DG",
+      "pop3": "Papuan.DG",
+      "pop4": "Chimp.REF",
+      "est": 0.046735155450511802,
+      "se": 0.0004743516740173018
+    },
+    {
+      "pop1": "French.DG",
+      "pop2": "Papuan.DG",
+      "pop3": "Mbuti.DG",
+      "pop4": "Chimp.REF",
+      "est": 0.0021267552946750089,
+      "se": 0.0002238101657705179
+    },
+    {
+      "pop1": "French.DG",
+      "pop2": "Chimp.REF",
+      "pop3": "Mbuti.DG",
+      "pop4": "Papuan.DG",
+      "est": -0.044608400155836801,
+      "se": 0.00051903226031420498
+    },
+    {
+      "pop1": "Yoruba.DG",
+      "pop2": "Mbuti.DG",
+      "pop3": "Papuan.DG",
+      "pop4": "Chimp.REF",
+      "est": 0.011147620259241148,
+      "se": 0.00023265861769946304
+    },
+    {
+      "pop1": "Yoruba.DG",
+      "pop2": "Papuan.DG",
+      "pop3": "Mbuti.DG",
+      "pop4": "Chimp.REF",
+      "est": 0.00089783280735215431,
+      "se": 0.0002449517851156218
+    },
+    {
+      "pop1": "Yoruba.DG",
+      "pop2": "Chimp.REF",
+      "pop3": "Mbuti.DG",
+      "pop4": "Papuan.DG",
+      "est": -0.010249787451889005,
+      "se": 0.00032592694904785851
+    }
+  ]
+}

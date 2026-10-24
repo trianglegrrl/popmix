@@ -1,0 +1,337 @@
+{
+  "admixtools_version": "2.0.10",
+  "f3": [
+    {
+      "pop1": "Chimp.REF",
+      "pop2": "French.DG",
+      "pop3": "Mbuti.DG",
+      "est": 0.16646973234070328,
+      "se": 0.00046476612871134727
+    },
+    {
+      "pop1": "Chimp.REF",
+      "pop2": "Russia_Samara_EBA_Yamnaya.AG",
+      "pop3": "French.DG",
+      "est": 0.22935855601963506,
+      "se": 0.00071391688881728582
+    },
+    {
+      "pop1": "Chimp.REF",
+      "pop2": "Russia_Samara_EBA_Yamnaya.AG",
+      "pop3": "Mbuti.DG",
+      "est": 0.16637290160457013,
+      "se": 0.0004790879646500957
+    },
+    {
+      "pop1": "Chimp.REF",
+      "pop2": "Russia_Samara_EBA_Yamnaya.AG",
+      "pop3": "Sardinian.DG",
+      "est": 0.22706851904697939,
+      "se": 0.00070238561484752037
+    },
+    {
+      "pop1": "Chimp.REF",
+      "pop2": "Sardinian.DG",
+      "pop3": "French.DG",
+      "est": 0.23031507399936699,
+      "se": 0.00068282650114314921
+    },
+    {
+      "pop1": "Chimp.REF",
+      "pop2": "Sardinian.DG",
+      "pop3": "Mbuti.DG",
+      "est": 0.16644166742825303,
+      "se": 0.00046304185903590889
+    },
+    {
+      "pop1": "French.DG",
+      "pop2": "Chimp.REF",
+      "pop3": "Russia_Samara_EBA_Yamnaya.AG",
+      "est": 0.0016843337254898623,
+      "se": 0.00018610788228694839
+    },
+    {
+      "pop1": "French.DG",
+      "pop2": "Chimp.REF",
+      "pop3": "Sardinian.DG",
+      "est": 0.00072781574575818376,
+      "se": 0.00010171757376831922
+    },
+    {
+      "pop1": "French.DG",
+      "pop2": "Mbuti.DG",
+      "pop3": "Chimp.REF",
+      "est": 0.064573157404421877,
+      "se": 0.00049129689880923299
+    },
+    {
+      "pop1": "French.DG",
+      "pop2": "Mbuti.DG",
+      "pop3": "Russia_Samara_EBA_Yamnaya.AG",
+      "est": 0.0015875029893567022,
+      "se": 0.00015619552576360963
+    },
+    {
+      "pop1": "French.DG",
+      "pop2": "Mbuti.DG",
+      "pop3": "Sardinian.DG",
+      "est": 0.00069975083330790181,
+      "se": 9.3873762380357887e-05
+    },
+    {
+      "pop1": "French.DG",
+      "pop2": "Russia_Samara_EBA_Yamnaya.AG",
+      "pop3": "Sardinian.DG",
+      "est": -0.0015622212268975998,
+      "se": 6.6857341491453252e-05
+    },
+    {
+      "pop1": "Mbuti.DG",
+      "pop2": "Chimp.REF",
+      "pop3": "French.DG",
+      "est": 0.010855794415314132,
+      "se": 0.00026508019501931971
+    },
+    {
+      "pop1": "Mbuti.DG",
+      "pop2": "Chimp.REF",
+      "pop3": "Russia_Samara_EBA_Yamnaya.AG",
+      "est": 0.010952625151447301,
+      "se": 0.00028369116937045563
+    },
+    {
+      "pop1": "Mbuti.DG",
+      "pop2": "Chimp.REF",
+      "pop3": "Sardinian.DG",
+      "est": 0.010883859327764412,
+      "se": 0.00026443512209627611
+    },
+    {
+      "pop1": "Mbuti.DG",
+      "pop2": "Russia_Samara_EBA_Yamnaya.AG",
+      "pop3": "French.DG",
+      "est": 0.07384144883037938,
+      "se": 0.00051686668457026879
+    },
+    {
+      "pop1": "Mbuti.DG",
+      "pop2": "Russia_Samara_EBA_Yamnaya.AG",
+      "pop3": "Sardinian.DG",
+      "est": 0.07157947677017383,
+      "se": 0.00051512299729200139
+    },
+    {
+      "pop1": "Mbuti.DG",
+      "pop2": "Sardinian.DG",
+      "pop3": "French.DG",
+      "est": 0.074729200986428101,
+      "se": 0.00050480986963257228
+    },
+    {
+      "pop1": "Russia_Samara_EBA_Yamnaya.AG",
+      "pop2": "French.DG",
+      "pop3": "Chimp.REF",
+      "est": 0.010394440820321293,
+      "se": 0.00024322231872865656
+    },
+    {
+      "pop1": "Russia_Samara_EBA_Yamnaya.AG",
+      "pop2": "French.DG",
+      "pop3": "Mbuti.DG",
+      "est": 0.010491271556454441,
+      "se": 0.00022148811527420871
+    },
+    {
+      "pop1": "Russia_Samara_EBA_Yamnaya.AG",
+      "pop2": "Mbuti.DG",
+      "pop3": "Chimp.REF",
+      "est": 0.073380095235386453,
+      "se": 0.00056985323040424185
+    },
+    {
+      "pop1": "Russia_Samara_EBA_Yamnaya.AG",
+      "pop2": "Sardinian.DG",
+      "pop3": "Chimp.REF",
+      "est": 0.012684477792977053,
+      "se": 0.00026492844993451087
+    },
+    {
+      "pop1": "Russia_Samara_EBA_Yamnaya.AG",
+      "pop2": "Sardinian.DG",
+      "pop3": "French.DG",
+      "est": 0.013640995772708758,
+      "se": 0.0002142405241614759
+    },
+    {
+      "pop1": "Russia_Samara_EBA_Yamnaya.AG",
+      "pop2": "Sardinian.DG",
+      "pop3": "Mbuti.DG",
+      "est": 0.012753243616659927,
+      "se": 0.00024880926134114833
+    },
+    {
+      "pop1": "Sardinian.DG",
+      "pop2": "Chimp.REF",
+      "pop3": "Russia_Samara_EBA_Yamnaya.AG",
+      "est": 0.0060895343982424136,
+      "se": 0.00021844997097128526
+    },
+    {
+      "pop1": "Sardinian.DG",
+      "pop2": "French.DG",
+      "pop3": "Chimp.REF",
+      "est": 0.0028429794458549461,
+      "se": 0.00011320947131063114
+    },
+    {
+      "pop1": "Sardinian.DG",
+      "pop2": "French.DG",
+      "pop3": "Mbuti.DG",
+      "est": 0.0028710443583052254,
+      "se": 0.00010222855190605817
+    },
+    {
+      "pop1": "Sardinian.DG",
+      "pop2": "French.DG",
+      "pop3": "Russia_Samara_EBA_Yamnaya.AG",
+      "est": 0.0051330164185107302,
+      "se": 9.7408930438761546e-05
+    },
+    {
+      "pop1": "Sardinian.DG",
+      "pop2": "Mbuti.DG",
+      "pop3": "Chimp.REF",
+      "est": 0.066716386016968846,
+      "se": 0.00048097403057810185
+    },
+    {
+      "pop1": "Sardinian.DG",
+      "pop2": "Mbuti.DG",
+      "pop3": "Russia_Samara_EBA_Yamnaya.AG",
+      "est": 0.0060207685745595329,
+      "se": 0.00018928651433431729
+    }
+  ],
+  "f4": [
+    {
+      "pop1": "Russia_Samara_EBA_Yamnaya.AG",
+      "pop2": "Sardinian.DG",
+      "pop3": "French.DG",
+      "pop4": "Mbuti.DG",
+      "est": -0.00088775215604879976,
+      "se": 0.00017626955150070164
+    },
+    {
+      "pop1": "Russia_Samara_EBA_Yamnaya.AG",
+      "pop2": "French.DG",
+      "pop3": "Sardinian.DG",
+      "pop4": "Mbuti.DG",
+      "est": -0.0031497242162543001,
+      "se": 0.0001597971074086072
+    },
+    {
+      "pop1": "Russia_Samara_EBA_Yamnaya.AG",
+      "pop2": "Mbuti.DG",
+      "pop3": "Sardinian.DG",
+      "pop4": "French.DG",
+      "est": -0.0022619720602055013,
+      "se": 0.0001087199747242579
+    },
+    {
+      "pop1": "Russia_Samara_EBA_Yamnaya.AG",
+      "pop2": "Sardinian.DG",
+      "pop3": "French.DG",
+      "pop4": "Chimp.REF",
+      "est": -0.00095651797973167745,
+      "se": 0.00020642324544044787
+    },
+    {
+      "pop1": "Russia_Samara_EBA_Yamnaya.AG",
+      "pop2": "French.DG",
+      "pop3": "Sardinian.DG",
+      "pop4": "Chimp.REF",
+      "est": -0.0032465549523874623,
+      "se": 0.00018944443213266565
+    },
+    {
+      "pop1": "Russia_Samara_EBA_Yamnaya.AG",
+      "pop2": "Chimp.REF",
+      "pop3": "Sardinian.DG",
+      "pop4": "French.DG",
+      "est": -0.0022900369726557832,
+      "se": 0.00011378855398498484
+    },
+    {
+      "pop1": "Russia_Samara_EBA_Yamnaya.AG",
+      "pop2": "Sardinian.DG",
+      "pop3": "Mbuti.DG",
+      "pop4": "Chimp.REF",
+      "est": -6.8765823682877895e-05,
+      "se": 0.00012843142594737584
+    },
+    {
+      "pop1": "Russia_Samara_EBA_Yamnaya.AG",
+      "pop2": "Mbuti.DG",
+      "pop3": "Sardinian.DG",
+      "pop4": "Chimp.REF",
+      "est": 0.060626851618726461,
+      "se": 0.00050728796418159962
+    },
+    {
+      "pop1": "Russia_Samara_EBA_Yamnaya.AG",
+      "pop2": "Chimp.REF",
+      "pop3": "Sardinian.DG",
+      "pop4": "Mbuti.DG",
+      "est": 0.06069561744240938,
+      "se": 0.00048893625209072106
+    },
+    {
+      "pop1": "Russia_Samara_EBA_Yamnaya.AG",
+      "pop2": "French.DG",
+      "pop3": "Mbuti.DG",
+      "pop4": "Chimp.REF",
+      "est": -9.683073613316089e-05,
+      "se": 0.00011827218507797738
+    },
+    {
+      "pop1": "Russia_Samara_EBA_Yamnaya.AG",
+      "pop2": "Mbuti.DG",
+      "pop3": "French.DG",
+      "pop4": "Chimp.REF",
+      "est": 0.062888823678932018,
+      "se": 0.00051326138482091666
+    },
+    {
+      "pop1": "Russia_Samara_EBA_Yamnaya.AG",
+      "pop2": "Chimp.REF",
+      "pop3": "French.DG",
+      "pop4": "Mbuti.DG",
+      "est": 0.062985654415065151,
+      "se": 0.00050102536242608588
+    },
+    {
+      "pop1": "Sardinian.DG",
+      "pop2": "French.DG",
+      "pop3": "Mbuti.DG",
+      "pop4": "Chimp.REF",
+      "est": -2.8064912450283263e-05,
+      "se": 6.7085118405549646e-05
+    },
+    {
+      "pop1": "Sardinian.DG",
+      "pop2": "Mbuti.DG",
+      "pop3": "French.DG",
+      "pop4": "Chimp.REF",
+      "est": 0.063845341658663693,
+      "se": 0.00047738877159666306
+    },
+    {
+      "pop1": "Sardinian.DG",
+      "pop2": "Chimp.REF",
+      "pop3": "French.DG",
+      "pop4": "Mbuti.DG",
+      "est": 0.063873406571113858,
+      "se": 0.00048437547300753651
+    }
+  ]
+}

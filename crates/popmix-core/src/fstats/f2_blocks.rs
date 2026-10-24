@@ -8,11 +8,12 @@
 //! - Block weights (number of valid SNPs per block per pair)
 //! - Population names and indices
 
-use ndarray::Array2;
+use ndarray::{Array2, Axis};
 use rayon::prelude::*;
 
 use crate::fstats::blocks::BlockDefinition;
 use crate::fstats::f2::f2_single_snp;
+use crate::fstats::jackknife::block_jackknife;
 use crate::genotype_matrix::AlleleFrequencies;
 use crate::genotypes::PopulationId;
 
@@ -53,17 +54,77 @@ pub struct F2Blocks {
     pub block_lengths: Vec<usize>,
 }
 
+/// Which SNPs go into the f2 blocks, as in admixtools2 `extract_f2`.
+#[derive(Debug, Clone)]
+pub struct F2Options {
+    /// Drop SNPs missing in more than this fraction of the populations
+    /// (admixtools2 `maxmiss`). Default: 0, so every population must have
+    /// data, and all f-statistics are computed on the same SNPs.
+    pub max_missing: f64,
+    /// Use only SNPs whose frequency differs between populations
+    /// (admixtools2 `poly_only = "f2"`). Default: true.
+    pub poly_only: bool,
+}
+
+impl Default for F2Options {
+    fn default() -> Self {
+        F2Options {
+            max_missing: 0.0,
+            poly_only: true,
+        }
+    }
+}
+
+/// admixtools2 `cpp_is_polymorphic`: some two observed frequencies differ.
+fn is_polymorphic(freqs: ndarray::ArrayView1<f64>) -> bool {
+    let mut observed = freqs.iter().filter(|f| f.is_finite());
+    match observed.next() {
+        Some(first) => observed.any(|f| f != first),
+        None => false,
+    }
+}
+
+/// Rows of `af` kept by admixtools2 `discard_from_aftable` (maxmiss) and,
+/// if asked, `cpp_is_polymorphic`.
+fn kept_snps(af: &AlleleFrequencies, opts: &F2Options) -> Vec<usize> {
+    let n_pops = af.populations.len() as f64;
+    (0..af.snps.len())
+        .filter(|&i| {
+            let missing = af.counts.row(i).iter().filter(|&&c| c == 0).count() as f64;
+            missing / n_pops <= opts.max_missing
+                && (!opts.poly_only || is_polymorphic(af.frequencies.row(i)))
+        })
+        .collect()
+}
+
 impl F2Blocks {
-    /// Compute F2 blocks from allele frequencies.
+    /// Compute F2 blocks from allele frequencies with the admixtools2
+    /// default SNP selection ([`F2Options::default`]).
     ///
     /// # Arguments
     /// * `af` - Allele frequencies for all populations
     /// * `block_def` - Block definition (size in Morgans)
-    /// * `snps` - SNP metadata for block assignment
-    pub fn from_allele_frequencies(
+    pub fn from_allele_frequencies(af: &AlleleFrequencies, block_def: &BlockDefinition) -> Self {
+        Self::from_allele_frequencies_with_options(af, block_def, &F2Options::default())
+    }
+
+    /// Compute F2 blocks from allele frequencies.
+    ///
+    /// SNPs are selected first, then split into blocks, as in admixtools2:
+    /// block boundaries depend on which SNPs are kept.
+    pub fn from_allele_frequencies_with_options(
         af: &AlleleFrequencies,
         block_def: &BlockDefinition,
+        opts: &F2Options,
     ) -> Self {
+        let keep = kept_snps(af, opts);
+        let kept = AlleleFrequencies {
+            frequencies: af.frequencies.select(Axis(0), &keep),
+            counts: af.counts.select(Axis(0), &keep),
+            populations: af.populations.clone(),
+            snps: keep.iter().map(|&i| af.snps[i].clone()).collect(),
+        };
+        let af = &kept;
         let populations = af.populations.clone();
         let n_pops = populations.len();
         let n_pairs = n_pops * (n_pops + 1) / 2; // Including self-pairs for verification
@@ -130,6 +191,11 @@ impl F2Blocks {
         }
     }
 
+    /// Block lengths in SNPs, as jackknife weights.
+    pub(crate) fn block_lengths_f64(&self) -> Vec<f64> {
+        self.block_lengths.iter().map(|&l| l as f64).collect()
+    }
+
     /// Get the number of populations.
     pub fn n_populations(&self) -> usize {
         self.populations.len()
@@ -162,50 +228,35 @@ impl F2Blocks {
     ///
     /// Returns (estimate, std_err, n_snps).
     ///
-    /// The estimate is the simple mean of block means, matching admixtools2 behavior.
-    /// This gives equal weight to each block regardless of SNP count.
+    /// The estimate and standard error are the weighted block jackknife of
+    /// admixtools2 `f2()`: blocks are weighted by their length in SNPs.
     ///
     /// For self-comparisons (pop_a == pop_b), returns 0.0 to match admixtools2.
     pub fn f2(&self, pop_a: &str, pop_b: &str) -> Option<(f64, f64, usize)> {
         let idx_a = self.pop_index(pop_a)?;
         let idx_b = self.pop_index(pop_b)?;
+        let pair_idx = self.pair_index(idx_a, idx_b);
+        let total_snps: usize = (0..self.n_blocks)
+            .map(|b| self.block_weights[[b, pair_idx]] as usize)
+            .sum();
 
         // Self-F2 is defined as 0 (matching admixtools2)
         if idx_a == idx_b {
-            let pair_idx = self.pair_index(idx_a, idx_b);
-            let mut total_snps = 0usize;
-            for block_idx in 0..self.n_blocks {
-                total_snps += self.block_weights[[block_idx, pair_idx]] as usize;
-            }
             return Some((0.0, 0.0, total_snps));
         }
 
-        let pair_idx = self.pair_index(idx_a, idx_b);
-
-        // Compute block means and count valid blocks
-        let mut block_means = Vec::with_capacity(self.n_blocks);
-        let mut total_snps = 0usize;
-
-        for block_idx in 0..self.n_blocks {
-            let sum = self.block_sums[[block_idx, pair_idx]];
-            let weight = self.block_weights[[block_idx, pair_idx]];
-
-            if weight > 0.0 {
-                block_means.push(sum / weight);
-                total_snps += weight as usize;
-            }
-        }
-
-        if block_means.is_empty() {
-            return None;
-        }
-
-        // Simple mean of block means (admixtools2 style)
-        let estimate: f64 = block_means.iter().sum::<f64>() / block_means.len() as f64;
-
-        // Compute jackknife standard error using block means
-        let std_err = self.jackknife_std_err_from_means(&block_means, estimate);
-
+        // Block means; a block with no SNPs for this pair is NA in admixtools2
+        let block_means: Vec<f64> = (0..self.n_blocks)
+            .map(|b| {
+                let weight = self.block_weights[[b, pair_idx]];
+                if weight > 0.0 {
+                    self.block_sums[[b, pair_idx]] / weight
+                } else {
+                    f64::NAN
+                }
+            })
+            .collect();
+        let (estimate, std_err) = block_jackknife(&block_means, &self.block_lengths_f64())?;
         Some((estimate, std_err, total_snps))
     }
 
@@ -219,29 +270,6 @@ impl F2Blocks {
         let weight = self.block_weights[[block_idx, pair_idx]];
 
         Some((sum, weight))
-    }
-
-    /// Compute jackknife standard error from block means.
-    fn jackknife_std_err_from_means(&self, block_means: &[f64], full_estimate: f64) -> f64 {
-        let n = block_means.len();
-        if n < 2 {
-            return 0.0;
-        }
-
-        let total: f64 = block_means.iter().sum();
-        let mut sum_sq_diff = 0.0;
-
-        for &block_mean in block_means {
-            // Leave-one-out estimate (mean of remaining blocks)
-            let loo_estimate = (total - block_mean) / (n - 1) as f64;
-            let diff = loo_estimate - full_estimate;
-            sum_sq_diff += diff * diff;
-        }
-
-        // Jackknife variance formula: (n-1)/n * sum((x_i - x_bar)^2)
-        let n_f64 = n as f64;
-        let variance = (n_f64 - 1.0) / n_f64 * sum_sq_diff;
-        variance.sqrt()
     }
 
     /// Get block-level f2 values for a pair of populations.
@@ -449,6 +477,121 @@ mod tests {
 
         let geno = GenotypeMatrix::new(data, samples, snps).unwrap();
         AlleleFrequencies::from_genotypes(&geno)
+    }
+
+    /// Allele frequencies for PopA, PopB, PopC at SNPs on chromosome 1.
+    /// `rows` holds (position in Morgans, [(freq, count); 3]); count 0 is missing.
+    fn af_from(rows: &[(f64, [(f64, u32); 3])]) -> AlleleFrequencies {
+        let n = rows.len();
+        let mut frequencies = Array2::from_elem((n, 3), f64::NAN);
+        let mut counts = Array2::zeros((n, 3));
+        for (i, (_, pops)) in rows.iter().enumerate() {
+            for (j, &(f, c)) in pops.iter().enumerate() {
+                if c > 0 {
+                    frequencies[[i, j]] = f;
+                    counts[[i, j]] = c;
+                }
+            }
+        }
+        let snps = rows
+            .iter()
+            .enumerate()
+            .map(|(i, (pos, _))| {
+                Snp::new(
+                    format!("rs{i}"),
+                    Chromosome::Autosome(1),
+                    i as u32,
+                    *pos,
+                    'A',
+                    'G',
+                )
+            })
+            .collect();
+        AlleleFrequencies {
+            frequencies,
+            counts,
+            populations: ["PopA", "PopB", "PopC"].map(PopulationId::new).to_vec(),
+            snps,
+        }
+    }
+
+    /// admixtools2 per-SNP f2 (cpp_mats_to_f2_arr).
+    fn snp_f2(a: (f64, u32), b: (f64, u32)) -> f64 {
+        let corr = |(p, n): (f64, u32)| p * (1.0 - p) / (n as f64 - 1.0).max(1.0);
+        (a.0 - b.0).powi(2) - corr(a) - corr(b)
+    }
+
+    #[test]
+    fn test_snp_missing_in_any_population_is_dropped_for_every_pair() {
+        // admixtools2 maxmiss = 0: SNP 1 is missing in PopC, so f2(A, B) must
+        // not use it either.
+        let rows = [
+            (0.00, [(0.1, 10), (0.5, 10), (0.3, 10)]),
+            (0.01, [(0.9, 10), (0.2, 10), (0.0, 0)]),
+            (0.10, [(0.4, 10), (0.6, 10), (0.5, 10)]),
+        ];
+        let f2 = F2Blocks::from_allele_frequencies(&af_from(&rows), &BlockDefinition::new(0.05));
+        assert_eq!(f2.block_lengths, vec![1, 1]);
+        let (est, _, n_snps) = f2.f2("PopA", "PopB").unwrap();
+        let expected =
+            (snp_f2(rows[0].1[0], rows[0].1[1]) + snp_f2(rows[2].1[0], rows[2].1[1])) / 2.0;
+        assert_relative_eq!(est, expected, max_relative = 1e-12);
+        assert_eq!(n_snps, 2);
+    }
+
+    #[test]
+    fn test_monomorphic_snps_are_not_used() {
+        // admixtools2 poly_only = "f2": SNP 1 has the same frequency in every
+        // population, so it is left out of the f2 blocks and block lengths.
+        let rows = [
+            (0.00, [(0.1, 10), (0.5, 10), (0.3, 10)]),
+            (0.01, [(0.0, 10), (0.0, 10), (0.0, 10)]),
+            (0.02, [(0.4, 10), (0.6, 10), (0.5, 10)]),
+        ];
+        let f2 = F2Blocks::from_allele_frequencies(&af_from(&rows), &BlockDefinition::new(0.05));
+        assert_eq!(f2.block_lengths, vec![2]);
+    }
+
+    #[test]
+    fn test_blocks_start_from_kept_snps() {
+        // The SNP at 0.00 is dropped, so the first block starts at 0.03 and
+        // spans 0.03..0.08 (admixtools2 builds blocks after filtering).
+        let rows = [
+            (0.00, [(0.1, 10), (0.0, 0), (0.3, 10)]),
+            (0.03, [(0.1, 10), (0.5, 10), (0.3, 10)]),
+            (0.06, [(0.2, 10), (0.5, 10), (0.3, 10)]),
+            (0.09, [(0.3, 10), (0.5, 10), (0.3, 10)]),
+        ];
+        let f2 = F2Blocks::from_allele_frequencies(&af_from(&rows), &BlockDefinition::new(0.05));
+        assert_eq!(f2.block_lengths, vec![2, 1]);
+    }
+
+    #[test]
+    fn test_f2_estimate_and_se_weight_blocks_by_length() {
+        // Two blocks of 3 and 1 SNPs. admixtools2 (est_to_loo +
+        // cpp_jack_vec_stats): the estimate is the length-weighted mean of
+        // block means, and the variance is the weighted block jackknife
+        // mean over blocks of (h - 1)(est - loo)^2, h = total / length.
+        let pop = |p: f64| [(p, 10), (0.5, 10), (0.5, 10)];
+        let rows = [
+            (0.00, pop(0.1)),
+            (0.01, pop(0.2)),
+            (0.02, pop(0.3)),
+            (0.10, pop(0.9)),
+        ];
+        let f2 = F2Blocks::from_allele_frequencies(&af_from(&rows), &BlockDefinition::new(0.05));
+        assert_eq!(f2.block_lengths, vec![3, 1]);
+
+        let snp = |i: usize| snp_f2(rows[i].1[0], rows[i].1[1]);
+        let x1 = (snp(0) + snp(1) + snp(2)) / 3.0;
+        let x2 = snp(3);
+        let est = (3.0 * x1 + x2) / 4.0;
+        // Leaving out block 1 leaves block 2, and vice versa.
+        let var = ((4.0 / 3.0 - 1.0) * (est - x2).powi(2) + (4.0 - 1.0) * (est - x1).powi(2)) / 2.0;
+
+        let (got_est, got_se, _) = f2.f2("PopA", "PopB").unwrap();
+        assert_relative_eq!(got_est, est, max_relative = 1e-12);
+        assert_relative_eq!(got_se, var.sqrt(), max_relative = 1e-12);
     }
 
     #[test]

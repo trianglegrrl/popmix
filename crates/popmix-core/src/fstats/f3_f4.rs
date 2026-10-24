@@ -12,6 +12,7 @@
 //!   Fixation index measuring population differentiation
 
 use crate::fstats::f2_blocks::F2Blocks;
+use crate::fstats::jackknife::block_jackknife;
 
 /// Result of an f3 computation.
 #[derive(Debug, Clone)]
@@ -70,48 +71,24 @@ impl F2Blocks {
         let pair_ac = self.pair_index(idx_a, idx_c);
         let pair_bc = self.pair_index(idx_b, idx_c);
 
-        // Compute f3 for each block
-        let mut block_f3 = Vec::with_capacity(self.n_blocks);
-        let mut block_weights = Vec::with_capacity(self.n_blocks);
+        // f3 for each block; NA where a pair has no SNPs in the block
+        let block_f3: Vec<f64> = (0..self.n_blocks)
+            .map(|block_idx| {
+                let mean = |pair: usize| {
+                    let weight = self.block_weights[[block_idx, pair]];
+                    if weight > 0.0 {
+                        self.block_sums[[block_idx, pair]] / weight
+                    } else {
+                        f64::NAN
+                    }
+                };
+                (mean(pair_ab) + mean(pair_ac) - mean(pair_bc)) / 2.0
+            })
+            .collect();
 
-        for block_idx in 0..self.n_blocks {
-            let (sum_ab, weight_ab) = (
-                self.block_sums[[block_idx, pair_ab]],
-                self.block_weights[[block_idx, pair_ab]],
-            );
-            let (sum_ac, weight_ac) = (
-                self.block_sums[[block_idx, pair_ac]],
-                self.block_weights[[block_idx, pair_ac]],
-            );
-            let (sum_bc, weight_bc) = (
-                self.block_sums[[block_idx, pair_bc]],
-                self.block_weights[[block_idx, pair_bc]],
-            );
-
-            // Need all pairs to have data
-            let min_weight = weight_ab.min(weight_ac).min(weight_bc);
-            if min_weight > 0.0 {
-                let f2_ab = sum_ab / weight_ab;
-                let f2_ac = sum_ac / weight_ac;
-                let f2_bc = sum_bc / weight_bc;
-
-                let f3 = (f2_ab + f2_ac - f2_bc) / 2.0;
-                block_f3.push(f3);
-                block_weights.push(min_weight);
-            }
-        }
-
-        if block_f3.is_empty() {
-            return None;
-        }
-
-        // Compute simple mean of block f3 values (admixtools2 style)
-        // This gives equal weight to each block regardless of SNP count
-        let n_blocks = block_f3.len();
-        let estimate: f64 = block_f3.iter().sum::<f64>() / n_blocks as f64;
-
-        // Jackknife standard error using simple means
-        let std_err = jackknife_std_err(&block_f3, estimate);
+        // Weighted block jackknife, as admixtools2 f3()
+        let (estimate, std_err) = block_jackknife(&block_f3, &self.block_lengths_f64())?;
+        let n_blocks = block_f3.iter().filter(|v| v.is_finite()).count();
         let z_score = if std_err > 0.0 {
             estimate / std_err
         } else {
@@ -122,7 +99,7 @@ impl F2Blocks {
             estimate,
             std_err,
             z_score,
-            n_blocks: block_f3.len(),
+            n_blocks,
         })
     }
 
@@ -146,53 +123,24 @@ impl F2Blocks {
         let pair_ac = self.pair_index(idx_a, idx_c);
         let pair_bd = self.pair_index(idx_b, idx_d);
 
-        // Compute f4 for each block
-        let mut block_f4 = Vec::with_capacity(self.n_blocks);
-        let mut block_weights = Vec::with_capacity(self.n_blocks);
+        // f4 for each block; NA where a pair has no SNPs in the block
+        let block_f4: Vec<f64> = (0..self.n_blocks)
+            .map(|block_idx| {
+                let mean = |pair: usize| {
+                    let weight = self.block_weights[[block_idx, pair]];
+                    if weight > 0.0 {
+                        self.block_sums[[block_idx, pair]] / weight
+                    } else {
+                        f64::NAN
+                    }
+                };
+                (mean(pair_ad) + mean(pair_bc) - mean(pair_ac) - mean(pair_bd)) / 2.0
+            })
+            .collect();
 
-        for block_idx in 0..self.n_blocks {
-            let (sum_ad, weight_ad) = (
-                self.block_sums[[block_idx, pair_ad]],
-                self.block_weights[[block_idx, pair_ad]],
-            );
-            let (sum_bc, weight_bc) = (
-                self.block_sums[[block_idx, pair_bc]],
-                self.block_weights[[block_idx, pair_bc]],
-            );
-            let (sum_ac, weight_ac) = (
-                self.block_sums[[block_idx, pair_ac]],
-                self.block_weights[[block_idx, pair_ac]],
-            );
-            let (sum_bd, weight_bd) = (
-                self.block_sums[[block_idx, pair_bd]],
-                self.block_weights[[block_idx, pair_bd]],
-            );
-
-            // Need all pairs to have data
-            let min_weight = weight_ad.min(weight_bc).min(weight_ac).min(weight_bd);
-            if min_weight > 0.0 {
-                let f2_ad = sum_ad / weight_ad;
-                let f2_bc = sum_bc / weight_bc;
-                let f2_ac = sum_ac / weight_ac;
-                let f2_bd = sum_bd / weight_bd;
-
-                let f4 = (f2_ad + f2_bc - f2_ac - f2_bd) / 2.0;
-                block_f4.push(f4);
-                block_weights.push(min_weight);
-            }
-        }
-
-        if block_f4.is_empty() {
-            return None;
-        }
-
-        // Compute simple mean of block f4 values (admixtools2 style)
-        // This gives equal weight to each block regardless of SNP count
-        let n_blocks = block_f4.len();
-        let estimate: f64 = block_f4.iter().sum::<f64>() / n_blocks as f64;
-
-        // Jackknife standard error using simple means
-        let std_err = jackknife_std_err(&block_f4, estimate);
+        // Weighted block jackknife, as admixtools2 f4()
+        let (estimate, std_err) = block_jackknife(&block_f4, &self.block_lengths_f64())?;
+        let n_blocks = block_f4.iter().filter(|v| v.is_finite()).count();
         let z_score = if std_err > 0.0 {
             estimate / std_err
         } else {
@@ -203,7 +151,7 @@ impl F2Blocks {
             estimate,
             std_err,
             z_score,
-            n_blocks: block_f4.len(),
+            n_blocks,
         })
     }
 
@@ -385,12 +333,7 @@ impl F2Blocks {
                         continue;
                     }
                     if let Some(result) = self.f3(target, s1, s2) {
-                        results.push((
-                            target.to_string(),
-                            s1.to_string(),
-                            s2.to_string(),
-                            result,
-                        ));
+                        results.push((target.to_string(), s1.to_string(), s2.to_string(), result));
                     }
                 }
             }
@@ -622,14 +565,17 @@ mod tests {
 
         // FST between divergent populations should be positive
         let result = f2_blocks.fst("PopA", "PopB").unwrap();
-        assert!(result.estimate > 0.0, "FST should be positive for divergent populations");
-        assert!(result.estimate <= 1.0, "FST should be <= 1.0");
-        assert!(result.std_err >= 0.0, "Standard error should be non-negative");
-
-        println!(
-            "FST(A, B) = {:.4} ± {:.4}",
-            result.estimate, result.std_err
+        assert!(
+            result.estimate > 0.0,
+            "FST should be positive for divergent populations"
         );
+        assert!(result.estimate <= 1.0, "FST should be <= 1.0");
+        assert!(
+            result.std_err >= 0.0,
+            "Standard error should be non-negative"
+        );
+
+        println!("FST(A, B) = {:.4} ± {:.4}", result.estimate, result.std_err);
     }
 
     #[test]

@@ -124,4 +124,21 @@ rules for adding one.
 
 ## admixtools2
 
-None yet.
+No deviations. popmix's f2 pipeline follows admixtools2 2.0.10 defaults
+(`maxmiss = 0`, `poly_only = "f2"`, blocks built after filtering, blocks
+weighted by length in the jackknife).
+
+### Matched, not corrected
+
+- **Ploidy from the first 1,000 SNPs.** A sample is treated as
+  pseudo-haploid if it has no heterozygous call among the first 1,000 SNPs
+  (`cpp_packedancestrymap_ploidy`). A low-coverage diploid sample with no
+  calls there would be misclassified. popmix matches this.
+
+### Not yet verified
+
+- **`maxmiss > 0`.** With missing data, admixtools2 sets missing block values
+  to 0 before the qpWave/qpAdm jackknife (`est_to_loo_nafix`, with a warning),
+  where popmix drops the block. Nothing with `maxmiss > 0` has been checked
+  against admixtools2 yet. If the behaviours differ, deciding between them is
+  a deviation decision under the process above.

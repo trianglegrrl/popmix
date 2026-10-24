@@ -654,22 +654,41 @@ require exact agreement. DEVIATIONS.md defines the process (one flag per
 deviation; golden, isolation and oracle tests; live numbers) and lists every
 deviation.
 
-### admixtools2 Golden Master Tests
+### f-statistics vs admixtools2 2.0.10
 
-The `tests/golden/test_golden_master.py` tests compare against admixtools2 R package:
+`tests/golden/test_fstats_admixtools2.py` (`--run-slow`) runs popmix on the
+same AADR v62 populations as stored admixtools2 runs and checks each stage of
+the pipeline:
 
-| Statistic | Populations | Status |
-|-----------|-------------|--------|
-| f2 | Han.DG, Yoruba.DG | PASS |
-| f2 | Han.DG, Mbuti.DG | PASS |
-| FST | Han.DG, Yoruba.DG | PASS |
-| FST | Han.DG, Mbuti.DG | PASS |
-| FST | Yoruba.DG, Mbuti.DG | PASS |
-| f3 | French.DG; Han.DG, Yoruba.DG | PASS |
-| f4 | French.DG, Han.DG; Yoruba.DG, Mbuti.DG | PASS |
-| qpWave | Multiple populations | PASS |
-| f4ratio | Multiple populations | PASS |
-| qpAdm | Multiple populations | PASS |
+| Check | Compared against | Tolerance |
+|-------|------------------|-----------|
+| `snp_count` | SNPs left after `maxmiss = 0` and polymorphism filtering | exact |
+| `block_lengths` | polymorphic SNPs per 5 cM block | exact, block by block |
+| `f2_blocks` | `f2_from_geno` block array, every pair | rtol 1e-10 |
+| `f2_estimates` | `f2()` | est rtol 1e-10, se rtol 1e-6 |
+| `f3_estimates`, `f4_estimates` | `f3()`, `f4()`, every combination | est rtol 1e-10, se rtol 1e-6 |
+| `qpwave_f4`, `qpwave_covariance` | `f2blocks_to_f4stats` | rtol 1e-10, 1e-6 |
+| `qpwave_rank_tests` | `qpwave()$rankdrop` | chisq 1e-6, p 1e-4 (**known gap, xfail**: item 4) |
+
+Configs (`tests/golden/admixtools2/v2.0.10/<config>/`):
+
+| Config | Populations | SNPs used | Blocks |
+|--------|-------------|-----------|--------|
+| dg_6pop | Han.DG, French.DG, Yoruba.DG, Mbuti.DG, Papuan.DG, Chimp.REF | 1,050,751 | 710 |
+| ancient_5pop | Russia_Samara_EBA_Yamnaya.AG (pseudo-haploid), Sardinian.DG, French.DG, Mbuti.DG, Chimp.REF | 985,987 | 710 |
+
+popmix matches every f2, f3 and f4 (210 statistics) to about 1e-13 relative,
+SEs included. Regenerate with
+`/usr/bin/Rscript tests/golden/admixtools2/generate_reference.R [config...]`.
+The SNP set depends on which populations are loaded (`maxmiss = 0` drops a
+SNP missing in any of them), so a reference is only valid for its own
+population list.
+
+`tests/golden/test_golden_master.py` holds the older admixtools2 checks.
+Their references are rounded and were generated with an unrecorded
+population set, so they use 10-50% tolerances. The f-statistic checks there
+are superseded by the file above; FST, f4ratio, qpWave and qpAdm will be
+replaced by full-precision references in item 4.
 
 ## Test Data
 
