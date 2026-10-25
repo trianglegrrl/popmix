@@ -1,12 +1,12 @@
-/home/a/DATES/bin/dates_expfit version: 200
+dates_expfit version: 200
 step (Morgans) ::     0.001000
 fitting 1 exponentials + affine
-after initialization:     0.000000     0.869 
+after initialization:     0.000000     0.877 
 gslsetup called
 gslans:   19     0.000000
-    0.869 
-error sd:     0.000341
-halflife:     4.945 
-mean (generations):   140.172 
-    0.008500851     0.000076728 
+    0.877 
+error sd:     0.000360
+halflife:     5.299 
+mean (generations):   130.811 
+    0.010596881     0.000106997 
 ##end of run

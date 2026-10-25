@@ -1,0 +1,62 @@
+{
+ "release": "AADR v66.p1, 1240K public (doi:10.7910/DVN/FFIDCW)",
+ "checksums": "/references/aadr/v66.p1/CHECKSUMS.normalized.md5",
+ "inputs": {
+  "geno": {
+   "path": "/references/aadr/v66.p1/v66.p1_1240K.aadr.patch.PUB.geno",
+   "md5": "5ea1d2675a271c81e55b8f8b08b3ff3b"
+  },
+  "snp": {
+   "path": "/references/aadr/v66.p1/v66.p1_1240K.aadr.patch.PUB.snp",
+   "md5": "50f66178fc81b8aa087cc4b135317e59"
+  },
+  "ind": {
+   "path": "/references/aadr/v66.p1/v66.p1_1240K.aadr.patch.PUB.ind",
+   "md5": "19a434ac954bcd10dbb8dba1d1188a09"
+  }
+ },
+ "relabel": "<label>.<last suffix of sample ID>",
+ "populations": [
+  "Chimp.REF",
+  "Mbuti.DG",
+  "Yoruba.DG",
+  "Dinka.DG",
+  "French.DG",
+  "Basque.DG",
+  "Sardinian.DG",
+  "Druze.DG",
+  "Han.DG",
+  "Papuan.DG",
+  "Karitiana.DG",
+  "Ulchi.DG",
+  "CEU.DG",
+  "TSI.DG",
+  "FIN.DG",
+  "GIH.DG",
+  "YRI.DG",
+  "ASW.DG",
+  "CHB.DG",
+  "Russia_Samara_EBA_Yamnaya.AG",
+  "Russia_EBA_Kalmykia_Yamnaya.SG",
+  "Russia_EBA_Yamnaya.SG",
+  "Germany_HalberstadtSonntagsfeld_EN_LBK.AG",
+  "Czechia_EBA_CordedWare.AG",
+  "England_MIA.AG",
+  "France_N.AG",
+  "France_Yonne_N.AG"
+ ],
+ "outputs": {
+  "geno": {
+   "path": "/home/a/.cache/popmix-references/aadr_v66p1/aadr_v66p1.geno",
+   "md5": "006c09f886d0039dd4beb3b8ba3cfe42"
+  },
+  "snp": {
+   "path": "/home/a/.cache/popmix-references/aadr_v66p1/aadr_v66p1.snp",
+   "md5": "50f66178fc81b8aa087cc4b135317e59"
+  },
+  "ind": {
+   "path": "/home/a/.cache/popmix-references/aadr_v66p1/aadr_v66p1.ind",
+   "md5": "2298265d7281b77fd65c7b7ece2e41ff"
+  }
+ }
+}

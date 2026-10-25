@@ -89,7 +89,7 @@ rules for adding one.
   |--------|---------------------------|---------------------|-----------------------|
   | chr20_22_q10 (tail from 91.7 cM) | 3.165; 1.217 ± 3.648 | 2.890; 0.751 ± 3.411 | 3.160; 1.221 ± 3.645 |
   | simulation_q10 (tail from 91.7 cM) | 36.686; 35.680 ± 6.333 | 36.747; 35.738 ± 6.346 | 36.750; 35.750 ± 6.345 |
-  | aadr_french_q10 (maxdis 0.5) | not run | 140.595 ± 25.037 | unchanged, no lag wraps |
+  | aadr_french_q10 (maxdis 0.5) | not run | 130.737 ± 16.669 | unchanged, no lag wraps |
 
   In the chr20–22 tail, DATES's mesh gets pair counts up to 113% off from
   exact mode. The corrected mesh is at most 5% off, close to the mesh's
@@ -123,7 +123,8 @@ rules for adding one.
 - **popmix default:** Fits and runs the jackknife at full precision.
 - **Flag:** `fit_printed_values`.
 - **Affects:** The estimates, by rounding noise. On AADR French.DG the
-  full-data fit moves by 0.002 generations.
+  full-data fit moves by 0.008 generations (AADR v66.p1; 0.002 on v62.0),
+  and the jackknife, which sums the per-chromosome differences, by 0.16.
 - **Tests:** The golden `full_fit`, `jackknife_by_chrom` and
   `jackknife_result` checks pass only with it on (compat). `default_result`
   checks that the full-precision result stays within DATES's reported

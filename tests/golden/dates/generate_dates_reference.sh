@@ -7,6 +7,8 @@
 # DATES_BIN must contain the `dates` binary and its helper scripts
 # (dates_jackknife, dates_wtjack, dates_expfit, dates_plot, calc_error,
 # grabpars) plus `dowtjack`, which upstream only builds into src/.
+# build_dates.sh builds all of them, patched, in
+# ~/.cache/popmix-references/dates-v753/bin.
 #
 # The `dates` binary must be built with dates_numbins_fix.patch applied.
 # Upstream v753 reads the uninitialized local `numbins` when sizing two
@@ -23,7 +25,12 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OUT_ROOT="$HERE/v753"
-AADR_PREFIX="/references/aadr/v62.0_1240k_public"
+# AADR v66.p1, each individual labelled <population>.<data type>, as
+# tests/golden/aadr/build_aadr_v66p1.py builds it in the reference cache; an
+# AADR config's directory gets a copy of its manifest.json (dataset.json),
+# which records the release files' checksums.
+AADR_DIR="${POPMIX_REFERENCE_CACHE:-$HOME/.cache/popmix-references}/aadr_v66p1"
+AADR_PREFIX="$AADR_DIR/aadr_v66p1"
 
 : "${DATES_BIN:?Set DATES_BIN to a directory containing patched dates and its helpers}"
 export PATH="$DATES_BIN:$PATH"
@@ -84,6 +91,9 @@ EOF
         cp "$res/$test.$ext" "$dest/dates.$ext"
     done
     cp "$res/expfit_$test.flog" "$dest/dates.flog"
+    if [[ "$prefix" == "$AADR_PREFIX" ]]; then
+        cp "$AADR_DIR/manifest.json" "$dest/dataset.json"
+    fi
     tail -3 "$dest/dates.jout"
 }
 

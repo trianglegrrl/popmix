@@ -1,6 +1,6 @@
-genotypename: /references/aadr/v62.0_1240k_public.geno
-snpname: /references/aadr/v62.0_1240k_public.snp
-indivname: /references/aadr/v62.0_1240k_public.ind
+genotypename: /home/a/.cache/popmix-references/aadr_v66p1/aadr_v66p1.geno
+snpname: /home/a/.cache/popmix-references/aadr_v66p1/aadr_v66p1.snp
+indivname: /home/a/.cache/popmix-references/aadr_v66p1/aadr_v66p1.ind
 admixlist: admixlist
 binsize: 0.001
 maxdis: 0.5

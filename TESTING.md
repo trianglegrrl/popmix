@@ -246,7 +246,7 @@ Configs (`tests/golden/dates/v753/<config>/`):
 | chr20_22_q10 | simulated, chr20-22 | 10 | 1.0 | 0.751 ± 3.411 | matches |
 | simulation_q0 | simulated genome (true: 50) | 0 | 1.0 | 35.680 ± 6.333 | matches |
 | simulation_q10 | simulated genome (true: 50) | 10 | 1.0 | 35.738 ± 6.346 | matches |
-| aadr_french_q10 | AADR v62: French.DG = Sardinian.DG + Russia_Samara_EBA_Yamnaya.AG | 10 | 0.5 | 140.595 ± 25.037 | matches |
+| aadr_french_q10 | AADR v66.p1: French.DG = Sardinian.DG + Russia_Samara_EBA_Yamnaya.AG | 10 | 0.5 | 130.737 ± 16.669 | matches |
 
 "matches" means `compat="dates-v753"`. The corrected default differs on the
 two `_q10` configs with maxdis 1.0 (DATES-0001); DEVIATIONS.md has the numbers.
@@ -256,14 +256,16 @@ The simulation and AADR configs are `--run-slow` tests.
 DATES fits the correlations it printed to `.out` (6 decimals) and runs the
 jackknife on estimates printed to `.jin` (3 decimals). Compat mode does the
 same round trip (DATES-0003). On AADR the full-precision default fit differs
-by 0.002 generations.
+by 0.008 generations, and its jackknife estimate by 0.16.
 
 DATES keeps a SNP once each source population has one called sample. It
 reads `mincount` from the parameter file but ignores it (its output is byte-identical with
 `mincount` 1, 4 or 40), so popmix defaults `min_source_count` to 1 as well.
 
 **Regenerating references.** Run
-`DATES_BIN=<dir> tests/golden/dates/generate_dates_reference.sh [config...]`.
+`DATES_BIN=<dir> tests/golden/dates/generate_dates_reference.sh [config...]`
+(`tests/golden/dates/build_dates.sh` builds such a directory in the
+reference cache).
 `DATES_BIN` must hold `dates` built with `tests/golden/dates/dates_numbins_fix.patch`,
 the DATES helper scripts, and `dowtjack` (upstream builds it only into `src/`).
 Unpatched v753 reads an uninitialized `numbins` when sizing buffers, so
