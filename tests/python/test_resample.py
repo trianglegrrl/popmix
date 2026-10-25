@@ -7,8 +7,9 @@ these check the interfaces on the small test data.
 import os
 from pathlib import Path
 
-import popmix as pm
 import pytest
+
+import popmix as pm
 
 PREFIX = "tests/golden/dates/family_chr20_22"
 pytestmark = pytest.mark.skipif(not os.path.exists(f"{PREFIX}.geno"), reason="test data not available")

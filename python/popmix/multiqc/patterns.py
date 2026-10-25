@@ -3,10 +3,8 @@
 Defines search patterns for finding popmix output files.
 """
 
-import os
 from pathlib import Path
-from typing import Dict, List, Any
-
+from typing import Any
 
 # File patterns for popmix output files
 POPMIX_PATTERNS = [
@@ -21,14 +19,14 @@ POPMIX_PATTERNS = [
 ]
 
 
-def find_popmix_files(directory: str) -> List[str]:
+def find_popmix_files(directory: str) -> list[str]:
     """Find all popmix output files in a directory.
-    
+
     Parameters
     ----------
     directory : str
         Directory to search
-    
+
     Returns
     -------
     List[str]
@@ -36,14 +34,14 @@ def find_popmix_files(directory: str) -> List[str]:
     """
     found_files = []
     dir_path = Path(directory)
-    
+
     for pattern in POPMIX_PATTERNS:
         found_files.extend(str(f) for f in dir_path.glob(pattern))
-    
+
     # Also search recursively
     for pattern in POPMIX_PATTERNS:
         found_files.extend(str(f) for f in dir_path.rglob(pattern))
-    
+
     # Remove duplicates while preserving order
     seen = set()
     unique_files = []
@@ -51,13 +49,13 @@ def find_popmix_files(directory: str) -> List[str]:
         if f not in seen:
             seen.add(f)
             unique_files.append(f)
-    
+
     return unique_files
 
 
-def get_search_patterns() -> Dict[str, Dict[str, Any]]:
+def get_search_patterns() -> dict[str, dict[str, Any]]:
     """Get MultiQC search patterns configuration.
-    
+
     Returns
     -------
     Dict[str, Dict[str, Any]]
@@ -96,19 +94,19 @@ def get_search_patterns() -> Dict[str, Dict[str, Any]]:
 
 def get_sample_name(filepath: str) -> str:
     """Extract sample name from file path.
-    
+
     Parameters
     ----------
     filepath : str
         Path to popmix output file
-    
+
     Returns
     -------
     str
         Sample name
     """
     filename = Path(filepath).stem
-    
+
     # Remove common suffixes
     suffixes = [
         "_popmix_stats",
@@ -120,9 +118,9 @@ def get_sample_name(filepath: str) -> str:
         "_f4",
         "_fst",
     ]
-    
+
     for suffix in suffixes:
         if filename.endswith(suffix):
             return filename[:-len(suffix)]
-    
+
     return filename

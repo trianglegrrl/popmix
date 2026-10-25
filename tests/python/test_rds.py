@@ -4,6 +4,7 @@ in tests/golden/test_f2_dirs_admixtools2.py, on admixtools2's f2 directory."""
 import math
 
 import pytest
+
 from popmix.rds import RObject, matrix, read_rds, write_rds
 
 

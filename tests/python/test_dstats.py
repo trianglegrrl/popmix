@@ -12,8 +12,9 @@ import subprocess
 
 import numpy as np
 import pandas as pd
-import popmix as pm
 import pytest
+
+import popmix as pm
 
 SMALL = "tests/golden/dates/family_chr20_22"
 POPS = ["French", "Yoruba", "Simulation", "Simulation.1"]

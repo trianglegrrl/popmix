@@ -405,11 +405,9 @@ fn read_genotypes(prefix: &str, snp_range: Option<(usize, usize)>) -> PyResult<P
     use std::path::Path;
 
     // Check for VCF format (full path with extension)
-    if prefix.ends_with(".vcf") || prefix.ends_with(".vcf.gz") {
-        if Path::new(prefix).exists() {
-            // VCF doesn't support snp_range, ignore it
-            return read_vcf(prefix);
-        }
+    if (prefix.ends_with(".vcf") || prefix.ends_with(".vcf.gz")) && Path::new(prefix).exists() {
+        // VCF doesn't support snp_range, ignore it
+        return read_vcf(prefix);
     }
 
     // Check for VCF format with prefix
@@ -647,7 +645,7 @@ fn merge(
     let samples_b = geno_b.n_samples();
 
     // Merge
-    let (merged, stats) = merge_genotypes(&geno_a, &geno_b, false).map_err(to_py_err)?;
+    let (merged, stats) = merge_genotypes(&geno_a, &geno_b).map_err(to_py_err)?;
 
     // Write output
     let out_format = GenoFormat::from_str(output_format).map_err(to_py_err)?;
@@ -735,23 +733,21 @@ fn dataset_info(prefix: &str) -> PyResult<HashMap<String, PyObject>> {
         let mut info: HashMap<String, PyObject> = HashMap::new();
 
         // Check for VCF format (full path with extension)
-        if prefix.ends_with(".vcf") || prefix.ends_with(".vcf.gz") {
-            if Path::new(prefix).exists() {
-                let reader = VcfReader::new(prefix).map_err(to_py_err)?;
-                info.insert("format".to_string(), "vcf".to_object(py));
-                info.insert("n_samples".to_string(), reader.num_samples().to_object(py));
-                info.insert("n_snps".to_string(), reader.num_snps().to_object(py));
+        if (prefix.ends_with(".vcf") || prefix.ends_with(".vcf.gz")) && Path::new(prefix).exists() {
+            let reader = VcfReader::new(prefix).map_err(to_py_err)?;
+            info.insert("format".to_string(), "vcf".to_object(py));
+            info.insert("n_samples".to_string(), reader.num_samples().to_object(py));
+            info.insert("n_snps".to_string(), reader.num_snps().to_object(py));
 
-                let pops: Vec<String> = reader
-                    .samples()
-                    .iter()
-                    .map(|s| s.population.to_string())
-                    .collect::<std::collections::HashSet<_>>()
-                    .into_iter()
-                    .collect();
-                info.insert("populations".to_string(), pops.to_object(py));
-                return Ok(info);
-            }
+            let pops: Vec<String> = reader
+                .samples()
+                .iter()
+                .map(|s| s.population.to_string())
+                .collect::<std::collections::HashSet<_>>()
+                .into_iter()
+                .collect();
+            info.insert("populations".to_string(), pops.to_object(py));
+            return Ok(info);
         }
 
         // Check for VCF format with prefix
@@ -873,11 +869,9 @@ fn list_populations(prefix: &str) -> PyResult<Vec<(String, usize)>> {
     }
 
     // Check for VCF format (full path with extension)
-    if prefix.ends_with(".vcf") || prefix.ends_with(".vcf.gz") {
-        if Path::new(prefix).exists() {
-            let reader = VcfReader::new(prefix).map_err(to_py_err)?;
-            return Ok(count_populations(reader.samples()));
-        }
+    if (prefix.ends_with(".vcf") || prefix.ends_with(".vcf.gz")) && Path::new(prefix).exists() {
+        let reader = VcfReader::new(prefix).map_err(to_py_err)?;
+        return Ok(count_populations(reader.samples()));
     }
 
     // Check for VCF format with prefix
@@ -1912,6 +1906,7 @@ impl PyQpAdmRotateResult {
 ///     PyQpAdmRotateResult with all tested models sorted by p-value
 #[pyfunction]
 #[pyo3(signature = (f2_blocks, target, candidates, outgroups, min_sources=None, max_sources=None, feasible_only=None, fudge=None))]
+#[allow(clippy::too_many_arguments)]
 fn qpadm_rotate(
     f2_blocks: &PyF2Blocks,
     target: String,
@@ -2761,11 +2756,9 @@ fn read_genotypes_internal(prefix: &str) -> PyResult<GenotypeMatrix> {
     use std::path::Path;
 
     // Check for VCF format (full path with extension)
-    if prefix.ends_with(".vcf") || prefix.ends_with(".vcf.gz") {
-        if Path::new(prefix).exists() {
-            let reader = VcfReader::new(prefix).map_err(to_py_err)?;
-            return reader.read_all().map_err(to_py_err);
-        }
+    if (prefix.ends_with(".vcf") || prefix.ends_with(".vcf.gz")) && Path::new(prefix).exists() {
+        let reader = VcfReader::new(prefix).map_err(to_py_err)?;
+        return reader.read_all().map_err(to_py_err);
     }
 
     // Check for VCF format with prefix
@@ -2996,6 +2989,7 @@ impl PyDatesResult {
 ///     >>> print(f"Years BP: {result.years_bp:.0f}")
 #[pyfunction]
 #[pyo3(signature = (geno, test_pop, source1, source2, generation_time=None, min_distance_cm=None, max_distance_cm=None, bin_width_cm=None, run_jackknife=None, qbin=None, compat=None))]
+#[allow(clippy::too_many_arguments)]
 fn dates(
     geno: &PyGenotypeMatrix,
     test_pop: &str,

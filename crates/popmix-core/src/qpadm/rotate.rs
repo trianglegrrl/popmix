@@ -136,7 +136,7 @@ pub fn qpadm_rotate(
                 Some(opts.qpadm_opts.clone()),
             ) {
                 Ok(result) => {
-                    let is_feasible = result.weights.iter().all(|&w| w >= 0.0 && w <= 1.0);
+                    let is_feasible = result.weights.iter().all(|&w| (0.0..=1.0).contains(&w));
 
                     // Skip non-feasible if requested
                     if opts.feasible_only && !is_feasible {

@@ -290,8 +290,8 @@ def _check_qpadm_popdrop(name: str):
                     mismatches.append(f"{where}: weight {source} {w!r} != {theirs!r}")
             if row.get("dofdiff") != x.dofdiff:
                 mismatches.append(f"{where}: dofdiff {x.dofdiff!r} != {row.get('dofdiff')!r}")
-            for field, tol in (("chisqdiff", dict(rtol=SE_RTOL, atol=SE_RTOL * scale)),
-                               ("p_nested", dict(rtol=P_RTOL, atol=0))):
+            for field, tol in (("chisqdiff", {"rtol": SE_RTOL, "atol": SE_RTOL * scale}),
+                               ("p_nested", {"rtol": P_RTOL, "atol": 0})):
                 ours_v, theirs_v = getattr(x, field), row.get(field)
                 if (ours_v is None) != (theirs_v is None) or (
                     ours_v is not None and not np.isclose(ours_v, theirs_v, **tol)

@@ -5,71 +5,59 @@ A Rust/Python reimplementation of admixtools2.
 """
 
 from popmix._core import (
-    # Threading
-    init_threads,
-    get_threads,
-    version,
+    PyAdmixGraph,
+    PyAlleleFrequencies,
+    PyDatesResult,
+    PyDecayFit,
+    PyF2Blocks,
+    PyF4RatioResult,
+    PyGenotypeMatrix,
+    PyGraphFitResult,
+    PyLdBin,
+    PyQpAdmResult,
+    PyQpAdmRotateResult,
+    PyQpWavePairResult,
+    PyQpWavePairsResult,
+    PyQpWaveResult,
+    PyRankTest,
+    PyRotationModel,
+    # Classes
+    PySample,
+    PyScoredGraph,
+    PySnp,
     __version__,
-    # I/O functions
-    read_plink,
-    read_eigenstrat,
-    read_packedancestrymap,
-    read_vcf,
-    read_genotypes,
-    read_f2,
-    dataset_info,
-    list_populations,
-    suggest_populations,
+    all_graphs,
+    build_tree,
     convertf,
-    merge,
+    dataset_info,
+    # DATES functions
+    dates,
     detect_format,
     # F-statistics functions
     extract_f2,
     f2_from_frequencies,
-    # qpAdm/qpWave functions
-    qpwave,
+    fit_graph,
+    get_threads,
+    graph_key,
+    # Threading
+    init_threads,
+    list_populations,
+    merge,
     qpadm,
     qpf4ratio,
     # qpGraph functions
     qpgraph,
-    build_tree,
-    fit_graph,
-    all_graphs,
-    graph_key,
-    # DATES functions
-    dates,
-    # Classes
-    PySample,
-    PySnp,
-    PyGenotypeMatrix,
-    PyAlleleFrequencies,
-    PyF2Blocks,
-    PyRankTest,
-    PyQpWaveResult,
-    PyQpAdmResult,
-    PyF4RatioResult,
-    PyRotationModel,
-    PyQpAdmRotateResult,
-    PyQpWavePairResult,
-    PyQpWavePairsResult,
-    PyAdmixGraph,
-    PyGraphFitResult,
-    PyScoredGraph,
-    PyLdBin,
-    PyDecayFit,
-    PyDatesResult,
-)
-
-from popmix.dstats import (
-    cluster_order,
-    dstat_matrix,
-    f3blockdat_from_geno,
-    f4blockdat_from_geno,
-    fstat_combinations,
-    outgroup_f3_matrix,
-    qp3pop,
-    qpdstat,
-    sample_ploidy,
+    # qpAdm/qpWave functions
+    qpwave,
+    read_eigenstrat,
+    read_f2,
+    read_genotypes,
+    read_packedancestrymap,
+    # I/O functions
+    read_plink,
+    read_vcf,
+    suggest_populations,
+    version,
 )
 from popmix.admixture import AdmixtureResult, admixture, admixture_loglik
 from popmix.alder import AlderResult, alder
@@ -84,6 +72,17 @@ from popmix.classic import (
     parse_qpgraph_output_edges,
 )
 from popmix.dot import parse_dot, write_dot
+from popmix.dstats import (
+    cluster_order,
+    dstat_matrix,
+    f3blockdat_from_geno,
+    f4blockdat_from_geno,
+    fstat_combinations,
+    outgroup_f3_matrix,
+    qp3pop,
+    qpdstat,
+    sample_ploidy,
+)
 from popmix.f2_dirs import extract_f2_subset, read_admixtools2_f2, write_admixtools2_f2
 from popmix.graph_constraints import (
     satisfies_constraints,
@@ -96,6 +95,7 @@ from popmix.graph_constraints import (
 )
 from popmix.graph_search import EvolvedGraph, find_graphs
 from popmix.kinship import king, read_kinship
+from popmix.pca import PcaResult, smartpca
 from popmix.qpadm_models import (
     lazadm,
     qpadm_models,
@@ -106,7 +106,6 @@ from popmix.qpadm_models import (
     rotate_models,
     test_cladality,
 )
-from popmix.pca import PcaResult, smartpca
 from popmix.qpfstats import qpf4diff, qpfstats
 from popmix.resample import (
     boo_list,

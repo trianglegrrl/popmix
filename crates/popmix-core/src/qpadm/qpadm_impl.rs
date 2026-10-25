@@ -156,7 +156,7 @@ mod tests {
 
     fn create_admixed_test_data() -> F2Blocks {
         // Create data where Pop3 is a 50/50 mix of Pop1 and Pop2
-        let pops = vec!["Pop1", "Pop2", "Pop3", "Out1", "Out2"];
+        let pops = ["Pop1", "Pop2", "Pop3", "Out1", "Out2"];
         let n_snps = 2000;
 
         let mut rng_state: u64 = 98765;

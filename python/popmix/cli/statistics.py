@@ -9,8 +9,7 @@ This module provides functions for:
 """
 
 import math
-from typing import Any, Dict, List, Optional, Tuple
-
+from typing import Any, Optional
 
 # =============================================================================
 # Confidence Interval Calculation
@@ -28,9 +27,9 @@ def calculate_ci(
     estimate: float,
     std_err: float,
     confidence: float = 0.95,
-) -> Tuple[float, float]:
+) -> tuple[float, float]:
     """Calculate confidence interval for an estimate.
-    
+
     Parameters
     ----------
     estimate : float
@@ -39,12 +38,12 @@ def calculate_ci(
         Standard error of the estimate
     confidence : float
         Confidence level (default 0.95 for 95% CI)
-    
+
     Returns
     -------
     Tuple[float, float]
         (lower, upper) bounds of the confidence interval
-    
+
     Examples
     --------
     >>> lower, upper = calculate_ci(0.5, 0.1, 0.95)
@@ -60,19 +59,19 @@ def calculate_ci(
 # Significance Assessment
 # =============================================================================
 
-def assess_significance(z_score: float) -> Dict[str, Any]:
+def assess_significance(z_score: float) -> dict[str, Any]:
     """Assess statistical significance based on Z-score.
-    
+
     Uses the following thresholds:
     - |Z| >= 3: Highly significant (***)
     - 2 <= |Z| < 3: Marginally significant (*)
     - |Z| < 2: Not significant
-    
+
     Parameters
     ----------
     z_score : float
         Z-score value
-    
+
     Returns
     -------
     Dict[str, Any]
@@ -84,7 +83,7 @@ def assess_significance(z_score: float) -> Dict[str, Any]:
         - p_value_approx: approximate two-tailed p-value
     """
     abs_z = abs(z_score)
-    
+
     # Approximate p-value using normal distribution
     # Using the approximation: p ≈ 2 * (1 - Φ(|z|))
     # For standard normal, we use a simple approximation
@@ -97,7 +96,7 @@ def assess_significance(z_score: float) -> Dict[str, Any]:
         d = 0.3989423 * math.exp(-abs_z * abs_z / 2)
         p_one_tail = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))))
         p_approx = 2 * p_one_tail  # Two-tailed
-    
+
     if abs_z >= 3:
         return {
             "level": "significant",
@@ -140,7 +139,7 @@ def calculate_cohens_d(
     n2: Optional[int] = None,
 ) -> float:
     """Calculate Cohen's d effect size.
-    
+
     Parameters
     ----------
     mean1 : float
@@ -153,7 +152,7 @@ def calculate_cohens_d(
         Standard deviation of group 2
     n1, n2 : int, optional
         Sample sizes (for weighted pooled SD)
-    
+
     Returns
     -------
     float
@@ -166,33 +165,33 @@ def calculate_cohens_d(
     else:
         # Simple pooled SD
         pooled_sd = math.sqrt((sd1**2 + sd2**2) / 2)
-    
+
     if pooled_sd == 0:
         return float('inf') if mean1 != mean2 else 0.0
-    
+
     return (mean1 - mean2) / pooled_sd
 
 
 def interpret_cohens_d(d: float) -> str:
     """Interpret Cohen's d effect size.
-    
+
     Uses Cohen's (1988) conventions:
     - |d| < 0.5: small
     - 0.5 <= |d| < 0.8: medium
     - |d| >= 0.8: large
-    
+
     Parameters
     ----------
     d : float
         Cohen's d value
-    
+
     Returns
     -------
     str
         Interpretation: "small", "medium", or "large"
     """
     abs_d = abs(d)
-    
+
     if abs_d < 0.5:
         return "small"
     elif abs_d < 0.8:
@@ -209,14 +208,14 @@ def assess_model_fit(
     p_value: float,
     chi_sq: Optional[float] = None,
     df: Optional[int] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Assess model fit quality based on p-value.
-    
+
     Uses the following thresholds:
     - p > 0.05: Good fit
     - 0.01 < p <= 0.05: Marginal fit
     - p <= 0.01: Poor fit
-    
+
     Parameters
     ----------
     p_value : float
@@ -225,7 +224,7 @@ def assess_model_fit(
         Chi-squared statistic
     df : int, optional
         Degrees of freedom
-    
+
     Returns
     -------
     Dict[str, Any]
@@ -278,9 +277,9 @@ def create_statistical_summary(
     std_err: float,
     n_observations: Optional[int] = None,
     confidence: float = 0.95,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Create comprehensive statistical summary.
-    
+
     Parameters
     ----------
     estimate : float
@@ -291,24 +290,21 @@ def create_statistical_summary(
         Number of observations/SNPs/blocks
     confidence : float
         Confidence level for CI
-    
+
     Returns
     -------
     Dict[str, Any]
         Comprehensive summary including CI, Z-score, significance
     """
     # Calculate Z-score
-    if std_err == 0:
-        z_score = float('inf') if estimate != 0 else 0.0
-    else:
-        z_score = estimate / std_err
-    
+    z_score = (float('inf') if estimate != 0 else 0.0) if std_err == 0 else estimate / std_err
+
     # Calculate confidence interval
     ci_lower, ci_upper = calculate_ci(estimate, std_err, confidence)
-    
+
     # Assess significance
     significance = assess_significance(z_score)
-    
+
     return {
         "estimate": estimate,
         "std_err": std_err,
@@ -327,18 +323,18 @@ def create_statistical_summary(
 # =============================================================================
 
 def assess_weight_feasibility(
-    weights: List[float],
+    weights: list[float],
     tolerance: float = 0.01,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Assess feasibility of qpAdm weights.
-    
+
     Parameters
     ----------
     weights : List[float]
         Admixture weights
     tolerance : float
         Tolerance for sum-to-one check
-    
+
     Returns
     -------
     Dict[str, Any]
@@ -349,15 +345,15 @@ def assess_weight_feasibility(
     """
     # Check if all weights are in [0, 1]
     all_in_range = all(0 <= w <= 1 for w in weights)
-    
+
     # Check if weights sum to approximately 1
     weight_sum = sum(weights)
     sums_to_one = abs(weight_sum - 1.0) < tolerance
-    
+
     # Check for specific issues
     has_negative = any(w < 0 for w in weights)
     has_over_one = any(w > 1 for w in weights)
-    
+
     # Determine reason if infeasible
     reason = ""
     if has_negative:
@@ -366,7 +362,7 @@ def assess_weight_feasibility(
         reason = "Weight(s) exceed 1.0"
     elif not sums_to_one:
         reason = f"Weights sum to {weight_sum:.3f}, not 1.0"
-    
+
     return {
         "feasible": all_in_range,
         "sum_to_one": sums_to_one,
@@ -382,23 +378,23 @@ def assess_weight_feasibility(
 # Interpretation Helpers
 # =============================================================================
 
-def interpret_f3_result(estimate: float, z_score: float) -> Dict[str, Any]:
+def interpret_f3_result(estimate: float, z_score: float) -> dict[str, Any]:
     """Interpret f3 admixture test result.
-    
+
     Parameters
     ----------
     estimate : float
         f3 estimate
     z_score : float
         Z-score
-    
+
     Returns
     -------
     Dict[str, Any]
         Interpretation dictionary
     """
     significance = assess_significance(z_score)
-    
+
     if estimate < 0 and significance["significant"]:
         return {
             "interpretation": "admixture",
@@ -419,23 +415,23 @@ def interpret_f3_result(estimate: float, z_score: float) -> Dict[str, Any]:
         }
 
 
-def interpret_f4_result(estimate: float, z_score: float) -> Dict[str, Any]:
+def interpret_f4_result(estimate: float, z_score: float) -> dict[str, Any]:
     """Interpret f4 / D-statistic result.
-    
+
     Parameters
     ----------
     estimate : float
         f4 estimate
     z_score : float
         Z-score
-    
+
     Returns
     -------
     Dict[str, Any]
         Interpretation dictionary
     """
     significance = assess_significance(z_score)
-    
+
     if significance["significant"]:
         direction = "positive" if estimate > 0 else "negative"
         return {

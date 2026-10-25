@@ -198,9 +198,9 @@ mod tests {
 
     fn create_test_f2_blocks() -> F2Blocks {
         // Create synthetic allele frequencies for 4 populations
-        let pops = vec!["Pop1", "Pop2", "Pop3", "Pop4"];
+        let pops = ["Pop1", "Pop2", "Pop3", "Pop4"];
         let n_snps = 1000;
-        let n_blocks = 10;
+        let _n_blocks = 10;
 
         // Create frequencies with known relationships
         // Pop1 and Pop2 are closer, Pop3 and Pop4 are outgroups
@@ -211,7 +211,7 @@ mod tests {
         };
 
         let mut freqs = Array2::zeros((n_snps, 4));
-        let mut counts = Array2::from_elem((n_snps, 4), 50u32);
+        let counts = Array2::from_elem((n_snps, 4), 50u32);
 
         for i in 0..n_snps {
             // Base frequency

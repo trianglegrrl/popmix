@@ -3,12 +3,12 @@
 Defines the columns that appear in the MultiQC General Statistics table.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 
-def get_general_stats_headers() -> Dict[str, Dict[str, Any]]:
+def get_general_stats_headers() -> dict[str, dict[str, Any]]:
     """Get General Statistics column headers.
-    
+
     Returns
     -------
     Dict[str, Dict[str, Any]]
@@ -55,41 +55,41 @@ def get_general_stats_headers() -> Dict[str, Dict[str, Any]]:
     }
 
 
-def format_general_stats_data(results: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+def format_general_stats_data(results: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """Format results for General Statistics table.
-    
+
     Parameters
     ----------
     results : Dict[str, Dict[str, Any]]
         Results by sample name
-    
+
     Returns
     -------
     Dict[str, Dict[str, Any]]
         Formatted data for MultiQC
     """
     formatted = {}
-    
+
     for sample_name, data in results.items():
         sample_data = {}
-        
+
         # Extract relevant fields
         if "p_value" in data:
             sample_data["popmix_pvalue"] = data["p_value"]
-        
+
         if "generations" in data:
             sample_data["popmix_generations"] = data["generations"]
-        
+
         if "years_bp" in data:
             sample_data["popmix_years_bp"] = data["years_bp"]
-        
+
         if "r_squared" in data:
             sample_data["popmix_r_squared"] = data["r_squared"]
-        
+
         if "sources" in data:
             sample_data["popmix_n_sources"] = len(data["sources"])
-        
+
         if sample_data:
             formatted[sample_name] = sample_data
-    
+
     return formatted

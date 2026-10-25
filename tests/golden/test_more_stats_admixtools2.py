@@ -13,8 +13,9 @@ import os
 from pathlib import Path
 
 import numpy as np
-import popmix as pm
 import pytest
+
+import popmix as pm
 
 REF_DIR = Path(__file__).parent / "admixtools2" / "v2.0.10" / "dg_6pop"
 REF_FILE = REF_DIR / "more_stats.json"

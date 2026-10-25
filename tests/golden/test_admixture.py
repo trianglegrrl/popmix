@@ -28,8 +28,9 @@ from itertools import permutations
 from pathlib import Path
 
 import numpy as np
-import popmix as pm
 import pytest
+
+import popmix as pm
 
 REF_ROOT = Path(__file__).parent / "admixture" / "v1.3.0"
 REPO = Path(__file__).parents[2]

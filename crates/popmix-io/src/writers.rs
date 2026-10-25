@@ -277,7 +277,7 @@ fn write_packedancestrymap_geno(path: &str, matrix: &GenotypeMatrix) -> Result<(
 
     // Bytes per row (4 samples per byte, rounded up)
     // Minimum record size is 48 bytes per EIGENSTRAT spec
-    let bytes_per_row = (n_samples + 3) / 4;
+    let bytes_per_row = n_samples.div_ceil(4);
     let record_size = bytes_per_row.max(48);
 
     // Write header: "GENO" magic + metadata, padded to record_size
@@ -319,7 +319,7 @@ fn write_plink_bed(path: &str, matrix: &GenotypeMatrix) -> Result<()> {
     writer.write_all(&[0x6c, 0x1b, 0x01])?;
 
     let n_samples = matrix.n_samples();
-    let bytes_per_snp = (n_samples + 3) / 4;
+    let bytes_per_snp = n_samples.div_ceil(4);
 
     for snp_idx in 0..matrix.n_snps() {
         let mut row = vec![0u8; bytes_per_snp];

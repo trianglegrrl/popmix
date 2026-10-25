@@ -10,7 +10,7 @@ This module provides machine-readable output formats for pipeline integration:
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional
 
 # Import YAML conditionally (it's an optional dependency)
 try:
@@ -37,7 +37,7 @@ def calculate_confidence_interval(
     confidence: float = 0.95,
 ) -> tuple:
     """Calculate confidence interval for an estimate.
-    
+
     Parameters
     ----------
     estimate : float
@@ -46,7 +46,7 @@ def calculate_confidence_interval(
         Standard error of the estimate
     confidence : float
         Confidence level (default 0.95)
-    
+
     Returns
     -------
     tuple
@@ -67,9 +67,9 @@ def result_to_dict(
     result_type: str,
     include_metadata: bool = False,
     include_ci: bool = True,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Convert a result object to a dictionary.
-    
+
     Parameters
     ----------
     result : Any
@@ -80,18 +80,18 @@ def result_to_dict(
         Whether to include result type metadata
     include_ci : bool
         Whether to include confidence intervals
-    
+
     Returns
     -------
     Dict[str, Any]
         Dictionary representation
     """
     data = {}
-    
+
     if include_metadata:
         data["type"] = result_type
         data["result_type"] = result_type
-    
+
     if result_type == "f2":
         data.update({
             "pop1": result.pop1,
@@ -101,13 +101,13 @@ def result_to_dict(
             "z_score": result.z_score,
             "n_snps": result.n_snps,
         })
-        
+
         if include_ci and hasattr(result, 'std_err'):
             lower, upper = calculate_confidence_interval(result.estimate, result.std_err)
             data["ci_lower"] = lower
             data["ci_upper"] = upper
             data["confidence_interval"] = [lower, upper]
-    
+
     elif result_type == "f3":
         data.update({
             "target": result.target,
@@ -118,12 +118,12 @@ def result_to_dict(
             "z_score": result.z_score,
             "n_blocks": result.n_blocks,
         })
-        
+
         if include_ci and hasattr(result, 'std_err'):
             lower, upper = calculate_confidence_interval(result.estimate, result.std_err)
             data["ci_lower"] = lower
             data["ci_upper"] = upper
-    
+
     elif result_type == "f4":
         data.update({
             "pop1": result.pop1,
@@ -135,35 +135,35 @@ def result_to_dict(
             "z_score": result.z_score,
             "n_blocks": result.n_blocks,
         })
-        
+
         if include_ci and hasattr(result, 'std_err'):
             lower, upper = calculate_confidence_interval(result.estimate, result.std_err)
             data["ci_lower"] = lower
             data["ci_upper"] = upper
-    
+
     elif result_type == "qpadm":
         # Build weights dictionary
         weights_dict = {}
         weights_list = []
-        
+
         for i, source in enumerate(result.sources):
             weight = result.weights[i]
             se = result.std_errs[i] if hasattr(result, 'std_errs') and result.std_errs else None
-            
+
             weight_data = {"source": source, "weight": weight}
             if se is not None:
                 weight_data["std_err"] = se
                 lower, upper = calculate_confidence_interval(weight, se)
                 weight_data["ci_lower"] = lower
                 weight_data["ci_upper"] = upper
-            
+
             weights_dict[source] = weight
             weights_list.append(weight_data)
-        
+
         # Check feasibility
         feasible = all(0 <= w <= 1 for w in result.weights)
         good_fit = result.p_value > 0.05
-        
+
         data.update({
             "target": result.target,
             "sources": result.sources,
@@ -180,7 +180,7 @@ def result_to_dict(
             },
             "feasible": feasible,
         })
-    
+
     elif result_type == "qpwave":
         rank_tests = []
         for test in result.rank_tests:
@@ -191,7 +191,7 @@ def result_to_dict(
                 "p_value": test.p_value,
                 "rejected": test.p_value < 0.05,
             })
-        
+
         data.update({
             "left_pops": result.left_pops,
             "right_pops": result.right_pops,
@@ -199,7 +199,7 @@ def result_to_dict(
             "rank_tests": rank_tests,
             "is_clade": result.is_clade() if hasattr(result, 'is_clade') else None,
         })
-    
+
     elif result_type == "dates":
         data.update({
             "test_pop": result.test_pop,
@@ -223,13 +223,13 @@ def result_to_dict(
                 "r_squared": result.r_squared,
             },
         })
-    
+
     else:
         # Generic serialization for unknown types
         for attr in dir(result):
             if not attr.startswith('_') and not callable(getattr(result, attr)):
                 data[attr] = getattr(result, attr)
-    
+
     return data
 
 
@@ -244,7 +244,7 @@ def format_as_json(
     include_metadata: bool = False,
 ) -> str:
     """Format result as JSON string.
-    
+
     Parameters
     ----------
     result : Any
@@ -255,7 +255,7 @@ def format_as_json(
         JSON indentation level
     include_metadata : bool
         Whether to include metadata
-    
+
     Returns
     -------
     str
@@ -275,7 +275,7 @@ def format_as_yaml(
     include_metadata: bool = False,
 ) -> str:
     """Format result as YAML string.
-    
+
     Parameters
     ----------
     result : Any
@@ -284,7 +284,7 @@ def format_as_yaml(
         Type of result
     include_metadata : bool
         Whether to include metadata
-    
+
     Returns
     -------
     str
@@ -292,7 +292,7 @@ def format_as_yaml(
     """
     if not YAML_AVAILABLE:
         raise ImportError("PyYAML is required for YAML output. Install with: pip install pyyaml")
-    
+
     data = result_to_dict(result, result_type, include_metadata=include_metadata)
     return yaml.dump(data, default_flow_style=False, sort_keys=False)
 
@@ -306,21 +306,21 @@ def format_as_tsv(
     result_type: str,
 ) -> str:
     """Format result as TSV (tab-separated values) string.
-    
+
     Parameters
     ----------
     result : Any
         Result object
     result_type : str
         Type of result
-    
+
     Returns
     -------
     str
         TSV string with header
     """
     data = result_to_dict(result, result_type, include_ci=True)
-    
+
     # Flatten nested structures
     flat_data = {}
     for key, value in data.items():
@@ -334,11 +334,11 @@ def format_as_tsv(
             flat_data[key] = ",".join(str(v) for v in value)
         else:
             flat_data[key] = value
-    
+
     # Build TSV
     headers = list(flat_data.keys())
     values = [str(flat_data[h]) for h in headers]
-    
+
     return "\t".join(headers) + "\n" + "\t".join(values)
 
 
@@ -347,18 +347,18 @@ def format_as_tsv(
 # =============================================================================
 
 def format_as_ndjson(
-    results: List[Any],
+    results: list[Any],
     result_type: str,
 ) -> str:
     """Format multiple results as NDJSON (newline-delimited JSON).
-    
+
     Parameters
     ----------
     results : List[Any]
         List of result objects
     result_type : str
         Type of results
-    
+
     Returns
     -------
     str
@@ -381,7 +381,7 @@ def write_as_parquet(
     output_path: str,
 ) -> None:
     """Write result to Parquet file.
-    
+
     Parameters
     ----------
     result : Any
@@ -393,9 +393,9 @@ def write_as_parquet(
     """
     if not PANDAS_AVAILABLE:
         raise ImportError("pandas is required for Parquet output. Install with: pip install pandas pyarrow")
-    
+
     data = result_to_dict(result, result_type)
-    
+
     # Flatten for DataFrame
     flat_data = {}
     for key, value in data.items():
@@ -409,10 +409,10 @@ def write_as_parquet(
             flat_data[key] = str(value)
         else:
             flat_data[key] = value
-    
+
     # Create DataFrame with single row
     df = pd.DataFrame([flat_data])
-    
+
     # Write to Parquet
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -430,7 +430,7 @@ def write_result_to_file(
     format: Optional[str] = None,
 ) -> None:
     """Write result to file in specified format.
-    
+
     Parameters
     ----------
     result : Any
@@ -443,10 +443,10 @@ def write_result_to_file(
         Output format. If None, inferred from file extension.
     """
     path = Path(output_path)
-    
+
     # Create parent directories
     path.parent.mkdir(parents=True, exist_ok=True)
-    
+
     # Infer format from extension if not specified
     if format is None:
         ext = path.suffix.lower()
@@ -461,28 +461,28 @@ def write_result_to_file(
             ".jsonl": "ndjson",
         }
         format = format_map.get(ext, "json")
-    
+
     # Write based on format
     if format == "json":
         content = format_as_json(result, result_type)
         path.write_text(content)
-    
+
     elif format == "yaml":
         content = format_as_yaml(result, result_type)
         path.write_text(content)
-    
+
     elif format == "tsv":
         content = format_as_tsv(result, result_type)
         path.write_text(content)
-    
+
     elif format == "parquet":
         write_as_parquet(result, result_type, str(path))
-    
+
     elif format == "ndjson":
         # For single result, wrap in list
         content = format_as_ndjson([result], result_type)
         path.write_text(content)
-    
+
     else:
         raise ValueError(f"Unknown format: {format}")
 
@@ -493,12 +493,12 @@ def write_result_to_file(
 
 def detect_format_from_path(path: str) -> str:
     """Detect output format from file path.
-    
+
     Parameters
     ----------
     path : str
         File path
-    
+
     Returns
     -------
     str

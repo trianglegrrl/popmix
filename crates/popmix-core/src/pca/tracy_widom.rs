@@ -199,7 +199,7 @@ mod tests {
         let corrected = tw_tail(x, EigensoftCompat::CORRECTED);
         let v721 = tw_tail(x, EigensoftCompat::V7_2_1);
         // smartpca 7.2.1 printed 6.9780333866491966e-41 here (family_all)
-        assert!((v721 - 6.9780333866491966e-41).abs() < 1e-52);
+        assert!((v721 - 6.978_033_386_649_197e-41).abs() < 1e-52);
         // the tail is the density over sqrt(x)
         assert!((corrected / v721 - x.powf(-0.5)).abs() < 1e-12);
     }

@@ -28,8 +28,9 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import popmix as pm
 import pytest
+
+import popmix as pm
 
 REF_ROOT = Path(__file__).parent / "admixtools2" / "v2.0.10"
 # The AADR configs read the 5 GB genotype file several times: --run-slow

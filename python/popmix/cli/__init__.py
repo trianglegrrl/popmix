@@ -34,7 +34,6 @@ from __future__ import annotations
 
 import json
 import sys
-from typing import Optional, Tuple
 
 import click
 
@@ -58,7 +57,7 @@ def parse_snp_range(ctx, param, value: str | None) -> tuple[int, int] | None:
             raise click.BadParameter("SNP range must be in format 'start:end'")
         return (int(parts[0]), int(parts[1]))
     except ValueError:
-        raise click.BadParameter("SNP range must be integers in format 'start:end'")
+        raise click.BadParameter("SNP range must be integers in format 'start:end'") from None
 
 
 def format_population_error(invalid_pop: str, prefix: str) -> str:
@@ -1334,7 +1333,8 @@ def qpgraph(graph_file: str, admix_weights: str | None, numstart: int, seed: int
         try:
             weights = [float(w) for w in admix_weights.split(",")]
         except ValueError:
-            raise click.BadParameter(f"not a list of numbers: {admix_weights!r}", param_hint="--admix-weights")
+            raise click.BadParameter(f"not a list of numbers: {admix_weights!r}",
+                                     param_hint="--admix-weights") from None
 
     try:
         f2_blocks = load_f2_blocks(input_prefix, f2_dir, pops, block_size, maxmiss, all_chromosomes)

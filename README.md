@@ -6,14 +6,21 @@ A fast Rust/Python toolkit for population genetics analysis. Popmix computes F-s
 
 Popmix answers questions about human (and other species') population history:
 
-- **How different are two populations?** (f2, Fst)
-- **Is a population admixed?** (f3, qpAdm)
-- **Did gene flow occur between populations?** (f4, D-statistic)
-- **When did populations mix?** (DATES)
-- **What are the ancestry proportions?** (qpAdm)
+- **How different are two populations?** (f2, FST)
+- **Is a population admixed?** (f3, qpAdm, ALDER)
+- **Did gene flow occur between populations?** (f4, D-statistics, scans and matrices)
+- **What graph of splits and admixtures fits the data?** (qpGraph, graph search)
+- **When did populations mix?** (DATES, ALDER, ROLLOFF)
+- **What are the ancestry proportions?** (qpAdm, ADMIXTURE)
 - **How many ancestral populations contributed?** (qpWave)
+- **How are the samples structured and related?** (PCA as smartpca, KING-robust and READ kinship, site-frequency spectra)
 
-Popmix reimplements [admixtools2](https://github.com/uqrmaie1/admixtools) in Rust with Python bindings, providing the same algorithms with better performance.
+Popmix reimplements [admixtools2](https://github.com/uqrmaie1/admixtools), DATES,
+smartpca, ADMIXTURE, ALDER and ROLLOFF in Rust with Python bindings and a
+command line. Each analysis is checked against the original tool on real data
+(TESTING.md). Where an original has a bug, popmix fixes it and offers a
+`compat` option that reproduces the original; each one is described in
+DEVIATIONS.md.
 
 ## Complete Pipeline: VCF to Admixture Analysis
 
@@ -782,18 +789,45 @@ outgroups:
 
 ## Validation
 
-Popmix is validated against reference implementations:
+Every analysis is checked against its reference tool on real data (AADR v62
+and the 1000 Genomes samples in it):
 
-| Statistic | Reference | Tolerance |
-|-----------|-----------|-----------|
-| f2, f3, f4 | admixtools2 | rtol=1e-10 |
-| Fst | admixtools2 | rtol=1e-10 |
-| qpAdm weights | admixtools2 | rtol=1e-6 |
-| qpWave p-values | admixtools2 | rtol=1e-4 |
-| DATES correlations | DATES v753 | 1e-6 |
-| DATES pair counts | DATES v753 | exact |
+| Analysis | Reference | Agreement |
+|----------|-----------|-----------|
+| f2, f3, f4, D, FST, scans | admixtools2 2.0.10 | rtol 1e-10 (SEs 1e-6) |
+| qpWave, qpAdm, model sets, resampling | admixtools2 2.0.10 | chi-squared and SEs 1e-6, weights 1e-6, p 1e-4 |
+| qpGraph | admixtools2 2.0.10 (its random starts and R's L-BFGS-B) | every start's score 3e-12 |
+| Graph search | admixtools2 `generate_all_graphs`, `find_graphs` | same graphs and order; optima |
+| DATES | DATES v753 | printed precision |
+| PCA | EIGENSOFT 7.2.1 smartpca | eigenvalues 1e-9 |
+| Kinship | PLINK 2 (KING-robust), READv2 | 1e-10 |
+| SFS | admixtools2, dadi 2.4.4 | exact, 1e-10 |
+| ADMIXTURE | ADMIXTURE 1.3.0 | log-likelihood at least ADMIXTURE's |
+| ALDER | ALDER 1.03 | curves 1e-9, fits 1e-6 |
+| ROLLOFF | ADMIXTOOLS 7.0.2 | curves 1e-9; fits at least as good |
 
-See `TESTING.md` for full validation details.
+See TESTING.md for every check and DEVIATIONS.md for where popmix
+corrects the reference tools.
+
+## More analyses
+
+Beyond the commands below, the Python API and CLI cover (each with
+`--help` / docstrings):
+
+| Command / function | What |
+|--------------------|------|
+| `qpdstat`, `qp3pop`, `outgroup-f3`, `dstat-matrix` | f4/D and f3 scans from genotypes or f2 blocks, matrices and heatmaps |
+| `qpgraph`, `find-graphs` | admixture graph fits (`--plot`, `--dot`) and searches (stepwise, exhaustive, admixtools2's evolutionary search with its constraints) |
+| `pm.qpadm_rotate`, `qpadm_multi`, `qpwave_pairs`, `qpadm_models`, `lazadm` | many qpAdm models at once |
+| `pm.*_resample_snps`, `*_resample_inds`, `compare_fits` | jackknife and bootstrap resampling, individuals left out |
+| `pca` | smartpca PCA with projection and Tracy-Widom tests |
+| `kinship` | KING-robust and READ kinship |
+| `sfs` | joint and projected site-frequency spectra |
+| `admixture` | ADMIXTURE: unsupervised, supervised, projection, cross-validation |
+| `alder`, `rolloff` | admixture dates from weighted LD |
+| `pm.read_admixtools2_f2`, `write_admixtools2_f2` | admixtools2 f2 directories |
+| `pm.parse_qp*_output` | output of classic ADMIXTOOLS programs |
+| `pm.msprime_sim`, `msprime_genome` | msprime simulations of a graph |
 
 ## Development
 

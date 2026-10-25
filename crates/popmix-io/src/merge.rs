@@ -188,11 +188,11 @@ pub fn find_duplicate_samples(samples_a: &[Sample], samples_b: &[Sample]) -> Vec
 
 /// Merge two genotype matrices
 ///
-/// Returns the merged matrix and statistics about the merge.
+/// Returns the merged matrix and statistics about the merge. Strand-ambiguous
+/// SNPs (A/T, C/G) are left out and counted in the statistics.
 pub fn merge_genotypes(
     matrix_a: &GenotypeMatrix,
     matrix_b: &GenotypeMatrix,
-    allow_strand_ambiguous: bool,
 ) -> Result<(GenotypeMatrix, MergeStats)> {
     // Check for duplicate samples
     let duplicates = find_duplicate_samples(matrix_a.samples(), matrix_b.samples());
@@ -482,7 +482,7 @@ mod tests {
         let matrix_b = GenotypeMatrix::new(data_b, samples_b, snps_b).unwrap();
 
         // Merge
-        let (merged, stats) = merge_genotypes(&matrix_a, &matrix_b, false).unwrap();
+        let (merged, stats) = merge_genotypes(&matrix_a, &matrix_b).unwrap();
 
         // Check stats
         assert_eq!(stats.snps_only_a, 1); // SNP at 100
@@ -538,7 +538,7 @@ mod tests {
         let matrix_b = GenotypeMatrix::new(data_b, samples_b, snps_b).unwrap();
 
         // Should error due to duplicate sample
-        let result = merge_genotypes(&matrix_a, &matrix_b, false);
+        let result = merge_genotypes(&matrix_a, &matrix_b);
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
@@ -560,7 +560,7 @@ mod tests {
         let matrix_b = GenotypeMatrix::new(data_b, samples_b, snps_b).unwrap();
 
         // Should error due to no overlapping SNPs
-        let result = merge_genotypes(&matrix_a, &matrix_b, false);
+        let result = merge_genotypes(&matrix_a, &matrix_b);
         assert!(result.is_err());
         assert!(result
             .unwrap_err()

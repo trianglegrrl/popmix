@@ -4,10 +4,10 @@ CLI tests for popmix.
 These tests define the expected CLI behavior. Written BEFORE implementation (TDD).
 """
 
-import subprocess
 import json
-import tempfile
 import os
+import subprocess
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -579,7 +579,7 @@ class TestThreadsOption:
 
     def test_invalid_threads_errors(self):
         """popmix --threads 0 should error."""
-        result = run_cli("--threads", "0", "--help", check=False)
+        run_cli("--threads", "0", "--help", check=False)
         # Should either error or ignore invalid value
         # (implementation detail - just verify it handles it)
 

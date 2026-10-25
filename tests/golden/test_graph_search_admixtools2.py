@@ -16,8 +16,9 @@ import os
 import statistics
 from pathlib import Path
 
-import popmix as pm
 import pytest
+
+import popmix as pm
 
 REF_DIR = Path(__file__).parent / "admixtools2" / "v2.0.10" / "dg_6pop"
 REF_FILE = REF_DIR / "find_graphs.json"

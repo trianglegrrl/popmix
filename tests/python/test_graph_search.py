@@ -7,9 +7,10 @@ and tests/golden/test_graph_constraints_admixtools2.py.
 import os
 import random
 
+import pytest
+
 import popmix as pm
 import popmix.graph_search as gs
-import pytest
 
 PREFIX = "tests/golden/dates/family_chr20_22"
 POPS = ["Yoruba", "French", "Simulation", "Simulation.1"]

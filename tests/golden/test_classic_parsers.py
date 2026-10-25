@@ -15,8 +15,9 @@ import json
 import math
 from pathlib import Path
 
-import popmix as pm
 import pytest
+
+import popmix as pm
 
 DIR = Path(__file__).parent / "admixtools_classic" / "v7.0.2"
 pytestmark = pytest.mark.skipif(not (DIR / "parsed.json").exists(), reason="classic outputs not generated")

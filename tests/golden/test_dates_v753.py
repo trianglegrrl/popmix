@@ -32,7 +32,7 @@ checked three ways:
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Optional
 
 import pytest
 
@@ -62,14 +62,14 @@ class DatesReference:
     maxdis: float
     qbin: int
     lovalfit: float
-    ld_rows: List[Tuple[float, float, float, float, int]]  # (dist_cm, cov, yreg, corr, n_pairs)
+    ld_rows: list[tuple[float, float, float, float, int]]  # (dist_cm, cov, yreg, corr, n_pairs)
     full_estimate: float
-    jackknife_by_chrom: Dict[int, Tuple[float, float]]  # chrom -> (weight, estimate)
+    jackknife_by_chrom: dict[int, tuple[float, float]]  # chrom -> (weight, estimate)
     jackknife_estimate: float
     jackknife_se: float
 
 
-def _parse_par(path: Path) -> Dict[str, str]:
+def _parse_par(path: Path) -> dict[str, str]:
     params = {}
     for line in path.read_text().splitlines():
         if ":" in line:
@@ -185,7 +185,7 @@ def _result_for(name: str, compat: Optional[str] = COMPAT):
     return _results[key]
 
 
-def _ld_mismatches(ref: DatesReference, ld_bins, skip=()) -> List[str]:
+def _ld_mismatches(ref: DatesReference, ld_bins, skip=()) -> list[str]:
     bins = {round(b.distance_cm, 3): b for b in ld_bins}
     mismatches = []
     for k, (dist, cov, yreg, corr, n_pairs) in enumerate(ref.ld_rows):
@@ -252,7 +252,7 @@ def _check_jackknife_result(name: str, compat: Optional[str] = COMPAT):
     )
 
 
-def _corrected_bins(name: str) -> List[int]:
+def _corrected_bins(name: str) -> list[int]:
     """LD bins where the corrected default differs from compat="dates-v753"."""
     _, compat = _result_for(name, COMPAT)
     _, default = _result_for(name, None)

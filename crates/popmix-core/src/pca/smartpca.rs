@@ -652,7 +652,11 @@ mod tests {
         let data = Array2::from_shape_fn((n_snps, 2 * n_per), |(snp, s)| {
             let h = (snp * 31 + s * 17 + snp * s) % 7;
             let group = s / n_per;
-            let p = if (snp + group) % 2 == 0 { 0.8 } else { 0.2 };
+            let p = if (snp + group).is_multiple_of(2) {
+                0.8
+            } else {
+                0.2
+            };
             let u = h as f64 / 7.0;
             if u < p * p {
                 2

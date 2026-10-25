@@ -17,8 +17,9 @@ import subprocess
 from pathlib import Path
 
 import numpy as np
-import popmix as pm
 import pytest
+
+import popmix as pm
 
 REF_DIR = Path(__file__).parent / "admixtools2" / "v2.0.10" / "dg_6pop"
 F2_DIR = REF_DIR / "f2_dir"

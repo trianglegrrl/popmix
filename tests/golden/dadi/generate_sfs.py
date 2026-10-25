@@ -38,19 +38,19 @@ CONVERTF = os.environ.get("CONVERTF", "/usr/bin/convertf")
 
 # (populations, projection) per spectrum
 CONFIGS = {
-    "family": dict(prefix=SMALL, spectra=[
+    "family": {"prefix": SMALL, "spectra": [
         (["Yoruba"], [42]),
         (["Yoruba"], [20]),
         (["French"], [31]),
         (["French", "Yoruba"], [20, 16]),
-    ]),
-    "aadr_1kg": dict(prefix=AADR, spectra=[
+    ]},
+    "aadr_1kg": {"prefix": AADR, "spectra": [
         (["CEU.DG"], [198]),
         (["CEU.DG"], [40]),
         (["YRI.DG"], [41]),
         (["CEU.DG", "YRI.DG"], [20, 30]),
         (["CEU.DG", "YRI.DG", "CHB.DG"], [10, 12, 8]),
-    ]),
+    ]},
 }
 
 

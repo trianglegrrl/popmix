@@ -25,7 +25,7 @@ def test_unknown_compat_is_rejected(geno):
 
 def test_compat_changes_only_mesh_tail(geno):
     """compat="dates-v753" restores DATES's mesh quirks, which only reach long lags."""
-    kwargs = dict(qbin=10, run_jackknife=False)
+    kwargs = {"qbin": 10, "run_jackknife": False}
     corrected = pm.dates(geno, "Simulation", "French", "Yoruba", **kwargs)
     compat = pm.dates(geno, "Simulation", "French", "Yoruba", compat="dates-v753", **kwargs)
     differ = [

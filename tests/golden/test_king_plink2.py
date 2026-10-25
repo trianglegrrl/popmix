@@ -18,8 +18,9 @@ import os
 from pathlib import Path
 
 import numpy as np
-import popmix as pm
 import pytest
+
+import popmix as pm
 
 REF_ROOT = Path(__file__).parent / "plink2" / "v2.0.0-a.7LM"
 REPO = Path(__file__).parents[2]

@@ -26,8 +26,9 @@ import os
 from pathlib import Path
 
 import numpy as np
-import popmix as pm
 import pytest
+
+import popmix as pm
 
 REF_ROOT = Path(__file__).parent / "readv2" / "73739be"
 REPO = Path(__file__).parents[2]

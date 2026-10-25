@@ -5,17 +5,17 @@ Parses popmix JSON output files into structured data.
 
 import json
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 
-def parse_popmix_json(filepath: str) -> Dict[str, Any]:
+def parse_popmix_json(filepath: str) -> dict[str, Any]:
     """Parse a popmix JSON output file.
-    
+
     Parameters
     ----------
     filepath : str
         Path to JSON file
-    
+
     Returns
     -------
     Dict[str, Any]
@@ -23,11 +23,11 @@ def parse_popmix_json(filepath: str) -> Dict[str, Any]:
     """
     with open(filepath) as f:
         data = json.load(f)
-    
+
     # Infer type from filename if not in data
     if "type" not in data:
         filename = Path(filepath).stem.lower()
-        
+
         if "qpadm" in filename:
             data["type"] = "qpadm"
         elif "qpwave" in filename:
@@ -54,18 +54,18 @@ def parse_popmix_json(filepath: str) -> Dict[str, Any]:
                 data["type"] = "f2"
             else:
                 data["type"] = "unknown"
-    
+
     return data
 
 
-def parse_f2_result(data: Dict[str, Any]) -> Dict[str, Any]:
+def parse_f2_result(data: dict[str, Any]) -> dict[str, Any]:
     """Parse F2 result data.
-    
+
     Parameters
     ----------
     data : Dict[str, Any]
         Raw JSON data
-    
+
     Returns
     -------
     Dict[str, Any]
@@ -82,14 +82,14 @@ def parse_f2_result(data: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def parse_qpadm_result(data: Dict[str, Any]) -> Dict[str, Any]:
+def parse_qpadm_result(data: dict[str, Any]) -> dict[str, Any]:
     """Parse qpAdm result data.
-    
+
     Parameters
     ----------
     data : Dict[str, Any]
         Raw JSON data
-    
+
     Returns
     -------
     Dict[str, Any]
@@ -107,14 +107,14 @@ def parse_qpadm_result(data: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def parse_dates_result(data: Dict[str, Any]) -> Dict[str, Any]:
+def parse_dates_result(data: dict[str, Any]) -> dict[str, Any]:
     """Parse DATES result data.
-    
+
     Parameters
     ----------
     data : Dict[str, Any]
         Raw JSON data
-    
+
     Returns
     -------
     Dict[str, Any]

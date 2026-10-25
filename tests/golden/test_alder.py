@@ -27,8 +27,9 @@ import os
 from pathlib import Path
 
 import numpy as np
-import popmix._core as core
 import pytest
+
+import popmix._core as core
 
 REF_ROOT = Path(__file__).parent / "alder" / "v1.03"
 REPO = Path(__file__).parents[2]

@@ -22,8 +22,9 @@ import os
 from pathlib import Path
 
 import numpy as np
-import popmix as pm
 import pytest
+
+import popmix as pm
 
 REF_ROOT = Path(__file__).parent / "eigensoft" / "v7.2.1"
 REPO = Path(__file__).parents[2]

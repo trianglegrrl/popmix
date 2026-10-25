@@ -12,8 +12,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import popmix as pm
 import pytest
+
+import popmix as pm
 
 REF_FILE = Path(__file__).parent / "admixtools2" / "v2.0.10" / "dg_6pop" / "graph_constraints.json"
 

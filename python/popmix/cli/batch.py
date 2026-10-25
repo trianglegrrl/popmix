@@ -9,7 +9,7 @@ Includes progress tracking, result collection, and summary reports.
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 # Import YAML conditionally
 try:
@@ -23,42 +23,42 @@ except ImportError:
 # Configuration Parsing
 # =============================================================================
 
-def parse_populations_file(filepath: str) -> List[str]:
+def parse_populations_file(filepath: str) -> list[str]:
     """Parse population names from a text file.
-    
+
     Parameters
     ----------
     filepath : str
         Path to text file with one population per line
-    
+
     Returns
     -------
     List[str]
         List of population names
     """
     populations = []
-    
+
     with open(filepath) as f:
         for line in f:
             line = line.strip()
-            
+
             # Skip empty lines and comments
             if not line or line.startswith("#"):
                 continue
-            
+
             populations.append(line)
-    
+
     return populations
 
 
-def parse_batch_config(filepath: str) -> Dict[str, Any]:
+def parse_batch_config(filepath: str) -> dict[str, Any]:
     """Parse batch configuration from YAML file.
-    
+
     Parameters
     ----------
     filepath : str
         Path to YAML config file
-    
+
     Returns
     -------
     Dict[str, Any]
@@ -66,10 +66,10 @@ def parse_batch_config(filepath: str) -> Dict[str, Any]:
     """
     if not YAML_AVAILABLE:
         raise ImportError("PyYAML required for config files. Install with: pip install pyyaml")
-    
+
     with open(filepath) as f:
         config = yaml.safe_load(f)
-    
+
     return config
 
 
@@ -78,12 +78,12 @@ def parse_batch_config(filepath: str) -> Dict[str, Any]:
 # =============================================================================
 
 def generate_qpadm_jobs(
-    targets: List[str],
-    sources: List[str],
-    outgroups: List[str],
-) -> List[Dict[str, Any]]:
+    targets: list[str],
+    sources: list[str],
+    outgroups: list[str],
+) -> list[dict[str, Any]]:
     """Generate qpAdm analysis jobs.
-    
+
     Parameters
     ----------
     targets : List[str]
@@ -92,14 +92,14 @@ def generate_qpadm_jobs(
         Source populations
     outgroups : List[str]
         Outgroup populations
-    
+
     Returns
     -------
     List[Dict[str, Any]]
         List of job specifications
     """
     jobs = []
-    
+
     for target in targets:
         jobs.append({
             "type": "qpadm",
@@ -107,17 +107,17 @@ def generate_qpadm_jobs(
             "sources": sources,
             "outgroups": outgroups,
         })
-    
+
     return jobs
 
 
 def generate_dates_jobs(
-    targets: List[str],
+    targets: list[str],
     source1: str,
     source2: str,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Generate DATES analysis jobs.
-    
+
     Parameters
     ----------
     targets : List[str]
@@ -126,14 +126,14 @@ def generate_dates_jobs(
         First source population
     source2 : str
         Second source population
-    
+
     Returns
     -------
     List[Dict[str, Any]]
         List of job specifications
     """
     jobs = []
-    
+
     for target in targets:
         jobs.append({
             "type": "dates",
@@ -141,7 +141,7 @@ def generate_dates_jobs(
             "source1": source1,
             "source2": source2,
         })
-    
+
     return jobs
 
 
@@ -151,7 +151,7 @@ def generate_dates_jobs(
 
 class BatchRunner:
     """Tracks progress of batch analysis jobs.
-    
+
     Attributes
     ----------
     total : int
@@ -159,10 +159,10 @@ class BatchRunner:
     completed : int
         Number of completed jobs
     """
-    
+
     def __init__(self, n_jobs: int):
         """Initialize batch runner.
-        
+
         Parameters
         ----------
         n_jobs : int
@@ -171,23 +171,23 @@ class BatchRunner:
         self.total = n_jobs
         self.completed = 0
         self.failed = 0
-    
+
     def mark_completed(self) -> None:
         """Mark a job as completed."""
         self.completed += 1
-    
+
     def mark_failed(self) -> None:
         """Mark a job as failed."""
         self.failed += 1
         self.completed += 1
-    
+
     @property
     def progress_percent(self) -> float:
         """Get progress as percentage."""
         if self.total == 0:
             return 100.0
         return (self.completed / self.total) * 100
-    
+
     @property
     def remaining(self) -> int:
         """Get number of remaining jobs."""
@@ -200,7 +200,7 @@ class BatchRunner:
 
 class ResultCollector:
     """Collects results from batch analyses.
-    
+
     Attributes
     ----------
     results : List[Dict[str, Any]]
@@ -208,15 +208,15 @@ class ResultCollector:
     failures : List[Dict[str, Any]]
         Failed analyses
     """
-    
+
     def __init__(self):
         """Initialize result collector."""
-        self._results: List[Dict[str, Any]] = []
-        self._failures: List[Dict[str, Any]] = []
-    
-    def add_result(self, target: str, result: Dict[str, Any]) -> None:
+        self._results: list[dict[str, Any]] = []
+        self._failures: list[dict[str, Any]] = []
+
+    def add_result(self, target: str, result: dict[str, Any]) -> None:
         """Add a successful result.
-        
+
         Parameters
         ----------
         target : str
@@ -228,10 +228,10 @@ class ResultCollector:
             "target": target,
             **result,
         })
-    
+
     def add_failure(self, target: str, error: str) -> None:
         """Add a failed analysis.
-        
+
         Parameters
         ----------
         target : str
@@ -243,20 +243,20 @@ class ResultCollector:
             "target": target,
             "error": error,
         })
-    
-    def get_results(self) -> List[Dict[str, Any]]:
+
+    def get_results(self) -> list[dict[str, Any]]:
         """Get all successful results."""
         return self._results
-    
-    def get_failures(self) -> List[Dict[str, Any]]:
+
+    def get_failures(self) -> list[dict[str, Any]]:
         """Get all failures."""
         return self._failures
-    
+
     @property
     def n_success(self) -> int:
         """Number of successful results."""
         return len(self._results)
-    
+
     @property
     def n_failures(self) -> int:
         """Number of failures."""
@@ -268,12 +268,12 @@ class ResultCollector:
 # =============================================================================
 
 def write_batch_results(
-    results: List[Dict[str, Any]],
+    results: list[dict[str, Any]],
     output_path: str,
     format: str = "json",
 ) -> None:
     """Write all batch results to a single file.
-    
+
     Parameters
     ----------
     results : List[Dict[str, Any]]
@@ -285,7 +285,7 @@ def write_batch_results(
     """
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    
+
     if format == "json":
         with open(path, "w") as f:
             json.dump(results, f, indent=2)
@@ -299,13 +299,13 @@ def write_batch_results(
 
 
 def write_batch_results_individual(
-    results: List[Dict[str, Any]],
+    results: list[dict[str, Any]],
     output_dir: str,
     format: str = "json",
     suffix: str = "qpadm",
 ) -> None:
     """Write individual result files per target.
-    
+
     Parameters
     ----------
     results : List[Dict[str, Any]]
@@ -319,10 +319,10 @@ def write_batch_results_individual(
     """
     dir_path = Path(output_dir)
     dir_path.mkdir(parents=True, exist_ok=True)
-    
+
     for result in results:
         target = result.get("target", "unknown")
-        
+
         if format == "json":
             filename = f"{target}_{suffix}.json"
             filepath = dir_path / filename
@@ -341,14 +341,14 @@ def write_batch_results_individual(
 # Summary Report Generation
 # =============================================================================
 
-def generate_batch_summary(results: List[Dict[str, Any]]) -> Dict[str, Any]:
+def generate_batch_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
     """Generate summary statistics for batch results.
-    
+
     Parameters
     ----------
     results : List[Dict[str, Any]]
         List of analysis results
-    
+
     Returns
     -------
     Dict[str, Any]
@@ -361,25 +361,25 @@ def generate_batch_summary(results: List[Dict[str, Any]]) -> Dict[str, Any]:
             "n_feasible": 0,
             "best_models": [],
         }
-    
+
     # Count statistics
     n_total = len(results)
     n_good_fit = sum(1 for r in results if r.get("p_value", 0) > 0.05)
     n_feasible = sum(1 for r in results if r.get("feasible", True))
-    
+
     # Sort by p-value (best fits first)
     sorted_results = sorted(
         results,
         key=lambda r: r.get("p_value", 0),
         reverse=True,
     )
-    
+
     # Get top 5 best models
     best_models = sorted_results[:5]
-    
+
     # Calculate summary statistics
     p_values = [r.get("p_value", 0) for r in results if "p_value" in r]
-    
+
     summary = {
         "n_total": n_total,
         "n_good_fit": n_good_fit,
@@ -389,18 +389,18 @@ def generate_batch_summary(results: List[Dict[str, Any]]) -> Dict[str, Any]:
         "max_pvalue": max(p_values) if p_values else 0,
         "min_pvalue": min(p_values) if p_values else 0,
     }
-    
+
     return summary
 
 
-def format_batch_summary(summary: Dict[str, Any]) -> str:
+def format_batch_summary(summary: dict[str, Any]) -> str:
     """Format batch summary for display.
-    
+
     Parameters
     ----------
     summary : Dict[str, Any]
         Summary statistics
-    
+
     Returns
     -------
     str
@@ -416,15 +416,15 @@ def format_batch_summary(summary: Dict[str, Any]) -> str:
         f"Feasible models: {summary['n_feasible']}",
         "",
     ]
-    
+
     if summary.get("best_models"):
         lines.append("Best fitting models:")
         for i, model in enumerate(summary["best_models"][:5], 1):
             target = model.get("target", "Unknown")
             p_value = model.get("p_value", 0)
             lines.append(f"  {i}. {target}: p = {p_value:.4f}")
-    
+
     lines.append("")
     lines.append("=" * 60)
-    
+
     return "\n".join(lines)

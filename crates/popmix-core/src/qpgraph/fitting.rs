@@ -494,7 +494,7 @@ mod tests {
     fn create_test_f2_blocks() -> F2Blocks {
         // Create synthetic data that matches a simple tree
         // A and B are sister groups, both diverged from root
-        let pops = vec!["A", "B", "C"];
+        let pops = ["A", "B", "C"];
         let n_snps = 1000;
 
         let mut rng_state: u64 = 11111;

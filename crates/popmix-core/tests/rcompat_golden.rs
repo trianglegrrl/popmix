@@ -93,6 +93,9 @@ fn tolerances(name: &str) -> (f64, f64) {
     }
 }
 
+type Objective = fn(&[f64]) -> f64;
+type Gradient = fn(&[f64]) -> Vec<f64>;
+
 #[test]
 fn test_runif_matches_r() {
     for case in reference()["runif"].as_array().unwrap() {
@@ -129,7 +132,7 @@ fn test_sample_with_replacement_matches_r() {
 fn test_lbfgsb_matches_r_optim() {
     for case in reference()["lbfgsb"].as_array().unwrap() {
         let name = case["name"].as_str().unwrap();
-        let (f, g): (fn(&[f64]) -> f64, fn(&[f64]) -> Vec<f64>) = if name.starts_with("rosen") {
+        let (f, g): (Objective, Gradient) = if name.starts_with("rosen") {
             (rosen, rosen_gr)
         } else if name.starts_with("quad") {
             (quad, quad_gr)
@@ -156,12 +159,11 @@ fn test_lbfgsb_matches_r_optim() {
             Ok(f(x))
         };
         let mut grad = |x: &[f64]| Ok(g(x));
-        let gr: Option<&mut dyn FnMut(&[f64]) -> popmix_core::Result<Vec<f64>>> =
-            if case["gradient"] == "analytic" {
-                Some(&mut grad)
-            } else {
-                None
-            };
+        let gr: Option<popmix_core::rcompat::Gradient> = if case["gradient"] == "analytic" {
+            Some(&mut grad)
+        } else {
+            None
+        };
         let res = optim_lbfgsb(
             &mut obj,
             gr,

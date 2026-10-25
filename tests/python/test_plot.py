@@ -3,8 +3,9 @@ are tested with their analyses)."""
 
 import os
 
-import popmix as pm
 import pytest
+
+import popmix as pm
 
 plot = pytest.importorskip("popmix.plot")
 pytest.importorskip("matplotlib")

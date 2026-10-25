@@ -145,7 +145,7 @@ mod tests {
 
     fn create_test_f2_blocks() -> F2Blocks {
         // Create synthetic data with known structure
-        let pops = vec!["Pop1", "Pop2", "Pop3", "Pop4", "Pop5"];
+        let pops = ["Pop1", "Pop2", "Pop3", "Pop4", "Pop5"];
         let n_snps = 1000;
 
         let mut rng_state: u64 = 54321;

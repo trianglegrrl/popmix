@@ -19,34 +19,17 @@ pytest tests/ -v --run-slow
 
 ## Test Summary
 
-| Test Suite | Count | Status | Time | Flag |
-|------------|-------|--------|------|------|
-| Rust unit tests | 155 | All pass | ~30s | - |
-| Rust merge tests | 12 | All pass | ~1s | - |
-| Rust convertf tests | 8 | All pass | ~2s | - |
-| Rust VCF tests | 11 | All pass | ~1s | - |
-| Python quick tests | 26 | All pass | ~3 min | - |
-| Python slow tests | 9 | All pass | ~25 min | `--run-slow` |
-| Convertf 6x6 matrix | 36 | All pass | ~5s | - |
-| Rich output tests | 35 | All pass | ~0.2s | - |
-| Formatter tests | 23 | All pass | ~0.5s | - |
-| Statistical rigor tests | 24 | All pass | ~0.1s | - |
-| HTML report tests | 19 | All pass | ~0.1s | - |
-| MultiQC module tests | 16 | All pass | ~0.1s | - |
-| Batch mode tests | 17 | All pass | ~0.1s | - |
-| **Total** | **391** | **All pass** | **~30 min** | |
+| Suite | Tests | What | Command |
+|-------|-------|------|---------|
+| Rust | 276 | unit tests, readers and writers, R-compatible numerics and DATES stages against their references | `cargo test --workspace` |
+| Python | 296 | API, CLI, formats, plots, reports | `pytest tests/python` |
+| Golden | 434 | every analysis against its reference tool on real data (admixtools2, DATES, smartpca, PLINK 2, READv2, dadi, ADMIXTURE, ALDER, ROLLOFF, ADMIXTOOLS, R) | `pytest tests/golden` |
+| Slow (of the 730 Python and golden) | 271 | the AADR configurations, searches and reference runs | add `--run-slow` |
 
-Quick tests include:
-- DATES validation (7 tests) comparing against DATES v753 reference output
-- Merge tests (4 tests) validating SNP intersection and sample combination
-- Convertf validation ensuring all 36 format conversions (6x6 matrix) preserve genotypes
-- VCF reader tests (11 tests) validating VCF parsing, genotype encoding, and cross-format validation
-- Rich output tests (35 tests) for terminal formatting and display
-- Formatter tests (23 tests) for JSON, YAML, TSV, Parquet, NDJSON output
-- Statistical rigor tests (24 tests) for confidence intervals, significance, effect sizes
-- HTML report tests (19 tests) for Plotly-based report generation
-- MultiQC module tests (16 tests) for result aggregation
-- Batch mode tests (17 tests) for multi-target analysis
+Without `--run-slow` the Python and golden suites take about 4 minutes; with
+it, about 40. Golden tests skip when their data (AADR v62 under
+`/references`, or genotype files in the reference cache made by the
+generators) is missing.
 
 ## Test Structure
 

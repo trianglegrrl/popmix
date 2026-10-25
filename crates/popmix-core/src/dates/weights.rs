@@ -49,6 +49,8 @@ pub fn compute_weights(
     let mut weights = vec![f64::NAN; n_snps];
     let mut valid_indices = Vec::with_capacity(n_snps);
 
+    // the index runs over three arrays at once
+    #[allow(clippy::needless_range_loop)]
     for snp_idx in 0..n_snps {
         // Check if both populations have sufficient data
         let count1 = af.counts[[snp_idx, idx1]];

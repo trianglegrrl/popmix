@@ -18,8 +18,9 @@ import os
 from pathlib import Path
 
 import numpy as np
-import popmix as pm
 import pytest
+
+import popmix as pm
 
 ROOT = Path(__file__).parent
 REPO = ROOT.parents[1]

@@ -68,10 +68,10 @@ impl GenoFormat {
         let prefix_str = prefix.to_string_lossy();
 
         // Check for VCF format (full path with extension)
-        if prefix_str.ends_with(".vcf") || prefix_str.ends_with(".vcf.gz") {
-            if Path::new(prefix).exists() {
-                return Ok(GenoFormat::Vcf);
-            }
+        if (prefix_str.ends_with(".vcf") || prefix_str.ends_with(".vcf.gz"))
+            && Path::new(prefix).exists()
+        {
+            return Ok(GenoFormat::Vcf);
         }
 
         // Check for VCF format with prefix (add .vcf or .vcf.gz)
@@ -121,6 +121,8 @@ impl GenoFormat {
     /// Parse format from string name.
     ///
     /// Accepts various common names for each format.
+    // returns popmix's Result, not FromStr's
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Result<Self> {
         match s.to_lowercase().as_str() {
             "ancestrymap" => Ok(GenoFormat::Ancestrymap),

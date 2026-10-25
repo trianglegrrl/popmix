@@ -11,7 +11,9 @@ Test structure:
 
 import json
 import os
+
 import pytest
+
 import popmix as pm
 
 
@@ -61,13 +63,9 @@ def test_dates_on_synthetic_data():
     This test creates synthetic data with known admixture timing
     and verifies that our implementation can recover it approximately.
     """
-    from popmix._core import PyGenotypeMatrix
-    import numpy as np
 
     # Create simple synthetic data with 3 populations
     # This is a minimal test to verify the algorithm runs
-    n_samples = 40
-    n_snps = 300
 
     # Generate samples
     samples = []
@@ -172,7 +170,7 @@ def test_dates_chr20_22_subset():
     assert result.fit is not None
     assert result.generations > 0 or result.generations != result.generations  # > 0 or NaN
 
-    print(f"\nChr20-22 subset results:")
+    print("\nChr20-22 subset results:")
     print(f"  LD bins: {len(result.ld_bins)}")
     print(f"  First bin: d={first_bin.distance_cm:.1f}cM, LD={first_bin.weighted_ld:.6f}, n={first_bin.n_pairs}")
     print(f"  Generations: {result.generations:.1f}")
@@ -237,11 +235,11 @@ def test_dates_vs_reference():
         assert corr_diff < 1e-6, \
             f"Correlation mismatch at {dist_cm}cM: diff={corr_diff:.2e}"
 
-    print(f"\nDATES vs Reference Validation:")
+    print("\nDATES vs Reference Validation:")
     print(f"  Total pair count difference: {total_pair_diff}")
     print(f"  Max correlation difference: {max_corr_diff:.2e}")
     print(f"  Coefficient α: {ref['dates_output']['coefficient_source1']}")
-    print(f"  Status: PASS")
+    print("  Status: PASS")
 
 
 if __name__ == "__main__":
