@@ -480,17 +480,45 @@ pub fn graph_key(edges: &[(String, String)]) -> Result<Vec<String>> {
 /// Fit each graph with qpgraph; best first, ties in generation order.
 type Ranked = Vec<(f64, usize)>;
 
+/// A graph's score, or `None` for a graph that cannot be fit (its
+/// edge-length system is singular or the fit does not converge); any other
+/// error is in the data and stops the search.
+fn candidate_score(fit: Result<f64>) -> Result<Option<f64>> {
+    match fit {
+        Ok(score) => Ok(Some(score)),
+        Err(PopmixError::SingularMatrix { .. } | PopmixError::ConvergenceFailure { .. }) => {
+            Ok(None)
+        }
+        Err(e) => Err(e),
+    }
+}
+
+/// The graphs that can be fit, ranked; an error when none can.
 fn score_all(
     f2_blocks: &F2Blocks,
     graphs: &[Topology],
     base: &str,
     options: &QpGraphOptions,
 ) -> Result<Ranked> {
-    let scores: Vec<f64> = graphs
+    let scores: Vec<Option<f64>> = graphs
         .par_iter()
-        .map(|g| qpgraph(f2_blocks, &g.edge_list(base), Some(options.clone())).map(|r| r.score))
+        .map(|g| {
+            candidate_score(
+                qpgraph(f2_blocks, &g.edge_list(base), Some(options.clone())).map(|r| r.score),
+            )
+        })
         .collect::<Result<_>>()?;
-    let mut ranked: Vec<(f64, usize)> = scores.into_iter().zip(0..).collect();
+    let mut ranked: Vec<(f64, usize)> = scores
+        .into_iter()
+        .zip(0..)
+        .filter_map(|(score, i)| score.map(|s| (s, i)))
+        .collect();
+    if ranked.is_empty() {
+        return Err(PopmixError::Numerical(format!(
+            "none of the {} candidate graphs could be fit",
+            graphs.len()
+        )));
+    }
     ranked.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
     Ok(ranked)
 }
@@ -601,6 +629,22 @@ pub fn find_graphs(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_graph_that_cannot_be_fit_is_passed_over() {
+        let singular = PopmixError::SingularMatrix {
+            context: "x".into(),
+        };
+        let stuck = PopmixError::ConvergenceFailure {
+            iterations: 1,
+            context: "x".into(),
+        };
+        assert_eq!(candidate_score(Ok(0.5)).unwrap(), Some(0.5));
+        assert_eq!(candidate_score(Err(singular)).unwrap(), None);
+        assert_eq!(candidate_score(Err(stuck)).unwrap(), None);
+        // an error in the data stops the search
+        assert!(candidate_score(Err(PopmixError::PopulationNotFound("A".into()))).is_err());
+    }
 
     fn names(n: usize) -> Vec<String> {
         (0..n).map(|i| format!("P{i}")).collect()

@@ -424,7 +424,9 @@ fn box_qp(
         Upper,
     }
     let n = q.len();
-    let singular = || PopmixError::Numerical("qpgraph: singular edge-length system".to_string());
+    let singular = || PopmixError::SingularMatrix {
+        context: "qpgraph edge-length system".to_string(),
+    };
     let solve_free = |state: &[State], x: &DVector<f64>| -> Result<DVector<f64>> {
         let free: Vec<usize> = (0..n).filter(|&i| state[i] == State::Free).collect();
         let mut out = x.clone();
@@ -459,7 +461,8 @@ fn box_qp(
         }
     }
     let gtol = 1e-13 * (1.0 + q.amax());
-    for _ in 0..(20 * n + 100) {
+    let max_steps = 20 * n + 100;
+    for _ in 0..max_steps {
         let target = solve_free(&state, &x)?;
         // largest step towards the subproblem optimum that stays in the box
         let mut alpha = 1.0;
@@ -500,9 +503,10 @@ fn box_qp(
             None => return Ok(x),
         }
     }
-    Err(PopmixError::Numerical(
-        "qpgraph: edge-length optimization did not converge".to_string(),
-    ))
+    Err(PopmixError::ConvergenceFailure {
+        iterations: max_steps,
+        context: "qpgraph edge-length optimization".to_string(),
+    })
 }
 
 /// Everything that is fixed once the f3 statistics are known.
