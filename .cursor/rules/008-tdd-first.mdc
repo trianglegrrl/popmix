@@ -19,41 +19,24 @@ Every feature, bug fix, and refactor starts with a failing test.
 Before writing ANY implementation code, write a test that describes expected behavior:
 
 ```python
-# tests/python/test_rich_output.py
-def test_qpadm_panel_shows_weights_with_confidence_intervals():
-    """Rich panel should display weights with 95% CI."""
-    result = MockQpAdmResult(weights=[0.45, 0.55], ses=[0.036, 0.036])
-    panel = format_qpadm_result(result)
-    
-    assert "45.2%" in panel
-    assert "[38.1%, 52.3%]" in panel  # 95% CI
+# tests/python/test_population_validation.py
+def test_a_repeated_population_is_an_error():
+    f2 = pm.extract_f2(SMALL, POPS)
+    with pytest.raises(ValueError, match="French"):
+        pm.qpadm(f2, "French", ["Yoruba", "French"], ["Mbuti", "Han"])
 ```
 
 Run the test - it MUST fail:
 
 ```bash
-pytest tests/python/test_rich_output.py::test_qpadm_panel_shows_weights_with_confidence_intervals -v
-# Expected: FAILED (function doesn't exist yet)
+pytest tests/python/test_population_validation.py::test_a_repeated_population_is_an_error -v
+# Expected: FAILED (the repeated population is accepted)
 ```
 
 ### 2. GREEN: Write Minimum Code to Pass
 
-Implement ONLY what is needed to pass the test:
-
-```python
-# python/popmix/cli/rich_output.py
-def format_qpadm_result(result):
-    """Format qpAdm result for Rich display."""
-    # Minimum implementation to pass test
-    ...
-```
-
-Run test until green:
-
-```bash
-pytest tests/python/test_rich_output.py -v
-# Expected: PASSED
-```
+Implement ONLY what is needed to pass the test (here, a population check
+before the model is fitted), then run the test until it passes.
 
 ### 3. REFACTOR: Improve While Staying Green
 
@@ -61,7 +44,7 @@ Clean up code, add documentation, optimize - but keep tests passing:
 
 ```bash
 # After refactoring, tests must still pass
-pytest tests/python/test_rich_output.py -v
+pytest tests/python -v
 ```
 
 ## Test Categories
@@ -77,78 +60,13 @@ pytest tests/python/test_rich_output.py -v
 
 ## TDD Examples by Component
 
-### CLI Output Formatting
+### Golden Master (against a reference tool)
 
 ```python
-def test_f2_output_includes_significance_color():
-    """F2 output should color Z-scores by significance."""
-    result = {"estimate": 0.02, "std_err": 0.001, "z_score": 5.2}
-    output = format_f2_result(result, use_color=True)
-    assert "significant" in output.lower() or "green" in output.lower()
-
-def test_f2_output_shows_confidence_interval():
-    """F2 output should include 95% confidence interval."""
-    result = {"estimate": 0.02, "std_err": 0.001, "z_score": 5.2}
-    output = format_f2_result(result)
-    assert "[" in output and "]" in output  # CI brackets
-```
-
-### HTML Reports
-
-```python
-def test_html_report_contains_plotly_chart():
-    """HTML report should include Plotly.js chart."""
-    result = create_mock_dates_result()
-    html = generate_dates_report(result)
-    assert "plotly" in html.lower()
-    assert "ld-decay-chart" in html
-
-def test_html_report_is_valid_html():
-    """Generated HTML should be valid."""
-    html = generate_report(mock_results)
-    assert html.startswith("<!DOCTYPE html>")
-    assert "</html>" in html
-```
-
-### MultiQC Module
-
-```python
-def test_multiqc_finds_popmix_json(tmp_path):
-    """MultiQC module should detect popmix output files."""
-    test_file = tmp_path / "sample_popmix_stats.json"
-    test_file.write_text('{"f2": {"A_B": 0.02}}')
-    
-    module = PopmixModule()
-    found = module.find_log_files(str(tmp_path))
-    assert len(found) == 1
-
-def test_multiqc_parses_qpadm_results(tmp_path):
-    """MultiQC should correctly parse qpAdm JSON."""
-    test_file = tmp_path / "test_qpadm.json"
-    test_file.write_text('{"target": "French", "weights": [0.45, 0.55]}')
-    
-    data = parse_qpadm_json(test_file)
-    assert data["target"] == "French"
-```
-
-### Output Formatters
-
-```python
-def test_json_output_validates_against_schema():
-    """JSON output should conform to schema."""
-    result = compute_f2("A", "B")
-    json_output = format_as_json(result)
-    
-    schema = load_schema("f2_result.json")
-    validate(json_output, schema)  # Should not raise
-
-def test_parquet_output_readable():
-    """Parquet output should be readable by pandas."""
-    result = compute_qpadm(...)
-    write_parquet(result, "test.parquet")
-    
-    df = pd.read_parquet("test.parquet")
-    assert "weights" in df.columns
+def test_qpadm_matches_admixtools2():
+    ref = json.loads(REF.read_text())          # made by the R generator
+    result = pm.qpadm(f2, ref["target"], ref["left"], ref["right"])
+    np.testing.assert_allclose(result.weights, ref["weights"], rtol=1e-6)
 ```
 
 ### Rust Tests
@@ -209,7 +127,7 @@ Only then write implementation code.
 # Python tests (venv required)
 unset CONDA_PREFIX && source .venv/bin/activate
 pytest tests/python -v
-pytest tests/python/test_rich_output.py -v  # Specific file
+pytest tests/python/test_cli.py -v          # Specific file
 pytest -k "test_qpadm" -v  # By name pattern
 
 # Rust tests

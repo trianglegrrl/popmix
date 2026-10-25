@@ -75,7 +75,7 @@ popmix/
 │   ├── rust/            # Rust integration tests
 │   ├── python/          # pytest tests
 │   └── golden/          # admixtools2 reference data
-├── admixtools/          # admixtools2 R source code for reference
+├── admixtools/          # admixtools2 checkout to run (gitignored); see Provenance
 └── .venv/               # Virtual environment (gitignored)
 ```
 
@@ -99,12 +99,18 @@ fst(f2_blocks)
 qpdstat(f2_blocks, pop1 = "Han.DG", pop2 = "Yoruba.DG", pop3 = "Han.DG", pop4 = "Mbuti.DG")
 ```
 
-### admixtools2 Source Code
+### Provenance: never translate GPL source
 
-The admixtools2 R source code is available at `/home/a/popmix/admixtools/` for reference when implementing algorithms. Key files:
-- `R/fstats.R` - F-statistic implementations
-- `R/qpadm.R` - qpAdm algorithm
-- `R/io.R` - File format reading
+popmix is MIT-licensed; admixtools2 (GPL-3) and R (GPL-2-or-later) are not.
+Implement from papers (Patterson et al. 2012, Harney et al. 2021, Maier et al.
+2023, ...), documentation (manuals, `?function` help, vignettes) and the
+reference tools' black-box output. Do not translate, or read while writing
+code, the source of a GPL tool (admixtools2's R and C++, R's C sources such as
+lbfgsb.c and RNG.c, plink-ng): the result would be a derivative work. Running
+those tools as oracles is fine, and is how every golden test is made. The
+admixtools2 checkout at `/home/a/popmix/admixtools/` (gitignored) is there to
+run, and for its documentation (`man/`, vignettes), not to read its code.
+Record where a module's method came from in its module doc comment.
 
 ## Code Style
 
@@ -231,7 +237,8 @@ cargo test -p popmix-core fst
 
 ### 3. GREEN: Implement Minimum Code
 
-Implement the algorithm in Rust, referencing admixtools2 source at `/home/a/popmix/admixtools/R/` as needed.
+Implement the algorithm in Rust from the paper and documentation (see
+Provenance above), never from the admixtools2 source.
 
 Run tests until they pass:
 ```bash

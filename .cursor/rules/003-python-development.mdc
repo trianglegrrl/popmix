@@ -59,15 +59,16 @@ Use Click for CLI commands in `python/popmix/cli/`:
 
 ```python
 import click
-from rich.console import Console
 
-@click.command()
+@cli.command()
 @click.argument("prefix")
 @click.option("--populations", "-p", multiple=True)
 def fst(prefix: str, populations: tuple[str, ...]) -> None:
     """Compute Fst between populations."""
-    console = Console()
-    # Implementation
+    try:
+        ...
+    except EXPECTED_ERRORS as e:  # bad input: one line; bugs keep their traceback
+        fail(e)
 ```
 
 ## Building and Testing

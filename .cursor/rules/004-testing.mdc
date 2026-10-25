@@ -50,7 +50,8 @@ fn test_fst_matches_admixtools2() {
 
 ### 3. GREEN: Implement Minimum Code
 
-Reference admixtools2 source at `/home/a/popmix/admixtools/R/`.
+Implement from the paper and documentation; never from the admixtools2
+source (see "Provenance" in CLAUDE.md).
 
 ### 4. Add PyO3 Bindings
 

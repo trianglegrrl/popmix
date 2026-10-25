@@ -49,7 +49,8 @@ f2_blocks/
 
 When implementing a new algorithm:
 
-1. **Read admixtools2 source** at `/home/a/popmix/admixtools/R/`
+1. **Work from the paper and documentation**, never the GPL source (see
+   "Provenance" in CLAUDE.md); record the source in the module doc comment
 2. **Understand the mathematical formula** - document in code
 3. **Check for bias corrections** - admixtools2 uses small-sample corrections
 4. **Use jackknife for standard errors** - block-based resampling
@@ -75,12 +76,15 @@ popmix.init_threads(8)
 popmix --threads 8 ...
 ```
 
-## Reference: admixtools2 Source Files
+## Provenance
 
-| Algorithm | R Source File |
-|-----------|---------------|
-| F-statistics | `admixtools/R/fstats.R` |
-| qpAdm/qpWave | `admixtools/R/qpadm.R` |
-| qpGraph | `admixtools/R/qpgraph.R` |
-| File I/O | `admixtools/R/io.R` |
-| DATES | `admixtools/R/dates.R` |
+popmix is MIT-licensed; admixtools2 (GPL-3) and R (GPL-2-or-later) are not.
+Implement from papers (Patterson et al. 2012, Harney et al. 2021, Maier et al.
+2023, ...), documentation (manuals, `?function` help, vignettes) and the
+reference tools' black-box output. Do not translate, or read while writing
+code, the source of a GPL tool (admixtools2's R and C++, R's C sources such as
+lbfgsb.c and RNG.c, plink-ng): the result would be a derivative work. Running
+those tools as oracles is fine, and is how every golden test is made. The
+admixtools2 checkout at `/home/a/popmix/admixtools/` (gitignored) is there to
+run, and for its documentation (`man/`, vignettes), not to read its code.
+Record where a module's method came from in its module doc comment.

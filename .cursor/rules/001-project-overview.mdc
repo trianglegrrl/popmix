@@ -47,9 +47,8 @@ pytest tests/golden -v  # Compare with admixtools2
 
 ## Reference Implementation
 
-admixtools2 R source code is at `/home/a/popmix/admixtools/R/` for algorithm reference:
-- `fstats.R` - F-statistic implementations
-- `qpadm.R` - qpAdm algorithm
-- `io.R` - File format reading
+admixtools2 is checked out at `/home/a/popmix/admixtools/` to run as a
+reference (golden tests). Its source is GPL-3: do not read it or translate it
+while writing code (see "Provenance" in CLAUDE.md).
 
 Use system R (not conda): `/usr/bin/R`
