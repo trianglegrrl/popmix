@@ -1,21 +1,25 @@
-//! qpWave/qpAdm rank fitting, as in admixtools2.
+//! The low-rank fit behind qpWave, qpAdm, `qpadm_p`, rotation and pairs.
 //!
-//! Reproduces admixtools2 (`qpadm`, `qpadm_fit`, `qpadm_evaluate_fit`, and
-//! the C++ `cpp_qpadm_weights`, `cpp_opt_A`, `cpp_opt_B`):
+//! Written from the clean-room specification `docs/cleanroom/qpadm-fit.md`
+//! and the published method: Patterson et al. 2012 (Genetics, appendix) for
+//! the rank test of an f4 matrix, and Haak et al. 2015 (Nature, SI 10) for
+//! the qpAdm weights.
 //!
-//! 1. Q = covariance of the f4 matrix with `fudge * trace(Q)` added to the
-//!    diagonal, then inverted.
-//! 2. A rank-r model f4 ≈ A B (A: rows × r, B: r × cols) starts from the top r
-//!    right singular vectors of the f4 matrix and alternates covariance-
-//!    weighted least squares for A and for B, 20 times. Each solve also adds
-//!    `fudge * trace` to its coefficient diagonal.
-//! 3. chi² = res' Q⁻¹ res for the residual res = f4 - A B, vectorised by rows,
-//!    with (rows - r)(cols - r) degrees of freedom.
-//! 4. qpAdm weights w solve [A 1]' w = (0, ..., 0, 1) in least squares, then
-//!    are scaled to sum to 1. Constrained weights (0 <= w <= 1, sum 1) solve
-//!    the same quadratic program admixtools2 passes to quadprog.
-//! 5. qpAdm weight standard errors refit the weights on every leave-one-block-
-//!    out f4 matrix with the same Q⁻¹ (`cpp_get_weights_covariance`).
+//! The m x n f4 matrix X (rows: left populations L1..Lm against L0; columns:
+//! right populations R1..Rn against R0) is approximated by a product A B of
+//! rank r, in the metric of the inverse jackknife covariance W of vec(X).
+//! Every vectorisation here is row-major: entry (i, j) of an m x n matrix is
+//! element i·n + j of its vector.
+//!
+//! The fit alternates between two weighted least-squares problems (A with B
+//! fixed, then B with A fixed), each a small linear system with a ridge of
+//! `fudge` times its trace. The misfit chi² = (x − vec(AB))ᵀ W (x − vec(AB))
+//! is compared with a chi-squared distribution on (m − r)(n − r) degrees of
+//! freedom. For qpAdm (target L0, sources L1..Lm, rank m − 1) the weights are
+//! the combination of the sources' rows of A that vanishes, normalised to sum
+//! to one.
+
+use std::cmp::Ordering;
 
 use nalgebra::{DMatrix, DVector};
 use ndarray::Array2;
@@ -24,27 +28,18 @@ use statrs::distribution::{ChiSquared, ContinuousCDF};
 use super::compat::Admixtools2Compat;
 use crate::{PopmixError, Result};
 
-/// admixtools2 qpadm_weights `iterations`.
-const ITERATIONS: usize = 20;
+/// Number of alternating rounds (A-step then B-step) in [`fit_rank`].
+const FIT_ROUNDS: usize = 20;
 
+/// Convert an ndarray matrix into a nalgebra one (same shape and entries).
 pub(crate) fn to_dmatrix(a: &Array2<f64>) -> DMatrix<f64> {
-    DMatrix::from_fn(a.nrows(), a.ncols(), |i, j| a[[i, j]])
+    let (nr, nc) = a.dim();
+    DMatrix::from_fn(nr, nc, |i, j| a[[i, j]])
 }
 
-/// Row-major vector of a matrix (armadillo `vectorise(x.t())`, R `c(t(x))`).
-fn rows_vec(x: &DMatrix<f64>) -> DVector<f64> {
-    DVector::from_iterator(x.len(), x.transpose().iter().copied())
-}
-
-fn add_fudge(m: &mut DMatrix<f64>, fudge: f64) {
-    let add = fudge * m.trace();
-    for i in 0..m.nrows() {
-        m[(i, i)] += add;
-    }
-}
-
-/// A model that cannot be fit: its system is singular, or no weights meet
-/// the constraints. Model loops skip these and stop on any other error.
+/// Whether an error means "this model cannot be fitted" (as opposed to bad
+/// input): a singular system or an infeasible weight problem. Callers that
+/// scan many models skip these.
 pub(crate) fn is_model_failure(e: &PopmixError) -> bool {
     matches!(
         e,
@@ -52,115 +47,183 @@ pub(crate) fn is_model_failure(e: &PopmixError) -> bool {
     )
 }
 
-fn solve(a: DMatrix<f64>, b: &DVector<f64>) -> Result<DVector<f64>> {
-    a.lu().solve(b).ok_or_else(|| PopmixError::SingularMatrix {
-        context: "qpWave/qpAdm fit".to_string(),
-    })
+fn singular(context: &str) -> PopmixError {
+    PopmixError::SingularMatrix {
+        context: context.to_string(),
+    }
 }
 
-/// Inverse of the f4 covariance after adding `fudge * trace` to its diagonal.
+/// Add `fudge · tr(M)` to every diagonal element of a square matrix.
+fn add_trace_ridge(m: &mut DMatrix<f64>, fudge: f64) {
+    let ridge = fudge * m.trace();
+    for i in 0..m.nrows() {
+        m[(i, i)] += ridge;
+    }
+}
+
+/// The weight matrix W = (Q + f·tr(Q)·I)⁻¹ of the f4 entries (spec section 1).
 pub(crate) fn fudged_inverse(cov: &Array2<f64>, fudge: f64) -> Result<DMatrix<f64>> {
     let mut q = to_dmatrix(cov);
-    add_fudge(&mut q, fudge);
-    q.try_inverse().ok_or_else(|| PopmixError::SingularMatrix {
-        context: "f4 covariance matrix".to_string(),
-    })
+    add_trace_ridge(&mut q, fudge);
+    q.try_inverse()
+        .filter(|inv| inv.iter().all(|v| v.is_finite()))
+        .ok_or_else(|| singular("f4 covariance matrix"))
 }
 
-/// cpp_opt_A: A minimising the Q-weighted error for fixed B.
-fn opt_a(
-    b: &DMatrix<f64>,
-    xvec: &DVector<f64>,
-    qinv: &DMatrix<f64>,
-    nr: usize,
-    fudge: f64,
-) -> Result<DMatrix<f64>> {
-    let b2 = DMatrix::<f64>::identity(nr, nr).kronecker(b);
-    let mut coeffs = &b2 * qinv * b2.transpose();
-    let rhs = &b2 * qinv * xvec;
-    add_fudge(&mut coeffs, fudge);
-    let a2 = solve(coeffs, &rhs)?;
-    // mat(&A2[0], B.n_rows, nr).t(): column-major (rnk x nr), transposed
-    Ok(DMatrix::from_column_slice(b.nrows(), nr, a2.as_slice()).transpose())
-}
-
-/// cpp_opt_B: B minimising the Q-weighted error for fixed A.
-fn opt_b(
-    a: &DMatrix<f64>,
-    xvec: &DVector<f64>,
-    qinv: &DMatrix<f64>,
-    nc: usize,
-    fudge: f64,
-) -> Result<DMatrix<f64>> {
-    let a2 = a.kronecker(&DMatrix::<f64>::identity(nc, nc));
-    let mut coeffs = a2.transpose() * qinv * &a2;
-    let rhs = a2.transpose() * qinv * xvec;
-    add_fudge(&mut coeffs, fudge);
-    let b2 = solve(coeffs, &rhs)?;
-    // mat(&B2[0], nc, A.n_cols).t()
-    Ok(DMatrix::from_column_slice(nc, a.ncols(), b2.as_slice()).transpose())
-}
-
-/// A rank-r fit of the f4 matrix: f4 ≈ A B.
+/// A rank-r approximation X ≈ A B: `a` is m x r and `b` is r x n.
+#[derive(Debug, Clone)]
 pub(crate) struct RankFit {
     pub a: DMatrix<f64>,
     pub b: DMatrix<f64>,
 }
 
-/// cpp_qpadm_weights without the weights: the alternating fit for rank `rnk`.
-/// Rank 0 is A = 0, B = 0.
+/// Row-major vectorisation of a matrix.
+fn vec_row_major(x: &DMatrix<f64>) -> DVector<f64> {
+    let (nr, nc) = x.shape();
+    DVector::from_fn(nr * nc, |k, _| x[(k / nc, k % nc)])
+}
+
+/// Solve the ridged normal equations (DᵀWD + f·tr·I) θ = DᵀWx for the
+/// weighted least-squares problem min (x − Dθ)ᵀ W (x − Dθ).
+fn ridged_wls(
+    design: &DMatrix<f64>,
+    qinv: &DMatrix<f64>,
+    x: &DVector<f64>,
+    fudge: f64,
+) -> Result<DVector<f64>> {
+    let dt_w = design.transpose() * qinv;
+    let mut normal = &dt_w * design;
+    add_trace_ridge(&mut normal, fudge);
+    let rhs = dt_w * x;
+    normal
+        .lu()
+        .solve(&rhs)
+        .filter(|s| s.iter().all(|v| v.is_finite()))
+        .ok_or_else(|| singular("qpWave/qpAdm fit"))
+}
+
+/// Fit X ≈ A B at rank `rnk` in the metric `qinv` (spec section 2).
+///
+/// Starts from the leading `rnk` right singular vectors of X, then runs
+/// [`FIT_ROUNDS`] rounds of alternating ridged weighted least squares.
 pub(crate) fn fit_rank(
     xmat: &DMatrix<f64>,
     qinv: &DMatrix<f64>,
     rnk: usize,
     fudge: f64,
 ) -> Result<RankFit> {
-    let (nr, nc) = xmat.shape();
+    let (m, n) = xmat.shape();
     if rnk == 0 {
         return Ok(RankFit {
-            a: DMatrix::zeros(nr, 1),
-            b: DMatrix::zeros(1, nc),
+            a: DMatrix::zeros(m, 1),
+            b: DMatrix::zeros(1, n),
         });
     }
+    let k = m.min(n);
+    if rnk > k {
+        return Err(PopmixError::Validation(format!(
+            "rank {rnk} exceeds the f4 matrix's {k} singular values"
+        )));
+    }
+
+    // Start: the rnk right singular vectors with the largest singular values.
     let svd = xmat.clone().svd(false, true);
     let v_t = svd
         .v_t
-        .ok_or_else(|| PopmixError::Numerical("SVD of f4 matrix failed".to_string()))?;
-    // Singular values in descending order, as armadillo returns them
+        .ok_or_else(|| PopmixError::Numerical("SVD of the f4 matrix failed".to_string()))?;
     let mut order: Vec<usize> = (0..svd.singular_values.len()).collect();
-    order.sort_by(|&i, &j| svd.singular_values[j].total_cmp(&svd.singular_values[i]));
-    if rnk > order.len() {
-        return Err(PopmixError::Validation(format!(
-            "rank {rnk} exceeds the f4 matrix's {} singular values",
-            order.len()
-        )));
-    }
-    let mut b = DMatrix::from_fn(rnk, nc, |i, j| v_t[(order[i], j)]);
+    order.sort_by(|&i, &j| {
+        svd.singular_values[j]
+            .partial_cmp(&svd.singular_values[i])
+            .unwrap_or(Ordering::Equal)
+    });
+    let mut b = DMatrix::from_fn(rnk, n, |r, j| v_t[(order[r], j)]);
     let mut a = xmat * b.transpose();
-    let xvec = rows_vec(xmat);
-    for _ in 0..ITERATIONS {
-        a = opt_a(&b, &xvec, qinv, nr, fudge)?;
-        b = opt_b(&a, &xvec, qinv, nc, fudge)?;
+
+    let x = vec_row_major(xmat);
+    for _ in 0..FIT_ROUNDS {
+        // A-step: vec(AB) = D_A vec(A), D_A[(i·n + j), (i·r + c)] = B[c, j].
+        let mut d_a = DMatrix::zeros(m * n, m * rnk);
+        for i in 0..m {
+            for j in 0..n {
+                for c in 0..rnk {
+                    d_a[(i * n + j, i * rnk + c)] = b[(c, j)];
+                }
+            }
+        }
+        let theta = ridged_wls(&d_a, qinv, &x, fudge)?;
+        a = DMatrix::from_fn(m, rnk, |i, c| theta[i * rnk + c]);
+
+        // B-step: vec(AB) = D_B vec(B), D_B[(i·n + j), (c·n + j)] = A[i, c].
+        let mut d_b = DMatrix::zeros(m * n, rnk * n);
+        for i in 0..m {
+            for j in 0..n {
+                for c in 0..rnk {
+                    d_b[(i * n + j, c * n + j)] = a[(i, c)];
+                }
+            }
+        }
+        let theta = ridged_wls(&d_b, qinv, &x, fudge)?;
+        b = DMatrix::from_fn(rnk, n, |c, j| theta[c * n + j]);
     }
     Ok(RankFit { a, b })
 }
 
-/// qpadm_evaluate_fit: chi-squared and degrees of freedom of a rank-r fit.
+/// The misfit chi² of a rank fit and its degrees of freedom (m − r)(n − r)
+/// (spec section 3).
 pub(crate) fn evaluate_fit(
     xmat: &DMatrix<f64>,
     qinv: &DMatrix<f64>,
     fit: &RankFit,
     rnk: usize,
 ) -> (f64, usize) {
-    let res = rows_vec(&(xmat - &fit.a * &fit.b));
-    let chisq = (res.transpose() * qinv * &res)[(0, 0)];
-    let (nr, nc) = xmat.shape();
-    let dof = nr.saturating_sub(rnk) * nc.saturating_sub(rnk);
+    let (m, n) = xmat.shape();
+    let resid = vec_row_major(&(xmat - &fit.a * &fit.b));
+    let chisq = resid.dot(&(qinv * &resid));
+    let dof = m.saturating_sub(rnk) * n.saturating_sub(rnk);
     (chisq, dof)
 }
 
-/// cpp_qpadm_weights: admixture weights of the rank `rnk` fit, summing to 1.
-/// Rank 0 (one source) has weight 1.
+/// Upper tail of the chi-squared distribution, with R `pchisq(x, df,
+/// lower.tail = FALSE)`'s conventions at the edges: with df 0 (a point mass
+/// at zero) it is 1 for x < 0 and 0 otherwise; for x <= 0 it is 1.
+fn chisq_upper_tail(x: f64, df: usize) -> f64 {
+    if df == 0 {
+        return if x < 0.0 { 1.0 } else { 0.0 };
+    }
+    if x.is_nan() {
+        return f64::NAN;
+    }
+    if x <= 0.0 {
+        return 1.0;
+    }
+    match ChiSquared::new(df as f64) {
+        Ok(dist) => dist.sf(x),
+        Err(_) => f64::NAN,
+    }
+}
+
+/// p-value of a fit: the chi-squared upper tail, NaN for a saturated model
+/// (0 degrees of freedom), which is not tested.
+pub(crate) fn chisq_p_value(chisq: f64, dof: usize) -> f64 {
+    if dof == 0 {
+        f64::NAN
+    } else {
+        chisq_upper_tail(chisq, dof)
+    }
+}
+
+/// Order p-values largest first, with NaN (untested) after every number.
+pub(crate) fn by_p_descending(a: f64, b: f64) -> Ordering {
+    match (a.is_nan(), b.is_nan()) {
+        (true, true) => Ordering::Equal,
+        (true, false) => Ordering::Greater,
+        (false, true) => Ordering::Less,
+        (false, false) => b.partial_cmp(&a).unwrap_or(Ordering::Equal),
+    }
+}
+
+/// qpAdm weights from the fit at rank `rnk` (spec section 4).
 pub(crate) fn qpadm_weights(
     xmat: &DMatrix<f64>,
     qinv: &DMatrix<f64>,
@@ -168,281 +231,196 @@ pub(crate) fn qpadm_weights(
     fudge: f64,
     constrained: bool,
 ) -> Result<Vec<f64>> {
-    if rnk == 0 {
-        return Ok(vec![1.0]);
-    }
-    weights_from_fit(&fit_rank(xmat, qinv, rnk, fudge)?, rnk, constrained)
+    let fit = fit_rank(xmat, qinv, rnk, fudge)?;
+    weights_from_fit(&fit, rnk, constrained)
 }
 
-/// The weights step of cpp_qpadm_weights for an existing rank `rnk` fit.
+/// The weights w with wᵀA = 0 and Σw = 1, in the least-squares sense
+/// (spec section 4): with C = [Aᵀ; 1ᵀ] and e = (0, ..., 0, 1), solve
+/// (CᵀC) w = Cᵀe, or (constrained) the same quadratic over the simplex
+/// 0 <= w <= 1, Σw = 1; then normalise to sum 1.
 pub(crate) fn weights_from_fit(fit: &RankFit, rnk: usize, constrained: bool) -> Result<Vec<f64>> {
-    if rnk == 0 {
+    let m = fit.a.nrows();
+    if rnk == 0 && m == 1 {
         return Ok(vec![1.0]);
     }
-    let nr = fit.a.nrows();
-    // x = [A 1]' ((rnk + 1) x nr), y = (0, ..., 0, 1)
-    let x = DMatrix::from_fn(
-        rnk + 1,
-        nr,
-        |i, j| if i < rnk { fit.a[(j, i)] } else { 1.0 },
-    );
-    let mut y = DVector::zeros(rnk + 1);
-    y[rnk] = 1.0;
-    let rhs = x.transpose() * &x;
-    let lhs = x.transpose() * &y;
+    let r = fit.a.ncols();
+    let mut c = DMatrix::from_element(r + 1, m, 1.0);
+    for k in 0..r {
+        for i in 0..m {
+            c[(k, i)] = fit.a[(i, k)];
+        }
+    }
+    let mut e = DVector::zeros(r + 1);
+    e[r] = 1.0;
+    let ctc = c.transpose() * &c;
+    let cte = c.transpose() * e;
+
     let w = if constrained {
-        simplex_qp(&rhs, &lhs)?
+        simplex_qp(&ctc, &cte).map_err(|err| match err {
+            PopmixError::Infeasible { .. } => PopmixError::Infeasible {
+                context: "constrained qpAdm weights".to_string(),
+            },
+            other => other,
+        })?
     } else {
-        solve(rhs, &lhs)?
+        ctc.lu()
+            .solve(&cte)
+            .filter(|s| s.iter().all(|v| v.is_finite()))
+            .ok_or_else(|| singular("qpAdm weights"))?
     };
     let total = w.sum();
     Ok(w.iter().map(|v| v / total).collect())
 }
 
-/// One row of admixtools2 qpadm `popdrop`: the model fitted to a subset of
-/// the sources.
-#[derive(Debug, Clone)]
-pub struct PopDropRow {
-    /// One character per source: '0' if used, '1' if dropped.
-    pub pattern: String,
-    /// Sources dropped relative to the full model: full rank - `f4rank`.
-    pub wt: usize,
-    /// Degrees of freedom.
-    pub dof: usize,
-    /// Chi-squared of the subset model.
-    pub chi_sq: f64,
-    /// P-value (1 when `dof` is 0, where admixtools2 reports NA).
-    pub p_value: f64,
-    /// Rank of the subset model: number of sources used - 1.
-    pub f4rank: usize,
-    /// Weight of each source, `None` for dropped sources.
-    pub weights: Vec<Option<f64>>,
-    /// Whether every weight lies in [0, 1].
-    pub feasible: bool,
-    /// Whether this model is on the nested path.
-    pub best: bool,
-    /// Degrees of freedom gained over the model this one is compared with.
-    pub dofdiff: Option<usize>,
-    /// Chi-squared difference with that model.
-    pub chisqdiff: Option<f64>,
-    /// P-value of `chisqdiff` with `dofdiff` degrees of freedom.
-    pub p_nested: Option<f64>,
-}
-
-/// admixtools2 `drop_pops`: fit every non-empty subset of the sources (rows
-/// of `xmat`), using the matching block of the full model's Q⁻¹, and mark
-/// the nested path through them (see [`mark_nested_path`]).
-pub(crate) fn drop_pops(
-    xmat: &DMatrix<f64>,
-    qinv: &DMatrix<f64>,
-    fudge: f64,
-    constrained: bool,
-    compat: Admixtools2Compat,
-) -> Result<Vec<PopDropRow>> {
-    let (nr, nc) = xmat.shape();
-    let full_rank = nr - 1;
-    let mut rows = Vec::new();
-    // power_set: subsets by size, each size in combn (lexicographic) order
-    for size in 1..=nr {
-        for subset in combinations(nr, size) {
-            let sub_x = DMatrix::from_fn(size, nc, |i, j| xmat[(subset[i], j)]);
-            let idx: Vec<usize> = subset
-                .iter()
-                .flat_map(|&r| (0..nc).map(move |c| r * nc + c))
-                .collect();
-            let sub_q = DMatrix::from_fn(idx.len(), idx.len(), |i, j| qinv[(idx[i], idx[j])]);
-            let rnk = size - 1;
-            let fit = fit_rank(&sub_x, &sub_q, rnk, fudge)?;
-            let (chi_sq, dof) = evaluate_fit(&sub_x, &sub_q, &fit, rnk);
-            let w = weights_from_fit(&fit, rnk, constrained)?;
-            let mut weights = vec![None; nr];
-            for (k, &r) in subset.iter().enumerate() {
-                weights[r] = Some(w[k]);
-            }
-            rows.push(PopDropRow {
-                pattern: (0..nr)
-                    .map(|r| if subset.contains(&r) { '0' } else { '1' })
-                    .collect(),
-                wt: full_rank - rnk,
-                dof,
-                chi_sq,
-                p_value: chisq_p_value(chi_sq, dof),
-                f4rank: rnk,
-                feasible: w.iter().all(|v| (0.0..=1.0).contains(v)),
-                weights,
-                best: false,
-                dofdiff: None,
-                chisqdiff: None,
-                p_nested: None,
-            });
-        }
-    }
-
-    mark_nested_path(&mut rows, full_rank, compat);
-
-    // arrange(dof, pat)
-    rows.sort_by(|a, b| a.dof.cmp(&b.dof).then_with(|| a.pattern.cmp(&b.pattern)));
-    Ok(rows)
-}
-
-/// Mark the nested path through the `popdrop` models, `rows` being in
-/// admixtools2 `power_set` order.
+/// Minimise ½ wᵀDw − dᵀw subject to Σw = 1 and 0 <= w <= 1.
 ///
-/// Corrected (ADMIXTOOLS2-0001): the path starts at the full model. Each step
-/// drops one more source, taking among the current model's feasible children
-/// the one with the lowest chi-squared (the first in `power_set` order on a
-/// tie), down to a single source or until no child is feasible. Each step is
-/// compared with the model it came from: `dofdiff` is 1 and `chisqdiff` is
-/// the increase in chi-squared, a likelihood-ratio test of whether the
-/// dropped source is needed.
-///
-/// `compat.popdrop_sibling_path` reproduces admixtools2 2.0.10, whose
-/// `child_patterns` only finds children of the first model on the path while
-/// the path starts with every model at full rank - 1. So nothing below that
-/// rank is added, and those siblings are compared with each other in order
-/// of decreasing dof (stable).
-fn mark_nested_path(rows: &mut [PopDropRow], full_rank: usize, compat: Admixtools2Compat) {
-    if compat.popdrop_sibling_path {
-        if full_rank == 0 {
-            return;
-        }
-        let mut nested: Vec<usize> = (0..rows.len())
-            .filter(|&i| rows[i].f4rank == full_rank - 1)
-            .collect();
-        nested.sort_by_key(|&i| std::cmp::Reverse(rows[i].dof));
-        for (k, &i) in nested.iter().enumerate() {
-            rows[i].best = true;
-            if let Some(&next) = nested.get(k + 1) {
-                compare_nested(rows, i, next);
-            }
-        }
-        return;
-    }
-
-    let Some(mut current) = rows.iter().position(|r| r.f4rank == full_rank) else {
-        return;
-    };
-    rows[current].best = true;
-    for rank in (0..full_rank).rev() {
-        let dropped = |p: &str| p.chars().map(|c| c == '1').collect::<Vec<_>>();
-        let parent = dropped(&rows[current].pattern);
-        let child = (0..rows.len())
-            .filter(|&i| rows[i].f4rank == rank && rows[i].feasible)
-            .filter(|&i| {
-                dropped(&rows[i].pattern)
-                    .iter()
-                    .zip(&parent)
-                    .all(|(c, p)| *c || !*p)
-            })
-            .fold(None, |best: Option<usize>, i| match best {
-                Some(b) if rows[b].chi_sq <= rows[i].chi_sq => Some(b),
-                _ => Some(i),
-            });
-        let Some(child) = child else { break };
-        rows[child].best = true;
-        compare_nested(rows, child, current);
-        current = child;
-    }
-}
-
-/// admixtools2's nested comparison of row `i` with row `next`, stored on `i`.
-fn compare_nested(rows: &mut [PopDropRow], i: usize, next: usize) {
-    let dofdiff = rows[i].dof - rows[next].dof;
-    let chisqdiff = rows[i].chi_sq - rows[next].chi_sq;
-    rows[i].dofdiff = Some(dofdiff);
-    rows[i].chisqdiff = Some(chisqdiff);
-    rows[i].p_nested = Some(chisq_upper_tail(chisqdiff, dofdiff));
-}
-
-/// All `k`-element subsets of 0..n in lexicographic order (R `combn`).
-fn combinations(n: usize, k: usize) -> Vec<Vec<usize>> {
-    let mut out = Vec::new();
-    let mut idx: Vec<usize> = (0..k).collect();
-    loop {
-        out.push(idx.clone());
-        let Some(i) = (0..k).rev().find(|&i| idx[i] != i + n - k) else {
-            return out;
-        };
-        idx[i] += 1;
-        for j in i + 1..k {
-            idx[j] = idx[j - 1] + 1;
-        }
-    }
-}
-
-/// R `pchisq(x, df, lower.tail = FALSE)`, including df = 0 (a point mass
-/// at 0) and negative x.
-fn chisq_upper_tail(x: f64, df: usize) -> f64 {
-    if df == 0 {
-        return if x < 0.0 { 1.0 } else { 0.0 };
-    }
-    if x <= 0.0 {
-        return 1.0;
-    }
-    chisq_p_value(x, df)
-}
-
-/// Minimise ½ w'Dw - d'w subject to sum(w) = 1 and 0 <= w <= 1: the problem
-/// admixtools2 gives quadprog for constrained qpAdm.
-///
-/// Solved exactly by trying every assignment of each weight to 0, 1 or free
-/// and solving the equality-constrained problem on the free weights; the
-/// feasible candidate with the lowest objective is the optimum (D is positive
-/// semi-definite, so the problem is convex). 3^n candidates: fine for the few
-/// sources qpAdm models have.
+/// A primal active-set method: bounds in the working set hold their
+/// variables exactly at 0 or 1; the remaining (free) variables solve the
+/// equality-constrained problem through its KKT system. A step that would
+/// leave the box stops at the first bound it meets and adds it; at a
+/// stationary point a bound whose multiplier has the wrong sign is released.
+/// D is assumed positive semi-definite (it is CᵀC for the qpAdm weights).
 pub(crate) fn simplex_qp(d_mat: &DMatrix<f64>, d_vec: &DVector<f64>) -> Result<DVector<f64>> {
-    const TOL: f64 = 1e-12;
-    let n = d_vec.len();
-    let objective = |w: &DVector<f64>| 0.5 * (w.transpose() * d_mat * w)[(0, 0)] - d_vec.dot(w);
-    let mut best: Option<(f64, DVector<f64>)> = None;
-    for code in 0..3usize.pow(n as u32) {
-        // state per weight: 0 = free, 1 = fixed at 0, 2 = fixed at 1
-        let state: Vec<usize> = (0..n).map(|i| code / 3usize.pow(i as u32) % 3).collect();
-        let free: Vec<usize> = (0..n).filter(|&i| state[i] == 0).collect();
-        let mut w: DVector<f64> = DVector::from_fn(n, |i, _| if state[i] == 2 { 1.0 } else { 0.0 });
-        let remaining = 1.0 - w.sum();
-        if free.is_empty() {
-            if remaining.abs() > TOL {
-                continue;
-            }
-        } else {
-            // KKT: [D_ff 1; 1' 0] [w_f; mu] = [d_f - D_fx w_x; remaining]
-            let m = free.len();
-            let fixed_term = d_mat * &w;
-            let kkt = DMatrix::from_fn(m + 1, m + 1, |i, j| match (i < m, j < m) {
-                (true, true) => d_mat[(free[i], free[j])],
-                (true, false) | (false, true) => 1.0,
-                (false, false) => 0.0,
-            });
-            let rhs = DVector::from_fn(m + 1, |i, _| {
-                if i < m {
-                    d_vec[free[i]] - fixed_term[free[i]]
-                } else {
-                    remaining
+    let m = d_vec.len();
+    let infeasible = || PopmixError::Infeasible {
+        context: "simplex quadratic program".to_string(),
+    };
+    if m == 0 || d_mat.shape() != (m, m) {
+        return Err(infeasible());
+    }
+    if m == 1 {
+        return Ok(DVector::from_element(1, 1.0));
+    }
+
+    #[derive(Clone, Copy, PartialEq)]
+    enum State {
+        Free,
+        Lower,
+        Upper,
+    }
+    let mut state = vec![State::Free; m];
+    let mut w = DVector::from_element(m, 1.0 / m as f64);
+    let tol = 1e-12;
+    let max_iter = 50 * (m + 1);
+
+    for _ in 0..max_iter {
+        let free: Vec<usize> = (0..m).filter(|&i| state[i] == State::Free).collect();
+        let nf = free.len();
+        let fixed_sum = state.iter().filter(|&&s| s == State::Upper).count() as f64;
+
+        // Equality-constrained optimum over the free variables:
+        // D_FF w_F − λ1 = d_F − D_FX w_X,   1ᵀ w_F = 1 − Σ w_X.
+        let (target_free, lambda) = {
+            let mut kkt = DMatrix::zeros(nf + 1, nf + 1);
+            let mut rhs = DVector::zeros(nf + 1);
+            for (a, &i) in free.iter().enumerate() {
+                for (b, &j) in free.iter().enumerate() {
+                    kkt[(a, b)] = d_mat[(i, j)];
                 }
-            });
-            let Some(sol) = kkt.lu().solve(&rhs) else {
-                continue;
-            };
-            for (k, &i) in free.iter().enumerate() {
-                w[i] = sol[k];
+                kkt[(a, nf)] = -1.0;
+                kkt[(nf, a)] = 1.0;
+                let mut v = d_vec[i];
+                for j in 0..m {
+                    if state[j] != State::Free {
+                        v -= d_mat[(i, j)] * w[j];
+                    }
+                }
+                rhs[a] = v;
             }
-            if free.iter().any(|&i| w[i] < -TOL || w[i] > 1.0 + TOL) {
-                continue;
+            rhs[nf] = 1.0 - fixed_sum;
+            let sol = kkt
+                .lu()
+                .solve(&rhs)
+                .filter(|s| s.iter().all(|v| v.is_finite()))
+                .ok_or_else(|| singular("constrained qpAdm weights"))?;
+            let mut target: Vec<f64> = (0..nf).map(|a| sol[a]).collect();
+            if nf == 1 {
+                // A single free variable is pinned by the sum constraint.
+                target[0] = 1.0 - fixed_sum;
+            }
+            (target, sol[nf])
+        };
+
+        // Step from w towards the free optimum, stopping at the first bound.
+        let mut alpha = 1.0;
+        let mut blocking: Option<(usize, State)> = None;
+        for (a, &i) in free.iter().enumerate() {
+            let p = target_free[a] - w[i];
+            if p < -tol && target_free[a] < 0.0 {
+                let t = w[i] / -p;
+                if t < alpha {
+                    alpha = t;
+                    blocking = Some((i, State::Lower));
+                }
+            } else if p > tol && target_free[a] > 1.0 {
+                let t = (1.0 - w[i]) / p;
+                if t < alpha {
+                    alpha = t;
+                    blocking = Some((i, State::Upper));
+                }
             }
         }
-        let obj = objective(&w);
-        if best.as_ref().is_none_or(|(b, _)| obj < *b) {
-            best = Some((obj, w));
+        for (a, &i) in free.iter().enumerate() {
+            w[i] += alpha * (target_free[a] - w[i]);
+        }
+        if let Some((i, s)) = blocking {
+            state[i] = s;
+            w[i] = if s == State::Upper { 1.0 } else { 0.0 };
+            if s == State::Upper {
+                // Σw = 1 with one weight at 1 forces every other to 0.
+                for j in 0..m {
+                    if j != i {
+                        state[j] = State::Lower;
+                        w[j] = 0.0;
+                    }
+                }
+                // Keep one variable free so the multiplier is defined.
+                state[i] = State::Free;
+            }
+            continue;
+        }
+        for (a, &i) in free.iter().enumerate() {
+            w[i] = target_free[a].clamp(0.0, 1.0);
+        }
+
+        // Stationary on the working set: check the bound multipliers.
+        // Gradient of the Lagrangian g = Dw − d − λ1; at a lower bound it
+        // must be >= 0, at an upper bound <= 0.
+        let g = d_mat * &w - d_vec;
+        let mut worst: Option<(usize, f64)> = None;
+        for i in 0..m {
+            let gi = g[i] - lambda;
+            let violation = match state[i] {
+                State::Free => 0.0,
+                State::Lower => -gi,
+                State::Upper => gi,
+            };
+            if violation > tol * (1.0 + g[i].abs().max(lambda.abs()))
+                && worst.is_none_or(|(_, v)| violation > v)
+            {
+                worst = Some((i, violation));
+            }
+        }
+        match worst {
+            None => {
+                if w.iter().any(|v| !v.is_finite()) {
+                    return Err(infeasible());
+                }
+                return Ok(w);
+            }
+            Some((i, _)) => state[i] = State::Free,
         }
     }
-    best.map(|(_, w)| w).ok_or_else(|| PopmixError::Infeasible {
+    Err(PopmixError::ConvergenceFailure {
+        iterations: max_iter,
         context: "constrained qpAdm weights".to_string(),
     })
 }
 
-/// cpp_get_weights_covariance (jackknife): weight standard errors from the
-/// weights refitted on each leave-one-block-out f4 matrix.
+/// Jackknife standard errors of the qpAdm weights (spec section 5): the
+/// weights of every leave-one-block-out f4 matrix with the same W, then
+/// sqrt(Σ_k (w_k − w̄)²) per source. NaN with fewer than two replicates.
 pub(crate) fn qpadm_weight_std_errors(
     leave_one_out: &[Array2<f64>],
     qinv: &DMatrix<f64>,
@@ -450,43 +428,195 @@ pub(crate) fn qpadm_weight_std_errors(
     fudge: f64,
     constrained: bool,
 ) -> Result<Vec<f64>> {
-    let numreps = leave_one_out.len();
-    let wmat = leave_one_out
-        .iter()
-        .map(|lo| qpadm_weights(&to_dmatrix(lo), qinv, rnk, fudge, constrained))
-        .collect::<Result<Vec<_>>>()?;
-    if numreps < 2 {
-        return Ok(vec![f64::NAN; wmat.first().map_or(0, |w| w.len())]);
+    if leave_one_out.len() < 2 {
+        let m = leave_one_out.first().map_or(rnk + 1, |x| x.nrows());
+        return Ok(vec![f64::NAN; m]);
     }
-    // wmat *= sqrt(numreps - 1); var = cov(wmat), the sample covariance
-    let scale = ((numreps - 1) as f64).sqrt();
-    let n_weights = wmat[0].len();
-    Ok((0..n_weights)
-        .map(|j| {
-            let col: Vec<f64> = wmat.iter().map(|w| w[j] * scale).collect();
-            let mean = col.iter().sum::<f64>() / numreps as f64;
-            let var = col.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (numreps - 1) as f64;
-            var.sqrt()
+    let reps = leave_one_out
+        .iter()
+        .map(|x| qpadm_weights(&to_dmatrix(x), qinv, rnk, fudge, constrained))
+        .collect::<Result<Vec<_>>>()?;
+    let m = reps[0].len();
+    let nrep = reps.len() as f64;
+    Ok((0..m)
+        .map(|s| {
+            let mean = reps.iter().map(|w| w[s]).sum::<f64>() / nrep;
+            reps.iter()
+                .map(|w| (w[s] - mean).powi(2))
+                .sum::<f64>()
+                .sqrt()
         })
         .collect())
 }
 
-/// Order models by p-value, best first, with untested models (NaN p, from
-/// 0 degrees of freedom) after every tested one.
-pub(crate) fn by_p_descending(a: f64, b: f64) -> std::cmp::Ordering {
-    a.is_nan().cmp(&b.is_nan()).then(b.total_cmp(&a))
+/// One model of qpAdm's `popdrop`: the fit to a subset of the sources.
+#[derive(Debug, Clone)]
+pub struct PopDropRow {
+    /// One character per source: '0' kept, '1' dropped.
+    pub pattern: String,
+    /// (sources − 1) − f4rank.
+    pub wt: usize,
+    /// Degrees of freedom of the fit.
+    pub dof: usize,
+    /// Chi-squared of the fit.
+    pub chi_sq: f64,
+    /// p-value of the fit (NaN when dof is 0).
+    pub p_value: f64,
+    /// Rank of the fit (kept sources − 1).
+    pub f4rank: usize,
+    /// Per source: its weight, or None if dropped.
+    pub weights: Vec<Option<f64>>,
+    /// Whether every weight lies in [0, 1].
+    pub feasible: bool,
+    /// Whether the model is on the nested path.
+    pub best: bool,
+    /// dof difference from the model it is compared with.
+    pub dofdiff: Option<usize>,
+    /// Chi-squared difference from the model it is compared with.
+    pub chisqdiff: Option<f64>,
+    /// p-value of that nested comparison.
+    pub p_nested: Option<f64>,
 }
 
-/// The p-value of a model's fit: the upper tail probability of a
-/// chi-squared distribution. NaN (admixtools2's NA) when dof is 0: a
-/// saturated model is not tested, so it has no p-value.
-pub(crate) fn chisq_p_value(chisq: f64, dof: usize) -> f64 {
-    if dof == 0 {
-        return f64::NAN;
+/// All k-subsets of 0..n in lexicographic order (as R `combn`).
+fn combinations(n: usize, k: usize) -> Vec<Vec<usize>> {
+    let mut out = Vec::new();
+    if k > n {
+        return out;
     }
-    ChiSquared::new(dof as f64)
-        .map(|d| d.sf(chisq))
-        .unwrap_or(f64::NAN)
+    let mut idx: Vec<usize> = (0..k).collect();
+    loop {
+        out.push(idx.clone());
+        // Rightmost position that can still advance.
+        let Some(pos) = (0..k).rev().find(|&p| idx[p] < n - k + p) else {
+            return out;
+        };
+        idx[pos] += 1;
+        for p in pos + 1..k {
+            idx[p] = idx[p - 1] + 1;
+        }
+    }
+}
+
+/// Fit every non-empty subset of the sources (spec section 6).
+pub(crate) fn drop_pops(
+    xmat: &DMatrix<f64>,
+    qinv: &DMatrix<f64>,
+    fudge: f64,
+    constrained: bool,
+    compat: Admixtools2Compat,
+) -> Result<Vec<PopDropRow>> {
+    let (m, n) = xmat.shape();
+    if m == 0 {
+        return Ok(Vec::new());
+    }
+    let full_rank = m - 1;
+    let mut rows = Vec::with_capacity((1usize << m.min(63)) - 1);
+    for size in 1..=m {
+        for subset in combinations(m, size) {
+            let xs = DMatrix::from_fn(size, n, |i, j| xmat[(subset[i], j)]);
+            let entries: Vec<usize> = subset
+                .iter()
+                .flat_map(|&i| (0..n).map(move |j| i * n + j))
+                .collect();
+            let ws = DMatrix::from_fn(entries.len(), entries.len(), |a, b| {
+                qinv[(entries[a], entries[b])]
+            });
+            let rnk = size - 1;
+            let fit = fit_rank(&xs, &ws, rnk, fudge)?;
+            let (chi_sq, dof) = evaluate_fit(&xs, &ws, &fit, rnk);
+            let w = weights_from_fit(&fit, rnk, constrained)?;
+            let feasible = w.iter().all(|v| (0.0..=1.0).contains(v));
+            let mut weights = vec![None; m];
+            let mut pattern = vec!['1'; m];
+            for (k, &i) in subset.iter().enumerate() {
+                weights[i] = Some(w[k]);
+                pattern[i] = '0';
+            }
+            rows.push(PopDropRow {
+                pattern: pattern.into_iter().collect(),
+                wt: full_rank - rnk,
+                dof,
+                chi_sq,
+                p_value: chisq_p_value(chi_sq, dof),
+                f4rank: rnk,
+                weights,
+                feasible,
+                best: false,
+                dofdiff: None,
+                chisqdiff: None,
+                p_nested: None,
+            });
+        }
+    }
+    mark_nested_path(&mut rows, full_rank, compat);
+    rows.sort_by(|a, b| a.dof.cmp(&b.dof).then_with(|| a.pattern.cmp(&b.pattern)));
+    Ok(rows)
+}
+
+/// Record on `rows[target]` its comparison with model `other`.
+fn record_comparison(rows: &mut [PopDropRow], target: usize, other: usize) {
+    let dofdiff = rows[target].dof.abs_diff(rows[other].dof);
+    let chisqdiff = rows[target].chi_sq - rows[other].chi_sq;
+    let t = &mut rows[target];
+    t.dofdiff = Some(dofdiff);
+    t.chisqdiff = Some(chisqdiff);
+    t.p_nested = Some(chisq_upper_tail(chisqdiff, dofdiff));
+}
+
+/// Mark the `best` models and their nested comparisons (spec section 6).
+/// `rows` are in subset order; `full_rank` is (sources − 1).
+fn mark_nested_path(rows: &mut [PopDropRow], full_rank: usize, compat: Admixtools2Compat) {
+    if compat.popdrop_sibling_path {
+        // admixtools2 2.0.10: every one-drop model, each compared with the
+        // next in order of decreasing dof.
+        if full_rank == 0 {
+            return;
+        }
+        let mut sib: Vec<usize> = (0..rows.len())
+            .filter(|&i| rows[i].f4rank == full_rank - 1)
+            .collect();
+        sib.sort_by(|&a, &b| rows[b].dof.cmp(&rows[a].dof));
+        for &i in &sib {
+            rows[i].best = true;
+        }
+        for pair in sib.windows(2) {
+            record_comparison(rows, pair[0], pair[1]);
+        }
+        return;
+    }
+
+    // Corrected: a greedy nested path from the full model downwards.
+    let Some(mut current) = rows
+        .iter()
+        .position(|r| r.f4rank == full_rank && r.pattern.bytes().all(|c| c == b'0'))
+    else {
+        return;
+    };
+    rows[current].best = true;
+    while rows[current].f4rank > 0 {
+        let cur_rank = rows[current].f4rank;
+        let cur_pat = rows[current].pattern.as_bytes().to_vec();
+        let mut chosen: Option<usize> = None;
+        for (i, r) in rows.iter().enumerate() {
+            let nested = r.f4rank + 1 == cur_rank
+                && r.feasible
+                && r.pattern.len() == cur_pat.len()
+                && r.pattern
+                    .bytes()
+                    .zip(&cur_pat)
+                    .all(|(c, &p)| p != b'1' || c == b'1');
+            if nested && chosen.is_none_or(|c| r.chi_sq < rows[c].chi_sq) {
+                chosen = Some(i);
+            }
+        }
+        let Some(child) = chosen else {
+            break;
+        };
+        rows[child].best = true;
+        record_comparison(rows, child, current);
+        current = child;
+    }
 }
 
 #[cfg(test)]
