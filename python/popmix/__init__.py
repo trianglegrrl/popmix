@@ -74,6 +74,7 @@ from popmix.dstats import (
     qpdstat,
     sample_ploidy,
 )
+from popmix.admixture import AdmixtureResult, admixture, admixture_loglik
 from popmix.kinship import king, read_kinship
 from popmix.pca import PcaResult, smartpca
 from popmix.sfs import Sfs, joint_sfs, sfs
@@ -134,6 +135,9 @@ __all__ = [
     "king",
     "read_kinship",
     "sfs",
+    "admixture",
+    "admixture_loglik",
+    "AdmixtureResult",
     "joint_sfs",
     "Sfs",
     "PcaResult",

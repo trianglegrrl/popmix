@@ -26,6 +26,17 @@ pub(crate) fn open_source(
     populations: &[String],
     auto_only: bool,
 ) -> PyResult<(Source, Vec<Snp>, GenoPopulations, Vec<Sample>)> {
+    open_source_filtered(prefix, populations, &|s: &Snp| {
+        !auto_only || s.is_autosomal()
+    })
+}
+
+/// As `open_source`, keeping the SNPs for which `keep_snp` is true.
+pub(crate) fn open_source_filtered(
+    prefix: &str,
+    populations: &[String],
+    keep_snp: &dyn Fn(&Snp) -> bool,
+) -> PyResult<(Source, Vec<Snp>, GenoPopulations, Vec<Sample>)> {
     let index = |pop: &str| populations.iter().position(|p| p == pop);
     let geno_path = format!("{prefix}.geno");
     let packed = std::path::Path::new(&geno_path).exists()
@@ -68,10 +79,7 @@ pub(crate) fn open_source(
         )));
     }
 
-    let keep: Vec<bool> = snps
-        .iter()
-        .map(|s| !auto_only || s.is_autosomal())
-        .collect();
+    let keep: Vec<bool> = snps.iter().map(keep_snp).collect();
     let kept: Vec<Snp> = snps
         .iter()
         .zip(&keep)

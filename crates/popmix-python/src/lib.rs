@@ -5,6 +5,7 @@
 // PyO3 macro expansions generate these warnings
 #![allow(clippy::useless_conversion)]
 
+mod admixture;
 mod geno_fstats;
 mod kinship;
 mod pca;
@@ -2966,6 +2967,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     pca::register(m)?;
     kinship::register(m)?;
     sfs::register(m)?;
+    admixture::register(m)?;
 
     // qpAdm/qpWave functions
     m.add_function(wrap_pyfunction!(qpwave, m)?)?;

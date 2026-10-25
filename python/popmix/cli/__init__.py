@@ -25,6 +25,7 @@ Commands:
     pca         Principal component analysis as smartpca, with projection
     kinship     Kinship for every pair of samples (KING-robust or READ-style)
     sfs         Site-frequency spectrum (dadi projection or admixtools2 joint_sfs)
+    admixture   Ancestry proportions as ADMIXTURE (unsupervised, supervised, projection)
 """
 
 from __future__ import annotations
@@ -693,6 +694,57 @@ def sfs(input_prefix: str, populations: list, projection: list, folded: bool, jo
             click.echo(df.to_csv(sep="\t", index=False, float_format="%.12g"), nl=False)
         else:
             df.to_csv(output, sep="\t", index=False, float_format="%.12g")
+    except click.ClickException:
+        raise
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@cli.command()
+@click.option("--input", "-i", "input_prefix", required=True, help="Genotype prefix")
+@click.option("--populations", callback=parse_population_list, default="",
+              help="Comma-separated populations whose samples are used (default: all)")
+@click.option("-k", "k", type=int, required=True, help="Number of ancestral populations")
+@click.option("--supervised", callback=parse_population_list, default="",
+              help="Comma-separated reference populations (K of them) for a supervised run")
+@click.option("--fixed-p", type=click.Path(exists=True, dir_okay=False), default=None,
+              help="Projection: a .P file (SNPs x K) from an earlier run on the same SNPs")
+@click.option("--cv", type=int, default=None, help="Folds of cross-validation")
+@click.option("--chromosomes", callback=parse_population_list, default="",
+              help="Comma-separated chromosomes to use (default: all)")
+@click.option("--seed", type=int, default=1, help="Seed for the random start (default: 1)")
+@click.option("--tolerance", type=float, default=1e-4,
+              help="Stop when the log-likelihood improves by less than this (default: 1e-4)")
+@click.option("--output-prefix", "-o", required=True,
+              help="Writes PREFIX.K.Q.tsv (id, pop, Q1..QK), PREFIX.K.Q and PREFIX.K.P (ADMIXTURE's formats)")
+@click.option("--plot", default=None, help="Also draw a bar plot of Q to this image file (needs popmix[plot])")
+def admixture(input_prefix: str, populations: list, k: int, supervised: list, fixed_p: str | None,
+              cv: int | None, chromosomes: list, seed: int, tolerance: float, output_prefix: str,
+              plot: str | None):
+    """Ancestry proportions with K ancestral populations, as ADMIXTURE.
+
+    Unsupervised by default; --supervised fixes the reference populations'
+    samples, --fixed-p projects new samples onto an earlier run's P.
+    """
+    import numpy as np
+
+    try:
+        validate_populations(input_prefix, populations + supervised)
+        p = None if fixed_p is None else np.loadtxt(fixed_p, ndmin=2)
+        r = pm.admixture(input_prefix, k, populations or None, supervised=supervised or None, fixed_p=p, cv=cv,
+                         chromosomes=chromosomes or None, seed=seed, tolerance=tolerance)
+        r.Q.to_csv(f"{output_prefix}.{k}.Q.tsv", sep="\t", index=False, float_format="%.12g")
+        np.savetxt(f"{output_prefix}.{k}.Q", r.q_matrix(), fmt="%.6f")
+        np.savetxt(f"{output_prefix}.{k}.P", r.P, fmt="%.6f")
+        click.echo(f"Loglikelihood: {r.loglik:.6f} ({r.iterations} iterations"
+                   f"{'' if r.converged else ', not converged'})")
+        if r.cv_error is not None:
+            click.echo(f"CV error (K={k}): {r.cv_error:.5f}")
+        if plot:
+            from popmix import plot as plots
+
+            plots.admixture(r, path=plot)
     except click.ClickException:
         raise
     except Exception as e:

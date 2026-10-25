@@ -853,6 +853,29 @@ projected, YRI.DG, CEU x YRI, CEU x YRI x CHB), autosomes only.
 `tests/python/test_sfs.py` checks projection, folding, the summary
 statistics' errors, the joint table layout and the `sfs` command.
 
+### ADMIXTURE vs ADMIXTURE 1.3.0
+
+`tests/golden/test_admixture.py` checks `admixture` against ADMIXTURE 1.3.0
+(`tests/golden/admixture/v1.3.0/<config>/admixture.json`, from
+`generate_admixture.py`), run with `--seed=1 -C=1e-10` on PLINK files
+written by EIGENSOFT convertf.
+
+| Check | Compared against | Tolerance |
+|-------|------------------|-----------|
+| `test_loglik_at_admixture_estimates` | ADMIXTURE's log-likelihood, popmix's evaluated at ADMIXTURE's printed Q (rows renormalized) and P | rtol 1e-9 |
+| `test_unsupervised` | final log-likelihood; Q up to cluster order where the maximum is identified | at least ADMIXTURE's; Q atol 1e-4 |
+| `test_projection` | `-P` with ADMIXTURE's P fixed (convex) | Q atol 2e-6 |
+| `test_supervised` | `--supervised` | at least ADMIXTURE's; Q atol 1e-4 |
+| `test_cross_validation` | `--cv=5` (popmix's own folds) | rtol 2% |
+
+Configs: `family_k2`, `family_k3`, `family_projection` (French and Yoruba
+fit, Simulation and Simulation.1 projected), `family_supervised`, and with
+`--run-slow` `aadr_1kg_k3` (CEU, YRI and CHB, chromosomes 20-22) and
+`aadr_1kg_projection` (GIH projected onto it, on the SNPs called in both).
+
+`tests/python/test_admixture.py` checks bounds, the clusters, projection of
+fit samples, errors, the bar plot and the `admixture` command.
+
 `tests/python/test_cli.py::TestCommandsMatchAdmixtools2` (`--run-slow`) runs
 the CLI itself (`popmix extract-f2`, then `f2`, `f3`, `f4`, `qpwave`, `qpadm`
 with `--f2-dir`) on the dg_6pop populations and compares with the same

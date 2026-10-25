@@ -65,6 +65,27 @@ impl PackedGenotypes {
         self.n_snps
     }
 
+    /// The given SNPs (by index), in that order.
+    pub fn select_snps(&self, snps: &[usize]) -> PackedGenotypes {
+        let mut data = Vec::with_capacity(snps.len() * self.bytes_per_snp);
+        for &s in snps {
+            data.extend_from_slice(
+                &self.data[s * self.bytes_per_snp..(s + 1) * self.bytes_per_snp],
+            );
+        }
+        PackedGenotypes {
+            n_samples: self.n_samples,
+            n_snps: snps.len(),
+            bytes_per_snp: self.bytes_per_snp,
+            data,
+        }
+    }
+
+    /// Whether some sample has a genotype at the SNP.
+    pub fn any_called(&self, snp: usize) -> bool {
+        (0..self.n_samples).any(|s| self.get(snp, s) <= 2)
+    }
+
     #[inline]
     pub fn get(&self, snp: usize, sample: usize) -> u8 {
         (self.data[snp * self.bytes_per_snp + sample / 4] >> (2 * (sample % 4))) & 3
@@ -700,6 +721,18 @@ mod tests {
             r.coords[r.samples.iter().position(|&x| x == s).unwrap()][0].signum()
         };
         assert_eq!(side(&projected, 3), side(&projected, 0));
+    }
+
+    #[test]
+    fn selecting_snps_keeps_their_genotypes() {
+        let g = two_groups(3, 20);
+        let sub = g.select_snps(&[5, 2]);
+        assert_eq!(sub.n_snps(), 2);
+        for s in 0..6 {
+            assert_eq!(sub.get(0, s), g.get(5, s));
+            assert_eq!(sub.get(1, s), g.get(2, s));
+        }
+        assert!(g.any_called(0));
     }
 
     #[test]

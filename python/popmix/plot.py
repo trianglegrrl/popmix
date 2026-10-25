@@ -149,3 +149,57 @@ def pca(
     if path is not None:
         ax.figure.savefig(path, dpi=150)
     return ax
+
+
+def admixture(
+    result,
+    *,
+    title: str | None = None,
+    sort: bool = True,
+    path: str | os.PathLike[str] | None = None,
+    ax: Any = None,
+):
+    """Stacked bar plot of the ancestry proportions of an ``admixture`` result.
+
+    Samples are grouped by population (in order of first appearance) and,
+    with ``sort``, ordered within each by their largest component.
+
+    Returns
+    -------
+    matplotlib.axes.Axes
+    """
+    plt = _pyplot()
+    df = result.Q
+    k = result.k
+    cols = [f"Q{j + 1}" for j in range(k)]
+    pops = list(dict.fromkeys(df["pop"]))
+    groups = []
+    for p in pops:
+        d = df[df["pop"] == p]
+        if sort:
+            main = d[cols].mean().idxmax()
+            d = d.sort_values(main, ascending=False)
+        groups.append(d)
+    ordered = pd.concat(groups)
+    if ax is None:
+        _, ax = plt.subplots(figsize=(max(6, 0.08 * len(ordered)), 3))
+    colors = plt.get_cmap("tab10" if k <= 10 else "tab20")
+    bottom = np.zeros(len(ordered))
+    x = np.arange(len(ordered))
+    for j, c in enumerate(cols):
+        ax.bar(x, ordered[c], bottom=bottom, width=1.0, color=colors(j % colors.N), linewidth=0)
+        bottom += ordered[c].to_numpy()
+    edges = np.cumsum([len(g) for g in groups])
+    for e in edges[:-1]:
+        ax.axvline(e - 0.5, color="black", lw=0.8)
+    centers = edges - np.array([len(g) for g in groups]) / 2 - 0.5
+    ax.set_xticks(centers, labels=pops, rotation=90)
+    ax.set_xlim(-0.5, len(ordered) - 0.5)
+    ax.set_ylim(0, 1)
+    ax.set_ylabel(f"K = {k}")
+    if title:
+        ax.set_title(title)
+    ax.figure.tight_layout()
+    if path is not None:
+        ax.figure.savefig(path, dpi=150)
+    return ax

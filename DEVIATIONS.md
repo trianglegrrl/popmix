@@ -464,3 +464,37 @@ on the CLI (`kinship --method read`). Checked against READv2 2.01
   at every chromosome boundary anyway. popmix also cuts at chromosome
   boundaries, except in compat mode.
 
+## ADMIXTURE 1.3.0
+
+Checked against ADMIXTURE 1.3.0 (closed source; the behaviour below is
+inferred from its output).
+
+### Matched, not corrected
+
+- **The likelihood.** ADMIXTURE's log-likelihood has no binomial constant
+  (heterozygotes are not counted twice), and P is the frequency of the
+  allele the genotype files do not count. popmix matches both: at
+  ADMIXTURE's printed Q and P its log-likelihood is ADMIXTURE's to the
+  precision lost by printing them.
+- **Bounds.** Q and P stay within [1e-5, 1 - 1e-5], as ADMIXTURE's, so
+  supervised reference samples have Q 0.99999, not 1.
+- **Cross-validation error.** It is half the mean deviance of the held-out
+  genotypes, as ADMIXTURE reports it. ADMIXTURE's folds come from its own
+  random number generator, which popmix cannot reproduce, so the errors agree
+  only as closely as two random splits do: within 0.9% and 1.2% on the small
+  data (K = 2, 3), 0.08% on `aadr_1kg_k3`.
+- **Supervised cluster order.** Reference populations are numbered in the
+  order their first sample appears, as ADMIXTURE numbers them.
+
+### Differences in the optimizer, not deviations
+
+popmix maximizes the same likelihood by block relaxation (a Newton step on
+each sample's Q, then on each SNP's P, as ADMIXTURE) accelerated with
+SQUAREM, not ADMIXTURE's quasi-Newton acceleration, and from its own random
+start. Where the maximum is well defined the two agree (`family_k2`,
+`aadr_1kg_k3`: Q to 1e-4). Where it is not, they can stop at different
+local maxima: at K = 3 on `family` (two source populations and admixed
+samples), ADMIXTURE's run ends at -1044310.79 and popmix's at -1044149.28.
+With P fixed (projection) the problem is convex and the two agree to the
+printed precision.
+
