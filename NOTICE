@@ -25,7 +25,16 @@ under the BSD 3-Clause License reproduced below, with these notices.
    Fortran). Its licence, verbatim from the distribution, is in
    crates/popmix-core/src/rcompat/LICENSE.lbfgsb.txt.
 
-The BSD 3-Clause License, as it applies to items 1 and 2 (with "the
+4. mt19937ar.c, the Mersenne Twister reference implementation
+   (http://www.math.sci.hiroshima-u.ac.jp/m-mat/MT/emt.html)
+   Copyright (C) 1997 - 2002, Makoto Matsumoto and Takuji Nishimura,
+   All rights reserved.
+   Used in: crates/popmix-core/src/rcompat/rng.rs (the MT19937 recurrence and
+   tempering). Its third condition reads: "The names of its contributors may
+   not be used to endorse or promote products derived from this software
+   without specific prior written permission."
+
+The BSD 3-Clause License, as it applies to items 1, 2 and 4 (with "the
 copyright holder" read as the holders named there):
 
 
