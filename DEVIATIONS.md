@@ -721,3 +721,18 @@ Checked black-box with AdmixTools 8 convertf.
   `atof`), which puts the SNP at the start of its chromosome's map; popmix
   stops with the file and line. A map of all zeros is still read, and f2
   blocks then fall back to 2 Mb of physical distance, as in admixtools2.
+
+## PLINK 2: reading VCF
+
+Checked black-box with plink2 `--vcf` and AdmixTools 8 convertf
+(tests/golden/formats/generate_multiallelic.sh, generate_haploid.sh).
+
+### Matched, not corrected
+
+- **Haploid calls are homozygous.** `1` (male chrX, for instance) counts
+  as two copies of the ALT allele, `0` as none.
+- **FILTER is not read.** A record that fails its filters is kept, as
+  plink2 keeps it without `--var-filter`; filter the VCF first to drop it.
+- **Only biallelic SNPs.** Multiallelic records, indels and symbolic
+  alleles are skipped and counted (plink2 `--snps-only just-acgt
+  --max-alleles 2`).

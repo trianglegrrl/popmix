@@ -145,7 +145,12 @@ pub fn parse_vcf_gt(gt: &str) -> Option<Genotype> {
     } else if gt.contains('/') {
         gt.split('/').collect()
     } else {
-        return None;
+        // A haploid call (male chrX, say) is homozygous, as plink2 reads it
+        return match gt {
+            "0" => Some(Genotype::HomRef),
+            "1" => Some(Genotype::HomAlt),
+            _ => None,
+        };
     };
 
     if parts.len() != 2 {
@@ -405,6 +410,14 @@ mod tests {
     fn test_parse_vcf_gt_invalid() {
         assert_eq!(parse_vcf_gt(""), None);
         assert_eq!(parse_vcf_gt("invalid"), None);
+    }
+
+    #[test]
+    fn a_haploid_call_is_homozygous() {
+        // as plink2 reads one (male chrX, for instance)
+        assert_eq!(parse_vcf_gt("0"), Some(Genotype::HomRef));
+        assert_eq!(parse_vcf_gt("1"), Some(Genotype::HomAlt));
+        assert_eq!(parse_vcf_gt("2"), None);
     }
 
     // TDD RED: Test VCF reader with fixture
