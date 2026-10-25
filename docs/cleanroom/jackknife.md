@@ -49,6 +49,18 @@ that are not block means too, where θ (`tot`) is computed separately.
   statistic θ_(k) as above and θ_J; the covariance of statistics s and t is
   (1/g) Σ_k u_sk u_tk with u_sk = (τ_sk − θ_J,s) / sqrt(h_k − 1). Returns
   the θ_J and the covariance matrix.
+- `jackknife_cov_from_loo(loo: &[Vec<f64>], lengths) -> Option<(Vec<f64>, Array2<f64>)>`:
+  the same estimates and covariance for block-mean statistics given only
+  their leave-one-out values (`loo[s][k]`, e.g. linear combinations of
+  other block means' θ_(k), as qpGraph's f3 from f2). Keep the blocks where
+  every θ_(k) is finite (`None` if fewer than two). θ is the mean of the
+  θ_(k) weighted by 1 − m_k / n, n over **all** blocks (for a block mean,
+  the full-data mean). Since θ_J = θ for a block mean and
+  τ_k − θ = (h_k − 1)(θ − θ_(k)), write u_sk = sqrt(h_k − 1)(θ_s − θ_(k),s)
+  (h_k, g over the kept blocks) and the covariance as U Uᵀ / g, a matrix
+  product: this avoids the cancellation in g θ − Σ (1 − m_k / n) θ_(k) and
+  h_k θ − (h_k − 1) θ_(k), which with hundreds of blocks moves qpGraph's
+  scores by ~1e-10 relative, beyond the goldens' tolerance.
 
 Keep the existing tests in the file's test module; they are written against
 these definitions.

@@ -25,6 +25,6 @@ pub use geno_fstats::{
     GenoStatBlocks, GenoStats, GenotypeRows, MatrixRows,
 };
 pub use jackknife::{
-    block_jackknife, block_jackknife_cov, jackknife_from_loo, jackknife_with_total, leave_one_out,
-    leave_one_out_nafix,
+    block_jackknife, block_jackknife_cov, jackknife_cov_from_loo, jackknife_from_loo,
+    jackknife_with_total, leave_one_out, leave_one_out_nafix,
 };

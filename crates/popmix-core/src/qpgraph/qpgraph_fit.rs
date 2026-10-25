@@ -34,7 +34,7 @@
 use nalgebra::{DMatrix, DVector};
 use ndarray::Array2;
 
-use crate::fstats::{leave_one_out, F2Blocks};
+use crate::fstats::{jackknife_cov_from_loo, leave_one_out, F2Blocks};
 use crate::rcompat::{optim_lbfgsb, LbfgsbOptions, RRng};
 use crate::{PopmixError, Result};
 
@@ -351,72 +351,74 @@ struct F3Stats {
     ppinv: DMatrix<f64>,
 }
 
+/// f3(P0; Pi, Pj) for the pairs of [`f3_pairs`], with `pops[0]` = P0.
+///
+/// Per block, f3(P0; Pi, Pj) = (f2(P0, Pi) + f2(P0, Pj) - f2(Pi, Pj)) / 2
+/// (so f3(P0; Pi, Pi) = f2(P0, Pi)). f3 is linear in f2, so its
+/// leave-one-block-out values are this combination of the f2
+/// leave-one-block-out values. The estimates and covariance are the
+/// weighted block jackknife of these block-mean statistics over the blocks
+/// where all are finite, the covariance of `docs/cleanroom/jackknife.md`'s
+/// `block_jackknife_cov` computed from the leave-one-out values
+/// ([`jackknife_cov_from_loo`], which avoids cancellation). The covariance,
+/// with `diag_f3` times its trace added to every diagonal element
+/// (admixtools2's `?qpgraph`: "after scaling by the matrix trace"), is then
+/// inverted; a singular matrix is an error.
 fn precompute_f3(f2_blocks: &F2Blocks, pops: &[&str], diag_f3: f64) -> Result<F3Stats> {
     let idx: Vec<usize> = pops
         .iter()
         .map(|p| {
-            f2_blocks
-                .pop_index(p)
-                .ok_or_else(|| PopmixError::PopulationNotFound(p.to_string()))
+            f2_blocks.pop_index(p).ok_or_else(|| {
+                PopmixError::Validation(format!(
+                    "qpgraph: population {p:?} is not in the f2 blocks"
+                ))
+            })
         })
         .collect::<Result<_>>()?;
-    let lengths: Vec<f64> = f2_blocks.block_lengths.iter().map(|&l| l as f64).collect();
-    let nblocks = lengths.len();
-    let loo = |a: usize, b: usize| -> Vec<f64> {
-        if idx[a] == idx[b] {
-            return vec![0.0; nblocks];
+    let lengths = f2_blocks.block_lengths_f64();
+    let n = pops.len();
+    // leave-one-block-out f2 of every pair of `pops`
+    let mut f2_loo = vec![vec![Vec::new(); n]; n];
+    for i in 0..n {
+        for j in i..n {
+            let means: Vec<f64> = (0..f2_blocks.n_blocks)
+                .map(|b| f2_blocks.block_mean(b, idx[i], idx[j]))
+                .collect();
+            let loo = leave_one_out(&means, &lengths);
+            f2_loo[j][i] = loo.clone();
+            f2_loo[i][j] = loo;
         }
-        let values = f2_blocks
-            .get_block_f2_values(pops[a], pops[b])
-            .expect("populations checked above");
-        leave_one_out(values.as_slice().expect("contiguous"), &lengths)
-    };
-    let pairs = f3_pairs(pops.len());
-    let rows: Vec<Vec<f64>> = pairs
-        .iter()
-        .map(|&(i, j)| {
-            let (fi0, f0j, fij) = (loo(i, 0), loo(0, j), loo(i, j));
-            (0..nblocks)
-                .map(|k| (fi0[k] + f0j[k] - fij[k]) / 2.0)
+    }
+    let loo: Vec<Vec<f64>> = f3_pairs(n)
+        .into_iter()
+        .map(|(i, j)| {
+            (0..f2_blocks.n_blocks)
+                .map(|b| (f2_loo[0][i][b] + f2_loo[0][j][b] - f2_loo[i][j][b]) / 2.0)
                 .collect()
         })
         .collect();
-    if rows.iter().flatten().any(|v| !v.is_finite()) {
-        return Err(PopmixError::Numerical(
-            "qpgraph: f2 blocks have missing values".to_string(),
-        ));
-    }
-
-    // The weighted block jackknife of the leave-one-out f3 values: the
-    // estimate is their mean weighted by 1 - m_k / n (Busing et al. 1999),
-    // the covariance (1/g) sum_k u_k u_k' with u_k = (est - loo_k) sqrt(h_k - 1).
-    let n: f64 = lengths.iter().sum();
-    let h: Vec<f64> = lengths.iter().map(|l| n / l).collect();
-    let w_sum: f64 = h.iter().map(|h| 1.0 - 1.0 / h).sum();
-    let est = DVector::from_iterator(
-        rows.len(),
-        rows.iter().map(|r| {
-            r.iter()
-                .zip(&h)
-                .map(|(v, h)| v * (1.0 - 1.0 / h))
-                .sum::<f64>()
-                / w_sum
-        }),
-    );
-    let xtau = DMatrix::from_fn(rows.len(), nblocks, |s, k| {
-        (est[s] - rows[s][k]) * (h[k] - 1.0).sqrt()
-    });
-    let var = &xtau * xtau.transpose() / nblocks as f64;
-
+    let (est, cov) = jackknife_cov_from_loo(&loo, &lengths).ok_or_else(|| {
+        PopmixError::Validation(
+            "qpgraph: fewer than two blocks with finite f3 statistics".to_string(),
+        )
+    })?;
+    let k = est.len();
+    let var = DMatrix::from_fn(k, k, |a, b| cov[[a, b]]);
     let mut reg = var.clone();
-    let add = var.trace() * diag_f3;
-    for i in 0..reg.nrows() {
-        reg[(i, i)] += add;
+    let add = diag_f3 * reg.trace();
+    for a in 0..k {
+        reg[(a, a)] += add;
     }
     let ppinv = reg
         .try_inverse()
-        .ok_or_else(|| PopmixError::Numerical("qpgraph: f3 covariance is singular".to_string()))?;
-    Ok(F3Stats { est, var, ppinv })
+        .ok_or_else(|| PopmixError::SingularMatrix {
+            context: "qpgraph f3 covariance".to_string(),
+        })?;
+    Ok(F3Stats {
+        est: DVector::from_vec(est),
+        var,
+        ppinv,
+    })
 }
 
 /// Strictly convex box-constrained QP: minimise ½ x'Dx - q'x subject to
@@ -849,5 +851,72 @@ mod tests {
         let x = box_qp(&d, &q, &(-&wide), &wide).unwrap();
         let exact = d.clone().lu().solve(&q).unwrap();
         assert!((x - exact).amax() < 1e-12);
+    }
+
+    #[test]
+    fn test_f3_stats_are_the_jackknife_of_block_f3() {
+        // Four populations, five blocks of unequal length, f2 block means
+        // from an additive tree-like metric plus noise.
+        let names = ["P0", "P1", "P2", "P3"];
+        let lengths = vec![30, 12, 25, 40, 18];
+        let nb = lengths.len();
+        let means: Vec<Vec<Vec<f64>>> = (0..4)
+            .map(|i| {
+                (0..4)
+                    .map(|j| {
+                        (0..nb)
+                            .map(|b| {
+                                if i == j {
+                                    0.0
+                                } else {
+                                    let (a, c) = (i.min(j), i.max(j));
+                                    0.01 * (a + c) as f64
+                                        + 0.002 * ((a * 5 + c * 3 + b * 7) as f64).sin()
+                                }
+                            })
+                            .collect()
+                    })
+                    .collect()
+            })
+            .collect();
+        let counts: Vec<Vec<Vec<f64>>> = (0..4)
+            .map(|_| {
+                (0..4)
+                    .map(|_| lengths.iter().map(|&l| l as f64).collect())
+                    .collect()
+            })
+            .collect();
+        let pops: Vec<crate::genotypes::PopulationId> = names
+            .iter()
+            .map(|&n| crate::genotypes::PopulationId::new(n))
+            .collect();
+        let f2 = F2Blocks::from_block_means(pops, lengths.clone(), &means, &counts).unwrap();
+        let st = precompute_f3(&f2, &names, 1e-5).unwrap();
+
+        // f3(P0; Pi, Pj) = (f2(0,i) + f2(0,j) - f2(i,j)) / 2, pairs i <= j
+        let pairs = f3_pairs(4);
+        assert_eq!(pairs, vec![(1, 1), (1, 2), (1, 3), (2, 2), (2, 3), (3, 3)]);
+        let lf: Vec<f64> = lengths.iter().map(|&l| l as f64).collect();
+        for (r, &(i, j)) in pairs.iter().enumerate() {
+            let blocks: Vec<f64> = (0..nb)
+                .map(|b| (means[0][i][b] + means[0][j][b] - means[i][j][b]) / 2.0)
+                .collect();
+            let (est, se) = crate::fstats::block_jackknife(&blocks, &lf).unwrap();
+            assert_relative_eq!(st.est[r], est, max_relative = 1e-12);
+            assert_relative_eq!(st.var[(r, r)], se * se, max_relative = 1e-12);
+        }
+        // f3(P0; Pi, Pi) is f2(P0, Pi)
+        let (f2_01, _, _) = f2.f2("P0", "P1").unwrap();
+        assert_relative_eq!(st.est[0], f2_01, max_relative = 1e-12);
+
+        // ppinv inverts the covariance with diag_f3 * trace added
+        let k = st.var.nrows();
+        let mut reg = st.var.clone();
+        let add = 1e-5 * reg.trace();
+        for i in 0..k {
+            reg[(i, i)] += add;
+        }
+        let id = &st.ppinv * reg;
+        assert!((id - DMatrix::identity(k, k)).amax() < 1e-8);
     }
 }
