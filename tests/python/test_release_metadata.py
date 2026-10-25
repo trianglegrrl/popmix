@@ -7,6 +7,7 @@ version, and bioconda reads recipes/meta.yaml.
 import re
 import shutil
 import subprocess
+import sys
 import tarfile
 from pathlib import Path
 
@@ -72,3 +73,40 @@ def test_sdist_carries_what_downstream_builds_need(tmp_path: Path) -> None:
         "python/popmix/__init__.py",
     ):
         assert needed in names, f"{needed} missing from {sdist.name}"
+
+
+def _requirement_names(block: str) -> set[str]:
+    names = re.findall(r'^\s*"([A-Za-z0-9_.-]+)', block, re.MULTILINE)
+    return {n.lower() for n in names if n.lower() != "popmix"}
+
+
+def test_cli_starts_with_only_the_required_dependencies() -> None:
+    """`pip install popmix` must give a working `popmix` command: block every
+    package that only an optional extra provides, then start the CLI."""
+    text = _read("pyproject.toml")
+    core = _requirement_names(text.split("\ndependencies = [")[1].split("]")[0])
+    extras = text.split("[project.optional-dependencies]")[1].split("\n[project.")[0]
+    groups = re.split(r"^\w+ = \[", extras, flags=re.MULTILINE)
+    optional = set().union(*map(_requirement_names, groups)) - core
+    # import names that differ from the distribution names
+    blocked = sorted({"pyyaml": "yaml"}.get(n, n).replace("-", "_") for n in optional)
+    script = f"""
+import importlib.abc, sys
+BLOCKED = {blocked!r}
+class Block(importlib.abc.MetaPathFinder):
+    def find_spec(self, name, path, target=None):
+        if name.split(".")[0] in BLOCKED:
+            raise ModuleNotFoundError(f"blocked optional dependency {{name}}")
+sys.meta_path.insert(0, Block())
+from popmix.cli import main
+for args in (["--version"], ["--help"]):
+    sys.argv = ["popmix", *args]
+    try:
+        main()
+    except SystemExit as e:
+        assert e.code == 0, (args, e.code)
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script], capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr

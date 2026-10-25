@@ -102,10 +102,13 @@ popmix qpadm -i /path/to/genotypes --target French --left Yamnaya,Anatolia_N --r
 ### From PyPI (recommended)
 
 ```bash
-# Basic installation
+# Full installation (all features)
+pip install popmix[all]
+
+# Basic installation (library and command line)
 pip install popmix
 
-# With CLI enhancements (Rich output, progress bars)
+# With Rich output and progress bars in the command line
 pip install popmix[cli]
 
 # With HTML report generation
