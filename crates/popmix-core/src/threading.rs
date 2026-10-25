@@ -7,6 +7,10 @@ use crate::error::{PopmixError, Result};
 /// Default number of threads for parallel operations.
 pub const DEFAULT_THREADS: usize = 4;
 
+/// Most threads a pool may have. rayon allocates for every thread it is
+/// asked for, so a mistyped count would exhaust memory and abort.
+pub const MAX_THREADS: usize = 1024;
+
 /// Initialize the global thread pool with the specified number of threads.
 ///
 /// This should be called once at program startup. If not called, rayon will
@@ -35,8 +39,8 @@ pub const DEFAULT_THREADS: usize = 4;
 pub fn init_thread_pool(threads: Option<usize>) -> Result<bool> {
     let n = threads.unwrap_or(DEFAULT_THREADS);
 
-    if n == 0 {
-        return Err(PopmixError::InvalidThreadCount(0));
+    if n == 0 || n > MAX_THREADS {
+        return Err(PopmixError::InvalidThreadCount(n));
     }
 
     match rayon::ThreadPoolBuilder::new()
@@ -95,6 +99,16 @@ mod tests {
     fn test_invalid_thread_count() {
         let result = init_thread_pool(Some(0));
         assert!(matches!(result, Err(PopmixError::InvalidThreadCount(0))));
+    }
+
+    #[test]
+    fn too_many_threads_is_an_error_before_any_is_started() {
+        for n in [MAX_THREADS + 1, usize::MAX] {
+            assert!(matches!(
+                init_thread_pool(Some(n)),
+                Err(PopmixError::InvalidThreadCount(_))
+            ));
+        }
     }
 
     #[test]

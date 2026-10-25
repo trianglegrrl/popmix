@@ -96,7 +96,7 @@ pub enum PopmixError {
     #[error("Invalid configuration: {details}")]
     InvalidConfig { details: String },
 
-    #[error("Invalid thread count: {0} (must be >= 1)")]
+    #[error("Invalid thread count: {0} (must be 1 to 1024)")]
     InvalidThreadCount(usize),
 
     // === General Validation ===
