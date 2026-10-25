@@ -2184,7 +2184,8 @@ impl PyQpWavePairsResult {
     fn best_clade(&self) -> Option<PyQpWavePairResult> {
         self.pairs
             .iter()
-            .max_by(|a, b| a.p_value.partial_cmp(&b.p_value).unwrap())
+            .filter(|p| !p.p_value.is_nan())
+            .max_by(|a, b| a.p_value.total_cmp(&b.p_value))
             .cloned()
     }
 }
@@ -2448,10 +2449,7 @@ impl PyGraphFitResult {
 
     /// Get the worst-fitting population pair.
     fn worst_pair(&self) -> Option<((String, String), f64)> {
-        self.residuals
-            .iter()
-            .max_by(|(_, a), (_, b)| a.abs().partial_cmp(&b.abs()).unwrap())
-            .map(|(k, v)| (k.clone(), *v))
+        popmix_core::qpgraph::worst_residual(&self.residuals)
     }
 }
 

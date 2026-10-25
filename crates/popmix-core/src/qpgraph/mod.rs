@@ -12,7 +12,7 @@ mod graph;
 mod graph_search;
 mod qpgraph_fit;
 
-pub use fitting::{fit_graph, FitOptions, GraphFitResult};
+pub use fitting::{fit_graph, worst_residual, FitOptions, GraphFitResult};
 pub use graph::{AdmixGraph, AdmixNode, EdgeType, GraphBuilder, NodeId};
 pub use graph_search::{
     all_graphs, find_graphs, graph_key, GraphSearchMethod, GraphSearchOptions, GraphSearchResult,

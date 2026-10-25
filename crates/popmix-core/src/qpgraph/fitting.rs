@@ -80,11 +80,19 @@ impl GraphFitResult {
 
     /// Get worst-fitting population pair.
     pub fn worst_pair(&self) -> Option<((String, String), f64)> {
-        self.residuals
-            .iter()
-            .max_by(|(_, a), (_, b)| a.abs().partial_cmp(&b.abs()).unwrap())
-            .map(|(k, v)| (k.clone(), *v))
+        worst_residual(&self.residuals)
     }
+}
+
+/// The pair with the largest absolute residual; NaN residuals are passed over.
+pub fn worst_residual(
+    residuals: &HashMap<(String, String), f64>,
+) -> Option<((String, String), f64)> {
+    residuals
+        .iter()
+        .filter(|(_, r)| !r.is_nan())
+        .max_by(|(ka, a), (kb, b)| a.abs().total_cmp(&b.abs()).then_with(|| kb.cmp(ka)))
+        .map(|(k, v)| (k.clone(), *v))
 }
 
 /// Fit an admixture graph to observed f-statistics.
@@ -490,6 +498,21 @@ mod tests {
     use crate::genotypes::{Chromosome, PopulationId};
     use crate::qpgraph::graph::GraphBuilder;
     use ndarray::Array2;
+
+    #[test]
+    fn worst_residual_passes_over_nan() {
+        let pair = |a: &str, b: &str| (a.to_string(), b.to_string());
+        let residuals = HashMap::from([
+            (pair("A", "B"), 0.1),
+            (pair("A", "C"), f64::NAN),
+            (pair("B", "C"), -0.3),
+        ]);
+        assert_eq!(worst_residual(&residuals), Some((pair("B", "C"), -0.3)));
+        assert_eq!(
+            worst_residual(&HashMap::from([(pair("A", "B"), f64::NAN)])),
+            None
+        );
+    }
 
     fn create_test_f2_blocks() -> F2Blocks {
         // Create synthetic data that matches a simple tree

@@ -294,12 +294,22 @@ pub fn compute_ld_decay_by_chromosome(
         }
         snps_by_chrom[chrom_slot[c as usize]].push(idx);
     }
+    if let Some(snp) = snps_by_chrom
+        .iter()
+        .flatten()
+        .map(|&i| &snps[i])
+        .find(|s| !s.position_morgans.is_finite())
+    {
+        return Err(crate::error::PopmixError::Validation(format!(
+            "SNP {} has no genetic position ({}); DATES needs one for every SNP",
+            snp.id, snp.position_morgans
+        )));
+    }
     for chrom_snps in &mut snps_by_chrom {
         chrom_snps.sort_by(|&a, &b| {
             snps[a]
                 .position_morgans
-                .partial_cmp(&snps[b].position_morgans)
-                .unwrap()
+                .total_cmp(&snps[b].position_morgans)
         });
     }
 
@@ -1045,5 +1055,19 @@ mod tests {
             None,
         );
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn a_snp_without_a_genetic_position_is_an_error() {
+        let (geno, af, weights) = create_test_data();
+        let (s1, s2) = source_freqs(&geno, &af);
+        let mut snps = geno.snps().to_vec();
+        snps[7].position_morgans = f64::NAN;
+        let data = Array2::from_shape_fn((geno.n_snps(), geno.n_samples()), |(i, j)| {
+            geno.get(i, j) as u8
+        });
+        let geno = GenotypeMatrix::new(data, geno.samples().to_vec(), snps).unwrap();
+        let err = compute_ld_decay(&geno, &af, "test", &weights, &s1, &s2, None).unwrap_err();
+        assert!(err.to_string().contains("rs7"), "{err}");
     }
 }
