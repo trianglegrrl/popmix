@@ -116,24 +116,27 @@ from the code, not yet shown.
   zero models. Validate names first; skip only a typed singular-matrix error.
   RS [reviewer-verified] (Rotation also skips, and counts, models with more
   sources than outgroups, which cannot be tested.)
-- [ ] **B6. A test that no user input can panic or abort through the Python
-  API** (fuzz/property test over the bindings). RS
-- [ ] **B7. `.ind`/`.fam` count not checked against the genotype file.** The
+- [x] **B6. A test that no user input can panic or abort through the Python
+  API** *Done in 12622c4.* (fuzz/property test over the bindings). RS
+- [x] **B7. `.ind`/`.fam` count not checked against the genotype file.** *Done in d5ddb03.* The
   packed `.geno` header (`GENO 28 20000`) is never read; deleting one `.ind`
   line silently relabels every later sample (f2 0.0292 → 0.0230). Same for
-  PLINK `.fam`. PG [reviewer-verified]
-- [ ] **B8. Text-format parsing defaults.** `eigenstrat.rs:294` unparsable cM
+  PLINK `.fam`. PG [reviewer-verified] (A `.bed` has no counts: its size
+  check catches a lost `.fam` line only when the record length changes.)
+- [x] **B8. Text-format parsing defaults.** *Done in 2a11b67.* `eigenstrat.rs:294` unparsable cM
   becomes 0; `.snp` must have 6 columns (EIGENSOFT accepts 4); alleles
-  truncated to one character. PG [reviewer-verified]
-- [ ] **B9. Unsorted SNPs give wrong blocks.** `fstats/blocks.rs:77-97` never
+  truncated to one character. PG [reviewer-verified] (convertf 8 also
+  requires 6 columns and keeps an allele's first character: matched. Only
+  the genetic position is now stricter than convertf.)
+- [x] **B9. Unsorted SNPs give wrong blocks.** *Done in f829c01.* `fstats/blocks.rs:77-97` never
   checks order; a decreasing position does not start a block. PD, PG
   [suspected]
-- [ ] **B10. VCF haploid calls and FILTER.** Haploid `1` (male chrX) becomes
+- [x] **B10. VCF haploid calls and FILTER.** *Done in d8b6a5a.* Haploid `1` (male chrX) becomes
   missing; FILTER ignored. Only matters with `--all-chromosomes`.
   PG [reviewer-verified]
 - [x] **B11. Graph search aborted by one singular candidate** *Done in 4487bec.*
   (`graph_search.rs` `collect::<Result<_>>`). PD [suspected, from code]
-- [ ] **B12. CLI flattens errors.** ~25 `except Exception as e: echo; exit 1`
+- [x] **B12. CLI flattens errors.** *Done in c4aab05.* ~25 `except Exception as e: echo; exit 1`
   and `except Exception: pass` at `cli/__init__.py:73`. AI
 - [x] **B13. `admixture_cv` folds truncated to u8** *Done in 0ad353c.* (`admixture.rs:741`) when
   folds > 256. RS
@@ -188,7 +191,7 @@ Tasks:
 
 ## D. Release blockers: dead code, docs, platform (P0)
 
-- [ ] **D1. Delete the unused "ergonomics" layer** (from b0ff796):
+- [x] **D1. Delete the unused "ergonomics" layer** *Done in 53c02fc.* (from b0ff796):
   `python/popmix/cli/{rich_output,formatters,statistics,batch}.py`,
   `python/popmix/reports/`, `python/popmix/multiqc/`, `python/popmix/schemas/`,
   their tests, and the `[cli]`, `[reports]`, `[multiqc]`, `[formats]` extras
@@ -202,28 +205,28 @@ Tasks:
   - and the qpAdm "Good Fit"/PASS/FAIL labels that ignore feasibility, with
     the weight chart clipped to [0, 100]% (`reports/html_report.py:225-231,
     ~330`, `cli/formatters.py:165`, `cli/rich_output.py:372,421`) PR
-- [ ] **D2. README matches the program.** Remove or implement `qpadm-batch`,
+- [x] **D2. README matches the program.** *Done in 619dc5a.* Remove or implement `qpadm-batch`,
   `dates-batch`, `--report`, `-o/--output-file`, yaml/parquet/ndjson formats,
   "Rich styling (default)", "schema-validated" JSON, `multiqc --module
   popmix` (README.md:654-760); `extract_f2(prefix)` without populations
   ("slow, computes all pairs") but `populations` is required; "streaming
   extraction for large datasets" true only for PACKEDANCESTRYMAP.
   AI, PD [confirmed for qpadm-batch, dates-batch, --report]
-- [ ] **D3. TESTING.md from real counts and commands** (claims 111/26/10 Rust
+- [x] **D3. TESTING.md from real counts and commands** *Done in 240794c.* (claims 111/26/10 Rust
   tests and "26 passed"; documents `popmix f2 --snp-range`, which only
   `extract-f2` has; lists the dead modules). AI [reviewer-verified]
-- [ ] **D4. Test every documented command.** A test that runs each `popmix …`
+- [x] **D4. Test every documented command.** *Done in 619dc5a.* A test that runs each `popmix …`
   line in README/TESTING with `--help` and checks its flags exist. AI
-- [ ] **D5. Rename the 23 files with `:` in their names**
+- [x] **D5. Rename the 23 files with `:` in their names** *Done in 87ea173.*
   (`tests/golden/dates/Simulation_French_Yoruba/Simulation.out:1` …) so
   Windows can check out the repo; the release workflow's Windows job fails
   otherwise. AI [confirmed]
-- [ ] **D6. Remove or mark experimental the legacy `fit_graph`**
+- [x] **D6. Remove or mark experimental the legacy `fit_graph`** *Done in 080e504.*
   (`qpgraph/fitting.rs`, Levenberg-Marquardt, two `#[allow(dead_code)]` at
   293 and 468, exported as `pm.fit_graph`, no golden test). AI, RS
-- [ ] **D7. Remove tracked scaffolding** (`.cursor/plans/ergonomics.md`),
+- [x] **D7. Remove tracked scaffolding** *Done in fdec296.* (`.cursor/plans/ergonomics.md`),
   stray comments ("Actually, let's use…" at `f2_blocks.rs:446`). AI, RS
-- [ ] **D8. Fix the stale tolerance example** (hard-coded `0.0623`,
+- [x] **D8. Fix the stale tolerance example** *Done in 0d0b1ec.* (hard-coded `0.0623`,
   `abs < 0.0001`) in CLAUDE.md and `.cursor/rules/004-testing.mdc`, which
   contradicts the tolerance table. AI
 
@@ -499,13 +502,13 @@ thread count.
 
 ## O. AADR v66.p1 as the reference dataset (P0)
 
-- [ ] **O1. Read TGENO** (AdmixTools `transpose_packed`, one row per
+- [x] **O1. Read TGENO** *Done in 66b3375.* (AdmixTools `transpose_packed`, one row per
   individual) in popmix, streaming; it suits reading a subset of
   individuals. v66.p1 1240K `.geno` begins `TGENO 23089 1233013`.
-- [ ] **O2. TGENO misdetected as text EIGENSTRAT.** `dataset_info` on the v66.p1
+- [x] **O2. TGENO misdetected as text EIGENSTRAT.** *Done in 66b3375.* `dataset_info` on the v66.p1
   prefix reports `format: eigenstrat`; analyses would read garbage. Detect
   the header and support it (O1) or refuse with a clear error. [confirmed]
-- [ ] **O3. Build AdmixTools ≥ 8 convertf** as a reference tool (the system
+- [x] **O3. Build AdmixTools ≥ 8 convertf** *Done in 26e9dbb.* as a reference tool (the system
   EIGENSOFT convertf fails: "bad ID (SNP): TGENO ..."); record its version.
 - [ ] **O4. Migrate every AADR golden from v62.0 to v66.p1** (`/references/aadr/v66.p1/v66.p1_1240K.aadr.patch.PUB`):
   v66.p1 population labels carry no data-type suffix (`French`, not
@@ -524,7 +527,8 @@ thread count.
 - [ ] **P1. Every EIGENSOFT/AdmixTools format in and out:** PACKEDANCESTRYMAP,
   TGENO (transpose_packed), EIGENSTRAT, ANCESTRYMAP, PACKEDPED, PED, plus
   VCF in (and VCF out). Today TGENO is unsupported in both directions and
-  VCF input is inverted (A1).
+  VCF input is inverted (A1). (VCF input fixed in A1 and A7, TGENO in and
+  out in 66b3375; VCF out remains.)
 - [ ] **P2. Parameter-file compatibility:** `popmix convertf -p file.par` with
   convertf's keys (genotypename, snpname, indivname, outputformat,
   genooutfilename, snpoutfilename, indoutfilename, poplistname, ...), so
