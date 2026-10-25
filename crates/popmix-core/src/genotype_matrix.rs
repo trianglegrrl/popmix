@@ -184,8 +184,10 @@ impl GenotypeMatrix {
     /// Compute allele frequency for a single SNP across specified samples.
     ///
     /// Returns (frequency, count) where count is number of observed alleles.
+    /// A pseudohaploid sample's call (0 or 2) is one allele, as in admixtools2
+    /// and the streaming reader: it adds `geno / (3 - ploidy)` copies.
     pub fn allele_frequency(&self, snp_idx: usize, sample_indices: &[usize]) -> (f64, u32) {
-        let mut sum = 0u32;
+        let mut sum = 0.0f64;
         let mut count = 0u32;
 
         for &sample_idx in sample_indices {
@@ -193,7 +195,7 @@ impl GenotypeMatrix {
             if geno <= 2 {
                 // Not missing
                 let ploidy = self.samples[sample_idx].ploidy.effective_ploidy() as u32;
-                sum += geno as u32;
+                sum += geno as f64 / (3 - ploidy) as f64;
                 count += ploidy;
             }
         }
@@ -201,7 +203,7 @@ impl GenotypeMatrix {
         if count == 0 {
             (f64::NAN, 0)
         } else {
-            (sum as f64 / count as f64, count)
+            (sum / count as f64, count)
         }
     }
 }
@@ -422,6 +424,18 @@ mod tests {
             Snp::new("rs2", Chromosome::Autosome(1), 200, 0.02, 'C', 'T'),
             Snp::new("rs3", Chromosome::X, 300, 0.03, 'A', 'T'),
         ]
+    }
+
+    #[test]
+    fn a_pseudohaploid_call_counts_one_allele() {
+        // PopA: IND1 diploid het (1 of 2), IND2 pseudohaploid "2" (1 of 1)
+        let data = array![[1, 2, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]];
+        let mut samples = make_test_samples();
+        samples[1].ploidy = Ploidy::Pseudohaploid;
+        let geno = GenotypeMatrix::new(data, samples, make_test_snps()).unwrap();
+        let (freq, count) = geno.allele_frequency(0, &[0, 1]);
+        assert_eq!(count, 3);
+        assert!((freq - 2.0 / 3.0).abs() < 1e-15, "{freq}");
     }
 
     #[test]

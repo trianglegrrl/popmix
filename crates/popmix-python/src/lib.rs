@@ -398,11 +398,27 @@ fn read_vcf(path: &str) -> PyResult<PyGenotypeMatrix> {
 ///     snp_range: Optional tuple (start, end) to read only a range of SNPs
 ///
 /// Returns:
-///     PyGenotypeMatrix containing the genotype data and metadata
+///     PyGenotypeMatrix containing the genotype data and metadata; samples
+///     with no heterozygous call in the first 1,000 SNPs read are
+///     pseudohaploid, as admixtools2 detects them
 #[pyfunction]
 #[pyo3(signature = (prefix, snp_range=None))]
 fn read_genotypes(prefix: &str, snp_range: Option<(usize, usize)>) -> PyResult<PyGenotypeMatrix> {
+    let Some(range) = snp_range else {
+        return Ok(PyGenotypeMatrix {
+            inner: read_genotypes_internal(prefix)?,
+        });
+    };
+    let mut geno = read_genotypes_range(prefix, range)?;
+    geno.inner.detect_ploidy(PLOIDY_CHECK_SNPS);
+    Ok(geno)
+}
+
+/// A range of SNPs from a PLINK or (packed) EIGENSTRAT dataset; the whole
+/// file for a VCF, which has no range reader.
+fn read_genotypes_range(prefix: &str, range: (usize, usize)) -> PyResult<PyGenotypeMatrix> {
     use std::path::Path;
+    let snp_range = Some(range);
 
     // Check for VCF format (full path with extension)
     if (prefix.ends_with(".vcf") || prefix.ends_with(".vcf.gz")) && Path::new(prefix).exists() {
@@ -2751,8 +2767,20 @@ fn qpgraph(
     })
 }
 
-/// Internal function to read genotypes without snp_range parameter.
+/// SNPs whose genotypes decide each sample's ploidy (admixtools2's choice):
+/// a sample without a heterozygous call among them is pseudohaploid.
+const PLOIDY_CHECK_SNPS: usize = 1000;
+
+/// Every genotype of a dataset in any format, with each sample's ploidy
+/// detected from the first `PLOIDY_CHECK_SNPS` SNPs, as the streaming path
+/// for packed files does.
 fn read_genotypes_internal(prefix: &str) -> PyResult<GenotypeMatrix> {
+    let mut geno = read_genotypes_any_format(prefix)?;
+    geno.detect_ploidy(PLOIDY_CHECK_SNPS);
+    Ok(geno)
+}
+
+fn read_genotypes_any_format(prefix: &str) -> PyResult<GenotypeMatrix> {
     use std::path::Path;
 
     // Check for VCF format (full path with extension)

@@ -94,3 +94,52 @@ def test_inds_and_pops_must_match():
         pm.extract_f2(SMALL, POPS, inds=["a", "a"], pops=["French", "French"])
     with pytest.raises(ValueError, match="not in"):
         pm.extract_f2(SMALL, ["French"], inds=["nobody"], pops=["French"])
+
+
+@pytest.fixture(scope="module")
+def pseudohaploid(tmp_path_factory) -> str:
+    """The small data with Simulation.1 made pseudohaploid: each het call
+    becomes a homozygous one, as in ancient-DNA pseudohaploid calls."""
+    d = tmp_path_factory.mktemp("pseudohaploid")
+    text = d / "text"
+    subprocess.run(["popmix", "convertf", "-i", SMALL, "-o", str(text), "-of", "eigenstrat"], check=True,
+                   capture_output=True)
+    inds = Path(f"{text}.ind").read_text().splitlines()
+    cols = [i for i, line in enumerate(inds) if line.split()[2] == "Simulation.1"]
+    rows = []
+    for j, line in enumerate(Path(f"{text}.geno").read_text().splitlines()):
+        row = list(line)
+        for i in cols:
+            if row[i] == "1":
+                row[i] = "2" if (i + j) % 2 else "0"
+        rows.append("".join(row))
+    Path(f"{text}.geno").write_text("\n".join(rows) + "\n")
+    return str(text)
+
+
+def _from(prefix: str, tmp_path: Path, fmt: str) -> str:
+    if fmt == "eigenstrat":
+        return prefix
+    out = tmp_path / fmt
+    subprocess.run(["popmix", "convertf", "-i", prefix, "-o", str(out), "-of", fmt], check=True,
+                   capture_output=True)
+    return str(out)
+
+
+@pytest.mark.parametrize("fmt", ["eigenstrat", "plink", "ped"])
+def test_pseudohaploid_samples_are_detected_in_every_format(pseudohaploid, tmp_path, fmt):
+    """Packed input detects pseudohaploid samples (no het in the first 1,000
+    SNPs) as admixtools2 does; every other format must too."""
+    packed = pm.extract_f2(_from(pseudohaploid, tmp_path, "packedancestrymap"), POPS)
+    ours = pm.extract_f2(_from(pseudohaploid, tmp_path, fmt), POPS)
+    _assert_same_blocks(ours, packed)
+
+
+def test_pseudohaploid_samples_are_detected_when_reading_genotypes(pseudohaploid, tmp_path):
+    """README "Method 1": read_genotypes, allele_frequencies, f2_from_frequencies."""
+    packed = _from(pseudohaploid, tmp_path, "packedancestrymap")
+    want = pm.extract_f2(packed, POPS).f2("Simulation.1", "French")["estimate"]
+    for prefix in (packed, pseudohaploid):
+        af = pm.read_genotypes(prefix).allele_frequencies(populations=POPS)
+        got = pm.f2_from_frequencies(af).f2("Simulation.1", "French")["estimate"]
+        np.testing.assert_allclose(got, want, rtol=1e-12, err_msg=prefix)
