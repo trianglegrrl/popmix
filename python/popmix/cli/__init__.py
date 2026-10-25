@@ -1309,12 +1309,17 @@ def graph_leaves(edges: list) -> list:
 @click.option("--diag-f3", type=float, default=1e-5, help="f3 covariance regularization (default: 1e-5)")
 @click.option("--unconstrained", is_flag=True, default=False,
               help="Allow negative drift lengths and weights outside [0, 1]")
+@click.option("--plot", default=None, help="Also draw the fitted graph to this image file (needs popmix[plot])")
+@click.option("--plot-fit", default=None,
+              help="Also plot each f3's residual z to this image file (needs popmix[plot])")
+@click.option("--dot", default=None, help="Also write the fitted graph in Graphviz DOT format to this file")
 @f2_source_options
 @click.option("--format", "output_format", type=click.Choice(["text", "json", "tsv"]), default="text",
               help="Output format")
 def qpgraph(graph_file: str, admix_weights: str | None, numstart: int, seed: int, diag: float,
-            diag_f3: float, unconstrained: bool, input_prefix: str | None, f2_dir: str | None,
-            block_size: float, maxmiss: float, all_chromosomes: bool, output_format: str):
+            diag_f3: float, unconstrained: bool, plot: str | None, plot_fit: str | None, dot: str | None,
+            input_prefix: str | None, f2_dir: str | None, block_size: float, maxmiss: float,
+            all_chromosomes: bool, output_format: str):
     """Fit an admixture graph, as admixtools2 qpgraph does.
 
     Fits drift lengths and admixture weights to f3(base; i, j) for all pairs
@@ -1335,6 +1340,15 @@ def qpgraph(graph_file: str, admix_weights: str | None, numstart: int, seed: int
         f2_blocks = load_f2_blocks(input_prefix, f2_dir, pops, block_size, maxmiss, all_chromosomes)
         result = pm.qpgraph(f2_blocks, edges, admix_weights=weights, numstart=numstart, seed=seed,
                             diag=diag, diag_f3=diag_f3, constrained=not unconstrained)
+        if dot:
+            pm.write_dot(result, path=dot)
+        if plot or plot_fit:
+            from popmix import plot as plots
+
+            if plot:
+                plots.graph(result, path=plot)
+            if plot_fit:
+                plots.qpgraph_fit(result, path=plot_fit)
 
         if output_format == "json":
             output = {
@@ -1376,24 +1390,32 @@ def qpgraph(graph_file: str, admix_weights: str | None, numstart: int, seed: int
               help="The graph's leaves (comma-separated); the first is the f3 base of every fit")
 @click.option("--nadmix", type=click.IntRange(min=0), default=0, help="Number of admixture nodes (default: 0)")
 @click.option("--outgroup", default=None, help="Only graphs whose root has this population as a direct child")
-@click.option("--method", type=click.Choice(["stepwise", "exhaustive"]), default="stepwise",
+@click.option("--method", type=click.Choice(["stepwise", "exhaustive", "evolutionary"]), default="stepwise",
               help="stepwise (default): add populations, then admixture edges, one at a time, keeping the "
-                   "--beam-width best graphs; exhaustive: every graph, as admixtools2 generate_all_graphs()")
+                   "--beam-width best graphs; exhaustive: every graph, as admixtools2 generate_all_graphs(); "
+                   "evolutionary: admixtools2 find_graphs()'s search")
+@click.option("--stop-gen", type=click.IntRange(min=1), default=100,
+              help="evolutionary: generations at most (default: 100)")
+@click.option("--stop-gen2", type=click.IntRange(min=1), default=15,
+              help="evolutionary: stop after this many generations without improvement (default: 15)")
+@click.option("--max-admix", type=click.IntRange(min=0), default=None,
+              help="evolutionary: allow up to this many admixture nodes (default: --nadmix)")
+@click.option("--plot", default=None, help="Also draw the best graph to this image file (needs popmix[plot])")
 @click.option("--beam-width", type=click.IntRange(min=1), default=20,
               help="Graphs kept after each stepwise step (default: 20)")
 @click.option("--top", type=click.IntRange(min=1), default=5, help="Graphs to report (default: 5)")
 @click.option("--output-graph", type=click.Path(dir_okay=False, writable=True), default=None,
               help="Write the best graph here, in the format 'popmix qpgraph --graph' reads")
-@click.option("--numstart", type=click.IntRange(min=1), default=10,
-              help="Random starts for the admixture weights of each fit (default: 10)")
+@click.option("--numstart", type=click.IntRange(min=1), default=None,
+              help="Random starts for each graph's admixture weights (default: 10; evolutionary: 1, as admixtools2)")
 @click.option("--seed", type=int, default=1, help="Seed for the random starts (default: 1)")
 @f2_source_options
 @click.option("--format", "output_format", type=click.Choice(["text", "json"]), default="text",
               help="Output format")
-def find_graphs(populations: list, nadmix: int, outgroup: str | None, method: str, beam_width: int,
-                top: int, output_graph: str | None, numstart: int, seed: int, input_prefix: str | None,
-                f2_dir: str | None, block_size: float, maxmiss: float, all_chromosomes: bool,
-                output_format: str):
+def find_graphs(populations: list, nadmix: int, outgroup: str | None, method: str, stop_gen: int, stop_gen2: int,
+                max_admix: int | None, plot: str | None, beam_width: int, top: int, output_graph: str | None,
+                numstart: int | None, seed: int, input_prefix: str | None, f2_dir: str | None,
+                block_size: float, maxmiss: float, all_chromosomes: bool, output_format: str):
     """Search for the admixture graphs that best fit the data.
 
     Each candidate graph has POPULATIONS as leaves and NADMIX admixture nodes
@@ -1401,9 +1423,19 @@ def find_graphs(populations: list, nadmix: int, outgroup: str | None, method: st
     """
     try:
         f2_blocks = load_f2_blocks(input_prefix, f2_dir, populations, block_size, maxmiss, all_chromosomes)
-        graphs, n_evaluated = pm.find_graphs(f2_blocks, populations, nadmix=nadmix, outgroup=outgroup,
-                                             method=method, beam_width=beam_width, numstart=numstart,
-                                             seed=seed)
+        if method == "evolutionary":
+            # admixtools2 find_graphs fits each candidate from one random start
+            graphs, n_evaluated = pm.find_graphs(f2_blocks, populations, nadmix=nadmix, outgroup=outgroup,
+                                                 method=method, numstart=numstart or 1, seed=seed,
+                                                 stop_gen=stop_gen, stop_gen2=stop_gen2, max_admix=max_admix)
+        else:
+            graphs, n_evaluated = pm.find_graphs(f2_blocks, populations, nadmix=nadmix, outgroup=outgroup,
+                                                 method=method, beam_width=beam_width,
+                                                 numstart=numstart or 10, seed=seed)
+        if plot:
+            from popmix import plot as plots
+
+            plots.graph(graphs[0].edges, path=plot, title=f"score {graphs[0].score:.4f}")
         if output_graph is not None:
             with open(output_graph, "w") as f:
                 f.write(f"# popmix find-graphs: score {graphs[0].score!r}\n")

@@ -664,6 +664,31 @@ class TestQpGraphCommand:
 
     @pytest.mark.skipif(not os.path.exists("tests/golden/dates/family_chr20_22.geno"),
                         reason="test data not available")
+    def test_qpgraph_plots_and_dot(self, tmp_path):
+        pytest.importorskip("matplotlib")
+        graph = self.write_graph(tmp_path, [("R", "Yoruba"), ("R", "a"), ("a", "French"),
+                                            ("a", "b"), ("b", "Simulation"), ("b", "Simulation.1")])
+        run_cli("qpgraph", "--input", SMALL_PREFIX, "--graph", graph, "--all-chromosomes",
+                "--plot", str(tmp_path / "g.png"), "--plot-fit", str(tmp_path / "f.png"),
+                "--dot", str(tmp_path / "g.dot"))
+        assert (tmp_path / "g.png").stat().st_size > 0 and (tmp_path / "f.png").stat().st_size > 0
+        from popmix import parse_dot
+
+        assert len(parse_dot(tmp_path / "g.dot")) == 6
+
+    @pytest.mark.skipif(not os.path.exists("tests/golden/dates/family_chr20_22.geno"),
+                        reason="test data not available")
+    def test_find_graphs_evolutionary(self, tmp_path):
+        pytest.importorskip("matplotlib")
+        out = run_cli("find-graphs", "--input", SMALL_PREFIX, "--populations", "Yoruba,French,Simulation,Simulation.1",
+                      "--nadmix", "1", "--outgroup", "Yoruba", "--method", "evolutionary", "--stop-gen", "5",
+                      "--all-chromosomes", "--plot", str(tmp_path / "best.png"), "--format", "json")
+        graphs = json.loads(out.stdout)["graphs"]
+        assert graphs and graphs[0]["score"] <= graphs[-1]["score"]
+        assert (tmp_path / "best.png").stat().st_size > 0
+
+    @pytest.mark.skipif(not os.path.exists("tests/golden/dates/family_chr20_22.geno"),
+                        reason="test data not available")
     def test_qpgraph_rejects_a_graph_with_two_roots(self, tmp_path):
         graph = self.write_graph(tmp_path, [("R", "Yoruba"), ("R", "French"), ("S", "Simulation")])
         result = run_cli("qpgraph", "--input", SMALL_PREFIX, "--graph", graph, check=False)

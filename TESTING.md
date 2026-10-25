@@ -837,6 +837,11 @@ admixtools2 makes without one; populations given by `inds`/`pops`) match
 admixtools2 `f2_from_geno()` of the PLINK files at rtol 1e-10, the block
 lengths exactly.
 
+`tests/python/test_plot.py` checks the graph layout (every edge points
+down, leaves apart), the graph, qpGraph fit and ROLLOFF plots, and
+`tests/python/test_cli.py` the `qpgraph --plot/--plot-fit/--dot` and
+`find-graphs --method evolutionary --plot` options.
+
 ### f4-, D- and f3-statistic scans vs admixtools2 2.0.10
 
 `tests/golden/test_dstat_admixtools2.py` checks `qpdstat` and `qp3pop` given
