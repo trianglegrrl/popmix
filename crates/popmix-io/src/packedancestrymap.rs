@@ -49,6 +49,43 @@ pub struct PackedAncestryMapReader {
     bytes_per_snp: usize,
 }
 
+/// Check the counts in a packed .geno header ("GENO {samples} {snps} ...")
+/// against the samples of the .ind and the SNPs of the .snp file. The record
+/// length cannot tell (it is at least 48 bytes), so without this a lost .ind
+/// line would silently shift every later sample's genotypes.
+pub fn check_header(geno_path: &str, n_samples: usize, n_snps: usize) -> Result<()> {
+    let mut head = [0u8; 64];
+    let mut file = File::open(geno_path).map_err(|e| PopmixError::io_with_path(e, geno_path))?;
+    let read = std::io::Read::read(&mut file, &mut head)
+        .map_err(|e| PopmixError::io_with_path(e, geno_path))?;
+    let text = String::from_utf8_lossy(&head[..read]);
+    let fields: Vec<&str> = text
+        .trim_end_matches('\0')
+        .split_whitespace()
+        .take(3)
+        .collect();
+    let counts = match fields.as_slice() {
+        ["GENO", n, m] => n.parse::<usize>().ok().zip(m.parse::<usize>().ok()),
+        _ => None,
+    };
+    let Some((header_samples, header_snps)) = counts else {
+        return Err(PopmixError::InvalidFileFormat {
+            file: geno_path.to_string(),
+            details: "no \"GENO <samples> <snps>\" header".to_string(),
+        });
+    };
+    if (header_samples, header_snps) != (n_samples, n_snps) {
+        return Err(PopmixError::InvalidFileFormat {
+            file: geno_path.to_string(),
+            details: format!(
+                "the header gives {header_samples} samples and {header_snps} SNPs, but the \
+                 .ind file lists {n_samples} samples and the .snp file {n_snps} SNPs"
+            ),
+        });
+    }
+    Ok(())
+}
+
 impl PackedAncestryMapReader {
     /// Open a PACKEDANCESTRYMAP dataset by prefix.
     ///
@@ -72,6 +109,8 @@ impl PackedAncestryMapReader {
                     .to_string(),
             });
         }
+
+        check_header(&geno_path, samples.len(), snps.len())?;
 
         // Calculate bytes per SNP: max(48, ceil(n_samples / 4))
         // Per AdmixTools spec, minimum record size is 48 bytes
@@ -336,6 +375,52 @@ mod tests {
         let header = String::from_utf8_lossy(&geno[..48]);
         let fields: Vec<&str> = header.trim_end_matches('\0').split_whitespace().collect();
         assert_eq!(fields, ["GENO", "3", "5", "10f4828d", "3ebb563c"]);
+    }
+
+    #[test]
+    fn the_header_counts_must_match_the_ind_and_snp_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let prefix = dir.path().join("t");
+        let samples: Vec<Sample> = (0..5).map(|i| Sample::new(format!("I{i}"), "A")).collect();
+        let snps: Vec<Snp> = (0..4)
+            .map(|i| {
+                Snp::new(
+                    format!("rs{i}"),
+                    popmix_core::Chromosome::Autosome(1),
+                    i + 1,
+                    0.0,
+                    'A',
+                    'G',
+                )
+            })
+            .collect();
+        let m = GenotypeMatrix::new(Array2::zeros((4, 5)), samples, snps).unwrap();
+        crate::writers::write_packedancestrymap(&prefix, &m).unwrap();
+        let geno = prefix.with_extension("geno").to_string_lossy().to_string();
+        assert!(PackedAncestryMapReader::new(&prefix).is_ok());
+
+        // one .ind line lost: records are 48 bytes either way
+        let ind = prefix.with_extension("ind");
+        let text = std::fs::read_to_string(&ind).unwrap();
+        std::fs::write(
+            &ind,
+            text.lines()
+                .skip(1)
+                .map(|l| format!("{l}\n"))
+                .collect::<String>(),
+        )
+        .unwrap();
+        let err = PackedAncestryMapReader::new(&prefix)
+            .err()
+            .unwrap()
+            .to_string();
+        assert!(err.contains("5 samples") && err.contains("4"), "{err}");
+        let samples = crate::eigenstrat::read_ind_file(ind.to_str().unwrap()).unwrap();
+        let err =
+            crate::streaming::detect_ploidy_packedancestrymap(&geno, &mut samples.clone(), 1000, 4)
+                .unwrap_err()
+                .to_string();
+        assert!(err.contains("5 samples"), "{err}");
     }
 
     #[test]

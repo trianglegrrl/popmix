@@ -34,6 +34,7 @@ fn decode_packed_byte(byte: u8) -> [u8; 4] {
 /// it is the file size over the number of records; a file whose size is not
 /// a whole number of records long enough for every sample is an error.
 fn record_length(geno_path: &str, n_samples: usize, n_snps: usize) -> Result<usize> {
+    crate::packedancestrymap::check_header(geno_path, n_samples, n_snps)?;
     let len = std::fs::metadata(geno_path)
         .map_err(|e| PopmixError::io_with_path(e, geno_path))?
         .len() as usize;

@@ -1,0 +1,45 @@
+"""A packed .geno whose header disagrees with the .ind or .snp file is an error.
+
+Deleting one .ind line used to relabel every later sample silently (the
+record length is at least 48 bytes, so it did not change).
+"""
+
+import subprocess
+from pathlib import Path
+
+import pytest
+
+import popmix as pm
+
+FIXTURE = "tests/fixtures/small_eigenstrat"
+
+
+@pytest.fixture
+def packed(tmp_path):
+    prefix = tmp_path / "packed"
+    subprocess.run(["popmix", "convertf", "-i", FIXTURE, "-o", str(prefix), "-of", "packedancestrymap"],
+                   check=True, capture_output=True)
+    return prefix
+
+
+def _drop_first_line(path: Path) -> None:
+    lines = path.read_text().splitlines(keepends=True)
+    path.write_text("".join(lines[1:]))
+
+
+def test_intact_files_read(packed):
+    pops = sorted({line.split()[2] for line in Path(f"{FIXTURE}.ind").read_text().splitlines()})
+    pm.read_genotypes(str(packed))
+    pm.extract_f2(str(packed), pops[:2], poly_only=False)
+
+
+@pytest.mark.parametrize("ext", ["ind", "snp"])
+def test_a_lost_line_is_an_error(packed, ext):
+    _drop_first_line(Path(f"{packed}.{ext}"))
+    pops = sorted({line.split()[2] for line in Path(f"{FIXTURE}.ind").read_text().splitlines()})
+    with pytest.raises(Exception, match="header gives"):
+        pm.read_genotypes(str(packed))
+    with pytest.raises(Exception, match="header gives"):
+        pm.extract_f2(str(packed), pops[:2], poly_only=False)
+
+
