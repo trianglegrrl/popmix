@@ -302,8 +302,7 @@ Tip: Search populations with: popmix populations tests/fixtures/small_eigenstrat
 popmix f2 \
   --input /references/aadr/v62.0_1240k_public \
   --pop1 Han.DG \
-  --pop2 Yoruba.DG \
-  --snp-range 0:10000
+  --pop2 Yoruba.DG
 ```
 
 ## Convertf Format Conversion Testing

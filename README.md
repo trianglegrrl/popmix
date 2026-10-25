@@ -102,24 +102,11 @@ popmix qpadm -i /path/to/genotypes --target French --left Yamnaya,Anatolia_N --r
 ### From PyPI (recommended)
 
 ```bash
-# Full installation (all features)
-pip install popmix[all]
-
-# Basic installation (library and command line)
+# Library and command line
 pip install popmix
-
-# With Rich output and progress bars in the command line
-pip install popmix[cli]
-
-# With HTML report generation
-pip install popmix[reports]
-
-# With MultiQC integration
-pip install popmix[multiqc]
 
 # With plots (matplotlib)
 pip install popmix[plot]
-
 ```
 
 ### From Source
@@ -215,6 +202,35 @@ Popmix auto-detects the format from file extensions:
 - `.geno` text → EIGENSTRAT
 
 ## CLI Commands
+
+| Command | What |
+|---------|------|
+| `admixture` | Ancestry proportions with K ancestral populations, as ADMIXTURE. |
+| `alder` | ALDER weighted LD: date admixture in TEST and, with two references, test for it. |
+| `convertf` | Convert between genotype file formats. |
+| `dates` | Estimate admixture date using DATES algorithm. |
+| `dstat-matrix` | Matrix of D- (or f4-) statistics for every pair X, Y of populations. |
+| `extract-f2` | Extract F2 blocks from genotype data, as admixtools2's extract_f2(). |
+| `f2` | Compute f2 statistic between two populations. |
+| `f3` | Compute f3 statistic (admixture test). |
+| `f4` | Compute f4 statistic (D-statistic / ABBA-BABA test). |
+| `find-graphs` | Search for the admixture graphs that best fit the data. |
+| `info` | Show dataset information. |
+| `kinship` | Kinship for every pair of samples: KING-robust or READ-style. |
+| `merge` | Merge two genotype datasets. |
+| `outgroup-f3` | Matrix of outgroup f3(outgroup; A, B) for every pair of populations. |
+| `pca` | Principal component analysis as EIGENSOFT smartpca, with projection. |
+| `populations` | List all populations in a dataset with sample counts. |
+| `qp3pop` | f3-statistics f3(pop1; pop2, pop3) for many combinations, as admixtools2 qp3pop. |
+| `qpadm` | Estimate admixture weights using qpAdm. |
+| `qpdstat` | f4- or D-statistics f(pop1, pop2; pop3, pop4) for many combinations, as admixtools2 qpdstat. |
+| `qpgraph` | Fit an admixture graph, as admixtools2 qpgraph does. |
+| `qpwave` | Test admixture wave count using qpWave. |
+| `rolloff` | ROLLOFF: date admixture from the decay of weighted LD correlation (ADMIXTOOLS). |
+| `sfs` | Site-frequency spectrum, as dadi (projected) or admixtools2 joint_sfs(). |
+
+Every command documents its options under `popmix <command> --help`;
+the sections below walk through the most used ones.
 
 ### `popmix info`
 
@@ -576,7 +592,8 @@ f2 = pm.f2_from_frequencies(af)
 result = f2.f2("French", "Yoruba")
 print(f"f2 = {result['estimate']:.6f} ± {result['std_err']:.6f}")
 
-# Method 2: Streaming extraction (for large datasets, recommended)
+# Method 2: extract_f2 (recommended; PACKEDANCESTRYMAP input is streamed,
+# other formats are read into memory first)
 f2 = pm.extract_f2("/path/to/data", populations=["French", "Yoruba", "Han"])
 f2.save("f2_blocks/")  # Save for later use
 
@@ -655,140 +672,36 @@ print(f"Format: {fmt}")  # "PACKEDPED"
 
 ## Output Formats
 
-All CLI commands support multiple output formats via `--format`:
+Commands that report a few statistics (`f2`, `f3`, `f4`, `qpadm`, `qpwave`,
+`dates`, `qpgraph`, ...) print text by default and take `--format json` or
+`--format tsv`. The scans (`qpdstat`, `qp3pop`, `outgroup-f3`,
+`dstat-matrix`, `kinship`, `sfs`) write a TSV table (or JSON with
+`--format json`) to stdout, or to a file with `-o`. `pca`, `admixture`,
+`alder` and `rolloff` write their result files under `--output-prefix`.
+Each command's `--help` lists what it takes.
 
-| Format | Flag | Description |
-|--------|------|-------------|
-| Text | `--format text` | Human-readable with Rich styling (default) |
-| JSON | `--format json` | Machine-readable, schema-validated |
-| YAML | `--format yaml` | Human-readable config format |
-| TSV | `--format tsv` | Tab-separated, one row per result |
-| Parquet | `--format parquet` | High-performance columnar format |
-| NDJSON | `--format ndjson` | Newline-delimited JSON for streaming |
-
-### Writing to Files
-
-Use `--output-file` / `-o` to write results directly to files:
-
-```bash
-popmix qpadm ... --format json -o results/qpadm_french.json
-popmix dates ... --format parquet -o results/dates.parquet
-```
-
-The format is auto-detected from the file extension if not specified.
-
-### Rich Terminal Output
-
-All terminal output uses Rich for beautiful, informative displays:
-- **Colored significance indicators**: Green (significant), yellow (marginal), gray (not significant)
-- **Confidence intervals**: Automatic 95% CI calculation with display
-- **Progress bars**: For long-running operations like F2 extraction
-- **Formatted tables**: Clean, aligned data presentation
-
-### HTML Reports
-
-Generate standalone, interactive HTML reports with Plotly visualizations:
-
-```bash
-popmix qpadm ... --report qpadm_french.html
-popmix dates ... --report dates_report.html
-```
-
-Reports include:
-- Interactive Plotly charts (bar charts, LD decay curves)
-- Model fit statistics with visual indicators
-- Confidence intervals and uncertainty quantification
-- Responsive design for any screen size
-
-## MultiQC Integration
-
-Popmix includes a MultiQC module for aggregating results from multiple analyses:
-
-```bash
-# Install with MultiQC support
-pip install popmix[multiqc]
-
-# Run MultiQC on popmix output files
-multiqc results/ --module popmix
-```
-
-The module automatically detects:
-- `*_popmix_stats.json` - General statistics
-- `*_qpadm.json` - qpAdm results
-- `*_dates.json` - DATES results
-- `*_f2.json`, `*_f3.json`, `*_f4.json` - F-statistics
-
-MultiQC General Statistics columns include:
-- P-value (qpAdm/qpWave model fit)
-- Generations and Years BP (DATES)
-- R² fit quality
-- Number of source populations
-
-## Batch Analysis Mode
-
-Run analyses on multiple targets efficiently:
-
-```bash
-# qpAdm batch mode
-popmix qpadm-batch \
-  -i data \
-  --targets targets.txt \
-  --left sources.txt \
-  --right outgroups.txt \
-  --output-dir results/ \
-  --report batch_report.html
-
-# DATES batch mode
-popmix dates-batch \
-  -i data \
-  --config dates_config.yaml \
-  --output-dir results/
-```
-
-Batch features:
-- Progress tracking with ETA
-- Individual result files per target
-- Combined summary JSON/YAML
-- Batch summary report with best-fitting models
-- Failure tracking and reporting
-
-Example batch config (YAML):
-```yaml
-targets:
-  - French
-  - Spanish
-  - Italian
-sources:
-  - Yamnaya
-  - Anatolia_N
-  - WHG
-outgroups:
-  - Mbuti
-  - Han
-  - Papuan
-```
+Bad input gives a one-line `Error: ...` and exit code 1; `popmix --debug
+...` shows the traceback.
 
 ## Performance Tips
 
-1. **Use streaming F2 extraction** for large datasets:
+1. **Use PACKEDANCESTRYMAP input** for f2 extraction: it is streamed SNP by
+   SNP, never loaded whole. Other formats are read into memory first, so
+   convert large datasets once:
    ```bash
-   popmix extract-f2 -i data -o f2/ --populations Pop1,Pop2,Pop3
+   popmix convertf -i data -o data_packed -of packedancestrymap
+   popmix extract-f2 -i data_packed -o f2/ --populations Pop1,Pop2,Pop3
    ```
 
-2. **Specify populations** to avoid computing unnecessary pairs:
-   ```python
-   f2 = pm.extract_f2(prefix, populations=["A", "B", "C"])  # Fast
-   f2 = pm.extract_f2(prefix)  # Slow - computes all pairs
-   ```
+2. **Name only the populations you need**: f2 blocks hold every pair of the
+   populations given, so their size grows with the square of their number.
 
 3. **Use multiple threads**:
    ```bash
    popmix --threads 8 extract-f2 ...
    ```
 
-4. **Use PACKEDANCESTRYMAP format** for fastest I/O
-
-5. **Save F2 blocks** to avoid recomputation:
+4. **Save F2 blocks** to avoid recomputation:
    ```python
    f2.save("f2_blocks/")
    f2 = pm.read_f2("f2_blocks/")  # Instant reload
@@ -818,7 +731,7 @@ corrects the reference tools.
 
 ## More analyses
 
-Beyond the commands below, the Python API and CLI cover (each with
+Beyond the walkthroughs above, the Python API and CLI cover (each with
 `--help` / docstrings):
 
 | Command / function | What |
