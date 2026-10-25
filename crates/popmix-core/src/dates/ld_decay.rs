@@ -48,6 +48,31 @@ pub struct LdOptions {
     pub compat: DatesCompat,
 }
 
+impl LdOptions {
+    /// Most mesh cells (`qbin` per bin) a run may ask for.
+    const MAX_MESH_CELLS: f64 = 1e7;
+
+    /// Positive bin width and maximum distance, at most
+    /// [`crate::options::MAX_BINS`] bins, and a mesh of a size that fits.
+    pub fn validate(&self) -> Result<()> {
+        crate::options::check_bins(
+            "bin_width_cm",
+            self.bin_width_cm,
+            "max_distance_cm",
+            self.max_distance_cm,
+        )?;
+        let cells = self.qbin as f64 * self.max_distance_cm / self.bin_width_cm;
+        if cells > Self::MAX_MESH_CELLS {
+            return Err(crate::error::PopmixError::Validation(format!(
+                "qbin {} makes {cells:.0} mesh cells; at most {:.0} are allowed",
+                self.qbin,
+                Self::MAX_MESH_CELLS
+            )));
+        }
+        Ok(())
+    }
+}
+
 impl Default for LdOptions {
     fn default() -> Self {
         LdOptions {
@@ -220,6 +245,7 @@ pub fn compute_ld_decay_by_chromosome(
     options: Option<LdOptions>,
 ) -> Result<LdDecay> {
     let opts = options.unwrap_or_default();
+    opts.validate()?;
 
     let test_pop_id = crate::genotypes::PopulationId::new(test_pop);
     let test_indices = geno.population_indices(&test_pop_id);

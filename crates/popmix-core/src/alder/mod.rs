@@ -519,6 +519,7 @@ pub fn alder(
     snps: &[Snp],
     options: &AlderOptions,
 ) -> Result<AlderResult> {
+    crate::options::check_bins("binsize", options.binsize, "maxdis", options.maxdis)?;
     if refs.is_empty() || refs.len() > 2 {
         return Err(PopmixError::Numerical(format!(
             "ALDER takes one or two reference populations, got {}",

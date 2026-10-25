@@ -317,6 +317,7 @@ pub fn rolloff(
     snps: &[Snp],
     options: &RolloffOptions,
 ) -> Result<RolloffResult> {
+    crate::options::check_bins("binsize", options.binsize, "maxdis", options.maxdis)?;
     let m = snps.len();
     if admixed.n_snps() != m || ref_a.n_snps() != m || ref_b.n_snps() != m {
         return Err(PopmixError::DimensionMismatch {

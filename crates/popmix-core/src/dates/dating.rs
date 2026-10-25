@@ -155,6 +155,7 @@ pub fn dates(
     options: Option<DatesOptions>,
 ) -> Result<DatesResult> {
     let opts = options.unwrap_or_default();
+    crate::options::check_positive("generation_time", opts.generation_time)?;
 
     // Compute allele frequencies if not provided
     let owned_af;

@@ -19,6 +19,7 @@ pub mod fstats;
 pub mod genotype_matrix;
 pub mod genotypes;
 pub mod kinship;
+mod options;
 pub mod pca;
 pub mod qpadm;
 pub mod qpgraph;
