@@ -32,7 +32,11 @@ import numpy as np
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[2]
-AADR = "/references/aadr/v62.0_1240k_public"
+# AADR v66.p1, each individual labelled <population>.<data type>, as
+# tests/golden/aadr/build_aadr_v66p1.py builds it in the reference cache; its
+# manifest.json (recorded in each AADR reference) has the release checksums.
+AADR_DIR = Path(os.environ.get("POPMIX_REFERENCE_CACHE", Path.home() / ".cache/popmix-references")) / "aadr_v66p1"
+AADR = str(AADR_DIR / "aadr_v66p1")
 SMALL = str(REPO / "tests/golden/dates/family_chr20_22")
 PLINK2 = os.environ.get("PLINK2", "plink2")
 CONVERTF = os.environ.get("CONVERTF", "/usr/bin/convertf")
@@ -40,8 +44,9 @@ CONVERTF = os.environ.get("CONVERTF", "/usr/bin/convertf")
 CONFIGS = {
     "family": {"prefix": SMALL, "pops": ["French", "Yoruba", "Simulation", "Simulation.1"]},
     # 1000 Genomes YRI (with relatives) and CEU, and pseudo-haploid ancient
-    # samples with missing data
-    "aadr_yri_ceu_lbk": {"prefix": AADR, "pops": ["YRI.DG", "CEU.DG", "Germany_EN_LBK.AG"]},
+    # samples with missing data (v62.0's Germany_EN_LBK.AG is split by site in
+    # v66.p1: its largest part)
+    "aadr_yri_ceu_lbk": {"prefix": AADR, "pops": ["YRI.DG", "CEU.DG", "Germany_HalberstadtSonntagsfeld_EN_LBK.AG"]},
 }
 
 
@@ -101,6 +106,8 @@ def run(name: str) -> None:
         },
         "kinship_lower_triangle": tri.tolist(),
     }
+    if cfg["prefix"] == AADR:
+        out["dataset"] = json.loads((AADR_DIR / "manifest.json").read_text())
     dest = HERE / plink2_version() / name
     dest.mkdir(parents=True, exist_ok=True)
     (dest / "king.json").write_text(json.dumps(out) + "\n")
