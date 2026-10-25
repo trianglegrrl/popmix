@@ -1039,7 +1039,9 @@ fn suggest_populations(prefix: &str, query: &str, limit: usize) -> PyResult<Vec<
                 1 // Prefix match
             } else if pop_lower.contains(&query_lower) {
                 2 // Substring match
-            } else if query_lower.len() >= 3 && pop_lower.contains(&query_lower[..3]) {
+            } else if query_lower.chars().count() >= 3
+                && pop_lower.contains(&query_lower.chars().take(3).collect::<String>())
+            {
                 3 // First 3 chars match
             } else {
                 // Levenshtein distance (higher = worse)
