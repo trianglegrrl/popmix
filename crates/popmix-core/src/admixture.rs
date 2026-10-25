@@ -730,10 +730,11 @@ pub fn admixture_cv(
     folds: usize,
     options: &AdmixtureOptions,
 ) -> Result<f64> {
-    if folds < 2 {
-        return Err(PopmixError::Numerical(
-            "cross-validation needs at least 2 folds".to_string(),
-        ));
+    // each genotype's fold is kept in a byte
+    if !(2..=256).contains(&folds) {
+        return Err(PopmixError::Validation(format!(
+            "cross-validation takes 2 to 256 folds, not {folds}"
+        )));
     }
     let (n, m, k) = (geno.n_samples(), geno.n_snps(), full.k);
     let mut rng = Rng(options.seed ^ 0xC0FF_EE00_D15E_A5E5);
@@ -898,6 +899,20 @@ mod tests {
         };
         let cv = |k| admixture_cv(&g, &admixture(&g, k, &opts).unwrap(), 5, &opts).unwrap();
         assert!(cv(2) < cv(1));
+    }
+
+    #[test]
+    fn cross_validation_folds_are_checked() {
+        let qs: Vec<f64> = (0..4).map(|i| if i < 2 { 1.0 } else { 0.0 }).collect();
+        let (g, _) = simulated(&qs, 50);
+        let opts = AdmixtureOptions::default();
+        let fit = admixture(&g, 1, &opts).unwrap();
+        for folds in [1, 257, 1000] {
+            let err = admixture_cv(&g, &fit, folds, &opts)
+                .unwrap_err()
+                .to_string();
+            assert!(err.contains("folds"), "{folds}: {err}");
+        }
     }
 
     #[test]
