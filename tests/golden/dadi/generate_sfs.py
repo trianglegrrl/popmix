@@ -31,7 +31,11 @@ import numpy as np
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[2]
-AADR = "/references/aadr/v62.0_1240k_public"
+# AADR v66.p1, each individual labelled <population>.<data type>, as
+# tests/golden/aadr/build_aadr_v66p1.py builds it in the reference cache; its
+# manifest.json (recorded in each AADR reference) has the release checksums.
+AADR_DIR = Path(os.environ.get("POPMIX_REFERENCE_CACHE", Path.home() / ".cache/popmix-references")) / "aadr_v66p1"
+AADR = str(AADR_DIR / "aadr_v66p1")
 SMALL = str(REPO / "tests/golden/dates/family_chr20_22")
 PLINK2 = os.environ.get("PLINK2", "plink2")
 CONVERTF = os.environ.get("CONVERTF", "/usr/bin/convertf")
@@ -114,6 +118,8 @@ def run(name: str) -> None:
         "prefix": os.path.relpath(cfg["prefix"], REPO) if cfg["prefix"].startswith(str(REPO)) else cfg["prefix"],
         "spectra": spectra,
     }
+    if cfg["prefix"] == AADR:
+        out["dataset"] = json.loads((AADR_DIR / "manifest.json").read_text())
     dest = HERE / "v2.4.4" / name
     dest.mkdir(parents=True, exist_ok=True)
     (dest / "sfs.json").write_text(json.dumps(out) + "\n")
