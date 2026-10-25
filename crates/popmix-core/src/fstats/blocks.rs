@@ -193,9 +193,8 @@ mod tests {
 
     #[test]
     fn test_single_block_small_region() {
-        // 10 SNPs at 1 cM spacing = 10 cM total, fits in one 5 cM block? No, 2 blocks
-        // Actually with 5 cM blocks, SNPs at 0, 1, 2, 3, 4 cM are in block 0
-        // SNPs at 5, 6, 7, 8, 9 cM are in block 1
+        // 10 SNPs at 1 cM spacing in 5 cM blocks: 0-4 cM in block 0, 5-9 cM
+        // in block 1
         let snps = make_snps_same_chr(10, 1.0);
         let blocks = BlockDefinition::default().assign_blocks(&snps);
 

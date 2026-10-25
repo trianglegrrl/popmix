@@ -442,10 +442,7 @@ impl F2Blocks {
         } else {
             (pop_b, pop_a)
         };
-        // Triangular number formula: sum(0..i) + (j - i)
-        // = i * (i + 1) / 2 + (j - i)
-        // But we want row-major order where row i has (n - i) elements
-        // Actually, let's use: pair(i, j) = i * n - i*(i+1)/2 + j for upper triangular
+        // Upper triangle, row by row: row i holds the n - i pairs (i, i..n)
         let n = self.populations.len();
         i * n - i * (i + 1) / 2 + j
     }
