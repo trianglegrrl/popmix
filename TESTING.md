@@ -1,216 +1,76 @@
 # Popmix Testing Guide
 
-This document describes how to run tests and validate popmix against reference implementations.
+How to run popmix's tests, and how each analysis is checked against its
+reference tool.
 
 ## Quick Start
 
 ```bash
-# Build and test everything
+# Rust
 cargo test --workspace
+
+# Python bindings, then the Python and golden suites
 unset CONDA_PREFIX && source .venv/bin/activate
-maturin develop -m crates/popmix-python/Cargo.toml
-
-# Quick tests (includes DATES validation, ~5 min)
-pytest tests/ -v
-
-# Full tests (includes AADR integration tests, ~30 min)
-pytest tests/ -v --run-slow
+maturin develop -m crates/popmix-python/Cargo.toml --release
+pytest tests/python tests/golden            # quick: about 5 minutes
+pytest tests/python tests/golden --run-slow # everything: about 50 minutes
 ```
 
 ## Test Summary
 
+Counted on 2026-10-25 (commit 66b3375); `cargo test --workspace` and
+`pytest --collect-only -q tests/python tests/golden --run-slow` give the
+current numbers.
+
 | Suite | Tests | What | Command |
 |-------|-------|------|---------|
-| Rust | 276 | unit tests, readers and writers, R-compatible numerics and DATES stages against their references | `cargo test --workspace` |
-| Python | 296 | API, CLI, formats, plots, reports | `pytest tests/python` |
-| Golden | 434 | every analysis against its reference tool on real data (admixtools2, DATES, smartpca, PLINK 2, READv2, dadi, ADMIXTURE, ALDER, ROLLOFF, ADMIXTOOLS, R) | `pytest tests/golden` |
-| Slow (of the 730 Python and golden) | 271 | the AADR configurations, searches and reference runs | add `--run-slow` |
+| Rust | 303 | unit tests, readers and writers, R-compatible numerics, DATES stages against their references | `cargo test --workspace` |
+| Python | 315 | API, CLI, formats, input validation, no-panic property tests, documented commands | `pytest tests/python` |
+| Golden | 471 | every analysis against its reference tool on real data | `pytest tests/golden` |
+| Slow (of the Python and golden) | 288 | AADR configurations, searches and reference runs | add `--run-slow` |
 
-Without `--run-slow` the Python and golden suites take about 4 minutes; with
-it, about 40. Golden tests skip when their data (AADR v62 under
-`/references`, or genotype files in the reference cache made by the
-generators) is missing.
+Golden tests skip when their data is missing: AADR v62 and v66.p1 under
+`/references/aadr`, or the genotype files the generators put in the
+reference cache (`~/.cache/popmix-references`, or `POPMIX_REFERENCE_CACHE`).
 
 ## Test Structure
 
 ```
 tests/
-├── conftest.py                # Pytest config (--run-slow option)
-├── fixtures/                  # Test fixtures
-│   ├── small_eigenstrat.*     # Small dataset (3 samples, 5 SNPs)
-│   ├── small_vcf.vcf          # VCF version of small_eigenstrat
-│   ├── small_vcf_missing.vcf  # VCF with missing genotypes
-│   ├── small_vcf_phased.vcf   # VCF with phased genotypes (|)
-│   ├── merge_a.*              # Merge test file A (2 samples, 5 SNPs)
-│   └── merge_b.*              # Merge test file B (1 sample, 4 SNPs)
-├── golden/                    # Reference data tests
-│   ├── test_dates.py          # DATES algorithm tests
-│   ├── test_dates_v753.py     # DATES vs DATES v753 runs
-│   ├── test_fstats_admixtools2.py  # f-statistics, qpWave, qpAdm vs admixtools2 runs
-│   ├── admixtools2/           # admixtools2 references and their generator
-│   └── dates/                 # DATES test data
-│       ├── family_chr20_22.*  # Simulated admixture data (54 samples, 21k SNPs)
-│       └── chr20_22_reference.json
-├── python/                    # Python/CLI tests
-│   ├── test_cli.py            # CLI command tests
-│   ├── test_rich_output.py    # Rich terminal output tests (35 tests)
-│   ├── test_formatters.py     # Output format tests (23 tests)
-│   ├── test_statistical_rigor.py  # Statistical rigor tests (24 tests)
-│   ├── test_html_reports.py   # HTML report generation tests (19 tests)
-│   ├── test_multiqc_module.py # MultiQC integration tests (16 tests)
-│   └── test_batch_mode.py     # Batch analysis tests (17 tests)
-└── rust/                      # Rust integration tests
-
-crates/popmix-io/
-└── src/
-    ├── merge.rs               # Merge algorithm (12 tests)
-    ├── vcf.rs                 # VCF reader (11 tests)
-    ├── writers.rs             # Format writers (tested via roundtrip)
-    ├── ped.rs                 # PED format reader
-    └── ancestrymap.rs         # ANCESTRYMAP format reader
-
-python/popmix/
-├── cli/
-│   ├── rich_output.py         # Rich terminal formatting
-│   ├── formatters.py          # Output format handlers
-│   ├── statistics.py          # Statistical rigor utilities
-│   └── batch.py               # Batch analysis mode
-├── reports/
-│   └── html_report.py         # HTML report generation
-├── multiqc/
-│   ├── module.py              # Main MultiQC module
-│   ├── patterns.py            # File pattern detection
-│   ├── parsers.py             # JSON file parsing
-│   ├── aggregator.py          # Result aggregation
-│   └── general_stats.py       # General Statistics columns
-└── schemas/
-    ├── f2_result.json         # F2 JSON schema
-    ├── qpadm_result.json      # qpAdm JSON schema
-    └── dates_result.json      # DATES JSON schema
+├── conftest.py            # --run-slow
+├── fixtures/              # small datasets: EIGENSTRAT, TGENO, VCF (missing,
+│                          # phased, multiallelic, haploid), merge inputs
+├── python/                # API, CLI, formats, validation, property tests
+└── golden/                # each analysis against its reference tool
+    ├── test_*.py          # one file per analysis and reference
+    ├── admixtools2/       # admixtools2 2.0.10 references and their R generators
+    ├── admixtools_classic/  # classic ADMIXTOOLS program output
+    ├── admixture/  alder/  dadi/  eigensoft/  plink2/  readv2/  rolloff/
+    ├── dates/             # DATES v753 runs and data
+    ├── formats/           # convertf 8, mergeit and plink2 references
+    └── rlang/             # R's RNG and L-BFGS-B, for the R-compatible numerics
 ```
+
+Each reference directory holds the script that generated its files (run
+against the reference tool), so every reference can be regenerated.
 
 ## Running Tests
 
-### Rust Tests
-
 ```bash
-cargo test --workspace
+cargo test --workspace                  # all Rust tests
+cargo test -p popmix-io merge           # one module's tests
+pytest tests/python -k vcf              # Python tests matching a name
+pytest tests/golden/test_formats.py --run-slow   # one golden file, slow tests too
 ```
 
-Expected output:
-```
-test result: ok. 111 passed; 0 failed  (popmix-core)
-test result: ok. 26 passed; 0 failed   (popmix-io, includes 12 merge tests)
-test result: ok. 10 passed; 0 failed   (integration tests)
-```
-
-### Merge Tests Specifically
-
-```bash
-cargo test -p popmix-io merge
-```
-
-Expected output:
-```
-test merge::tests::test_merge_snp_intersection ... ok
-test merge::tests::test_merge_matching_alleles ... ok
-test merge::tests::test_merge_flipped_alleles ... ok
-test merge::tests::test_strand_ambiguous_detection ... ok
-test merge::tests::test_recode_flipped ... ok
-test merge::tests::test_merge_combines_samples ... ok
-test merge::tests::test_merge_duplicate_sample_error ... ok
-test merge::tests::test_merge_preserves_genotypes ... ok
-test merge::tests::test_merge_mixed_alleles ... ok
-test merge::tests::test_snp_key_hashing ... ok
-test merge::tests::test_full_merge_integration ... ok
-test merge::tests::test_merge_only_intersection ... ok
-
-test result: ok. 12 passed; 0 failed
-```
-
-### VCF Tests Specifically
-
-```bash
-cargo test -p popmix-io vcf
-```
-
-Expected output:
-```
-test vcf::tests::test_parse_vcf_gt_hom_ref ... ok
-test vcf::tests::test_parse_vcf_gt_het ... ok
-test vcf::tests::test_parse_vcf_gt_hom_alt ... ok
-test vcf::tests::test_parse_vcf_gt_missing ... ok
-test vcf::tests::test_parse_vcf_gt_phased ... ok
-test vcf::tests::test_parse_vcf_gt_invalid ... ok
-test vcf::tests::test_vcf_reader_basic ... ok
-test vcf::tests::test_vcf_reader_missing_data ... ok
-test vcf::tests::test_vcf_reader_phased ... ok
-test vcf::tests::test_vcf_cross_validation ... ok
-test vcf::tests::test_vcf_format_detection ... ok
-
-test result: ok. 11 passed; 0 failed
-```
-
-### Python Tests (Quick - includes DATES and Merge)
-
-```bash
-unset CONDA_PREFIX && source .venv/bin/activate
-pytest tests/ -v
-```
-
-Expected output:
-```
-26 passed in ~3 minutes
-```
-
-Includes all DATES validation tests and merge tests.
-
-### Python Tests (Full Suite with AADR)
-
-```bash
-pytest tests/ -v --run-slow
-```
-
-Expected output:
-```
-35 passed in ~30 minutes
-```
-
-The `--run-slow` flag runs additional integration tests against full AADR reference data (~1.2M SNPs).
-
-### DATES Validation (Scientific-Grade)
-
-```bash
-python scripts/compare_dates.py tests/golden/dates/family_chr20_22
-```
-
-Expected output:
-```
-CRITERIA
-  Pair counts exact match:     PASS
-  Correlations within 1e-6:    PASS
-
-OVERALL: PASS
-```
+A golden test failure prints the reference values and popmix's; the
+generator named at the top of the test file remakes the reference.
 
 ## CLI Testing
 
-### Available Commands
-
-```bash
-popmix --help           # Show all commands
-popmix info             # Dataset information
-popmix populations      # List populations with counts
-popmix merge            # Merge two datasets
-popmix extract-f2       # Extract F2 blocks
-popmix f2               # Compute f2 statistic
-popmix f3               # Compute f3 statistic
-popmix f4               # Compute f4/D statistic
-popmix qpadm            # Admixture modeling
-popmix qpwave           # Ancestry wave testing
-popmix dates            # Admixture dating
-popmix convertf         # Format conversion
-```
+`popmix --help` lists every command; `popmix <command> --help` its options.
+`tests/python/test_documented_commands.py` checks that every `popmix ...`
+line in README.md and this file names a real command and real options.
 
 ### Example: Merge Command
 
@@ -305,266 +165,54 @@ popmix f2 \
   --pop2 Yoruba.DG
 ```
 
-## Convertf Format Conversion Testing
+## Genotype Formats, Conversion and Merge
 
-The `convertf` command converts between 6 genotype file formats. Validation ensures all 36 format pairs (6x6 matrix) work correctly and preserve genotypes.
-
-### Supported Formats
+### Formats
 
 | Format | Extensions | Description |
 |--------|------------|-------------|
 | `eigenstrat` | `.geno`, `.snp`, `.ind` | Text EIGENSTRAT (0/1/2/9 per SNP) |
-| `packedancestrymap` | `.geno`, `.snp`, `.ind` | Binary EIGENSTRAT (2 bits/genotype) |
+| `packedancestrymap` | `.geno`, `.snp`, `.ind` | Packed, one record per SNP (2 bits per genotype) |
+| `tgeno` | `.geno`, `.snp`, `.ind` | Packed, one record per individual (AADR v66 and later) |
 | `plink` | `.bed`, `.bim`, `.fam` | Binary PLINK |
 | `ped` | `.ped`, `.map` | Text PLINK (allele pairs) |
 | `ancestrymap` | `.ancestrymapgeno`, `.snp`, `.ind` | Sparse format |
-| `vcf` | `.vcf`, `.vcf.gz` | VCF format (plain text or gzip) |
+| `vcf` | `.vcf`, `.vcf.gz` | VCF (input only), biallelic SNPs |
 
-### Quick Validation (6x6 Matrix)
+### How they are checked
 
-```bash
-unset CONDA_PREFIX && source .venv/bin/activate
-python3 << 'EOF'
-import tempfile
-import os
-import popmix as pm
+Every reference file is written by a reference tool, never by popmix:
 
-prefix = "/home/a/popmix/tests/fixtures/small_eigenstrat"
-# Output formats (VCF is input-only for now)
-output_formats = ["eigenstrat", "packedancestrymap", "plink", "ped", "ancestrymap"]
-# All input formats including VCF
-input_formats = output_formats + ["vcf"]
+- `tests/golden/test_formats.py`: the same AADR v66.p1 individuals in every
+  format (AdmixTools 8 convertf, PLINK 2) give admixtools2's f2 block by
+  block, and so does reading the 7 GB v66.p1 TGENO file directly; popmix's
+  conversions give convertf's genotypes, read back with convertf.
+- `tests/golden/test_vcf_multiallelic.py`, `test_vcf_haploid.py`: VCF
+  records that are not biallelic SNPs, haploid calls and FILTER, against
+  plink2 plus convertf.
+- `tests/golden/test_merge_mergeit.py`: merge against AdmixTools 8 mergeit
+  (strand, swapped alleles, A/T SNPs, a third allele, monomorphic SNPs, two
+  SNPs at one position).
+- `tests/python/test_extract_f2_formats.py`: each format gives the same f2
+  blocks; `test_tgeno.py`, `test_ind_count.py`, `test_unsorted_snps.py`,
+  `test_snp_range.py`: TGENO, header counts, SNP order, SNP ranges.
 
-print("6x6 Format Conversion Matrix")
-print("=" * 80)
+The generators (`tests/golden/formats/generate_*.{py,sh}`) need
+AdmixTools 8 (`tests/golden/formats/build_convertf.sh` builds convertf and
+mergeit) and plink2.
 
-passed = 0
-failed = 0
-results = []
+### Format notes
 
-with tempfile.TemporaryDirectory() as tmpdir:
-    # Create source files in each format
-    source_files = {}
-    for fmt in output_formats:
-        out_path = os.path.join(tmpdir, f"source_{fmt}")
-        pm.convertf(prefix, out_path, output_format=fmt)
-        source_files[fmt] = out_path
-    # Add VCF source
-    source_files["vcf"] = "/home/a/popmix/tests/fixtures/small_vcf.vcf"
-
-    # Test conversions from all 6 input formats to 5 output formats
-    for src_fmt in input_formats:
-        for dst_fmt in output_formats:
-            src_path = source_files[src_fmt]
-            dst_path = os.path.join(tmpdir, f"test_{src_fmt}_to_{dst_fmt}")
-            try:
-                pm.convertf(src_path, dst_path, input_format=src_fmt, output_format=dst_fmt)
-                results.append((src_fmt, dst_fmt, "PASS"))
-                passed += 1
-            except Exception as e:
-                results.append((src_fmt, dst_fmt, f"FAIL: {e}"))
-                failed += 1
-
-# Print matrix
-header = "FROM / TO"
-print(f"\n{header:<20}", end="")
-for fmt in output_formats:
-    print(f"{fmt[:8]:>10}", end="")
-print()
-print("-" * 70)
-
-for src_fmt in input_formats:
-    print(f"{src_fmt:<20}", end="")
-    for dst_fmt in output_formats:
-        for r in results:
-            if r[0] == src_fmt and r[1] == dst_fmt:
-                status = "PASS" if r[2] == "PASS" else "FAIL"
-                print(f"{status:>10}", end="")
-                break
-    print()
-
-print("-" * 70)
-print(f"\nResults: {passed}/{passed+failed} conversions passed")
-EOF
-```
-
-Expected output:
-```
-6x6 Format Conversion Matrix
-================================================================================
-
-FROM / TO             eigenstr  packedan     plink       ped  ancestry
-----------------------------------------------------------------------
-eigenstrat                PASS      PASS      PASS      PASS      PASS
-packedancestrymap         PASS      PASS      PASS      PASS      PASS
-plink                     PASS      PASS      PASS      PASS      PASS
-ped                       PASS      PASS      PASS      PASS      PASS
-ancestrymap               PASS      PASS      PASS      PASS      PASS
-vcf                       PASS      PASS      PASS      PASS      PASS
-----------------------------------------------------------------------
-
-Results: 30/30 conversions passed
-```
-
-Note: VCF is currently supported as an input format only. Output to VCF is not yet implemented.
-
-### CLI Convertf Examples
-
-```bash
-# Convert EIGENSTRAT to PLINK
-popmix convertf \
-  --input tests/fixtures/small_eigenstrat \
-  --output /tmp/converted \
-  --output-format plink
-
-# Convert with explicit input format
-popmix convertf \
-  --input /tmp/converted \
-  --output /tmp/back_to_eig \
-  --input-format plink \
-  --output-format eigenstrat
-
-# Verify output files
-ls -la /tmp/converted.*
-# converted.bed  converted.bim  converted.fam
-```
-
-### Format-Specific Notes
-
-**Bit Ordering Differences:**
-- PACKEDANCESTRYMAP: Sample 0 in HIGH bits (6-7), encoding: 00=HomRef, 01=Het, 10=HomAlt, 11=Missing
-- PLINK: Sample 0 in LOW bits (0-1), encoding: 00=HomAlt, 01=Missing, 10=Het, 11=HomRef
-
-**Genetic Position Units:**
-- `.snp` files: Morgans
-- `.bim` files: centiMorgans (Morgans * 100)
-- `.map` files: centiMorgans
-
-**ANCESTRYMAP Sparse Format:**
-- Only stores non-missing genotypes
-- One line per genotype: `snp_id sample_id genotype population`
-
-### Rust Unit Tests
-
-```bash
-cargo test -p popmix-io writers
-cargo test -p popmix-io roundtrip
-```
-
-Expected: 8+ writer tests pass
-
-## Merge Algorithm Testing
-
-The merge algorithm is based on PLINK 2.0 by Shaun Purcell & Christopher Chang.
-
-### Test Cases
-
-| Test | Description |
-|------|-------------|
-| `test_merge_snp_intersection` | Keeps only SNPs present in both files |
-| `test_merge_matching_alleles` | Handles identical REF/ALT alleles |
-| `test_merge_flipped_alleles` | Recodes genotypes when REF/ALT are swapped |
-| `test_strand_ambiguous_detection` | Detects A/T and C/G SNPs |
-| `test_merge_combines_samples` | Combines samples from both files |
-| `test_merge_duplicate_sample_error` | Errors on duplicate sample IDs |
-| `test_merge_preserves_genotypes` | Roundtrip genotype preservation |
-
-### Merge Test Fixtures
-
-**merge_a** (2 samples, 5 SNPs):
-```
-# merge_a.ind
-IND1 M PopA
-IND2 F PopA
-
-# merge_a.snp
-rs1 1 0.01 100 A G
-rs2 1 0.02 200 C T
-rs3 1 0.03 300 A C
-rs4 2 0.04 400 G T
-rs5 2 0.05 500 A G
-```
-
-**merge_b** (1 sample, 4 SNPs):
-```
-# merge_b.ind
-IND3 M PopB
-
-# merge_b.snp
-rs2 1 0.02 200 C T
-rs3 1 0.03 300 A C
-rs4 2 0.04 400 G T
-rs6 2 0.06 600 A G
-```
-
-**Expected merge result**: 3 SNPs (rs2, rs3, rs4), 3 samples (IND1, IND2, IND3)
-
-## Ergonomics and Output Tests
-
-The ergonomics tests validate the user-facing output features:
-
-### Running Ergonomics Tests
-
-```bash
-unset CONDA_PREFIX && source .venv/bin/activate
-pytest tests/python/test_rich_output.py tests/python/test_formatters.py \
-       tests/python/test_statistical_rigor.py tests/python/test_html_reports.py \
-       tests/python/test_multiqc_module.py tests/python/test_batch_mode.py -v
-```
-
-Expected output:
-```
-134 passed in ~0.5 seconds
-```
-
-### Test Categories
-
-| Test File | Tests | Description |
-|-----------|-------|-------------|
-| `test_rich_output.py` | 35 | Rich terminal formatting (colors, tables, panels) |
-| `test_formatters.py` | 23 | JSON, YAML, TSV, Parquet, NDJSON output |
-| `test_statistical_rigor.py` | 24 | CIs, Z-scores, effect sizes, model fit |
-| `test_html_reports.py` | 19 | Plotly charts, HTML generation |
-| `test_multiqc_module.py` | 16 | File detection, parsing, aggregation |
-| `test_batch_mode.py` | 17 | Config parsing, job generation, results |
-
-### Key Test Cases
-
-**Rich Output:**
-- Significance coloring (green/yellow/gray based on Z-score)
-- Confidence interval display
-- qpAdm weight tables with percentages
-- DATES timing estimates
-
-**Formatters:**
-- JSON schema validation
-- YAML human-readability
-- Parquet pandas compatibility
-- File extension auto-detection
-
-**Statistical Rigor:**
-- 95%/99% CI calculation accuracy
-- Z-score significance thresholds
-- Cohen's d effect size interpretation
-- qpAdm weight feasibility assessment
-
-**HTML Reports:**
-- Valid HTML5 structure
-- Plotly.js integration
-- Responsive CSS styling
-- qpAdm bar charts, DATES decay curves
-
-**MultiQC:**
-- File pattern matching (`*_qpadm.json`, etc.)
-- JSON parsing for all result types
-- General Statistics column generation
-- Sample aggregation
-
-**Batch Mode:**
-- YAML config parsing
-- Job generation for multiple targets
-- Progress tracking
-- Summary statistics
+- PACKEDANCESTRYMAP: one record per SNP of at least 48 bytes; sample 0 in
+  the high bits; 00 = 0, 01 = 1, 10 = 2 copies of the first allele, 11
+  missing. The header carries the sample and SNP counts and the hashes of
+  their IDs, all checked.
+- TGENO: a 48-byte header, then one record per individual of ceil(SNPs / 4)
+  bytes, SNP 0 in the high bits, the same 2-bit codes.
+- PLINK: sample 0 in the low bits; 00 = 2, 01 missing, 10 = 1, 11 = 0
+  copies of A1.
+- `.snp` genetic positions are in Morgans, `.bim` and `.map` in
+  centimorgans.
 
 ## Validation Against Reference Implementations
 
@@ -1055,7 +703,8 @@ population list.
 | `small_eigenstrat.ind` | 3 samples |
 | `small_eigenstrat.snp` | 5 SNPs |
 
-**Used by**: Convertf 6x6 matrix validation, roundtrip tests, VCF cross-validation
+**Used by**: conversion, range and validation tests. `small_tgeno.*` holds
+the same genotypes as convertf 8 writes them in TGENO.
 
 ### VCF Test Data
 
@@ -1066,15 +715,18 @@ population list.
 | `small_vcf.vcf` | VCF matching small_eigenstrat (3 samples, 5 SNPs) |
 | `small_vcf_missing.vcf` | VCF with missing genotypes (./.) |
 | `small_vcf_phased.vcf` | VCF with phased genotypes (0\|1 instead of 0/1) |
+| `small_vcf_multiallelic.vcf` | a multiallelic site, indels, a symbolic allele, a site with no ALT |
+| `small_vcf_haploid.vcf` | haploid calls and a record failing its FILTER |
 
-**VCF Genotype Encoding**:
-- `0/0` → HomRef (0)
-- `0/1` or `1/0` → Het (1)
-- `1/1` → HomAlt (2)
-- `./.` or `.` → Missing (9)
-- Phased separator `|` is treated same as unphased `/`
+**VCF genotype encoding** (ALT is the first-listed allele, as plink2 and
+convertf write it, and a genotype counts its copies):
+- `0/0` → 0, `0/1` or `1/0` → 1, `1/1` → 2
+- haploid `0` → 0, `1` → 2 (as plink2 reads them)
+- `./.` or `.` → missing
+- the phased separator `|` reads as `/`
+- records that are not biallelic SNPs are skipped and counted (a warning)
 
-**Used by**: VCF reader tests, convertf matrix validation, cross-format validation
+**Used by**: VCF reader tests and the plink2/convertf goldens
 
 ### DATES Test Data (chr20-22)
 
@@ -1118,6 +770,13 @@ The `chr20_22_reference.json` contains:
   ]
 }
 ```
+
+### AADR v66.p1 Reference Data
+
+**Location**: `/references/aadr/v66.p1/v66.p1_1240K.aadr.patch.PUB.*`
+(23,089 samples, 1,233,013 SNPs, TGENO). Population labels carry no
+data-type suffix (`French`; the suffix is on sample IDs). Used by the
+format goldens (`tests/golden/formats/`).
 
 ### AADR v62 Reference Data
 
@@ -1178,7 +837,7 @@ The `chr20_22_reference.json` contains:
 |-----------|--------------|----------|
 | Merge tests | merge_a, merge_b | `tests/fixtures/` |
 | VCF tests | small_vcf*.vcf | `tests/fixtures/` |
-| Convertf 6x6 matrix | small_eigenstrat, small_vcf | `tests/fixtures/` |
+| Format and conversion goldens | AADR v66.p1 subset (generated) | reference cache |
 | DATES validation | chr20-22 data | `tests/golden/dates/` |
 | F-statistic golden | AADR v62 | `/references/aadr/` |
 | CLI PLINK tests | AADR v54 HO | `/references/aadr_v54.1.p1/` |
@@ -1198,37 +857,19 @@ The `chr20_22_reference.json` contains:
 
 ## Continuous Integration
 
-```bash
-#!/bin/bash
-set -e
-
-# Rust tests
-cargo test --workspace
-
-# Python setup
-python -m venv .venv
-source .venv/bin/activate
-pip install maturin pytest numpy pandas click
-
-# Build Python bindings
-maturin develop -m crates/popmix-python/Cargo.toml
-
-# Python tests (full suite with AADR data)
-pytest tests/ -v --run-slow
-
-# DATES validation
-python scripts/compare_dates.py tests/golden/dates/family_chr20_22
-```
+There is no CI test workflow yet (TASKS.md K1): run the suites above before
+a release. `.github/workflows/release.yml` builds the wheels and the sdist
+and publishes them.
 
 ## Debugging Test Failures
 
 ### Merge Test Failures
 
 If merge tests fail:
-1. Check SNP matching by chromosome + position (not rsID alone)
-2. Check allele matching logic (Identical, Flipped, StrandAmbiguous, Mismatch)
-3. Check genotype recoding for flipped alleles (0↔2)
-4. Verify sample deduplication error handling
+1. SNPs pair by chromosome and position, and by name where several share one
+2. Alleles reconcile as mergeit: swapped (recode 0↔2), other strand
+   (complement), unknown allele filled; A/T, C/G and a third allele left out
+3. `tests/golden/formats/generate_merge.sh` remakes mergeit's reference
 
 ### DATES Pair Count Mismatch
 
@@ -1240,6 +881,7 @@ If pair counts don't match exactly:
 ### Golden Master Test Failures
 
 1. Check that AADR data exists at `/references/aadr/v62.0_1240k_public`
+   (and `/references/aadr/v66.p1/` for the format goldens)
 2. Verify reference JSON files in `tests/golden/`
 3. Check population names match exactly (e.g., "Han.DG" not "Han")
 
