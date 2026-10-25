@@ -69,23 +69,23 @@ from the code, not yet shown.
     PD [reviewer-verified]
   - `filter_populations` documented as "silently ignored"; F2Blocks
     `f2/f3/f4/fst` return `Option`, merging "unknown" with "no data" RS
-- [ ] **A6. Ploidy rule misclassifies diploids.** "Pseudohaploid if no het in
+- [x] **A6. Ploidy rule misclassifies diploids.** *Done in 820af03.* "Pseudohaploid if no het in
   the first 1,000 SNPs" (DEVIATIONS.md "Matched, not corrected") halves the
   hets of AADR NA18606.DG, a high-coverage genome, changing f2. By our own
   policy: fix by default (as `sfs` `pseudohaploid="detect"`), old rule under
   compat. PR [reviewer-verified from docs]
-- [ ] **A7. Multiallelic VCF records miscoded.** `vcf.rs:110-118` sums allele
+- [x] **A7. Multiallelic VCF records miscoded.** *Done in aede4ec.* `vcf.rs:110-118` sums allele
   indices: ALT=G,T with GT 0/2 (A/T het) written as homozygous G; indels kept
   as one-letter SNPs (AT/A → `A A`); ALT='.' sites kept; no warning.
   PG [reviewer-verified]
-- [ ] **A8. `f2_matrix()` disagrees with `f2()`.** `f2_blocks.rs:550-565`
+- [x] **A8. `f2_matrix()` disagrees with `f2()`.** *Done in 8493780.* `f2_blocks.rs:550-565`
   unweighted mean of block means vs the length-weighted estimate.
   PD [suspected, from code]
-- [ ] **A9. DATES/ALDER sums may depend on thread count.** `rayon::reduce`
+- [x] **A9. DATES/ALDER sums may depend on thread count.** *Done in 99266cc.* `rayon::reduce`
   over floats in `dates/ld_decay.rs:304,324`, `alder/ldcorr.rs:100` (the
   pattern fixed for PCA in 4ab0928). Identical at 1/3/4/16 threads on 4 test
   samples, too few to rule out. PD [suspected]
-- [ ] **A10. Merge drops or corrupts SNPs silently.** No strand flipping
+- [x] **A10. Merge drops or corrupts SNPs silently.** *Done in dbf87e2.* No strand flipping
   (opposite-strand SNPs dropped: 13,333 of 20,000 kept, reason not printed;
   `snps_mismatch`/`snps_strand_ambiguous` counted, never shown); PLINK `0`
   allele treated as mismatch, so a single new pseudohaploid sample gives
@@ -94,26 +94,28 @@ from the code, not yet shown.
 
 ## B. Crashes and input validation (P0)
 
-- [ ] **B1. Out-of-range `snp_range` aborts Python.** `popmix-io/src/plink.rs:142`
+- [x] **B1. Out-of-range `snp_range` aborts Python.** *Done in 86cdd8e.* `popmix-io/src/plink.rs:142`
   `read_snp_range` (and `read_snp(idx)`) never checks bounds:
   `read_plink(HO_public, (0, 10**9))` → uncatchable 72 GB allocation abort;
   smaller values panic. RS [reviewer-verified]
-- [ ] **B2. Bad options panic.** `rolloff.rs:388` `binsize=0` → capacity
+- [x] **B2. Bad options panic.** *Done in cc6fad0.* `rolloff.rs:388` `binsize=0` → capacity
   overflow `PanicException`; tiny binsize → OOM abort. Validate options up
   front; sweep the ~15 unchecked `f64 as usize` casts (`ld_decay.rs:166,236,
   312,468,496,554,609`, `alder/mod.rs:248,264`, `f3_f4.rs:189,252`,
   `sfs.rs:146`, `streaming.rs:185`). RS [reviewer-verified]
-- [ ] **B3. Non-ASCII query panics.** `popmix-python/src/lib.rs:952`
+- [x] **B3. Non-ASCII query panics.** *Done in 3513377.* `popmix-python/src/lib.rs:952`
   `&query_lower[..3]`; `suggest_populations(P, "ééé", 5)`. RS [confirmed]
-- [ ] **B4. NaN panics.** (`qpwave_pairs.rs:54` and the rotation sort fixed
+- [x] **B4. NaN panics.** *Done in c5efc9c.* (`qpwave_pairs.rs:54` and the rotation sort fixed
   with A4.) `partial_cmp(..).unwrap()` at `qpwave_pairs.rs:54`,
   `qpgraph/fitting.rs:85`, `dates/ld_decay.rs:275` (sorts input positions),
-  `lib.rs:2082,2348`; use `f64::total_cmp`. RS, AI [suspected]
-- [ ] **B5. Errors swallowed in model loops.** (Names are checked before the
+  `lib.rs:2082,2348`; use `f64::total_cmp`. RS, AI [suspected] (All four
+  sites fixed; no `partial_cmp(..).unwrap()` is left.)
+- [x] **B5. Errors swallowed in model loops.** *Done in 8771f69.* (Names are checked before the
   loops since A5, so a typo is an error; the `Err(_) => continue` remain.) `qpadm/rotate.rs:156`,
   `qpadm/qpwave_pairs.rs:110` `Err(_) => continue`: a typo returns `Ok` with
   zero models. Validate names first; skip only a typed singular-matrix error.
-  RS [reviewer-verified]
+  RS [reviewer-verified] (Rotation also skips, and counts, models with more
+  sources than outgroups, which cannot be tested.)
 - [ ] **B6. A test that no user input can panic or abort through the Python
   API** (fuzz/property test over the bindings). RS
 - [ ] **B7. `.ind`/`.fam` count not checked against the genotype file.** The
@@ -129,11 +131,11 @@ from the code, not yet shown.
 - [ ] **B10. VCF haploid calls and FILTER.** Haploid `1` (male chrX) becomes
   missing; FILTER ignored. Only matters with `--all-chromosomes`.
   PG [reviewer-verified]
-- [ ] **B11. Graph search aborted by one singular candidate**
+- [x] **B11. Graph search aborted by one singular candidate** *Done in 4487bec.*
   (`graph_search.rs` `collect::<Result<_>>`). PD [suspected, from code]
 - [ ] **B12. CLI flattens errors.** ~25 `except Exception as e: echo; exit 1`
   and `except Exception: pass` at `cli/__init__.py:73`. AI
-- [ ] **B13. `admixture_cv` folds truncated to u8** (`admixture.rs:741`) when
+- [x] **B13. `admixture_cv` folds truncated to u8** *Done in 0ad353c.* (`admixture.rs:741`) when
   folds > 256. RS
 
 ## C. Licence and provenance (P0, for MIT)
@@ -427,7 +429,9 @@ thread count.
   PLINK, PED, text and packed EIGENSTRAT give identical f2, including a
   pseudohaploid population; VCF → EIGENSTRAT/PLINK round-trips checked
   against plink2 and EIGENSOFT convertf; merge checked against mergeit and
-  `plink --bmerge`. PG
+  `plink --bmerge`. PG (Merge against mergeit done with A10: plink 1.9
+  --bmerge stops at the first SNP needing a strand flip, so it serves only
+  as a list of SNPs to `--flip`.)
 - [ ] **K4. Repeated-population and degenerate-model goldens:**
   f4(A,B;A,C) = f3(A;B,C), f3(A;A,B) = 0 as properties; dof 0; overlapping
   left/right; against admixtools2. PD, PR
