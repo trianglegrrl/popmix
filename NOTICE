@@ -18,7 +18,14 @@ under the BSD 3-Clause License reproduced below, with these notices.
    crates/popmix-core/src/pca/smartpca.rs (smartpca's normalization and
    outlier removal).
 
-The BSD 3-Clause License, as it applies to each of the above (with "the
+3. L-BFGS-B 3.0 (https://users.iems.northwestern.edu/~nocedal/lbfgsb.html)
+   Copyright (c) 2011 Ciyou Zhu, Richard Byrd, Jorge Nocedal and Jose Luis
+   Morales. All rights reserved.
+   Used in: crates/popmix-core/src/rcompat/lbfgsb.rs (translated from its
+   Fortran). Its licence, verbatim from the distribution, is in
+   crates/popmix-core/src/rcompat/LICENSE.lbfgsb.txt.
+
+The BSD 3-Clause License, as it applies to items 1 and 2 (with "the
 copyright holder" read as the holders named there):
 
 
