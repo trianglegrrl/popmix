@@ -35,8 +35,8 @@ qpgraph.json holds qpgraph() fits of fixed graphs (seed 1): qpgraph_f3 (the
 f3 statistics it fits, est and se, and their inverse covariance ppinv);
 qpgraph_fixed (edge lengths, fitted f3 and score at fixed admixture weights,
 admixtools2's best and all 0.3, at rtol 1e-10: no optimizer is involved);
-qpgraph_fit (with weights optimized: the score must reach admixtools2's, and
-the weights agree to 1e-6 or within admixtools2's spread over its starts).
+qpgraph_fit (with weights optimized, from admixtools2's own random starts:
+every start's score at rtol 1e-10 and weights at 1e-6).
 
 fst.json holds fst() for every pair of the config's FST populations (all but
 Chimp.REF, a single pseudo-haploid sample for which admixtools2 cannot compute
@@ -63,6 +63,8 @@ CONFIGS = ["dg_6pop", "ancient_5pop", "dg_11pop", "ancient_maxmiss", "family_4po
 F_RTOL = 1e-10
 F_ATOL = 1e-15
 SE_RTOL = 1e-6
+# Admixture weights (CLAUDE.md)
+WEIGHT_TOL = 1e-6
 P_RTOL = 1e-4
 
 
@@ -438,28 +440,39 @@ def _check_qpgraph_fixed(name: str):
 def _check_qpgraph_fit(name: str):
     """qpgraph() with its admixture weights optimized.
 
-    admixtools2 optimizes with R's L-BFGS-B; popmix with its own search. The
-    score must reach admixtools2's to rounding. The weights must agree to the
-    weight tolerance, or, where the score is too flat to pin them down,
-    within the spread of admixtools2's own random starts.
+    popmix draws admixtools2's random starts (R's set.seed and runif) and
+    runs R's L-BFGS-B from each, so every start must match: the start
+    exactly, its final score to the f-statistic tolerance and its weights to
+    the weight tolerance (the score differs from admixtools2's by up to 1e-11
+    in rounding, which moves the finite-difference path that much). The best
+    fit and the low/high range of the weights over the starts follow.
     """
     _, f2 = _result_for(name)
     mismatches = []
     for g in _qpgraph_reference(name):
         r = pm.qpgraph(f2, [tuple(e) for e in g["edges"]])
-        if not r.score <= g["score"] * (1 + F_RTOL):
-            mismatches.append(f"{g['name']}: score {r.score!r} > admixtools2's {g['score']!r}")
-        ref_w = {(e["from"], e["to"]): e["weight"] for e in g["fit_edges"] if e["type"] == "admix"}
-        ends = [k for k in (g["opt"][0] if g["opt"] else {}) if k.startswith("e.")]
-        spread = max((max(row[k] for row in g["opt"]) - min(row[k] for row in g["opt"])
-                      for k in ends), default=0.0)
+        if not np.isclose(r.score, g["score"], rtol=F_RTOL, atol=0):
+            mismatches.append(f"{g['name']}: score {r.score!r} != admixtools2's {g['score']!r}")
+        assert len(r.opt) == len(g["opt"] or [])
+        for k, (o, row) in enumerate(zip(r.opt, g["opt"] or [])):  # noqa: B905
+            where = f"{g['name']} start {k}"
+            if o.start != [row[c] for c in row if c.startswith("i.")]:
+                mismatches.append(f"{where}: start {o.start} differs")
+            if not np.isclose(o.score, row["value"], rtol=F_RTOL, atol=0):
+                mismatches.append(f"{where}: score {o.score!r} != {row['value']!r}")
+            if not np.allclose(o.weights, [row[c] for c in row if c.startswith("e.")], rtol=0, atol=WEIGHT_TOL):
+                mismatches.append(f"{where}: weights {o.weights} differ")
+            if o.convergence != row["convergence"]:
+                mismatches.append(f"{where}: convergence {o.convergence} != {row['convergence']}")
+        ref_e = {(e["from"], e["to"]): e for e in g["fit_edges"] if e["type"] == "admix"}
         for e in r.edges:
             if e.kind != "admix":
                 continue
-            theirs = ref_w[(e.from_node, e.to_node)]
-            if abs(e.weight - theirs) > max(SE_RTOL, spread):
-                mismatches.append(f"{g['name']} {e.from_node}->{e.to_node}: weight {e.weight!r} != "
-                                  f"{theirs!r} (admixtools2 spread {spread:.3g})")
+            theirs = ref_e[(e.from_node, e.to_node)]
+            for field in ("weight", "low", "high"):
+                if abs(getattr(e, field) - theirs[field]) > WEIGHT_TOL:
+                    mismatches.append(f"{g['name']} {e.from_node}->{e.to_node}: {field} "
+                                      f"{getattr(e, field)!r} != {theirs[field]!r}")
     assert not mismatches, "\n".join(mismatches)
 
 

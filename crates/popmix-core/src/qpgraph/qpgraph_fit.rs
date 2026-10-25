@@ -17,16 +17,18 @@
 //!    with `diag * mean(diag)` added to the normal equations, subject to
 //!    lengths >= 0 (`cpp_opt_edge_lengths`, which hands the problem to
 //!    quadprog). The score is the weighted residual (`qpgraph_score`).
-//! 3. The admixture weights minimise the score over [0, 1], from `numstart`
-//!    random starts. admixtools2 uses R's L-BFGS-B with its default
-//!    tolerances; popmix uses its own bounded quasi-Newton search, converged
-//!    more tightly, so it finds the same optimum to within admixtools2's own
-//!    spread across starts (see DEVIATIONS.md).
+//! 3. The admixture weights minimise the score over [0, 1] from `numstart`
+//!    starts drawn as admixtools2 draws them after `set.seed(seed)`
+//!    (`matrix(runif(numstart * nadmix), numstart)`), each with R's
+//!    `optim(method = "L-BFGS-B")` and admixtools2's controls (`fnscale`
+//!    1e-6, `maxit` 1e4, finite-difference gradients); the best start wins,
+//!    the first among ties.
 
 use nalgebra::{DMatrix, DVector};
 use ndarray::Array2;
 
 use crate::fstats::{leave_one_out, F2Blocks};
+use crate::rcompat::{optim_lbfgsb, LbfgsbOptions, RRng};
 use crate::{PopmixError, Result};
 
 /// R `.Machine$integer.max`: admixtools2's upper bound on drift edges.
@@ -45,8 +47,8 @@ pub struct QpGraphOptions {
     pub constrained: bool,
     /// Random starts for the admixture weights (default 10).
     pub numstart: usize,
-    /// Seed for the random starts.
-    pub seed: u64,
+    /// Seed for the random starts, as R's `set.seed` (admixtools2 `seed`).
+    pub seed: i32,
     /// Fit at these admixture weights (one per admixture node, the weight
     /// of its first incoming edge) instead of optimizing them.
     pub admix_weights: Option<Vec<f64>>,
@@ -102,8 +104,10 @@ pub struct QpGraphStart {
     pub start: Vec<f64>,
     pub weights: Vec<f64>,
     pub score: f64,
-    pub iterations: usize,
-    pub converged: bool,
+    /// Score evaluations with their gradient (admixtools2 `fevals`).
+    pub evaluations: usize,
+    /// R's `optim` convergence code: 0 converged, 1 iteration limit.
+    pub convergence: i32,
 }
 
 /// Result of [`qpgraph`].
@@ -543,112 +547,6 @@ impl Model {
     }
 }
 
-/// splitmix64, for reproducible random starts.
-fn uniform(state: &mut u64) -> f64 {
-    *state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
-    let mut z = *state;
-    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-    z ^= z >> 31;
-    (z >> 11) as f64 / (1u64 << 53) as f64
-}
-
-/// Minimise `f` over the box [lo, hi] from `start`: projected BFGS with a
-/// backtracking line search and central-difference gradients.
-fn minimize_box(
-    f: &dyn Fn(&[f64]) -> Result<f64>,
-    start: &[f64],
-    lo: &[f64],
-    hi: &[f64],
-) -> Result<QpGraphStart> {
-    const MAX_ITER: usize = 500;
-    let n = start.len();
-    let clamp = |x: &[f64]| -> Vec<f64> { (0..n).map(|i| x[i].clamp(lo[i], hi[i])).collect() };
-    let grad = |x: &[f64], fx: f64| -> Result<Vec<f64>> {
-        (0..n)
-            .map(|i| {
-                let h = 1e-6 * x[i].abs().max(1.0);
-                let mut up = x.to_vec();
-                let mut down = x.to_vec();
-                up[i] = (x[i] + h).min(hi[i]);
-                down[i] = (x[i] - h).max(lo[i]);
-                let fu = if up[i] > x[i] { f(&up)? } else { fx };
-                let fd = if down[i] < x[i] { f(&down)? } else { fx };
-                Ok((fu - fd) / (up[i] - down[i]))
-            })
-            .collect()
-    };
-    let mut x = clamp(start);
-    let mut fx = f(&x)?;
-    let mut g = grad(&x, fx)?;
-    let mut hinv = DMatrix::<f64>::identity(n, n);
-    let mut converged = false;
-    let mut iterations = 0;
-    for iter in 0..MAX_ITER {
-        iterations = iter + 1;
-        // variables held at a bound by the gradient are fixed this step
-        let active: Vec<bool> = (0..n)
-            .map(|i| (x[i] <= lo[i] && g[i] > 0.0) || (x[i] >= hi[i] && g[i] < 0.0))
-            .collect();
-        let pg = DVector::from_fn(n, |i, _| if active[i] { 0.0 } else { g[i] });
-        if pg.amax() <= 1e-8 * fx.abs().max(1.0) {
-            converged = true;
-            break;
-        }
-        let mut d = -(&hinv * &pg);
-        for i in (0..n).filter(|&i| active[i]) {
-            d[i] = 0.0;
-        }
-        if d.dot(&pg) >= 0.0 {
-            hinv = DMatrix::identity(n, n);
-            d = -pg.clone();
-        }
-        let mut t = 1.0;
-        let mut accepted = None;
-        for _ in 0..60 {
-            let xt = clamp(&(0..n).map(|i| x[i] + t * d[i]).collect::<Vec<_>>());
-            let ft = f(&xt)?;
-            let decrease: f64 = (0..n).map(|i| g[i] * (xt[i] - x[i])).sum();
-            if ft <= fx + 1e-4 * decrease {
-                accepted = Some((xt, ft));
-                break;
-            }
-            t /= 2.0;
-        }
-        let Some((xt, ft)) = accepted else {
-            // no descent left at this precision
-            converged = true;
-            break;
-        };
-        let gt = grad(&xt, ft)?;
-        let s = DVector::from_fn(n, |i, _| xt[i] - x[i]);
-        let y = DVector::from_fn(n, |i, _| gt[i] - g[i]);
-        let sy = s.dot(&y);
-        let small = s.amax() <= 1e-15 && (fx - ft).abs() <= 1e-15 * fx.abs().max(1.0);
-        x = xt;
-        fx = ft;
-        g = gt;
-        if small {
-            converged = true;
-            break;
-        }
-        if sy > 1e-12 * s.norm() * y.norm() {
-            let rho = 1.0 / sy;
-            let i = DMatrix::<f64>::identity(n, n);
-            let left = &i - &s * y.transpose() * rho;
-            let right = &i - &y * s.transpose() * rho;
-            hinv = &left * &hinv * &right + &s * s.transpose() * rho;
-        }
-    }
-    Ok(QpGraphStart {
-        start: start.to_vec(),
-        weights: x,
-        score: fx,
-        iterations,
-        converged,
-    })
-}
-
 /// Fit an admixture graph to f2 blocks, as admixtools2 `qpgraph` does.
 ///
 /// `edges` lists the graph's (from, to) edges; see the module docs for how
@@ -693,11 +591,25 @@ pub fn qpgraph(
             } else {
                 (vec![f64::NEG_INFINITY; nadmix], vec![f64::INFINITY; nadmix])
             };
-            let score = |w: &[f64]| model.score(w);
-            let mut rng = opts.seed;
-            for _ in 0..opts.numstart.max(1) {
-                let start: Vec<f64> = (0..nadmix).map(|_| uniform(&mut rng)).collect();
-                opt.push(minimize_box(&score, &start, &lo, &hi)?);
+            let numstart = opts.numstart.max(1);
+            let u = RRng::set_seed(opts.seed).runif(numstart * nadmix);
+            let control = LbfgsbOptions {
+                fnscale: 1e-6,
+                maxit: 10_000,
+                ..LbfgsbOptions::default()
+            };
+            for i in 0..numstart {
+                // R fills the start matrix column by column
+                let start: Vec<f64> = (0..nadmix).map(|j| u[j * numstart + i]).collect();
+                let mut score = |w: &[f64]| model.score(w);
+                let r = optim_lbfgsb(&mut score, None, &start, &lo, &hi, &control)?;
+                opt.push(QpGraphStart {
+                    start,
+                    weights: r.par,
+                    score: r.value,
+                    evaluations: r.evaluations,
+                    convergence: r.convergence,
+                });
             }
             opt.iter()
                 .fold(None::<&QpGraphStart>, |best, s| match best {
@@ -896,16 +808,5 @@ mod tests {
         let x = box_qp(&d, &q, &(-&wide), &wide).unwrap();
         let exact = d.clone().lu().solve(&q).unwrap();
         assert!((x - exact).amax() < 1e-12);
-    }
-
-    #[test]
-    fn test_minimize_box_finds_interior_and_bound_optima() {
-        let f = |w: &[f64]| -> Result<f64> {
-            Ok((w[0] - 0.3).powi(2) + 2.0 * (w[1] + 0.5).powi(2) + 1.0)
-        };
-        let r = minimize_box(&f, &[0.9, 0.9], &[0.0, 0.0], &[1.0, 1.0]).unwrap();
-        assert!(r.converged);
-        assert!((r.weights[0] - 0.3).abs() < 1e-6, "{:?}", r.weights);
-        assert_eq!(r.weights[1], 0.0);
     }
 }

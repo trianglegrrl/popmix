@@ -21,6 +21,7 @@ pub mod kinship;
 pub mod pca;
 pub mod qpadm;
 pub mod qpgraph;
+pub mod rcompat;
 pub mod sfs;
 pub mod threading;
 

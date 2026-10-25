@@ -9,6 +9,7 @@ mod admixture;
 mod geno_fstats;
 mod kinship;
 mod pca;
+mod rcompat;
 mod sfs;
 
 use std::collections::{BTreeMap, HashMap};
@@ -2385,7 +2386,7 @@ fn find_graphs(
     method: &str,
     beam_width: usize,
     numstart: usize,
-    seed: u64,
+    seed: i32,
     diag: f64,
     diag_f3: f64,
     constrained: bool,
@@ -2500,10 +2501,21 @@ struct PyQpGraphStart {
     weights: Vec<f64>,
     #[pyo3(get)]
     score: f64,
+    /// Score evaluations (admixtools2 ``fevals``)
     #[pyo3(get)]
-    iterations: usize,
+    evaluations: usize,
+    /// R ``optim`` convergence code: 0 converged, 1 iteration limit
     #[pyo3(get)]
-    converged: bool,
+    convergence: i32,
+}
+
+#[pymethods]
+impl PyQpGraphStart {
+    /// Whether this start converged (``convergence == 0``)
+    #[getter]
+    fn converged(&self) -> bool {
+        self.convergence == 0
+    }
 }
 
 /// Result of qpgraph().
@@ -2554,7 +2566,8 @@ impl PyQpGraphResult {
 ///         per admixture node in order of first appearance: the weight of the
 ///         incoming edge whose source node appears first.
 ///     numstart: Random starts for the admixture weights (default: 10)
-///     seed: Seed for the random starts (default: 1)
+///     seed: Seed for the random starts, as R's ``set.seed`` (default: 1);
+///         with the same seed the starts are admixtools2's
 ///     diag: Regularization of the edge-length fit (default: 1e-4)
 ///     diag_f3: Regularization of the f3 covariance (default: 1e-5)
 ///     constrained: Lengths >= 0 and weights in [0, 1] (default: True)
@@ -2569,7 +2582,7 @@ fn qpgraph(
     edges: Vec<(String, String)>,
     admix_weights: Option<Vec<f64>>,
     numstart: usize,
-    seed: u64,
+    seed: i32,
     diag: f64,
     diag_f3: f64,
     constrained: bool,
@@ -2620,8 +2633,8 @@ fn qpgraph(
                 start: o.start,
                 weights: o.weights,
                 score: o.score,
-                iterations: o.iterations,
-                converged: o.converged,
+                evaluations: o.evaluations,
+                convergence: o.convergence,
             })
             .collect(),
         ppinv: r.ppinv.outer_iter().map(|row| row.to_vec()).collect(),
@@ -2968,6 +2981,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     kinship::register(m)?;
     sfs::register(m)?;
     admixture::register(m)?;
+    rcompat::register(m)?;
 
     // qpAdm/qpWave functions
     m.add_function(wrap_pyfunction!(qpwave, m)?)?;

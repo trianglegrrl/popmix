@@ -1262,7 +1262,7 @@ def qpgraph(graph_file: str, admix_weights: str | None, numstart: int, seed: int
                 "f3": [{"pop1": f.pop1, "pop2": f.pop2, "pop3": f.pop3, "est": f.est, "se": f.se,
                         "fit": f.fit, "diff": f.diff, "z": f.z, "p": f.p} for f in result.f3],
                 "opt": [{"start": o.start, "weights": o.weights, "score": o.score,
-                         "iterations": o.iterations, "converged": o.converged} for o in result.opt],
+                         "evaluations": o.evaluations, "convergence": o.convergence} for o in result.opt],
             }
             click.echo(json.dumps(output, indent=2))
         elif output_format == "tsv":

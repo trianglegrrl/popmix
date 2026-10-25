@@ -712,8 +712,18 @@ SEs within 1e-12; qpWave chi-squared within 5e-12; qpAdm weights and SEs within
 1e-9 (the worst case is an ill-conditioned model with weights 6.06 and -5.06),
 model and popdrop chi-squared within 5e-11; f4ratio within 5e-14; qpGraph f3
 within 3e-15 (SEs 3e-12), and edge lengths, fitted f3 and score at fixed
-weights within 3e-12; optimized scores within 3e-12, weights within 1e-7
-except the flat dg_6pop graph (8e-6, inside admixtools2's 2.6e-4 spread).
+weights within 3e-12; with weights optimized from admixtools2's own random
+starts, every start's score within 3e-12 and weights within 3e-7, and so the
+best weights and their low/high range over the starts.
+
+`crates/popmix-core/tests/rcompat_golden.rs` checks the routines qpGraph
+reproduces R with against R 4.5.2 (`tests/golden/rlang/generate_optim.R`):
+`runif` after `set.seed` for five seeds (1500 draws each, exact), and
+`optim(method = "L-BFGS-B")` on eleven bounded problems, with analytic and
+finite-difference gradients, `fnscale`, `lmm`, `factr` and `maxit`: the same
+number of evaluations at the same points (1e-8; 1e-4 for a scaled
+finite-difference Rosenbrock), the same convergence code and message, and
+the result within 1e-10 (1e-8).
 
 `tests/golden/test_find_graphs_admixtools2.py` checks the graph search
 against `all_graphs.json` (dg_6pop f2 blocks; 5 populations with 0 and 1
@@ -725,9 +735,10 @@ admixtures, 4 with 1 and 2; 2976 graphs):
 | `test_graph_key_of_admixtools2_graphs` | `graph_hash()` key of each admixtools2 graph | exact |
 | `test_qpgraph_at_admixtools2_weights` | `qpgraph()` score of every graph, popmix fitted at admixtools2's best weights | rtol 1e-10 |
 | `test_qpgraph_tree_scores` | `qpgraph()` score of every tree (nothing to optimize) | rtol 1e-10 |
-| `test_qpgraph_optimized_score_of_every_graph` | strict xfail: the weight optimizers find different local minima on some graphs (DEVIATIONS.md) | |
+| `test_qpgraph_optimized_score_of_every_graph` | `qpgraph()` optimized score of every 1-admixture graph (84 and 1485) | rtol 1e-6 |
+| `test_qpgraph_optimized_score_with_two_admixtures` | the same for 2 admixtures: at least 1219 of 1302 agree, at most 33 higher (rounding sends some paths to other minima, DEVIATIONS.md); the best graph's score | rtol 1e-6 |
 | `test_exhaustive_search` | `find_graphs(method="exhaustive")` fits the same graphs; its best is at most admixtools2's best | trees rtol 1e-10; best rtol 1e-6 |
-| `test_stepwise_search_finds_the_exhaustive_optimum` | stepwise search, 5 populations, 1 admixture | best of all 1485, rtol 1e-10 |
+| `test_stepwise_search_finds_the_exhaustive_optimum` | stepwise search, 5 populations, 1 admixture | best of all 1485, rtol 1e-6 (an optimized score) |
 
 Regenerate with `/usr/bin/Rscript tests/golden/admixtools2/generate_all_graphs.R`
 (about 6 minutes).

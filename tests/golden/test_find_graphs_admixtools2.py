@@ -50,6 +50,9 @@ def f2_blocks():
 
 # At fixed admixture weights the fit has no optimizer in it, so it is exact.
 FIXED_RTOL = 1e-10
+# Optimized scores: R's L-BFGS-B stops once an iteration reduces the score by
+# less than factr * epsilon = 2e-9 of it.
+OPT_RTOL = 1e-6
 
 
 def _close(ours: float, theirs: float, rtol: float) -> bool:
@@ -97,15 +100,36 @@ def test_qpgraph_tree_scores(f2_blocks, i):
         assert _close(pm.qpgraph(f2_blocks, _edges(g)).score, g["score"], FIXED_RTOL)
 
 
+def _optimized(f2_blocks, case) -> tuple:
+    """Graphs whose optimized score is the same as admixtools2's (rtol 1e-6),
+    lower, and higher."""
+    same, lower, higher = [], [], []
+    for k, g in enumerate(case["graphs"]):
+        ours = pm.qpgraph(f2_blocks, _edges(g)).score
+        (same if _close(ours, g["score"], OPT_RTOL) else lower if ours < g["score"] else higher).append(k)
+    return same, lower, higher
+
+
 @pytest.mark.slow
-@pytest.mark.xfail(strict=True, reason="weight optimizers find different local optima on some graphs; "
-                                       "DEVIATIONS.md, qpGraph weight optimizer")
-@pytest.mark.parametrize("i", [c for c in _cases() if not c.id.endswith("_0admix")])
+@pytest.mark.parametrize("i", [c for c in _cases() if c.id.endswith("_1admix")])
 def test_qpgraph_optimized_score_of_every_graph(f2_blocks, i):
+    """One admixture: from admixtools2's starts, with R's L-BFGS-B, popmix
+    reaches admixtools2's optimum on every graph."""
+    same, lower, higher = _optimized(f2_blocks, _reference()["cases"][i])
+    assert not lower and not higher, f"{len(lower)} lower, {len(higher)} higher"
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("i", [c for c in _cases() if c.id.endswith("_2admix")])
+def test_qpgraph_optimized_score_with_two_admixtures(f2_blocks, i):
+    """Two admixtures: the score's rounding (1e-11 relative to admixtools2's)
+    moves some finite-difference paths into other local minima, either way
+    (DEVIATIONS.md, qpGraph weight optimizer); 1219 of 1302 agree."""
     case = _reference()["cases"][i]
-    worse = [k for k, g in enumerate(case["graphs"])
-             if pm.qpgraph(f2_blocks, _edges(g)).score > g["score"] * (1 + 1e-6) + 1e-12]
-    assert not worse, f"popmix's optimum is worse than admixtools2's for {len(worse)} graphs"
+    same, lower, higher = _optimized(f2_blocks, case)
+    assert len(same) >= 1219 and len(higher) <= 33, f"{len(same)} same, {len(lower)} lower, {len(higher)} higher"
+    best = min(g["score"] for g in case["graphs"])
+    assert _close(min(pm.qpgraph(f2_blocks, _edges(case["graphs"][k])).score for k in same + lower), best, OPT_RTOL)
 
 
 @pytest.mark.slow
@@ -135,7 +159,8 @@ def test_stepwise_search_finds_the_exhaustive_optimum(f2_blocks):
     exhaustive, _ = pm.find_graphs(f2_blocks, case["leaves"], nadmix=1, method="exhaustive")
     graphs, n_evaluated = pm.find_graphs(f2_blocks, case["leaves"], nadmix=1)
     assert n_evaluated < len(case["graphs"])
-    assert _close(graphs[0].score, exhaustive[0].score, FIXED_RTOL)
+    # optimized scores: L-BFGS-B stops at a relative reduction of 2e-9
+    assert _close(graphs[0].score, exhaustive[0].score, OPT_RTOL)
     assert graphs[0].score <= min(g["score"] for g in case["graphs"]) * (1 + 1e-6)
 
 
