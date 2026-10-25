@@ -314,6 +314,9 @@ thread count.
 - [ ] **F13. Readers usable across threads:** map in `new()`, read via
   `&self` (`plink.rs:128`, `packedancestrymap.rs:143`), with `// SAFETY:`
   comments on the two `Mmap::map` calls. RS
+- [ ] **F14. KING kinship speed:** popmix 3.9 s against PLINK 2's 0.84 s (16
+  threads) for 220 samples x 1.2M SNPs in the E benchmark; packed popcount
+  kernels as plink2 uses (F11).
 
 ## G. Scientific guardrails and honest reporting (P1)
 
@@ -383,6 +386,11 @@ thread count.
   warn when f2 directories from different panels are combined. PR
 - [ ] **H10. Coverage-aware ancient-sample handling** across PCA, kinship and
   ploidy (G6, A6). PR
+
+- [ ] **H11. qpAdm/qpWave on all SNPs of each f4** (admixtools2's
+  `qpadm(prefix)`, which computes each f4 from the genotypes on the SNPs its
+  populations share): an option beside today's f2-block path, which matches
+  `qpadm(f2_from_geno(...))`. Found by the E benchmark (DEVIATIONS.md).
 
 ## I. Rust API and error design (P1)
 

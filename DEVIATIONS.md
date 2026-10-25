@@ -461,6 +461,14 @@ These change no number that both tools compute.
   popmix reads Morgans too, but treats a file whose largest position is
   over 10 (no chromosome is 10 Morgans long) as centimorgans, which
   admixtools2 would take 100 times too long; it writes Morgans.
+- **qpAdm and qpWave from a genotype prefix use f2 blocks.** Given a
+  genotype prefix, admixtools2's `qpadm()` and `qpwave()` compute each f4
+  from the genotypes on the SNPs its four populations share; `popmix
+  qpadm --input` (and `qpwave`) extract f2 blocks for the model's
+  populations first, on the SNPs they all share, which is admixtools2's
+  `qpadm(f2_from_geno(prefix, pops))`. popmix agrees with that exactly; the
+  two admixtools2 paths differ (on 16 AADR v66.p1 populations, weights
+  0.8206 and 0.8130).
 - **Leaving out individuals recomputes the usual f2.** admixtools2's
   `*_resample_inds` read per-individual and per-pair counts precomputed by
   `extract_counts()` and combine them into f2 (`indpairs_to_f2blocks`), an

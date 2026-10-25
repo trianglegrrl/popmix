@@ -707,6 +707,23 @@ Bad input gives a one-line `Error: ...` and exit code 1; `popmix --debug
    f2 = pm.read_f2("f2_blocks/")  # Instant reload
    ```
 
+## Benchmarks
+
+popmix against each reference tool on the same 473 AADR v66.p1 individuals
+(1.23M SNPs), median of 5 runs (benchmarks/, `python benchmarks/run.py`):
+
+| Analysis | Reference | Reference | popmix | Agreement |
+|----------|-----------|-----------|--------|-----------|
+| convertf (packed to text) | AdmixTools 8 convertf | 78.9 s | 3.5 s | identical files |
+| f2 blocks, 16 populations | admixtools2 `f2_from_geno` | 39.5 s, 7.9 GB | 5.6 s, 0.8 GB | rtol 1.2e-14 |
+| qpAdm from genotypes | admixtools2 `qpadm` | 22.6 s | 4.7 s | rtol 1.2e-11 |
+| PCA, 10 PCs | EIGENSOFT smartpca | 83.4 s | 5.9 s | rtol 4.3e-12 |
+| KING-robust kinship | PLINK 2 (16 threads) | 2.2 s | 4.0 s | 5.0e-13 |
+
+popmix's output is byte-identical at 1, 4 and 16 threads in every case. Full
+results, with CPU time, memory and run-to-run variation, are in
+`benchmarks/results/`.
+
 ## Validation
 
 Every analysis is checked against its reference tool on real data (AADR v62
