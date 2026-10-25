@@ -488,20 +488,17 @@ impl F2Blocks {
         if idx_a == idx_b {
             return Some((0.0, 0.0, total_snps));
         }
-
-        // Block means; a block with no SNPs for this pair is NA in admixtools2
-        let block_means: Vec<f64> = (0..self.n_blocks)
-            .map(|b| {
-                let weight = self.block_weights[[b, pair_idx]];
-                if weight > 0.0 {
-                    self.block_sums[[b, pair_idx]] / weight
-                } else {
-                    f64::NAN
-                }
-            })
-            .collect();
-        let (estimate, std_err) = block_jackknife(&block_means, &self.block_lengths_f64())?;
+        let (estimate, std_err) = self.f2_jackknife(idx_a, idx_b)?;
         Some((estimate, std_err, total_snps))
+    }
+
+    /// The weighted block jackknife of f2 for populations `i` != `j`. A block
+    /// with no SNPs for the pair is NA in admixtools2.
+    fn f2_jackknife(&self, i: usize, j: usize) -> Option<(f64, f64)> {
+        let block_means: Vec<f64> = (0..self.n_blocks)
+            .map(|b| self.block_mean(b, i, j))
+            .collect();
+        block_jackknife(&block_means, &self.block_lengths_f64())
     }
 
     /// Get f2 for a specific block.
@@ -551,43 +548,21 @@ impl F2Blocks {
 
     /// Get all pairwise f2 values as a matrix.
     ///
-    /// Returns a symmetric matrix of f2 values [n_pops, n_pops].
-    /// Diagonal elements (self-F2) are 0.0 to match admixtools2.
+    /// Returns a symmetric matrix of the `f2()` estimates [n_pops, n_pops];
+    /// NaN where a pair has no SNPs. Diagonal elements (self-F2) are 0.0 to
+    /// match admixtools2.
     pub fn f2_matrix(&self) -> Array2<f64> {
         let n = self.populations.len();
         let mut matrix = Array2::zeros((n, n));
-
         for i in 0..n {
-            for j in i..n {
-                // Self-F2 is 0 by definition
-                if i == j {
-                    matrix[[i, j]] = 0.0;
-                    continue;
-                }
-
-                let pair_idx = self.pair_index(i, j);
-
-                // Compute mean of block means (admixtools2 style)
-                let mut block_means = Vec::new();
-                for block_idx in 0..self.n_blocks {
-                    let sum = self.block_sums[[block_idx, pair_idx]];
-                    let weight = self.block_weights[[block_idx, pair_idx]];
-                    if weight > 0.0 {
-                        block_means.push(sum / weight);
-                    }
-                }
-
-                let f2 = if block_means.is_empty() {
-                    f64::NAN
-                } else {
-                    block_means.iter().sum::<f64>() / block_means.len() as f64
-                };
-
+            for j in i + 1..n {
+                let f2 = self
+                    .f2_jackknife(i, j)
+                    .map_or(f64::NAN, |(estimate, _)| estimate);
                 matrix[[i, j]] = f2;
                 matrix[[j, i]] = f2;
             }
         }
-
         matrix
     }
 }
@@ -1049,6 +1024,29 @@ mod tests {
         assert!(f2_ab > 0.0, "f2(A,B) should be positive, got {}", f2_ab);
         assert!(std_err >= 0.0);
         assert!(n_snps > 0);
+    }
+
+    #[test]
+    fn f2_matrix_holds_the_f2_estimates() {
+        // Blocks of 1 and 3 SNPs: the length-weighted estimate is 0.4, the
+        // plain mean of block means 0.3.
+        let block = |a: f64, b: f64| {
+            vec![
+                vec![vec![0.0; 2], vec![a, b]],
+                vec![vec![a, b], vec![0.0; 2]],
+            ]
+        };
+        let f2 = F2Blocks::from_block_means(
+            vec![PopulationId::new("A"), PopulationId::new("B")],
+            vec![1, 3],
+            &block(0.1, 0.5),
+            &block(1.0, 3.0),
+        )
+        .unwrap();
+        let (estimate, _, _) = f2.f2("A", "B").unwrap();
+        assert_relative_eq!(estimate, 0.4, epsilon = 1e-12);
+        assert_eq!(f2.f2_matrix()[[0, 1]], estimate);
+        assert_eq!(f2.f2_matrix()[[1, 0]], estimate);
     }
 
     #[test]
