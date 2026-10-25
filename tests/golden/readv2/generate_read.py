@@ -31,23 +31,21 @@ import pandas as pd
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[2]
-AADR = "/references/aadr/v62.0_1240k_public"
+# AADR v66.p1, each individual labelled <population>.<data type>, as
+# tests/golden/aadr/build_aadr_v66p1.py builds it in the reference cache; its
+# manifest.json (recorded in each AADR reference) has the release checksums.
+AADR_DIR = Path(os.environ.get("POPMIX_REFERENCE_CACHE", Path.home() / ".cache/popmix-references")) / "aadr_v66p1"
+AADR = str(AADR_DIR / "aadr_v66p1")
 SMALL = str(REPO / "tests/golden/dates/family_chr20_22")
 READV2 = Path(os.environ.get("READV2", Path.home() / ".local/share/popmix-references/readv2"))
 CONVERTF = os.environ.get("CONVERTF", "/usr/bin/convertf")
 
 
-def gurgy_pops() -> list[str]:
-    """The pseudo-haploid (.AG) Neolithic France groups: the Gurgy pedigree
-    (Rivollat et al. 2023) and its unrelated samples."""
-    pops = {line.split()[2] for line in Path(AADR + ".ind").read_text().splitlines()}
-    return sorted(p for p in pops if p.startswith("France_N") and p.endswith(".AG") and "_lc" not in p
-                  and "contam" not in p and not p.startswith("France_N_BA"))
-
-
 CONFIGS = {
     "family": {"prefix": SMALL, "pops": ["French", "Yoruba"], "merge": None},
-    "aadr_gurgy": {"prefix": AADR, "pops": None, "merge": "France_N_Gurgy"},
+    # The pseudo-haploid (.AG) Neolithic France groups: the Gurgy pedigree
+    # (Rivollat et al. 2023, France_Yonne_N in v66.p1) and unrelated samples
+    "aadr_gurgy": {"prefix": AADR, "pops": ["France_N.AG", "France_Yonne_N.AG"], "merge": "France_N_Gurgy"},
 }
 
 
@@ -76,8 +74,6 @@ def to_bed(prefix: str, pops: list[str], merge: str | None, work: Path) -> Path:
 
 def run(name: str) -> None:
     cfg = dict(CONFIGS[name])
-    if cfg["pops"] is None:
-        cfg["pops"] = gurgy_pops()
     commit = (READV2 / "COMMIT").read_text().strip()
     print(f"== {name}", flush=True)
     with tempfile.TemporaryDirectory() as tmp:
@@ -100,6 +96,8 @@ def run(name: str) -> None:
         "results": results.to_dict(orient="list"),
         "means": means.to_dict(orient="list"),
     }
+    if cfg["prefix"] == AADR:
+        out["dataset"] = json.loads((AADR_DIR / "manifest.json").read_text())
     dest = HERE / commit[:7] / name
     dest.mkdir(parents=True, exist_ok=True)
     (dest / "read.json").write_text(json.dumps(out) + "\n")

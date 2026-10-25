@@ -3,7 +3,8 @@
 The reference (tests/golden/readv2/<commit>/<config>/read.json, from
 generate_read.py) is READv2 run with its defaults on the config's samples
 written as PLINK files by EIGENSOFT convertf. aadr_gurgy is the Neolithic
-Gurgy group (78 pseudo-haploid samples, a pedigree with 59 first-degree
+Gurgy group and other Neolithic France samples (AADR v66.p1 France_Yonne_N.AG
+and France_N.AG: 90 pseudo-haploid samples, a pedigree with 78 first-degree
 pairs); family is the 49 diploid French and Yoruba samples of the small data.
 
 popmix runs with compat="readv2-2.01" (READV2-0001 to 0003 in DEVIATIONS.md):
