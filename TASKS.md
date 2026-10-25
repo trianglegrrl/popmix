@@ -20,7 +20,15 @@ from the code, not yet shown.
   popmix must be fast, flexible, and use what safe Rust can buy (section F).
 - Results against the reference tools, with timings and their variation,
   must be visible: a benchmark report (section E).
-- The 1.0.0 release waits for sections A to E.
+- The 1.0.0 release waits for sections A to E and O.
+- Reference data is **AADR v66.p1** from now on (section O). It removes 161
+  modern individuals of Jacobs et al. 2019 (Cell 177:1010) that v62.0 and
+  v66.0 contained; none of them, nor their 27 populations, appear in the
+  repository, the reference cache or the nf-core test data (checked
+  2026-10-25).
+- popmix ships an agent skill documenting every CLI command (section N).
+- `popmix convertf` becomes a full replacement for EIGENSOFT/AdmixTools
+  convertf (section P).
 
 ## A. Wrong results (P0)
 
@@ -463,3 +471,63 @@ thread count.
   `clippy::pedantic` lints (1,782 warnings, mostly noise). RS
 - [ ] **M3. Document why graph search is split across Rust and Python** (or
   resolve it with F9). AI
+
+## N. Agent skill for popmix (P1)
+
+- [ ] **N1. Skill layout with progressive disclosure:** `skills/popmix/SKILL.md`
+  (what popmix does, when to use which command, input formats, an index of
+  commands) plus one file per CLI command, `skills/popmix/commands/<command>.md`
+  (subcommands get their own files), each complete: synopsis, every
+  argument and option with type, default and meaning, input and output
+  files, worked examples on real data, how to read the result, caveats, and
+  the reference tool and function it corresponds to.
+- [ ] **N2. 1:1 mapping enforced by a test:** walk the Click command tree;
+  every command has exactly one doc file and every doc file one command;
+  every option and argument of the command appears in its file with the
+  right default; fails when the CLI and the skill drift.
+- [ ] **N3. Examples that run:** the examples in each command file execute in
+  the test suite (small bundled data), so they cannot go stale.
+- [ ] **N4. Ship it:** include the skill in the package (installed with
+  popmix) with a command or documented step to install it for Claude
+  Code (`~/.claude/skills/popmix`); version it with popmix.
+
+## O. AADR v66.p1 as the reference dataset (P0)
+
+- [ ] **O1. Read TGENO** (AdmixTools `transpose_packed`, one row per
+  individual) in popmix, streaming; it suits reading a subset of
+  individuals. v66.p1 1240K `.geno` begins `TGENO 23089 1233013`.
+- [ ] **O2. TGENO misdetected as text EIGENSTRAT.** `dataset_info` on the v66.p1
+  prefix reports `format: eigenstrat`; analyses would read garbage. Detect
+  the header and support it (O1) or refuse with a clear error. [confirmed]
+- [ ] **O3. Build AdmixTools ≥ 8 convertf** as a reference tool (the system
+  EIGENSOFT convertf fails: "bad ID (SNP): TGENO ..."); record its version.
+- [ ] **O4. Migrate every AADR golden from v62.0 to v66.p1** (`/references/aadr/v66.p1/v66.p1_1240K.aadr.patch.PUB`):
+  v66.p1 population labels carry no data-type suffix (`French`, not
+  `French.DG`; the suffix is on sample IDs such as `Loschbour.AG`), so
+  each reference names its individuals or relabels by suffix. Regenerate
+  all references and record the dataset checksums
+  (`CHECKSUMS.normalized.md5`).
+- [ ] **O5. Update CLAUDE.md, README, TESTING.md and generator defaults** to
+  v66.p1 paths; keep v62.0 only where a test pins a specific old result.
+- [ ] **O6. Data ethics check in CI:** a test that fails if any individual or
+  population removed in a `.p1` release appears in the repository or test
+  data.
+
+## P. `popmix convertf`, a full convertf replacement (P1)
+
+- [ ] **P1. Every EIGENSOFT/AdmixTools format in and out:** PACKEDANCESTRYMAP,
+  TGENO (transpose_packed), EIGENSTRAT, ANCESTRYMAP, PACKEDPED, PED, plus
+  VCF in (and VCF out). Today TGENO is unsupported in both directions and
+  VCF input is inverted (A1).
+- [ ] **P2. Parameter-file compatibility:** `popmix convertf -p file.par` with
+  convertf's keys (genotypename, snpname, indivname, outputformat,
+  genooutfilename, snpoutfilename, indoutfilename, poplistname, ...), so
+  pipelines can swap it in.
+- [ ] **P3. Subsetting and relabelling:** population list, individual
+  include/exclude, SNP list, chromosome and region, relabel populations
+  (with H2).
+- [ ] **P4. Fast:** streaming, parallel, bounded memory; benchmarked against
+  convertf in section E.
+- [ ] **P5. Checked against convertf on every format pair** (golden), with
+  K3.
+
