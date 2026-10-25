@@ -40,8 +40,11 @@ fn test_fst_matches_admixtools2() {
     let f2_blocks = load_test_f2_blocks();
     let result = f2_blocks.fst("Han.DG", "Yoruba.DG").unwrap();
     
-    let expected = 0.0623;  // From admixtools2
-    assert!((result.estimate - expected).abs() < 0.0001);
+    // Reference from admixtools2, saved by the generator script
+    let expected = load_reference("fst_reference.json")["han_yoruba"].clone();
+    // f-statistics: rtol 1e-10, atol 1e-15; standard errors: rtol 1e-6
+    assert_relative_eq!(result.estimate, expected.estimate, max_relative = 1e-10, epsilon = 1e-15);
+    assert_relative_eq!(result.std_err, expected.std_err, max_relative = 1e-6);
 }
 ```
 
@@ -64,7 +67,9 @@ def test_fst_golden_master():
     with open("tests/golden/fst_reference.json") as f:
         ref = json.load(f)
     
-    assert abs(result["estimate"] - ref["estimate"]) < 0.0001
+    est = ref["han_yoruba"]
+    np.testing.assert_allclose(result["estimate"], est["estimate"], rtol=1e-10, atol=1e-15)
+    np.testing.assert_allclose(result["std_err"], est["std_err"], rtol=1e-6)
 ```
 
 ## Numerical Tolerances
