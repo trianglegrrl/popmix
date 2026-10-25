@@ -44,11 +44,16 @@ HIPREC = Path(os.environ.get(
     "SMARTPCA_HIPREC",
     Path.home() / ".local/share/popmix-references/eigensoft-7.2.1-hiprec/smartpca"))
 STOCK = Path(os.environ.get("SMARTPCA_STOCK", "/usr/lib/eigensoft/smartpca"))
-AADR = "/references/aadr/v62.0_1240k_public"
+# AADR v66.p1, each individual labelled <population>.<data type>, as
+# tests/golden/aadr/build_aadr_v66p1.py builds it in the reference cache; its
+# manifest.json (recorded in each AADR reference) has the release checksums.
+AADR_DIR = Path(os.environ.get("POPMIX_REFERENCE_CACHE", Path.home() / ".cache/popmix-references")) / "aadr_v66p1"
+AADR = str(AADR_DIR / "aadr_v66p1")
 SMALL = str(REPO / "tests/golden/dates/family_chr20_22")
 
 KGP = ["CEU.DG", "TSI.DG", "FIN.DG", "YRI.DG", "CHB.DG", "GIH.DG"]
-ANCIENT = ["Germany_EN_LBK.AG", "Czechia_EBA_CordedWare.AG", "England_MIA.AG"]
+# v62.0's Germany_EN_LBK.AG is split by site in v66.p1
+ANCIENT = ["Germany_HalberstadtSonntagsfeld_EN_LBK.AG", "Czechia_EBA_CordedWare.AG", "England_MIA.AG"]
 
 CONFIGS = {
     # every sample in the PCA, smartpca defaults (5 outlier iterations at 6 sigma)
@@ -170,6 +175,8 @@ def main(names: list[str]) -> None:
             "params": cfg["params"],
             **hiprec,
         }
+        if cfg["prefix"] == AADR:
+            out["dataset"] = json.loads((AADR_DIR / "manifest.json").read_text())
         dest = HERE / "v7.2.1" / name
         dest.mkdir(parents=True, exist_ok=True)
         (dest / "pca.json").write_text(json.dumps(out, indent=1) + "\n")
