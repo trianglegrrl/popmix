@@ -115,6 +115,13 @@ pub fn qpadm_rotate(
     options: Option<QpAdmRotateOptions>,
 ) -> Result<QpAdmRotateResult> {
     let opts = options.unwrap_or_default();
+    // checked once, so a model that fails below is numerical, not a typo
+    crate::genotypes::check_populations(
+        std::iter::once(target)
+            .chain(candidates.iter().copied())
+            .chain(outgroups.iter().copied()),
+        |p| f2_blocks.pop_index(p).is_some(),
+    )?;
     let max_sources = opts.max_sources.unwrap_or(candidates.len());
     let min_sources = opts.min_sources.max(1);
 

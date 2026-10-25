@@ -366,10 +366,12 @@ impl AlleleFrequencies {
 
     /// Filter to only include specified populations.
     ///
-    /// Returns a new AlleleFrequencies with only the specified populations.
-    /// Populations not found in the data are silently ignored.
-    pub fn filter_populations(&self, populations: &[&str]) -> Self {
-        // Find indices of requested populations
+    /// Returns a new AlleleFrequencies with only the specified populations,
+    /// in that order; an unknown or repeated population is an error.
+    pub fn filter_populations(&self, populations: &[&str]) -> Result<Self> {
+        crate::genotypes::check_populations(populations.iter().copied(), |p| {
+            self.pop_index(p).is_some()
+        })?;
         let indices: Vec<(usize, usize)> = populations
             .iter()
             .enumerate()
@@ -394,12 +396,12 @@ impl AlleleFrequencies {
             new_populations.push(self.populations[*old_idx].clone());
         }
 
-        AlleleFrequencies {
+        Ok(AlleleFrequencies {
             frequencies,
             counts,
             populations: new_populations,
             snps: self.snps.clone(),
-        }
+        })
     }
 }
 

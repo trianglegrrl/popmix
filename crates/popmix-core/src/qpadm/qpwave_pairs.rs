@@ -85,6 +85,10 @@ pub fn qpwave_pairs(
     options: Option<QpWaveOptions>,
 ) -> Result<QpWavePairsResult> {
     let opts = options.unwrap_or_default();
+    // checked once, so a pair that fails below is numerical, not a typo
+    crate::genotypes::check_populations(populations.iter().chain(outgroups).copied(), |p| {
+        f2_blocks.pop_index(p).is_some()
+    })?;
 
     let mut pairs = Vec::new();
 

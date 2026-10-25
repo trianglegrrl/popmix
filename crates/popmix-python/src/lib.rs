@@ -34,7 +34,42 @@ use popmix_io::{
 // ============================================================================
 
 fn to_py_err(e: popmix_core::PopmixError) -> PyErr {
-    PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string())
+    use popmix_core::PopmixError as E;
+    match e {
+        // the caller's input: a bad name or value
+        E::PopulationNotFound(_) | E::DuplicatePopulation(_) | E::Validation(_) => {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string())
+        }
+        _ => PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()),
+    }
+}
+
+/// An error naming any of `pops` that is not in the f2 blocks.
+fn require_populations(f2: &F2Blocks, pops: &[&str]) -> PyResult<()> {
+    let unknown: Vec<&str> = pops
+        .iter()
+        .copied()
+        .filter(|p| f2.pop_index(p).is_none())
+        .collect();
+    if unknown.is_empty() {
+        return Ok(());
+    }
+    let have: Vec<String> = f2.populations.iter().map(|p| p.to_string()).collect();
+    Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+        "not in the f2 blocks: '{}' (they have: {})",
+        unknown.join("', '"),
+        have.join(", ")
+    )))
+}
+
+/// Requested populations each once, and each with samples in the data.
+fn require_sample_populations(samples: &[popmix_core::Sample], pops: &[String]) -> PyResult<()> {
+    let present: std::collections::HashSet<&str> =
+        samples.iter().map(|s| s.population.as_str()).collect();
+    popmix_core::genotypes::check_populations(pops.iter().map(|p| p.as_str()), |p| {
+        present.contains(p)
+    })
+    .map_err(to_py_err)
 }
 
 // ============================================================================
@@ -211,15 +246,19 @@ impl PyGenotypeMatrix {
     /// Returns:
     ///     PyAlleleFrequencies with frequency data for the specified populations.
     #[pyo3(signature = (populations=None))]
-    fn allele_frequencies(&self, populations: Option<Vec<String>>) -> PyAlleleFrequencies {
+    fn allele_frequencies(
+        &self,
+        populations: Option<Vec<String>>,
+    ) -> PyResult<PyAlleleFrequencies> {
         let af = match populations {
             Some(pops) => {
+                require_sample_populations(self.inner.samples(), &pops)?;
                 let pop_refs: Vec<&str> = pops.iter().map(|s| s.as_str()).collect();
                 AlleleFrequencies::from_genotypes_for_populations(&self.inner, Some(&pop_refs))
             }
             None => AlleleFrequencies::from_genotypes(&self.inner),
         };
-        PyAlleleFrequencies { inner: af }
+        Ok(PyAlleleFrequencies { inner: af })
     }
 }
 
@@ -282,19 +321,22 @@ impl PyAlleleFrequencies {
 
     /// Filter to only include specified populations.
     ///
-    /// Returns a new AlleleFrequencies with only the specified populations.
-    /// Populations not found in the data are silently ignored.
+    /// Returns a new AlleleFrequencies with only the specified populations;
+    /// an unknown or repeated population is a ValueError.
     ///
     /// Args:
     ///     populations: List of population names to include
     ///
     /// Returns:
     ///     PyAlleleFrequencies with only the specified populations
-    fn filter_populations(&self, populations: Vec<String>) -> Self {
+    fn filter_populations(&self, populations: Vec<String>) -> PyResult<Self> {
         let pop_refs: Vec<&str> = populations.iter().map(|s| s.as_str()).collect();
-        PyAlleleFrequencies {
-            inner: self.inner.filter_populations(&pop_refs),
-        }
+        Ok(PyAlleleFrequencies {
+            inner: self
+                .inner
+                .filter_populations(&pop_refs)
+                .map_err(to_py_err)?,
+        })
     }
 }
 
@@ -1148,6 +1190,7 @@ impl PyF2Blocks {
     /// Returns:
     ///     Dictionary with keys: estimate, std_err, z_score, n_snps
     fn f2(&self, pop_a: &str, pop_b: &str) -> PyResult<Option<BTreeMap<String, f64>>> {
+        require_populations(&self.inner, &[pop_a, pop_b])?;
         match self.inner.f2(pop_a, pop_b) {
             Some((estimate, std_err, n_snps)) => {
                 let mut result = BTreeMap::new();
@@ -1180,6 +1223,7 @@ impl PyF2Blocks {
     /// Returns:
     ///     Dictionary with keys: estimate, std_err, z_score, n_blocks
     fn f3(&self, pop_a: &str, pop_b: &str, pop_c: &str) -> PyResult<Option<BTreeMap<String, f64>>> {
+        require_populations(&self.inner, &[pop_a, pop_b, pop_c])?;
         match self.inner.f3(pop_a, pop_b, pop_c) {
             Some(result) => {
                 let mut out = BTreeMap::new();
@@ -1210,6 +1254,7 @@ impl PyF2Blocks {
         pop_c: &str,
         pop_d: &str,
     ) -> PyResult<Option<BTreeMap<String, f64>>> {
+        require_populations(&self.inner, &[pop_a, pop_b, pop_c, pop_d])?;
         match self.inner.f4(pop_a, pop_b, pop_c, pop_d) {
             Some(result) => {
                 let mut out = BTreeMap::new();
@@ -1250,6 +1295,7 @@ impl PyF2Blocks {
     /// Returns:
     ///     Dictionary with keys: estimate, std_err, n_snps
     fn fst(&self, pop_a: &str, pop_b: &str) -> PyResult<Option<BTreeMap<String, f64>>> {
+        require_populations(&self.inner, &[pop_a, pop_b])?;
         match self.inner.fst(pop_a, pop_b) {
             Some(result) => {
                 let mut out = BTreeMap::new();
@@ -1457,6 +1503,7 @@ fn extract_f2(
         if let Some(labels) = &relabel {
             apply_sample_labels(&mut samples, labels)?;
         }
+        require_sample_populations(&samples, &populations)?;
 
         // Detect ploidy by streaming through first 1000 SNPs
         detect_ploidy_packedancestrymap(&geno_path, &mut samples, 1000, snps.len())
@@ -1481,6 +1528,7 @@ fn extract_f2(
     if let Some(labels) = &relabel {
         apply_sample_labels(geno.samples_mut(), labels)?;
     }
+    require_sample_populations(geno.samples(), &populations)?;
 
     // Filter to autosomal if requested
     let geno = if auto_only {

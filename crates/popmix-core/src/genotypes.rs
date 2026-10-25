@@ -342,9 +342,48 @@ impl Snp {
     }
 }
 
+/// Check a list of population names: each at most once, and each one
+/// `is_known` accepts. A typo or a population in two roles (qpAdm's
+/// target among the right, say) is an error naming them, never an empty
+/// result.
+pub fn check_populations<'a>(
+    requested: impl IntoIterator<Item = &'a str>,
+    is_known: impl Fn(&str) -> bool,
+) -> crate::Result<()> {
+    let mut seen = std::collections::HashSet::new();
+    let mut unknown = Vec::new();
+    for pop in requested {
+        if !seen.insert(pop) {
+            return Err(crate::PopmixError::DuplicatePopulation(pop.to_string()));
+        }
+        if !is_known(pop) && !unknown.contains(&pop) {
+            unknown.push(pop);
+        }
+    }
+    if unknown.is_empty() {
+        Ok(())
+    } else {
+        Err(crate::PopmixError::PopulationNotFound(unknown.join("', '")))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn population_lists_name_each_population_once_and_only_known_ones() {
+        let known = |p: &str| ["A", "B", "C"].contains(&p);
+        assert!(check_populations(["A", "B"], known).is_ok());
+        let dup = check_populations(["A", "B", "A"], known)
+            .unwrap_err()
+            .to_string();
+        assert!(dup.contains("'A'"), "{dup}");
+        let unknown = check_populations(["A", "X", "Y"], known)
+            .unwrap_err()
+            .to_string();
+        assert!(unknown.contains("X") && unknown.contains("Y"), "{unknown}");
+    }
 
     #[test]
     fn test_genotype_from_plink_bits() {

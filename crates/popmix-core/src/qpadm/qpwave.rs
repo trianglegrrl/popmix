@@ -10,6 +10,7 @@
 
 use super::{fit, F4Matrix};
 use crate::fstats::F2Blocks;
+use crate::genotypes::check_populations;
 use crate::Result;
 
 /// Configuration options for qpWave analysis.
@@ -90,6 +91,10 @@ pub fn qpwave(
     options: Option<QpWaveOptions>,
 ) -> Result<QpWaveResult> {
     let opts = options.unwrap_or_default();
+    // as admixtools2 ("Duplicated pops"); qpAdm's left is target + sources
+    check_populations(left.iter().chain(right).copied(), |p| {
+        f2_blocks.pop_index(p).is_some()
+    })?;
 
     // Compute F4 matrix
     let f4_matrix = F4Matrix::from_f2_blocks(f2_blocks, left, right)?;
