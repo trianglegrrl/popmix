@@ -77,7 +77,6 @@ def test_qpadm_and_qpwave(f2, target, sources, right, fudge):
     survive(pm.qpadm_p, f2, sources, right, target)
     survive(pm.qpwave_pairs, f2, sources, right, fudge=fudge)
     survive(pm.qpadm_rotate, f2, sources, target)
-    survive(pm.lazadm, f2, sources, right, target)
 
 
 @SETTINGS
@@ -86,7 +85,6 @@ def test_ratios_and_dstats(f2, pops):
     survive(pm.qpf4ratio, f2, *pops)
     survive(pm.qpdstat, f2, *pops[:4])
     survive(pm.qp3pop, f2, *pops[:3])
-    survive(pm.qpf4diff, f2, pops)
 
 
 @FEW

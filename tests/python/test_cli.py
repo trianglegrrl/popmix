@@ -679,10 +679,10 @@ class TestQpGraphCommand:
 
     @pytest.mark.skipif(not os.path.exists("tests/golden/dates/family_chr20_22.geno"),
                         reason="test data not available")
-    def test_find_graphs_evolutionary(self, tmp_path):
+    def test_find_graphs_plots_the_best(self, tmp_path):
         pytest.importorskip("matplotlib")
         out = run_cli("find-graphs", "--input", SMALL_PREFIX, "--populations", "Yoruba,French,Simulation,Simulation.1",
-                      "--nadmix", "1", "--outgroup", "Yoruba", "--method", "evolutionary", "--stop-gen", "5",
+                      "--nadmix", "1", "--outgroup", "Yoruba", "--beam-width", "3",
                       "--all-chromosomes", "--plot", str(tmp_path / "best.png"), "--format", "json")
         graphs = json.loads(out.stdout)["graphs"]
         assert graphs and graphs[0]["score"] <= graphs[-1]["score"]

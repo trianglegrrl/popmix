@@ -44,7 +44,6 @@ tests/
 └── golden/                # each analysis against its reference tool
     ├── test_*.py          # one file per analysis and reference
     ├── admixtools2/       # admixtools2 2.0.10 references and their R generators
-    ├── admixtools_classic/  # classic ADMIXTOOLS program output
     ├── admixture/  dadi/  eigensoft/  plink2/  readv2/  rolloff/
     ├── dates/             # DATES v753 runs and data
     ├── formats/           # convertf 8, mergeit and plink2 references
@@ -370,25 +369,6 @@ admixtures, 4 with 1 and 2; 2976 graphs):
 | `test_exhaustive_search` | `find_graphs(method="exhaustive")` fits the same graphs; its best is at most admixtools2's best | trees rtol 1e-10; best rtol 1e-6 |
 | `test_stepwise_search_finds_the_exhaustive_optimum` | stepwise search, 5 populations, 1 admixture | best of all 1485, rtol 1e-6 (an optimized score) |
 
-`tests/golden/test_graph_constraints_admixtools2.py` checks the graph
-constraints against `graph_constraints.json` (`generate_graph_constraints.R`):
-for every 4th graph of `all_graphs.json` (746 graphs), admixtools2's
-`summarize_numadmix`, `summarize_zerof4` and the status (true, false or
-undecided) of 6 to 8 event-order constraints of both types, all exactly;
-`satisfies_numadmix`, `satisfies_zerof4` and `satisfies_nonzerof4` follow
-from them.
-
-`tests/golden/test_graph_search_admixtools2.py` (`--run-slow`) compares the
-evolutionary search with admixtools2 `find_graphs()` (`find_graphs.json`,
-`generate_find_graphs.R`: 8 seeds each for 5 populations with 1 admixture
-and 4 with 2, Chimp.REF as outgroup). Their random numbers differ, so over
-30 popmix seeds: the best run reaches the best of admixtools2's runs and the
-exhaustive optimum; with one admixture at least 40% of runs reach the
-optimum (admixtools2: 5 of 8); and the median number of graphs fitted is
-within a factor of 2 of admixtools2's. `tests/python/test_graph_search.py`
-checks the graph operations (valid graphs, same leaves, outgroup kept),
-reproducibility, constraints, `initgraph` and `max_admix`.
-
 Regenerate with `/usr/bin/Rscript tests/golden/admixtools2/generate_all_graphs.R`
 (about 6 minutes).
 
@@ -439,25 +419,6 @@ admixtools2's text (`dot.json`, `generate_dot.R`) for the dg_6pop qpgraph
 fits and bare graphs: identical with `compat="admixtools2-2.0.10"`; popmix's
 own output, and admixtools2's, parse back to the graph's edges.
 
-`tests/golden/test_classic_parsers.py` checks the parsers of classic
-ADMIXTOOLS output against admixtools2's on the output of ADMIXTOOLS 7.0.2
-qpDstat, qp3Pop, qpAdm, qpF4ratio, qpGraph and qpfstats
-(`tests/golden/admixtools_classic/`: `build_classic.sh`,
-`generate_classic.py`; dg_6pop populations of AADR v62): the same tables,
-values as read exactly and derived columns within 1e-12.
-
-`tests/golden/test_more_stats_admixtools2.py` checks `lazadm` (constrained
-and not), `qpf4diff` (two sets of five populations) and, with `--run-slow`,
-`qpfstats` (the fitted f2 blocks of five populations, from AADR genotypes)
-against `more_stats.json` (`generate_more_stats.R`): weights and standard
-errors rtol 1e-6, f-statistics 1e-10 (qpfstats' blocks 1e-9).
-
-`tests/golden/test_msprime_admixtools2.py` checks that `msprime_sim` and
-`msprime_genome` write admixtools2's script exactly for three dg_6pop
-graphs with its defaults and other options (`msprime.json`,
-`generate_msprime.R`); with `--run-slow` and msprime installed,
-`tests/python/test_graph_search.py` runs one.
-
 `tests/golden/test_vcf_ped_admixtools2.py` checks f2 from VCF and PED
 input (`vcf_ped/<name>.json`, `generate_vcf_ped.py`: the small family data,
 and with `--run-slow` dg_6pop populations of AADR v62, in PLINK format and
@@ -470,7 +431,7 @@ lengths exactly.
 `tests/python/test_plot.py` checks the graph layout (every edge points
 down, leaves apart), the graph, qpGraph fit and ROLLOFF plots, and
 `tests/python/test_cli.py` the `qpgraph --plot/--plot-fit/--dot` and
-`find-graphs --method evolutionary --plot` options.
+`find-graphs --plot` options.
 
 ### f4-, D- and f3-statistic scans vs admixtools2 2.0.10
 
@@ -804,10 +765,6 @@ format goldens (`tests/golden/formats/`).
 | `fst.json` | FST block lengths and blocks, `fst()` |
 | `qpadm_models.json` (dg_11pop) | `qpadm_p`, `test_cladality`, `qpwave_pairs`, `qpadm_rotate`, `rotate_models`, `qpadm_multi`, `qpadm_models` |
 | `resample.json` (dg_6pop) | `boo_list` draws; qpGraph, qpAdm, qpWave, qpdstat and qp3pop `_resample_snps`; `qpgraph_resample_multi`; `compare_fits` |
-| `graph_constraints.json` (dg_6pop) | `summarize_numadmix`, `summarize_zerof4` and event-order status for 746 graphs |
-| `find_graphs.json` (dg_6pop) | `find_graphs()` best score and graphs fitted, 8 seeds, two cases |
-| `more_stats.json` (dg_6pop) | `lazadm`, `qpf4diff`, `qpfstats` |
-| `msprime.json` (dg_6pop) | `msprime_sim` and `msprime_genome` scripts for three graphs |
 | `resample_inds.json` (dg_6pop) | qpAdm, qpWave, qpdstat, qp3pop and qpGraph with each of 15 samples left out (`f2_from_geno(inds, pops)`) |
 
 ### Test Data Requirements by Test Type

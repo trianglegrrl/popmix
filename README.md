@@ -752,8 +752,8 @@ Beyond the walkthroughs above, the Python API and CLI cover (each with
 | Command / function | What |
 |--------------------|------|
 | `qpdstat`, `qp3pop`, `outgroup-f3`, `dstat-matrix` | f4/D and f3 scans from genotypes or f2 blocks, matrices and heatmaps |
-| `qpgraph`, `find-graphs` | admixture graph fits (`--plot`, `--dot`) and searches (stepwise, exhaustive, admixtools2's evolutionary search with its constraints) |
-| `pm.qpadm_rotate`, `qpadm_multi`, `qpwave_pairs`, `qpadm_models`, `lazadm` | many qpAdm models at once |
+| `qpgraph`, `find-graphs` | admixture graph fits (`--plot`, `--dot`) and searches (stepwise, exhaustive) |
+| `pm.qpadm_rotate`, `qpadm_multi`, `qpwave_pairs`, `qpadm_models` | many qpAdm models at once |
 | `pm.*_resample_snps`, `*_resample_inds`, `compare_fits` | jackknife and bootstrap resampling, individuals left out |
 | `pca` | smartpca PCA with projection and Tracy-Widom tests |
 | `kinship` | KING-robust and READ kinship |
@@ -761,8 +761,6 @@ Beyond the walkthroughs above, the Python API and CLI cover (each with
 | `admixture` | ADMIXTURE: unsupervised, supervised, projection, cross-validation |
 | `rolloff` | admixture dates from weighted LD |
 | `pm.read_admixtools2_f2`, `write_admixtools2_f2` | admixtools2 f2 directories |
-| `pm.parse_qp*_output` | output of classic ADMIXTOOLS programs |
-| `pm.msprime_sim`, `msprime_genome` | msprime simulations of a graph |
 
 ## Development
 

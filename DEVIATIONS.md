@@ -17,7 +17,6 @@ rules for adding one.
 | ADMIXTOOLS2-0002 | Constrained qpAdm with ≥ 3 sources stops with an error | Returns the full result | nothing to reproduce |
 | ADMIXTOOLS2-0003 | `joint_sfs()` drops SNPs whose allele count is not exactly an integer in floating point | Counts them | `compat="admixtools2-2.0.10"` (`joint_sfs`) |
 | ADMIXTOOLS2-0004 | `write_dot()` renames nodes on edges (removes "." and "-") but declares them unrenamed | Quoted names, unchanged | `compat="admixtools2-2.0.10"` (`write_dot`) |
-| ADMIXTOOLS2-0005 | `parse_qpgraph_graphfile()` returns node labels instead of population names, and fails by default | Population names | `compat="admixtools2-2.0.10"` (`parse_qpgraph_graphfile`) |
 | ADMIXTOOLS2-0006 | PLINK files with chromosome codes X and Y stop with an error (`auto_only = TRUE`) | Reads them; X and Y are not autosomes | nothing to reproduce |
 | ADMIXTOOLS2-0007 | A sample with no heterozygous call among the first 1,000 SNPs is pseudo-haploid, which catches diploid genomes | Pseudo-haploid only with no heterozygous call at any SNP | `pseudohaploid="admixtools2"` (`--pseudohaploid admixtools2`) |
 | EIGENSOFT-0001 | smartpca reports the Tracy-Widom density as the p-value beyond its table | The tail | `compat="eigensoft-7.2.1"` |
@@ -284,22 +283,6 @@ qpWave/qpAdm fits by the C++ code path (`cpp = TRUE`, the default).
   a point.
 - **popmix:** quotes every name and keeps it.
 
-### ADMIXTOOLS2-0005: parse_qpgraph_graphfile() keeps the labels, and fails by default
-
-- **admixtools2:** a qpGraph graph file names each population's node with
-  `label <population> <label>` and uses the labels in its edges.
-  `parse_qpgraph_graphfile()` (`R/wrappers.R`) builds its renaming map the
-  wrong way round (population to label), so it never replaces a label by a
-  population, whatever `uselabels` says (`parse_qpgraph_output_edges()`
-  reads qpGraph's output, which lists label first, correctly). With its
-  default `split_multi = TRUE` it then stops with "names do not match
-  previous names" in 2.0.10, even when nothing is multifurcating.
-- **Effect:** the graph's leaves are the labels (Chimp, not Chimp.REF), so
-  the graph cannot be fitted to f2 statistics of the populations it names;
-  with the defaults, no graph file can be read.
-- **popmix:** returns population names (labels with `uselabels=True`).
-- **Reference:** generated with `split_multi = FALSE`.
-
 ### ADMIXTOOLS2-0006: PLINK chromosome codes X and Y stop f2_from_geno()
 
 - **admixtools2:** with `auto_only = TRUE` (the default), `discard_snps()`
@@ -391,20 +374,6 @@ qpWave/qpAdm fits by the C++ code path (`cpp = TRUE`, the default).
   0.00406303, 0.00114228). Before popmix used R's starts and L-BFGS-B, its
   own quasi-Newton search from its own starts agreed on 59, 1310 and 825 of
   these graphs.
-- **The evolutionary graph search draws its own random numbers.**
-  `find_graphs(method="evolutionary")` makes admixtools2's moves
-  (negative-edge rearrangements, subtree prune and regraft, leaf swaps,
-  admixture moves and flips, root placement, adding and removing admixture
-  edges) on the best graph so far, with its selection, deduplication,
-  constraints and stopping rules, but its random choices come from Python's
-  generator, so a run takes a different path from admixtools2's with the
-  same seed. Compared over runs (`test_graph_search_admixtools2.py`): with
-  5 populations and 1 admixture, popmix reaches the optimum in at least half
-  of 30 runs and admixtools2 in 5 of 8; with 4 populations and 2
-  admixtures, popmix's best run reaches the exhaustive optimum (0.001137),
-  better than any of admixtools2's 8 runs (0.001239), but its median run
-  ends higher (0.001655 against 0.00142). Both fit a similar number of
-  graphs (52 and 56, 67 and 80).
 - **admixtools2 2.0.10 needs igraph 1.x for qpGraph.** It passes vertex
   sequences to `get.edge.ids()`, which igraph 2 rejects. The reference
   generator shims that one call (same vertex ids, as a plain vector) and
@@ -475,10 +444,6 @@ These change no number that both tools compute.
   without each individual as `extract_f2` (admixtools2 `f2_from_geno(inds,
   pops)`) does, so they agree with admixtools2's statistics on those f2
   blocks.
-- **msprime scripts: which parent gets `admix_default`.** admixtools2 gives
-  it to the parent whose name sorts first in R's locale (`min()`); popmix
-  sorts by code point, which agrees for names of one case. With the default
-  of 0.5 it makes no difference.
 - **Resampling seeds are explicit.** admixtools2's bootstrap draws from R's
   global random state, and runs qpGraph in parallel streams (furrr) unless
   given a `seed`. popmix takes the bootstrap seed as `boot_seed` (the same

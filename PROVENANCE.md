@@ -40,13 +40,7 @@ quirks in places), **independent** (only the behaviour matches).
 | Module | Translated from | Licence | Work |
 |--------|-----------------|---------|------|
 | `crates/popmix-core/src/qpadm/fit.rs` | admixtools2 C++ qpAdm fit (alternating least squares, weights) | GPL-3 | from Patterson et al. 2012, Harney et al. 2021 |
-| `crates/popmix-core/src/qpadm/lazadm.rs` | admixtools2 `lazadm` | GPL-3 | from its documentation, or drop |
 | `crates/popmix-core/src/qpgraph/qpgraph_fit.rs` (edge lengths; the weight-index helper partly) | admixtools2 C++ edge-length fit | GPL-3 | from Patterson et al. 2012, Maier et al. 2023 |
-| `python/popmix/graph_search.py` | admixtools2 `find_graphs` and its moves | GPL-3 | from the documentation and Maier et al. 2023, own moves |
-| `python/popmix/qpfstats.py` | admixtools2 `qpfstats` | GPL-3 | from Maier et al. 2023 |
-| `python/popmix/graph_constraints.py` | admixtools2 graph constraint checks | GPL-3 | from the documented definitions |
-| `python/popmix/simulate.py` | admixtools2 msprime script generator | GPL-3 | from the msprime documentation |
-| `python/popmix/classic.py` | admixtools2 output parsers | GPL-3 | against sample ADMIXTOOLS output |
 | `crates/popmix-core/src/rcompat/lbfgsb.rs` | R's L-BFGS-B 2.3 (f2c) and `optim` driver | GPL-2+ | re-base the core on BSD L-BFGS-B 3.0 (keeping 2.3's behaviour, as behaviour), rewrite the driver |
 
 ### Partly; to rewrite with the above
@@ -82,6 +76,13 @@ wrappers.
 - **ALDER** (`alder/`, the `alder` function and command): a translation of
   ALDER 1.03, which is licensed for academic and non-profit use only.
   Removed for 1.0; DATES and ROLLOFF date admixture.
+- **Translations of admixtools2 (GPL-3), removed for 1.0** and to return as
+  rewrites: the evolutionary `find_graphs` search and its moves (the
+  stepwise and exhaustive searches, popmix's own, remain) and the graph
+  constraints (`satisfies_*`, `summarize_*`); `lazadm`; `qpfstats` and
+  `qpf4diff`; the msprime script generators and `pseudo_dates`; the parsers
+  of classic ADMIXTOOLS output (`parse_qp*`). The graph plots' layout was
+  rewritten (it used `pseudo_dates`).
 
 ## Test patches
 

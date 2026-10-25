@@ -241,19 +241,26 @@ def rolloff_curve(
 
 
 def _graph_layout(edges: list[tuple[str, str]]) -> dict[str, tuple[float, float]]:
-    """Node positions: y as admixtools2's tree layout (depth from the root,
-    with what is below an admixture node moved down), x with the leaves in
-    order along the first-parent tree and each internal node above its
-    children."""
-    from popmix.simulate import pseudo_dates
-
-    y = pseudo_dates(edges, time=1)
+    """Node positions: y from 1 at the root down to 0, each node one step
+    below its lowest parent (the longest path from the root) and the leaves
+    at 0; x with the leaves in order along the first-parent tree and each
+    internal node above its children."""
     children: dict[str, list[str]] = {}
     parents: dict[str, list[str]] = {}
     for a, b in edges:
         children.setdefault(a, []).append(b)
         parents.setdefault(b, []).append(a)
     root = next(a for a, _ in edges if a not in parents)
+    depth: dict[str, int] = {root: 0}
+    pending = [root]
+    while pending:  # longest path, by relaxing until no depth grows
+        v = pending.pop()
+        for c in children.get(v, []):
+            if depth.get(c, -1) < depth[v] + 1:
+                depth[c] = depth[v] + 1
+                pending.append(c)
+    bottom = max(depth.values()) or 1
+    y = {v: 0.0 if not children.get(v) else 1 - d / bottom for v, d in depth.items()}
     x: dict[str, float] = {}
     next_leaf = [0.0]
 

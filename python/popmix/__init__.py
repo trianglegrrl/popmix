@@ -58,16 +58,6 @@ from popmix._core import (
     version,
 )
 from popmix.admixture import AdmixtureResult, admixture, admixture_loglik
-from popmix.classic import (
-    parse_qp3pop_output,
-    parse_qpadm_output,
-    parse_qpdstat_output,
-    parse_qpf4ratio_output,
-    parse_qpfstats_output,
-    parse_qpgraph_graphfile,
-    parse_qpgraph_output,
-    parse_qpgraph_output_edges,
-)
 from popmix.dot import parse_dot, write_dot
 from popmix.dstats import (
     cluster_order,
@@ -81,20 +71,10 @@ from popmix.dstats import (
     sample_ploidy,
 )
 from popmix.f2_dirs import extract_f2_subset, read_admixtools2_f2, write_admixtools2_f2
-from popmix.graph_constraints import (
-    satisfies_constraints,
-    satisfies_eventorder,
-    satisfies_nonzerof4,
-    satisfies_numadmix,
-    satisfies_zerof4,
-    summarize_numadmix,
-    summarize_zerof4,
-)
-from popmix.graph_search import EvolvedGraph, find_graphs
+from popmix.graph_search import find_graphs
 from popmix.kinship import king, read_kinship
 from popmix.pca import PcaResult, smartpca
 from popmix.qpadm_models import (
-    lazadm,
     qpadm_models,
     qpadm_multi,
     qpadm_p,
@@ -103,7 +83,6 @@ from popmix.qpadm_models import (
     rotate_models,
     test_cladality,
 )
-from popmix.qpfstats import qpf4diff, qpfstats
 from popmix.resample import (
     boo_list,
     compare_fits,
@@ -122,7 +101,6 @@ from popmix.resample import (
 )
 from popmix.rolloff import RolloffResult, rolloff
 from popmix.sfs import Sfs, joint_sfs, sfs
-from popmix.simulate import msprime_genome, msprime_sim, pseudo_dates
 
 # Convenient aliases
 Sample = PySample
@@ -201,12 +179,6 @@ __all__ = [
     "qpadm_models",
     "rotate_models",
     "test_cladality",
-    "lazadm",
-    "msprime_sim",
-    "msprime_genome",
-    "pseudo_dates",
-    "qpf4diff",
-    "qpfstats",
     # Resampling
     "loo_list",
     "boo_list",
@@ -230,22 +202,6 @@ __all__ = [
     "graph_key",
     "write_dot",
     "parse_dot",
-    "parse_qpdstat_output",
-    "parse_qp3pop_output",
-    "parse_qpadm_output",
-    "parse_qpf4ratio_output",
-    "parse_qpgraph_output",
-    "parse_qpgraph_output_edges",
-    "parse_qpgraph_graphfile",
-    "parse_qpfstats_output",
-    "EvolvedGraph",
-    "summarize_numadmix",
-    "summarize_zerof4",
-    "satisfies_numadmix",
-    "satisfies_zerof4",
-    "satisfies_nonzerof4",
-    "satisfies_eventorder",
-    "satisfies_constraints",
     # DATES functions
     "dates",
     # Classes
