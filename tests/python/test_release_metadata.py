@@ -46,6 +46,24 @@ def test_project_urls_point_at_the_repository() -> None:
 
 
 
+LICENSE = "MIT AND BSD-3-Clause"
+
+
+def test_the_licence_agrees_everywhere() -> None:
+    """popmix is MIT; the code derived from ADMIXTOOLS and EIGENSOFT keeps their
+    BSD-3 licence, whose notices are in NOTICE."""
+    pyproject = _read("pyproject.toml")
+    assert _match(pyproject, r'^license = "([^"]+)"') == LICENSE
+    assert "NOTICE" in _match(pyproject, r"^license-files = \[(.*)\]")
+    assert _match(_read("Cargo.toml"), r'^license = "([^"]+)"') == LICENSE
+    recipe = _read("recipes/meta.yaml")
+    assert _match(recipe, r"^  license: (.+)$") == LICENSE
+    assert "    - NOTICE" in recipe
+    notice = _read("NOTICE")
+    for holder in ("Broad Institute, Inc.", "Harvard Medical School"):
+        assert holder in notice
+
+
 @pytest.mark.slow
 def test_sdist_carries_what_downstream_builds_need(tmp_path: Path) -> None:
     """bioconda builds from the sdist: it needs the license, the lockfile
@@ -64,6 +82,7 @@ def test_sdist_carries_what_downstream_builds_need(tmp_path: Path) -> None:
         names = {n.split("/", 1)[1] for n in tar.getnames() if "/" in n}
     for needed in (
         "LICENSE",
+        "NOTICE",
         "README.md",
         "Cargo.lock",
         "pyproject.toml",

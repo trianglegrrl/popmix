@@ -9,7 +9,7 @@ members = [
 [workspace.package]
 version = "1.0.0"
 edition = "2021"
-license = "MIT"
+license = "MIT AND BSD-3-Clause"
 authors = ["Popmix Contributors"]
 repository = "https://github.com/trianglegrrl/popmix"
 description = "Population genetics F-statistics and admixture analysis"

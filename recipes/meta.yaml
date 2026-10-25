@@ -53,10 +53,11 @@ test:
 
 about:
   home: https://github.com/trianglegrrl/popmix
-  license: MIT
+  license: MIT AND BSD-3-Clause
   license_family: MIT
   license_file:
     - LICENSE
+    - NOTICE
     - THIRDPARTY.yml
   summary: Population genetics f-statistics, admixture graphs, qpAdm, PCA, ADMIXTURE and admixture dating
   description: |
