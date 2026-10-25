@@ -6,34 +6,10 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
 use popmix_core::{joint_sfs, projected_sfs, AlleleFrequencies, JointSfsCompat, Spectrum};
-use popmix_io::{
-    compute_allele_frequencies_packedancestrymap, detect_ploidy_packedancestrymap_selected,
-    is_packed_format,
-};
+use popmix_io::{compute_allele_frequencies_packedancestrymap, is_packed_format};
 
+use crate::ploidy::{ploidy_rule, PloidyRule};
 use crate::{read_genotypes_internal, to_py_err};
-
-/// How samples are found to be pseudo-haploid (counted as one allele).
-#[derive(Clone, Copy)]
-enum PloidyRule {
-    /// admixtools2: no heterozygous call among the first 1000 SNPs.
-    First1000,
-    /// No heterozygous call at any SNP.
-    Genome,
-    /// Every sample diploid.
-    Diploid,
-}
-
-fn ploidy_rule(name: &str) -> PyResult<PloidyRule> {
-    match name {
-        "admixtools2" => Ok(PloidyRule::First1000),
-        "detect" => Ok(PloidyRule::Genome),
-        "diploid" => Ok(PloidyRule::Diploid),
-        other => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-            "pseudohaploid must be \"detect\", \"admixtools2\" or \"diploid\", got {other:?}"
-        ))),
-    }
-}
 
 /// Allele frequencies and counts of `populations`, in that order, with
 /// pseudo-haploid samples (found by `rule`) counting one allele.
@@ -43,10 +19,6 @@ fn allele_frequencies(
     auto_only: bool,
     rule: PloidyRule,
 ) -> PyResult<AlleleFrequencies> {
-    let check = |n_snps: usize| match rule {
-        PloidyRule::First1000 => 1000,
-        _ => n_snps,
-    };
     let pops: Vec<&str> = populations.iter().map(|s| s.as_str()).collect();
     let geno_path = format!("{prefix}.geno");
     let af = if std::path::Path::new(&geno_path).exists()
@@ -56,30 +28,12 @@ fn allele_frequencies(
             popmix_io::eigenstrat::read_ind_file(&format!("{prefix}.ind")).map_err(to_py_err)?;
         let snps =
             popmix_io::eigenstrat::read_snp_file(&format!("{prefix}.snp")).map_err(to_py_err)?;
-        let selected: Vec<usize> = (0..samples.len())
-            .filter(|&k| pops.contains(&samples[k].population.as_str()))
-            .collect();
-        match rule {
-            PloidyRule::Diploid => samples
-                .iter_mut()
-                .for_each(|s| s.ploidy = popmix_core::Ploidy::Diploid),
-            _ => detect_ploidy_packedancestrymap_selected(
-                &geno_path,
-                &mut samples,
-                &selected,
-                check(snps.len()),
-                snps.len(),
-            )
-            .map_err(to_py_err)?,
-        }
+        rule.apply_packed(&geno_path, &mut samples, &pops, snps.len())?;
         compute_allele_frequencies_packedancestrymap(&geno_path, &samples, &snps, &pops, auto_only)
             .map_err(to_py_err)?
     } else {
         let mut geno = read_genotypes_internal(prefix)?;
-        match rule {
-            PloidyRule::Diploid => geno.set_all_diploid(),
-            _ => geno.detect_ploidy(check(geno.n_snps())),
-        }
+        rule.apply(&mut geno);
         let geno = if auto_only {
             geno.filter_autosomal().map_err(to_py_err)?
         } else {

@@ -136,6 +136,7 @@ def f4blockdat_from_geno(
     f4mode: bool = True,
     block_size: float = 0.05,
     auto_only: bool = True,
+    pseudohaploid: str = "detect",
 ) -> pd.DataFrame:
     """Per-block f4 (or D numerator and denominator) from genotypes.
 
@@ -147,7 +148,7 @@ def f4blockdat_from_geno(
     """
     combs = [tuple(c) for c in popcombs]
     pops, quads = _index(combs)
-    out = _core.f4_from_geno(os.fspath(prefix), pops, quads, f4mode, block_size, auto_only)
+    out = _core.f4_from_geno(os.fspath(prefix), pops, quads, f4mode, block_size, auto_only, pseudohaploid)
     df = _blocks_frame(combs, ["pop1", "pop2", "pop3", "pop4"], out, "est", "den")
     df.loc[df["n"] == 0, "est"] = np.nan
     return df
@@ -161,6 +162,7 @@ def f3blockdat_from_geno(
     apply_corr: bool = True,
     block_size: float = 0.05,
     auto_only: bool = True,
+    pseudohaploid: str = "detect",
 ) -> pd.DataFrame:
     """Per-block f3 from genotypes, as admixtools2 ``f3blockdat_from_geno(allsnps = TRUE)``.
 
@@ -171,7 +173,7 @@ def f3blockdat_from_geno(
     combs = [tuple(c) for c in popcombs]
     pops, triples = _index(combs)
     out = _core.f3_from_geno(os.fspath(prefix), pops, triples, outgroupmode, apply_corr, block_size,
-                             auto_only)
+                             auto_only, pseudohaploid)
     df = _blocks_frame(combs, ["pop1", "pop2", "pop3"], out, "numer", "denom")
     df["est"] = df["numer"] / df["denom"]
     df.loc[(df["n"] == 0) | ~np.isfinite(df["est"]), "est"] = np.nan
@@ -189,6 +191,7 @@ def qpdstat(
     unique_only: bool = True,
     block_size: float = 0.05,
     auto_only: bool = True,
+    pseudohaploid: str = "detect",
 ) -> pd.DataFrame:
     """f4- or D-statistics f(pop1, pop2; pop3, pop4), as admixtools2 ``qpdstat``.
 
@@ -208,6 +211,9 @@ def qpdstat(
         As ``fstat_combinations``.
     block_size, auto_only
         Jackknife block size (Morgans) and autosomes only; genotypes only.
+    pseudohaploid
+        From genotypes: which samples count one allele per SNP, as
+        ``sample_ploidy``.
 
     Returns
     -------
@@ -220,7 +226,7 @@ def qpdstat(
     cols = ["pop1", "pop2", "pop3", "pop4"]
     if _is_prefix(data):
         pops, quads = _index(combs)
-        out = _core.f4_from_geno(os.fspath(data), pops, quads, f4mode, block_size, auto_only)
+        out = _core.f4_from_geno(os.fspath(data), pops, quads, f4mode, block_size, auto_only, pseudohaploid)
         return _stats_frame(combs, cols, out)
     if not f4mode:
         raise ValueError("D-statistics (f4mode=False) need genotypes, not f2 blocks")
@@ -238,6 +244,7 @@ def qp3pop(
     unique_only: bool = True,
     block_size: float = 0.05,
     auto_only: bool = True,
+    pseudohaploid: str = "detect",
 ) -> pd.DataFrame:
     """f3-statistics f3(pop1; pop2, pop3), as admixtools2 ``qp3pop``.
 
@@ -253,7 +260,7 @@ def qp3pop(
         heterozygosity. f3 from f2 blocks is never normalized.
     apply_corr
         From genotypes: subtract the target's sampling bias.
-    unique_only, block_size, auto_only
+    unique_only, block_size, auto_only, pseudohaploid
         As ``qpdstat``.
 
     Returns
@@ -265,7 +272,7 @@ def qp3pop(
         pop1 = list(data.populations)
     combs = fstat_combinations(pop1, pop2, pop3, fnum=3, unique_only=unique_only)
     return _f3_rows(data, combs, outgroupmode=outgroupmode, apply_corr=apply_corr, block_size=block_size,
-                    auto_only=auto_only)
+                    auto_only=auto_only, pseudohaploid=pseudohaploid)
 
 
 def _from_f2(combs: list[tuple], cols: list[str], stat) -> pd.DataFrame:
@@ -281,22 +288,24 @@ def _from_f2(combs: list[tuple], cols: list[str], stat) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=[*cols, "est", "se", "z", "p"])
 
 
-def sample_ploidy(prefix: str | os.PathLike[str], populations: Sequence[str]) -> dict[str, int]:
-    """Ploidy admixtools2 assigns each sample of ``populations``.
+def sample_ploidy(prefix: str | os.PathLike[str], populations: Sequence[str],
+                  pseudohaploid: str = "detect") -> dict[str, int]:
+    """Ploidy of each sample of ``populations``: pseudo-haploid (1) or diploid (2).
 
-    A sample with no heterozygous genotype among the first 1000 SNPs is
-    pseudo-haploid (1), otherwise diploid (2).
+    ``pseudohaploid="detect"``: pseudo-haploid when the sample has no
+    heterozygous genotype at any SNP; ``"admixtools2"``: none among the first
+    1000 SNPs, as admixtools2 assigns it (ADMIXTOOLS2-0007); ``"diploid"``.
     """
-    return dict(_core.sample_ploidy(os.fspath(prefix), list(populations)))
+    return dict(_core.sample_ploidy(os.fspath(prefix), list(populations), pseudohaploid))
 
 
 def _f3_rows(data: Data, combs: list[tuple], *, outgroupmode: bool, apply_corr: bool,
-             block_size: float, auto_only: bool) -> pd.DataFrame:
+             block_size: float, auto_only: bool, pseudohaploid: str = "detect") -> pd.DataFrame:
     cols = ["pop1", "pop2", "pop3"]
     if _is_prefix(data):
         pops, triples = _index(combs)
         out = _core.f3_from_geno(os.fspath(data), pops, triples, outgroupmode, apply_corr, block_size,
-                                 auto_only)
+                                 auto_only, pseudohaploid)
         return _stats_frame(combs, cols, out)
     return _from_f2(combs, cols, lambda c: data.f3(*c))
 
@@ -310,6 +319,7 @@ def outgroup_f3_matrix(
     apply_corr: bool = True,
     block_size: float = 0.05,
     auto_only: bool = True,
+    pseudohaploid: str = "detect",
 ) -> pd.DataFrame:
     """Outgroup f3(outgroup; A, B) for every pair of ``populations``.
 
@@ -336,7 +346,7 @@ def outgroup_f3_matrix(
     pops = list(populations)
     pairs = [(a, b) for i, a in enumerate(pops) for b in pops[i:]]
     rows = _f3_rows(data, [(outgroup, a, b) for a, b in pairs], outgroupmode=True, apply_corr=apply_corr,
-                    block_size=block_size, auto_only=auto_only)
+                    block_size=block_size, auto_only=auto_only, pseudohaploid=pseudohaploid)
     m = pd.DataFrame(np.nan, index=pops, columns=pops)
     for (a, b), v in zip(pairs, rows[value]):  # noqa: B905 (strict= needs Python 3.10)
         m.loc[a, b] = m.loc[b, a] = v
@@ -355,6 +365,7 @@ def dstat_matrix(
     f4mode: bool = False,
     block_size: float = 0.05,
     auto_only: bool = True,
+    pseudohaploid: str = "detect",
 ) -> pd.DataFrame:
     """D- (or f4-) statistics for every pair X, Y of ``populations``.
 
@@ -387,7 +398,7 @@ def dstat_matrix(
     combs = [(a, b, pop3, pop4) if pop3 is not None else (pop1, pop2, a, b) for a, b in pairs]
     if _is_prefix(data):
         names, quads = _index(combs)
-        out = _core.f4_from_geno(os.fspath(data), names, quads, f4mode, block_size, auto_only)
+        out = _core.f4_from_geno(os.fspath(data), names, quads, f4mode, block_size, auto_only, pseudohaploid)
         rows = _stats_frame(combs, ["pop1", "pop2", "pop3", "pop4"], out)
     else:
         if not f4mode:

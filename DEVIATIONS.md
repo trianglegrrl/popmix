@@ -19,6 +19,7 @@ rules for adding one.
 | ADMIXTOOLS2-0004 | `write_dot()` renames nodes on edges (removes "." and "-") but declares them unrenamed | Quoted names, unchanged | `compat="admixtools2-2.0.10"` (`write_dot`) |
 | ADMIXTOOLS2-0005 | `parse_qpgraph_graphfile()` returns node labels instead of population names, and fails by default | Population names | `compat="admixtools2-2.0.10"` (`parse_qpgraph_graphfile`) |
 | ADMIXTOOLS2-0006 | PLINK files with chromosome codes X and Y stop with an error (`auto_only = TRUE`) | Reads them; X and Y are not autosomes | nothing to reproduce |
+| ADMIXTOOLS2-0007 | A sample with no heterozygous call among the first 1,000 SNPs is pseudo-haploid, which catches diploid genomes | Pseudo-haploid only with no heterozygous call at any SNP | `pseudohaploid="admixtools2"` (`--pseudohaploid admixtools2`) |
 | EIGENSOFT-0001 | smartpca reports the Tracy-Widom density as the p-value beyond its table | The tail | `compat="eigensoft-7.2.1"` |
 | PLINK2-0001 | `--make-king-table` labels its two het-hom counts the wrong way round | Counts named as they are | nothing to reproduce (labels only) |
 | ALDER-0001 | The inter-chromosome affine term counts pairs with SNPs that have no weight | Pairs it sums over | `compat="alder-1.03"` |
@@ -311,18 +312,39 @@ qpWave/qpAdm fits by the C++ code path (`cpp = TRUE`, the default).
 - **Reference:** generated from a copy of the PLINK files with numeric
   codes (`plink2 --output-chr 26`).
 
+### ADMIXTOOLS2-0007: diploid genomes taken as pseudo-haploid
+
+- **admixtools2:** a sample is pseudo-haploid if it has no heterozygous call
+  among the first 1,000 SNPs (`cpp_packedancestrymap_ploidy`, and its PLINK
+  counterpart), and its heterozygous calls then count half an allele. A
+  diploid genome whose first calls happen to be homozygous is caught: in
+  AADR v62.0, 9 of 17,629 samples, all high-coverage genomes, each with
+  959 to 984 calls among those SNPs: HGDP00068.DG (Balochi.DG),
+  HGDP00614.DG (BedouinA.DG), HGDP00612.DG (BedouinB.DG), HGDP00581.DG
+  (Ignore_Druze.DG), NA18606.DG (CHB.DG), HG04056.DG (ITU.DG), and
+  HG02691.DG, HG02699.DG and HG03237.DG (PJL.DG). No ancient sample is
+  affected.
+- **popmix:** a sample is pseudo-haploid only if it has no heterozygous call
+  at any SNP (`pseudohaploid="detect"`, for `extract_f2`, `qpdstat`,
+  `qp3pop`, `sample_ploidy`, `read_genotypes` and the CLI commands that read
+  genotypes; `sfs` already did this). `pseudohaploid="admixtools2"` keeps the
+  first-1,000 rule.
+- **Impact:** f2 of a population holding such a sample. With NA18606.DG among
+  CHB.DG's samples, f2(CHB.DG, Han.DG) is 0.000385318 by default and
+  0.000384351 with the admixtools2 rule (0.25%, 0.05 SE); a population of
+  that sample alone would change far more. Populations without it change
+  only through the shared SNP set (`poly_only`), and in the AADR test not at
+  all. No admixtools2 golden holds such a sample.
+- **Tests:** isolation and oracle on small data
+  (`tests/python/test_extract_f2_formats.py`: a diploid sample made
+  homozygous over the first 1,000 SNPs is diploid by default, and only
+  statistics with its population change), live on AADR
+  (`tests/golden/test_ploidy_rule.py`: only NA18606.DG is reclassified, only
+  CHB.DG's statistics change, and the default equals counting every sample
+  diploid).
+
 ### Matched, not corrected
 
-- **Ploidy from the first 1,000 SNPs.** A sample is treated as
-  pseudo-haploid if it has no heterozygous call among the first 1,000 SNPs
-  (`cpp_packedancestrymap_ploidy`). A diploid sample with no calls there is
-  misclassified: AADR's NA18606.DG (CHB, a high-coverage genome) is one. Its
-  heterozygous calls then count as half an allele. popmix matches this
-  everywhere admixtools2 uses it (f2, f3 from genotypes, `joint_sfs`); `sfs`
-  instead treats as pseudo-haploid only samples with no heterozygous call at
-  any SNP (`pseudohaploid="detect"`), since for a spectrum a half count drops
-  the SNP (258,804 of CEU x YRI x CHB's 1.1 million SNPs with the 1,000-SNP
-  rule).
 - **qpAdm weight SEs scale by sqrt(blocks - 1).** admixtools2's C++ path
   (`cpp_get_weights_covariance`, the default) and its R path
   (`get_weights_covariance`) scale the leave-one-out weights differently,

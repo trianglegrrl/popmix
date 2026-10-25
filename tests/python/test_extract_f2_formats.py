@@ -4,6 +4,7 @@ PACKEDANCESTRYMAP input is streamed through the pipeline checked against
 admixtools2; every other format must give the same blocks.
 """
 
+import json
 import os
 import subprocess
 from pathlib import Path
@@ -143,3 +144,57 @@ def test_pseudohaploid_samples_are_detected_when_reading_genotypes(pseudohaploid
         af = pm.read_genotypes(prefix).allele_frequencies(populations=POPS)
         got = pm.f2_from_frequencies(af).f2("Simulation.1", "French")["estimate"]
         np.testing.assert_allclose(got, want, rtol=1e-12, err_msg=prefix)
+
+
+@pytest.fixture(scope="module")
+def late_hets(tmp_path_factory) -> str:
+    """The small data with French's first sample homozygous over the first
+    1,000 SNPs: diploid (hets later on), but admixtools2's rule (no het in
+    the first 1,000 SNPs) calls it pseudohaploid."""
+    d = tmp_path_factory.mktemp("late_hets")
+    text = d / "text"
+    subprocess.run(["popmix", "convertf", "-i", SMALL, "-o", str(text), "-of", "eigenstrat"], check=True,
+                   capture_output=True)
+    inds = Path(f"{text}.ind").read_text().splitlines()
+    col = next(i for i, line in enumerate(inds) if line.split()[2] == "French")
+    rows = Path(f"{text}.geno").read_text().splitlines()
+    for j in range(1000):
+        if rows[j][col] == "1":
+            rows[j] = rows[j][:col] + "2" + rows[j][col + 1:]
+    assert any(row[col] == "1" for row in rows[1000:])
+    Path(f"{text}.geno").write_text("\n".join(rows) + "\n")
+    return str(text)
+
+
+@pytest.mark.parametrize("fmt", ["eigenstrat", "packedancestrymap"])
+def test_a_sample_with_any_het_call_is_diploid(late_hets, tmp_path, fmt):
+    """ADMIXTOOLS2-0007: by default a sample is pseudohaploid only with no het
+    call at all; pseudohaploid="admixtools2" keeps the first-1,000-SNP rule."""
+    prefix = _from(late_hets, tmp_path, fmt)
+    default = pm.extract_f2(prefix, POPS)
+    diploid = pm.extract_f2(prefix, POPS, pseudohaploid="diploid")
+    compat = pm.extract_f2(prefix, POPS, pseudohaploid="admixtools2")
+    _assert_same_blocks(default, diploid)
+    assert compat.f2("French", "Yoruba")["estimate"] != default.f2("French", "Yoruba")["estimate"]
+    # isolation: statistics without French are unaffected, once the SNP set
+    # does not depend on French's frequencies (poly_only keeps SNPs whose
+    # frequencies differ, and recounting French moves them)
+    fixed = {rule: pm.extract_f2(prefix, POPS, poly_only=False, pseudohaploid=rule)
+             for rule in ("detect", "admixtools2")}
+    assert fixed["detect"].f2("Yoruba", "Simulation") == fixed["admixtools2"].f2("Yoruba", "Simulation")
+    assert fixed["detect"].f2("French", "Yoruba") != fixed["admixtools2"].f2("French", "Yoruba")
+
+
+def test_pseudohaploid_rule_names_are_checked():
+    with pytest.raises(ValueError, match="pseudohaploid"):
+        pm.extract_f2(SMALL, POPS, pseudohaploid="first1000")
+
+
+def test_cli_pseudohaploid_option(late_hets):
+    def f2(*extra):
+        out = subprocess.run(["popmix", "f2", "--input", late_hets, "--pop1", "French", "--pop2", "Yoruba",
+                              "--format", "json", *extra], check=True, capture_output=True, text=True)
+        return json.loads(out.stdout)["estimate"]
+
+    assert f2() == f2("--pseudohaploid", "diploid")
+    assert f2() != f2("--pseudohaploid", "admixtools2")

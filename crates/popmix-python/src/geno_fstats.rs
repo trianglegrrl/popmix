@@ -8,9 +8,10 @@ use popmix_core::{
     F3GenoOptions, F4Mode, GenoPopulations, GenoStats, GenotypeMatrix, GenotypeRows, MatrixRows,
     Sample, Snp,
 };
-use popmix_io::{detect_ploidy_packedancestrymap, is_packed_format, PackedRows};
+use popmix_io::{is_packed_format, PackedRows};
 
-use crate::{read_genotypes_internal, to_py_err};
+use crate::ploidy::{ploidy_rule, PloidyRule};
+use crate::{read_genotypes_any_format, to_py_err};
 
 /// The SNPs, samples and row source for statistics on `populations`.
 pub(crate) enum Source {
@@ -26,9 +27,22 @@ pub(crate) fn open_source(
     populations: &[String],
     auto_only: bool,
 ) -> PyResult<(Source, Vec<Snp>, GenoPopulations, Vec<Sample>)> {
-    open_source_filtered(prefix, populations, &|s: &Snp| {
-        !auto_only || s.is_autosomal()
-    })
+    open_source_with(prefix, populations, auto_only, PloidyRule::Genome)
+}
+
+/// As `open_source`, with pseudo-haploid samples found by `rule`.
+pub(crate) fn open_source_with(
+    prefix: &str,
+    populations: &[String],
+    auto_only: bool,
+    rule: PloidyRule,
+) -> PyResult<(Source, Vec<Snp>, GenoPopulations, Vec<Sample>)> {
+    open_source_filtered_with(
+        prefix,
+        populations,
+        &|s: &Snp| !auto_only || s.is_autosomal(),
+        rule,
+    )
 }
 
 /// As `open_source`, keeping the SNPs for which `keep_snp` is true.
@@ -37,6 +51,16 @@ pub(crate) fn open_source_filtered(
     populations: &[String],
     keep_snp: &dyn Fn(&Snp) -> bool,
 ) -> PyResult<(Source, Vec<Snp>, GenoPopulations, Vec<Sample>)> {
+    open_source_filtered_with(prefix, populations, keep_snp, PloidyRule::Genome)
+}
+
+fn open_source_filtered_with(
+    prefix: &str,
+    populations: &[String],
+    keep_snp: &dyn Fn(&Snp) -> bool,
+    rule: PloidyRule,
+) -> PyResult<(Source, Vec<Snp>, GenoPopulations, Vec<Sample>)> {
+    let pop_refs: Vec<&str> = populations.iter().map(|p| p.as_str()).collect();
     let index = |pop: &str| populations.iter().position(|p| p == pop);
     let geno_path = format!("{prefix}.geno");
     let packed = std::path::Path::new(&geno_path).exists()
@@ -46,12 +70,11 @@ pub(crate) fn open_source_filtered(
             popmix_io::eigenstrat::read_ind_file(&format!("{prefix}.ind")).map_err(to_py_err)?;
         let snps =
             popmix_io::eigenstrat::read_snp_file(&format!("{prefix}.snp")).map_err(to_py_err)?;
-        detect_ploidy_packedancestrymap(&geno_path, &mut samples, 1000, snps.len())
-            .map_err(to_py_err)?;
+        rule.apply_packed(&geno_path, &mut samples, &pop_refs, snps.len())?;
         (samples, snps, None)
     } else {
-        let mut geno = read_genotypes_internal(prefix)?;
-        geno.detect_ploidy(1000);
+        let mut geno = read_genotypes_any_format(prefix)?;
+        rule.apply(&mut geno);
         (geno.samples().to_vec(), geno.snps().to_vec(), Some(geno))
     };
 
@@ -183,7 +206,8 @@ fn to_dict(py: Python<'_>, out: GenoStats) -> PyResult<PyObject> {
 ///     dict of arrays: est, se, z, p, n (one per statistic), block_num,
 ///     block_den, block_n (statistics x blocks) and block_lengths
 #[pyfunction]
-#[pyo3(signature = (prefix, populations, quads, f4mode=true, block_size=0.05, auto_only=true))]
+#[pyo3(signature = (prefix, populations, quads, f4mode=true, block_size=0.05, auto_only=true, pseudohaploid="detect"))]
+#[allow(clippy::too_many_arguments)]
 pub fn f4_from_geno(
     py: Python<'_>,
     prefix: &str,
@@ -192,8 +216,10 @@ pub fn f4_from_geno(
     f4mode: bool,
     block_size: f64,
     auto_only: bool,
+    pseudohaploid: &str,
 ) -> PyResult<PyObject> {
-    let (source, snps, pops, _) = open_source(prefix, &populations, auto_only)?;
+    let rule = ploidy_rule(pseudohaploid)?;
+    let (source, snps, pops, _) = open_source_with(prefix, &populations, auto_only, rule)?;
     let mode = if f4mode { F4Mode::F4 } else { F4Mode::D };
     let out = py.allow_threads(|| {
         run(source, |rows| {
@@ -219,7 +245,7 @@ pub fn f4_from_geno(
 /// Returns:
 ///     dict of arrays, as ``f4_from_geno``
 #[pyfunction]
-#[pyo3(signature = (prefix, populations, triples, outgroupmode=false, apply_corr=true, block_size=0.05, auto_only=true))]
+#[pyo3(signature = (prefix, populations, triples, outgroupmode=false, apply_corr=true, block_size=0.05, auto_only=true, pseudohaploid="detect"))]
 #[allow(clippy::too_many_arguments)]
 pub fn f3_from_geno(
     py: Python<'_>,
@@ -230,8 +256,10 @@ pub fn f3_from_geno(
     apply_corr: bool,
     block_size: f64,
     auto_only: bool,
+    pseudohaploid: &str,
 ) -> PyResult<PyObject> {
-    let (source, snps, pops, _) = open_source(prefix, &populations, auto_only)?;
+    let rule = ploidy_rule(pseudohaploid)?;
+    let (source, snps, pops, _) = open_source_with(prefix, &populations, auto_only, rule)?;
     let options = F3GenoOptions {
         apply_corr,
         outgroup_mode: outgroupmode,
@@ -244,11 +272,18 @@ pub fn f3_from_geno(
     to_dict(py, out)
 }
 
-/// Ploidy of each sample of ``populations``, as admixtools2 assigns it: 1
-/// (pseudo-haploid) for a sample with no heterozygous genotype among the
-/// first 1000 SNPs, otherwise 2.
+/// Ploidy of each sample of ``populations``: 1 (pseudo-haploid) or 2, by
+/// the ``pseudohaploid`` rule ("detect": no heterozygous genotype at any
+/// SNP; "admixtools2": none among the first 1000 SNPs; "diploid").
 #[pyfunction]
-pub fn sample_ploidy(prefix: &str, populations: Vec<String>) -> PyResult<Vec<(String, u8)>> {
+#[pyo3(signature = (prefix, populations, pseudohaploid="detect"))]
+pub fn sample_ploidy(
+    prefix: &str,
+    populations: Vec<String>,
+    pseudohaploid: &str,
+) -> PyResult<Vec<(String, u8)>> {
+    let rule = ploidy_rule(pseudohaploid)?;
+    let pop_refs: Vec<&str> = populations.iter().map(|p| p.as_str()).collect();
     let geno_path = format!("{prefix}.geno");
     let samples = if std::path::Path::new(&geno_path).exists()
         && is_packed_format(&geno_path).map_err(to_py_err)?
@@ -258,12 +293,11 @@ pub fn sample_ploidy(prefix: &str, populations: Vec<String>) -> PyResult<Vec<(St
         let n_snps = popmix_io::eigenstrat::read_snp_file(&format!("{prefix}.snp"))
             .map_err(to_py_err)?
             .len();
-        detect_ploidy_packedancestrymap(&geno_path, &mut samples, 1000, n_snps)
-            .map_err(to_py_err)?;
+        rule.apply_packed(&geno_path, &mut samples, &pop_refs, n_snps)?;
         samples
     } else {
-        let mut geno = read_genotypes_internal(prefix)?;
-        geno.detect_ploidy(1000);
+        let mut geno = read_genotypes_any_format(prefix)?;
+        rule.apply(&mut geno);
         geno.samples().to_vec()
     };
     Ok(samples

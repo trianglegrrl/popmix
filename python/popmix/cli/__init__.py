@@ -113,6 +113,24 @@ def validate_populations(prefix: str, populations: list) -> None:
         raise click.ClickException(error_msg)
 
 
+def _store_pseudohaploid(ctx: click.Context, param: click.Parameter, value: str) -> str:
+    ctx.meta["pseudohaploid"] = value
+    return value
+
+
+def _pseudohaploid() -> str:
+    """The --pseudohaploid rule of the running command."""
+    return click.get_current_context().meta.get("pseudohaploid", "detect")
+
+
+pseudohaploid_option = click.option(
+    "--pseudohaploid", type=click.Choice(["detect", "admixtools2", "diploid"]), default="detect",
+    expose_value=False, callback=_store_pseudohaploid,
+    help="With --input: which samples count one allele per SNP. detect (default): those with no "
+         "heterozygous call; admixtools2: none among the first 1,000 SNPs, which also catches some "
+         "diploid genomes; diploid: none")
+
+
 def f2_source_options(command):
     """Add the options that say where an f-statistic command gets its f2 blocks."""
     options = [
@@ -127,6 +145,7 @@ def f2_source_options(command):
                           "(default: 0)"),
         click.option("--all-chromosomes", is_flag=True, default=False,
                      help="With --input: use all chromosomes, not only autosomes 1-22"),
+        pseudohaploid_option,
     ]
     for option in reversed(options):
         command = option(command)
@@ -156,7 +175,7 @@ def load_f2_blocks(input_prefix: str | None, f2_dir: str | None, populations: li
         return f2_blocks
     validate_populations(input_prefix, pops)
     return pm.extract_f2(input_prefix, pops, auto_only=not all_chromosomes, block_size=block_size,
-                         maxmiss=maxmiss)
+                         maxmiss=maxmiss, pseudohaploid=_pseudohaploid())
 
 
 @click.group()
@@ -274,6 +293,7 @@ def populations(prefix: str, pattern: str | None, output_format: str):
 @click.option("--maxmiss", type=click.FloatRange(0, 1), default=0.0,
               help="Drop SNPs missing in more than this fraction of populations (default: 0)")
 @click.option("--auto-only/--all-chromosomes", default=True, help="Use only autosomal SNPs (default: auto-only)")
+@pseudohaploid_option
 def extract_f2(input_prefix: str, output_dir: str, snp_range: tuple[int, int] | None,
                block_size: float, populations: list, maxmiss: float, auto_only: bool):
     """Extract F2 blocks from genotype data, as admixtools2's extract_f2().
@@ -295,6 +315,7 @@ def extract_f2(input_prefix: str, output_dir: str, snp_range: tuple[int, int] | 
                 auto_only=auto_only,
                 block_size=block_size,
                 maxmiss=maxmiss,
+                pseudohaploid=_pseudohaploid(),
             )
             click.echo(f"Computed {f2_blocks.n_blocks} blocks for {f2_blocks.n_populations} populations")
         else:
@@ -371,6 +392,7 @@ def stat_source_options(command):
                      help="With --input: block size in Morgans (default: 0.05)"),
         click.option("--all-chromosomes", is_flag=True, default=False,
                      help="With --input: use all chromosomes, not only autosomes 1-22"),
+        pseudohaploid_option,
     ]
     for option in reversed(options):
         command = option(command)
@@ -456,7 +478,8 @@ def qpdstat(pop1: list, pop2: list, pop3: list, pop4: list, d_mode: bool, input_
     try:
         data = stat_source(input_prefix, f2_dir, pop1 + pop2 + pop3 + pop4)
         df = pm.qpdstat(data, pop1, pop2 or None, pop3 or None, pop4 or None, f4mode=not d_mode,
-                        block_size=block_size, auto_only=not all_chromosomes)
+                        block_size=block_size, auto_only=not all_chromosomes,
+                        pseudohaploid=_pseudohaploid())
         write_table(df, output_format, output)
     except click.ClickException:
         raise
@@ -488,7 +511,7 @@ def qp3pop(pop1: list, pop2: list, pop3: list, outgroup_mode: bool, no_bias_corr
         data = stat_source(input_prefix, f2_dir, pop1 + pop2 + pop3)
         df = pm.qp3pop(data, pop1, pop2 or None, pop3 or None, outgroupmode=outgroup_mode,
                        apply_corr=not no_bias_correction, block_size=block_size,
-                       auto_only=not all_chromosomes)
+                       auto_only=not all_chromosomes, pseudohaploid=_pseudohaploid())
         write_table(df, output_format, output)
     except click.ClickException:
         raise
@@ -523,7 +546,7 @@ def outgroup_f3(outgroup: str, populations: list, value: str, order: str, heatma
     try:
         data = stat_source(input_prefix, f2_dir, [outgroup] + populations)
         m = pm.outgroup_f3_matrix(data, outgroup, populations, value=value, block_size=block_size,
-                                  auto_only=not all_chromosomes)
+                                  auto_only=not all_chromosomes, pseudohaploid=_pseudohaploid())
         write_matrix(m, order, output_format, output, heatmap, f"f3({outgroup}; X, Y) {value}",
                      None if value != "z" else 0.0)
     except click.ClickException:
@@ -557,7 +580,8 @@ def dstat_matrix(populations: list, pop1: str | None, pop2: str | None, pop3: st
         fixed = [p for p in (pop1, pop2, pop3, pop4) if p]
         data = stat_source(input_prefix, f2_dir, fixed + populations)
         m = pm.dstat_matrix(data, populations, pop1=pop1, pop2=pop2, pop3=pop3, pop4=pop4, value=value,
-                            f4mode=f4_mode, block_size=block_size, auto_only=not all_chromosomes)
+                            f4mode=f4_mode, block_size=block_size, auto_only=not all_chromosomes,
+                            pseudohaploid=_pseudohaploid())
         stat = "f4" if f4_mode else "D"
         title = f"{stat}(X, Y; {pop3}, {pop4})" if pop3 else f"{stat}({pop1}, {pop2}; X, Y)"
         write_matrix(m, order, output_format, output, heatmap, f"{title} {value}",

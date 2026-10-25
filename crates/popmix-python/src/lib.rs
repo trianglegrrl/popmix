@@ -10,6 +10,7 @@ mod alder;
 mod geno_fstats;
 mod kinship;
 mod pca;
+mod ploidy;
 mod qpadm_models;
 mod rcompat;
 mod rolloff;
@@ -23,10 +24,10 @@ use pyo3::types::PyDict;
 
 use popmix_core::{AlleleFrequencies, BlockDefinition, F2Blocks, GenotypeMatrix, Ploidy, Sample};
 use popmix_io::{
-    compute_allele_frequencies_packedancestrymap, detect_ploidy_packedancestrymap,
-    is_packed_format, merge::merge_genotypes, read_f2_blocks, write_ancestrymap, write_eigenstrat,
-    write_f2_blocks, write_packedancestrymap, write_packedped, write_ped, AncestryMapReader,
-    EigenstratReader, GenoFormat, PackedAncestryMapReader, PedReader, PlinkReader, VcfReader,
+    compute_allele_frequencies_packedancestrymap, is_packed_format, merge::merge_genotypes,
+    read_f2_blocks, write_ancestrymap, write_eigenstrat, write_f2_blocks, write_packedancestrymap,
+    write_packedped, write_ped, AncestryMapReader, EigenstratReader, GenoFormat,
+    PackedAncestryMapReader, PedReader, PlinkReader, VcfReader,
 };
 
 // ============================================================================
@@ -441,8 +442,7 @@ fn read_vcf(path: &str) -> PyResult<PyGenotypeMatrix> {
 ///
 /// Returns:
 ///     PyGenotypeMatrix containing the genotype data and metadata; samples
-///     with no heterozygous call in the first 1,000 SNPs read are
-///     pseudohaploid, as admixtools2 detects them
+///     with no heterozygous call among the SNPs read are pseudohaploid
 #[pyfunction]
 #[pyo3(signature = (prefix, snp_range=None))]
 fn read_genotypes(prefix: &str, snp_range: Option<(usize, usize)>) -> PyResult<PyGenotypeMatrix> {
@@ -452,7 +452,7 @@ fn read_genotypes(prefix: &str, snp_range: Option<(usize, usize)>) -> PyResult<P
         });
     };
     let mut geno = read_genotypes_range(prefix, range)?;
-    geno.inner.detect_ploidy(PLOIDY_CHECK_SNPS);
+    ploidy::PloidyRule::Genome.apply(&mut geno.inner);
     Ok(geno)
 }
 
@@ -1455,11 +1455,16 @@ impl PyF2Blocks {
 ///     inds, pops: Use only these samples, each in the population given in
 ///         ``pops`` (same length) instead of its ``.ind`` label, as
 ///         admixtools2 ``f2_from_geno(inds, pops)``
+///     pseudohaploid: Which samples count one allele per SNP: "detect"
+///         (default: those with no heterozygous call at any SNP),
+///         "admixtools2" (no heterozygous call among the first 1,000 SNPs,
+///         which also catches some diploid genomes; ADMIXTOOLS2-0007) or
+///         "diploid" (none)
 ///
 /// Returns:
 ///     PyF2Blocks object for computing f2, f3, f4 statistics
 #[pyfunction]
-#[pyo3(signature = (prefix, populations, auto_only=true, block_size=None, maxmiss=0.0, poly_only=true, inds=None, pops=None))]
+#[pyo3(signature = (prefix, populations, auto_only=true, block_size=None, maxmiss=0.0, poly_only=true, inds=None, pops=None, pseudohaploid="detect"))]
 #[allow(clippy::too_many_arguments)]
 fn extract_f2(
     prefix: &str,
@@ -1470,10 +1475,12 @@ fn extract_f2(
     poly_only: bool,
     inds: Option<Vec<String>>,
     pops: Option<Vec<String>>,
+    pseudohaploid: &str,
 ) -> PyResult<PyF2Blocks> {
     use std::path::Path;
 
     let relabel = sample_labels(inds, pops)?;
+    let rule = ploidy::ploidy_rule(pseudohaploid)?;
 
     if !(0.0..=1.0).contains(&maxmiss) {
         return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
@@ -1505,12 +1512,11 @@ fn extract_f2(
         }
         require_sample_populations(&samples, &populations)?;
 
-        // Detect ploidy by streaming through first 1000 SNPs
-        detect_ploidy_packedancestrymap(&geno_path, &mut samples, 1000, snps.len())
-            .map_err(to_py_err)?;
+        // Ploidy of the requested populations' samples
+        let pop_refs: Vec<&str> = populations.iter().map(|s| s.as_str()).collect();
+        rule.apply_packed(&geno_path, &mut samples, &pop_refs, snps.len())?;
 
         // Compute allele frequencies by streaming through file (SNP by SNP)
-        let pop_refs: Vec<&str> = populations.iter().map(|s| s.as_str()).collect();
         let af = compute_allele_frequencies_packedancestrymap(
             &geno_path, &samples, &snps, &pop_refs, auto_only,
         )
@@ -1529,6 +1535,7 @@ fn extract_f2(
         apply_sample_labels(geno.samples_mut(), labels)?;
     }
     require_sample_populations(geno.samples(), &populations)?;
+    rule.apply(&mut geno);
 
     // Filter to autosomal if requested
     let geno = if auto_only {
@@ -2815,20 +2822,15 @@ fn qpgraph(
     })
 }
 
-/// SNPs whose genotypes decide each sample's ploidy (admixtools2's choice):
-/// a sample without a heterozygous call among them is pseudohaploid.
-const PLOIDY_CHECK_SNPS: usize = 1000;
-
-/// Every genotype of a dataset in any format, with each sample's ploidy
-/// detected from the first `PLOIDY_CHECK_SNPS` SNPs, as the streaming path
-/// for packed files does.
+/// Every genotype of a dataset in any format, each sample pseudohaploid
+/// when it has no heterozygous call (the default `pseudohaploid` rule).
 fn read_genotypes_internal(prefix: &str) -> PyResult<GenotypeMatrix> {
     let mut geno = read_genotypes_any_format(prefix)?;
-    geno.detect_ploidy(PLOIDY_CHECK_SNPS);
+    ploidy::PloidyRule::Genome.apply(&mut geno);
     Ok(geno)
 }
 
-fn read_genotypes_any_format(prefix: &str) -> PyResult<GenotypeMatrix> {
+pub(crate) fn read_genotypes_any_format(prefix: &str) -> PyResult<GenotypeMatrix> {
     use std::path::Path;
 
     // Check for VCF format (full path with extension)
