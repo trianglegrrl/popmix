@@ -124,7 +124,7 @@ def _agree_f2(ours: Path, theirs: Path) -> dict:
                 worst_rel = max(worst_rel, float(np.nanmax(d / np.maximum(np.abs(want), 1e-300))))
     ok = list(f2.block_lengths) and len(f2.block_lengths) == nb
     return {"blocks": nb, "max_abs": worst_abs, "max_rel": worst_rel,
-            "pass": bool(ok) and worst_rel <= 1e-10 or worst_abs <= 1e-15}
+            "pass": bool(ok) and (worst_rel <= 1e-10 or worst_abs <= 1e-15)}
 
 
 F2_CASE = Case(
@@ -270,4 +270,87 @@ KING_CASE = Case(
     agree=_agree_king, prepare=present_day_bed,
 )
 
-CASES = {c.name: c for c in (CONVERTF_CASE, F2_CASE, QPADM_CASE, PCA_CASE, KING_CASE)}
+# --- qpGraph -----------------------------------------------------------------
+
+GRAPH = [("R", "Chimp"), ("R", "n1"), ("n1", "Mbuti"), ("n1", "n2"), ("n2", "Han"), ("n2", "n3"),
+         ("n3", "n4"), ("n3", "n5"), ("n4", "Turkey_N"), ("n4", "a"), ("n5", "Russia_Samara_EBA_Yamnaya"),
+         ("n5", "a"), ("a", "French")]
+GRAPH_POPS = ["Chimp", "Mbuti", "Han", "Turkey_N", "Russia_Samara_EBA_Yamnaya", "French"]
+
+_R_QPGRAPH = """
+suppressMessages(library(admixtools))
+# admixtools2 2.0.10 qpgraph() with igraph >= 2, as in tests/golden/admixtools2/generate_reference.R
+local({
+  imports <- parent.env(asNamespace("admixtools"))
+  shim <- function(graph, vp, ...) igraph::get_edge_ids(graph, as.vector(vp), ...)
+  unlockBinding("get.edge.ids", imports)
+  assign("get.edge.ids", shim, envir = imports)
+  lockBinding("get.edge.ids", imports)
+})
+a <- commandArgs(TRUE)
+edges <-as.matrix(read.table(a[2], col.names = c("from", "to")))
+f2 <- f2_from_geno(a[1], pops = strsplit(a[3], ",")[[1]], verbose = FALSE)
+r <- qpgraph(f2, edges, numstart = 10, seed = 1, verbose = FALSE)
+jsonlite::write_json(list(score = r$score), file.path(a[4], "qpgraph.json"), digits = NA, auto_unbox = TRUE)
+"""
+
+
+def _graph_file(o: Path) -> Path:
+    path = o / "graph.txt"
+    path.write_text("".join(f"{a}\t{b}\n" for a, b in GRAPH))
+    return path
+
+
+def _agree_qpgraph(ours: Path, theirs: Path) -> dict:
+    got = json.loads((ours / "qpgraph.json").read_text())["score"]
+    want = json.loads((theirs / "qpgraph.json").read_text())["score"]
+    rel = abs(got - want) / abs(want)
+    # an optimized score: R's L-BFGS-B stops at factr * epsilon
+    return {"score": want, "score_rel": rel, "pass": rel <= 1e-6}
+
+
+QPGRAPH_CASE = Case(
+    name="qpgraph", analysis="qpGraph, 6 populations, 1 admixture, 10 starts",
+    reference="admixtools2 2.0.10 qpgraph",
+    popmix=lambda i, o, t: ["sh", "-c", f"popmix --threads {t} qpgraph -i {i} --graph {_graph_file(o)} "
+                                        f"--numstart 10 --seed 1 --format json > {o / 'qpgraph.json'}"],
+    ref=lambda i, o: _r(_R_QPGRAPH, o, str(i), str(_graph_file(o)), ",".join(GRAPH_POPS)),
+    agree=_agree_qpgraph,
+)
+
+
+# --- qpDstat from genotypes --------------------------------------------------
+
+DSTAT = {"pop1": ["Chimp"], "pop2": ["Mbuti"], "pop3": ["French", "Han", "Papuan", "Karitiana", "Sardinian"],
+         "pop4": ["Yoruba", "Basque", "Turkey_N", "Russia_Samara_EBA_Yamnaya"]}
+
+_R_QPDSTAT = """
+suppressMessages(library(admixtools))
+a <- commandArgs(TRUE)
+p <- lapply(a[2:5], function(x) strsplit(x, ",")[[1]])
+r <- qpdstat(a[1], p[[1]], p[[2]], p[[3]], p[[4]], verbose = FALSE)
+jsonlite::write_json(r, file.path(a[6], "qpdstat.json"), digits = NA)
+"""
+
+
+def _agree_qpdstat(ours: Path, theirs: Path) -> dict:
+    key = ("pop1", "pop2", "pop3", "pop4")
+    want = {tuple(r[k] for k in key): r for r in json.loads((theirs / "qpdstat.json").read_text())}
+    got = {tuple(r[k] for k in key): r for r in json.loads((ours / "qpdstat.json").read_text())}
+    est = max(abs(got[k]["est"] - w["est"]) / abs(w["est"]) for k, w in want.items())
+    se = max(abs(got[k]["se"] - w["se"]) / abs(w["se"]) for k, w in want.items())
+    return {"statistics": len(want), "est_rel": est, "se_rel": se,
+            "pass": got.keys() == want.keys() and est <= 1e-10 and se <= 1e-6}
+
+
+QPDSTAT_CASE = Case(
+    name="qpdstat", analysis="20 f4-statistics from genotypes", reference="admixtools2 2.0.10 qpdstat",
+    popmix=lambda i, o, t: ["sh", "-c", f"popmix --threads {t} qpdstat -i {i} "
+                                        + " ".join(f"--{k} {','.join(v)}" for k, v in DSTAT.items())
+                                        + f" --format json > {o / 'qpdstat.json'}"],
+    ref=lambda i, o: _r(_R_QPDSTAT, o, str(i), *(",".join(v) for v in DSTAT.values())),
+    agree=_agree_qpdstat,
+)
+
+CASES = {c.name: c for c in (CONVERTF_CASE, F2_CASE, QPADM_CASE, PCA_CASE, KING_CASE, QPGRAPH_CASE,
+                             QPDSTAT_CASE)}
