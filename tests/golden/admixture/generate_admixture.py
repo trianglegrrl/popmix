@@ -36,7 +36,11 @@ import numpy as np
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[2]
-AADR = "/references/aadr/v62.0_1240k_public"
+# AADR v66.p1, each individual labelled <population>.<data type>, as
+# tests/golden/aadr/build_aadr_v66p1.py builds it in the reference cache; its
+# manifest.json (recorded in each AADR reference) has the release checksums.
+AADR_DIR = Path(os.environ.get("POPMIX_REFERENCE_CACHE", Path.home() / ".cache/popmix-references")) / "aadr_v66p1"
+AADR = str(AADR_DIR / "aadr_v66p1")
 SMALL = str(REPO / "tests/golden/dates/family_chr20_22")
 ADMIXTURE = os.environ.get("ADMIXTURE", "admixture")
 PLINK2 = os.environ.get("PLINK2", "plink2")
@@ -137,6 +141,8 @@ def run(name: str) -> None:
             out.update(ids=[line.split()[1] for line in Path(f"{new}.fam").read_text().splitlines()],
                        project=cfg["project"], P_in=fit["P"], fit_ids=ids, fit_Q=fit["Q"], fit_loglik=fit["loglik"],
                        loglik=proj["loglik"], iterations=proj["iterations"], Q=proj["Q"])
+    if cfg["prefix"] == AADR:
+        out["dataset"] = json.loads((AADR_DIR / "manifest.json").read_text())
     dest = HERE / "v1.3.0" / name
     dest.mkdir(parents=True, exist_ok=True)
     (dest / "admixture.json").write_text(json.dumps(out) + "\n")
