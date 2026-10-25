@@ -248,11 +248,25 @@ Tasks:
   all), expected bit-identical; the reference tools' own run-to-run spread
   where they are stochastic (ADMIXTURE seeds, qpGraph starts, find_graphs).
   (popmix across 1/4/16 threads: done in 05bb262, identical in every case;
-  the stochastic tools' spread remains, with their cases.)
-- [ ] **E4. Coverage.** admixtools2 (extract_f2, f2/f3/f4/qpdstat, qpadm,
+  the stochastic tools' spread remains, with their cases. ADMIXTURE: both
+  tools' log-likelihood spread over seeds 1-3 is in its agreement.)
+- [x] **E4. Coverage.** *Done: cases in `benchmarks/cases.py`.* admixtools2 (extract_f2, f2/f3/f4/qpdstat, qpadm,
   qpadm rotation, qpgraph, find_graphs, resampling), classic ADMIXTOOLS
-  (qpDstat, qp3Pop, qpAdm, qpGraph, qpfstats), smartpca, ADMIXTURE, DATES,
-  ALDER, ROLLOFF, KING (plink2), READv2.
+  (qpDstat, qp3Pop, qpAdm, qpGraph), smartpca, ADMIXTURE, DATES, ROLLOFF,
+  KING (plink2), READv2. qpfstats and ALDER are dropped: popmix 1.0 no
+  longer has them (C2). Open findings from the trial runs:
+  - classic qpAdm keeps another SNP set than admixtools2 and popmix
+    (803,891 against 675,980 on the case's model), so weights differ by
+    1e-3 and χ² by 1.5%: beyond qpAdm's printed precision, the case fails.
+  - DATES with a pseudo-haploid source (French = Sardinian +
+    Russia_Samara_EBA_Yamnaya, AADR v66.p1): popmix with
+    `compat="dates-v753"` counts 0.06% more pairs per bin than DATES, and
+    the fit moves from 152.9 to 153.8 generations. With diploid sources it
+    matches; the case uses those until this is understood.
+  - the stock `/home/a/DATES/bin/dates` aborts at random in mesh mode too
+    (uninitialized `numbins`), and its `dowtjack` needs a missing
+    libgsl.so.19: the case builds DATES with `dates_numbins_fix.patch` in
+    the cache.
 - [ ] **E5. Scaling curves** in SNPs, samples, populations and threads, up to
   full AADR v62 (17,629 samples × 1.23M SNPs).
 - [ ] **E6. Report.** Results as JSON in the repo with tool versions and
