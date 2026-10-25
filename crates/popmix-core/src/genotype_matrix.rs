@@ -68,6 +68,11 @@ impl GenotypeMatrix {
         &self.samples
     }
 
+    /// The samples, to relabel their populations.
+    pub fn samples_mut(&mut self) -> &mut [Sample] {
+        &mut self.samples
+    }
+
     /// Get SNP metadata.
     pub fn snps(&self) -> &[Snp] {
         &self.snps

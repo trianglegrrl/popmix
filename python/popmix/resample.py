@@ -1,12 +1,16 @@
-"""Models evaluated on resampled SNP blocks, as admixtools2's
-``*_resample_snps``, ``qpgraph_resample_multi``, ``compare_fits``,
-``loo_list`` and ``boo_list``.
+"""Models evaluated on resampled SNP blocks or with individuals left out, as
+admixtools2's ``*_resample_snps``, ``*_resample_inds``,
+``qpgraph_resample_multi``, ``compare_fits``, ``loo_list`` and ``boo_list``.
 
 Resampling leaves out one block at a time (jackknife) or draws blocks with
 replacement (bootstrap). Bootstrap draws use R's random number generator:
 with ``boot_seed=s`` they are the blocks admixtools2 draws after
 ``set.seed(s)``. Block indices (``sel``) are 0-based; admixtools2's are
 1-based.
+
+Leaving an individual out recomputes f2 from the genotypes without it, the
+same way as ``extract_f2`` (admixtools2's ``*_resample_inds`` read counts
+precomputed by ``extract_counts``, a different f2 estimator).
 
 As in admixtools2, a model that fails on a resample is recorded in that
 row's ``error`` column instead of stopping the run.
@@ -80,6 +84,22 @@ def _run(fun: Callable[[Any], dict], data: Sequence, sel: Sequence) -> pd.DataFr
             out, error = {}, e
         rows.append({"id": i, "sel": list(s), **out, "error": error})
     return pd.DataFrame(rows)
+
+
+def _qpadm_fit(target, left, right, args):
+    def fit(d):
+        r = _core.qpadm(d, target, list(left), list(right), **args)
+        return {"weights": list(r.weights), "chisq": r.chi_sq, "p": r.p_value, "result": r}
+    return fit
+
+
+def _qpwave_fit(left, right, args):
+    def fit(d):
+        r = _core.qpwave(d, list(left), list(right), **args)
+        rankdrop = [{"f4rank": t.rank, "dof": t.df, "chisq": t.chi_sq, "p": t.p_value}
+                    for t in sorted(r.rank_tests, key=lambda t: -t.rank) if t.rank < len(left) - 1]
+        return {"rankdrop": rankdrop, "result": r}
+    return fit
 
 
 def _qpgraph_row(r: _core.PyQpGraphResult) -> dict:
@@ -199,12 +219,8 @@ def qpadm_resample_snps(
         One row per resample: ``id``, ``sel``, ``weights``, ``chisq`` and
         ``p`` of the full model, ``result`` (the qpadm result) and ``error``.
     """
-    def fit(d):
-        r = _core.qpadm(d, target, list(left), list(right), **qpadm_args)
-        return {"weights": list(r.weights), "chisq": r.chi_sq, "p": r.p_value, "result": r}
-
     data, sel = _resamples(f2_blocks, boot, boot_seed)
-    return _run(fit, data, sel)
+    return _run(_qpadm_fit(target, left, right, qpadm_args), data, sel)
 
 
 def qpwave_resample_snps(
@@ -224,14 +240,8 @@ def qpwave_resample_snps(
         rank, highest first as in admixtools2: ``f4rank``, ``dof``,
         ``chisq``, ``p``), ``result`` (the qpwave result) and ``error``.
     """
-    def fit(d):
-        r = _core.qpwave(d, list(left), list(right), **qpwave_args)
-        rankdrop = [{"f4rank": t.rank, "dof": t.df, "chisq": t.chi_sq, "p": t.p_value}
-                    for t in sorted(r.rank_tests, key=lambda t: -t.rank) if t.rank < len(left) - 1]
-        return {"rankdrop": rankdrop, "result": r}
-
     data, sel = _resamples(f2_blocks, boot, boot_seed)
-    return _run(fit, data, sel)
+    return _run(_qpwave_fit(left, right, qpwave_args), data, sel)
 
 
 def _fstat_resample(fun: Callable, f2_blocks, boot, boot_seed, pops: dict, args: dict) -> pd.DataFrame:
@@ -275,3 +285,97 @@ def qp3pop_resample_snps(
     ``id`` and ``sel``."""
     return _fstat_resample(qp3pop, f2_blocks, boot, boot_seed, {"pop1": pop1, "pop2": pop2, "pop3": pop3},
                            qp3pop_args)
+
+
+def _left_out(prefix: str, inds: Sequence[str], pops: Sequence[str], f2_args: dict | None):
+    """(individual, its population, f2 blocks without it) for every individual
+    in a population of more than one."""
+    if len(inds) != len(pops):
+        raise ValueError("inds and pops must have the same length: one population per individual")
+    order = list(dict.fromkeys(pops))
+    for ind, pop in zip(inds, pops):  # noqa: B905
+        if list(pops).count(pop) < 2:
+            continue
+        keep = [(i, p) for i, p in zip(inds, pops) if i != ind]  # noqa: B905
+        yield ind, pop, lambda keep=keep: _core.extract_f2(
+            prefix, order, inds=[i for i, _ in keep], pops=[p for _, p in keep], **(f2_args or {}))
+
+
+def _run_inds(fun: Callable[[Any], dict], prefix, inds, pops, f2_args) -> pd.DataFrame:
+    rows = []
+    for ind, pop, f2 in _left_out(prefix, inds, pops, f2_args):
+        try:
+            out, error = fun(f2()), None
+        except Exception as e:  # recorded per row, as admixtools2's safely()
+            out, error = {}, e
+        rows.append({"ind": ind, "pop": pop, **out, "error": error})
+    return pd.DataFrame(rows)
+
+
+_INDS_DOC = """
+
+    Parameters
+    ----------
+    prefix
+        Genotype prefix.
+    inds, pops
+        The individuals to use and the population of each (as
+        ``extract_f2``'s ``inds`` and ``pops``); each one in a population
+        of more than one is left out in turn.
+    f2_args
+        Passed to ``extract_f2`` (``auto_only``, ``block_size``, ``maxmiss``,
+        ``poly_only``).
+
+    Returns
+    -------
+    pandas.DataFrame
+        One row per individual left out: ``ind``, ``pop``, the model's
+        columns as in the ``_resample_snps`` function, and ``error``.
+    """
+
+
+def qpadm_resample_inds(prefix: str, inds: Sequence[str], pops: Sequence[str], target: str,
+                        left: Sequence[str], right: Sequence[str], f2_args: dict | None = None,
+                        **qpadm_args: Any) -> pd.DataFrame:
+    return _run_inds(_qpadm_fit(target, left, right, qpadm_args), prefix, inds, pops, f2_args)
+
+
+def qpwave_resample_inds(prefix: str, inds: Sequence[str], pops: Sequence[str], left: Sequence[str],
+                         right: Sequence[str], f2_args: dict | None = None, **qpwave_args: Any) -> pd.DataFrame:
+    return _run_inds(_qpwave_fit(left, right, qpwave_args), prefix, inds, pops, f2_args)
+
+
+def qpgraph_resample_inds(prefix: str, inds: Sequence[str], pops: Sequence[str],
+                          edges: Sequence[tuple[str, str]], f2_args: dict | None = None,
+                          **qpgraph_args: Any) -> pd.DataFrame:
+    return _run_inds(lambda d: _qpgraph_row(_core.qpgraph(d, list(edges), **qpgraph_args)), prefix, inds, pops,
+                     f2_args)
+
+
+def _fstat_inds(fun, prefix, inds, pops, f2_args, pop_args, args) -> pd.DataFrame:
+    frames = []
+    for ind, pop, f2 in _left_out(prefix, inds, pops, f2_args):
+        t = fun(f2(), **pop_args, **args)
+        frames.append(t.assign(ind=ind, pop=pop))
+    out = pd.concat(frames, ignore_index=True)
+    return out[["ind", "pop"] + [c for c in out.columns if c not in ("ind", "pop")]]
+
+
+def qpdstat_resample_inds(prefix: str, inds: Sequence[str], pops: Sequence[str], pop1: Any = None,
+                          pop2: Any = None, pop3: Any = None, pop4: Any = None, f2_args: dict | None = None,
+                          **qpdstat_args: Any) -> pd.DataFrame:
+    return _fstat_inds(qpdstat, prefix, inds, pops, f2_args,
+                       {"pop1": pop1, "pop2": pop2, "pop3": pop3, "pop4": pop4}, qpdstat_args)
+
+
+def qp3pop_resample_inds(prefix: str, inds: Sequence[str], pops: Sequence[str], pop1: Any = None,
+                         pop2: Any = None, pop3: Any = None, f2_args: dict | None = None,
+                         **qp3pop_args: Any) -> pd.DataFrame:
+    return _fstat_inds(qp3pop, prefix, inds, pops, f2_args, {"pop1": pop1, "pop2": pop2, "pop3": pop3},
+                       qp3pop_args)
+
+
+for _f, _what in [(qpadm_resample_inds, "qpAdm"), (qpwave_resample_inds, "qpWave"),
+                  (qpgraph_resample_inds, "qpGraph"), (qpdstat_resample_inds, "f4-statistics"),
+                  (qp3pop_resample_inds, "f3-statistics")]:
+    _f.__doc__ = f"{_what} with each individual left out in turn (admixtools2 ``{_f.__name__}``)." + _INDS_DOC

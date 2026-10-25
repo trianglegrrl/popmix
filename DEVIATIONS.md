@@ -374,6 +374,13 @@ These change no number that both tools compute.
   `qpadm_models` and the resampling functions return pandas data frames
   with admixtools2's rows and columns; `qpadm_p` returns one row as a dict.
   Resampling block indices (`sel`) are 0-based.
+- **Leaving out individuals recomputes the usual f2.** admixtools2's
+  `*_resample_inds` read per-individual and per-pair counts precomputed by
+  `extract_counts()` and combine them into f2 (`indpairs_to_f2blocks`), an
+  estimator of its own. popmix's take a genotype prefix and recompute f2
+  without each individual as `extract_f2` (admixtools2 `f2_from_geno(inds,
+  pops)`) does, so they agree with admixtools2's statistics on those f2
+  blocks.
 - **Resampling seeds are explicit.** admixtools2's bootstrap draws from R's
   global random state, and runs qpGraph in parallel streams (furrr) unless
   given a `seed`. popmix takes the bootstrap seed as `boot_seed` (the same

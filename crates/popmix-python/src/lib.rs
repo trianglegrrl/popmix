@@ -1357,11 +1357,15 @@ impl PyF2Blocks {
 ///         as admixtools2 ``maxmiss`` (default: 0, every population needs data)
 ///     poly_only: Use only SNPs whose frequency differs between populations,
 ///         as admixtools2 ``poly_only = "f2"`` (default: True)
+///     inds, pops: Use only these samples, each in the population given in
+///         ``pops`` (same length) instead of its ``.ind`` label, as
+///         admixtools2 ``f2_from_geno(inds, pops)``
 ///
 /// Returns:
 ///     PyF2Blocks object for computing f2, f3, f4 statistics
 #[pyfunction]
-#[pyo3(signature = (prefix, populations, auto_only=true, block_size=None, maxmiss=0.0, poly_only=true))]
+#[pyo3(signature = (prefix, populations, auto_only=true, block_size=None, maxmiss=0.0, poly_only=true, inds=None, pops=None))]
+#[allow(clippy::too_many_arguments)]
 fn extract_f2(
     prefix: &str,
     populations: Vec<String>,
@@ -1369,8 +1373,12 @@ fn extract_f2(
     block_size: Option<f64>,
     maxmiss: f64,
     poly_only: bool,
+    inds: Option<Vec<String>>,
+    pops: Option<Vec<String>>,
 ) -> PyResult<PyF2Blocks> {
     use std::path::Path;
+
+    let relabel = sample_labels(inds, pops)?;
 
     if !(0.0..=1.0).contains(&maxmiss) {
         return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
@@ -1397,6 +1405,9 @@ fn extract_f2(
 
         let mut samples = popmix_io::eigenstrat::read_ind_file(&ind_path).map_err(to_py_err)?;
         let snps = popmix_io::eigenstrat::read_snp_file(&snp_path).map_err(to_py_err)?;
+        if let Some(labels) = &relabel {
+            apply_sample_labels(&mut samples, labels)?;
+        }
 
         // Detect ploidy by streaming through first 1000 SNPs
         detect_ploidy_packedancestrymap(&geno_path, &mut samples, 1000, snps.len())
@@ -1417,7 +1428,10 @@ fn extract_f2(
     }
 
     // Fallback: load all genotypes for other formats (PLINK, text EIGENSTRAT)
-    let geno = read_genotypes_internal(prefix)?;
+    let mut geno = read_genotypes_internal(prefix)?;
+    if let Some(labels) = &relabel {
+        apply_sample_labels(geno.samples_mut(), labels)?;
+    }
 
     // Filter to autosomal if requested
     let geno = if auto_only {
@@ -1434,6 +1448,50 @@ fn extract_f2(
     let f2_blocks = F2Blocks::from_allele_frequencies_with_options(&af, &block_def, &f2_options);
 
     Ok(PyF2Blocks { inner: f2_blocks })
+}
+
+/// The population label of an excluded sample: no population is called this.
+const EXCLUDED: &str = "\u{0}excluded";
+
+/// admixtools2 `inds`/`pops`: each listed sample's population.
+fn sample_labels(
+    inds: Option<Vec<String>>,
+    pops: Option<Vec<String>>,
+) -> PyResult<Option<HashMap<String, String>>> {
+    match (inds, pops) {
+        (None, None) => Ok(None),
+        (Some(inds), Some(pops)) if inds.len() == pops.len() => {
+            let n = inds.len();
+            let labels: HashMap<String, String> = inds.into_iter().zip(pops).collect();
+            if labels.len() < n {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    "a sample is listed twice in inds",
+                ));
+            }
+            Ok(Some(labels))
+        }
+        (Some(_), Some(_)) => Err(pyo3::exceptions::PyValueError::new_err(
+            "inds and pops must have the same length: one population per sample",
+        )),
+        _ => Err(pyo3::exceptions::PyValueError::new_err(
+            "give inds and pops together",
+        )),
+    }
+}
+
+/// Give the listed samples their populations and leave out the rest.
+fn apply_sample_labels(samples: &mut [Sample], labels: &HashMap<String, String>) -> PyResult<()> {
+    let known: std::collections::HashSet<&str> = samples.iter().map(|s| s.id.as_str()).collect();
+    if let Some(missing) = labels.keys().find(|id| !known.contains(id.as_str())) {
+        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "sample {missing:?} is not in the genotype data"
+        )));
+    }
+    for s in samples.iter_mut() {
+        s.population =
+            popmix_core::PopulationId::from(labels.get(&s.id).map_or(EXCLUDED, |p| p.as_str()));
+    }
+    Ok(())
 }
 
 /// Compute F2 blocks from allele frequencies.

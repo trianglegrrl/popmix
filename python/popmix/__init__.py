@@ -88,11 +88,16 @@ from popmix.resample import (
     boo_list,
     compare_fits,
     loo_list,
+    qp3pop_resample_inds,
     qp3pop_resample_snps,
+    qpadm_resample_inds,
     qpadm_resample_snps,
+    qpdstat_resample_inds,
     qpdstat_resample_snps,
+    qpgraph_resample_inds,
     qpgraph_resample_multi,
     qpgraph_resample_snps,
+    qpwave_resample_inds,
     qpwave_resample_snps,
 )
 from popmix.sfs import Sfs, joint_sfs, sfs
@@ -180,6 +185,11 @@ __all__ = [
     "qpwave_resample_snps",
     "qpdstat_resample_snps",
     "qp3pop_resample_snps",
+    "qpadm_resample_inds",
+    "qpwave_resample_inds",
+    "qpgraph_resample_inds",
+    "qpdstat_resample_inds",
+    "qp3pop_resample_inds",
     # qpGraph functions
     "build_tree",
     "qpgraph",

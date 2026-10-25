@@ -5,6 +5,7 @@ these check the interfaces on the small test data.
 """
 
 import os
+from pathlib import Path
 
 import popmix as pm
 import pytest
@@ -74,3 +75,18 @@ def test_qpgraph_resample_multi_scores_held_out_blocks(f2):
     assert len(fits) == 2 and all(len(f) == 3 for f in fits)
     assert list(fits[0].score_test) == list(fits[1].score_test)
     assert all(s > 0 for s in fits[0].score_test)
+
+
+def test_resample_inds_leaves_out_each_individual_of_a_larger_population():
+    ind = [line.split() for line in Path(f"{PREFIX}.ind").read_text().splitlines()]
+    def first(pop, n):
+        return [r for r in ind if r[2] == pop][:n]
+
+    rows = first("French", 3) + first("Simulation.1", 2) + first("Simulation", 1) + first("Yoruba", 2)
+    inds, pops = [r[0] for r in rows], [r[2] for r in rows]
+    t = pm.qpadm_resample_inds(PREFIX, inds, pops, "Simulation.1", ["French"], RIGHT, f2_args={"auto_only": False})
+    singles = [i for i, p in zip(inds, pops) if pops.count(p) == 1]  # noqa: B905
+    assert list(t.ind) == [i for i in inds if i not in singles]
+    assert t.error.isna().all()
+    with pytest.raises(ValueError, match="same length"):
+        pm.qpadm_resample_inds(PREFIX, inds, pops[:-1], "Simulation.1", ["French"], RIGHT)

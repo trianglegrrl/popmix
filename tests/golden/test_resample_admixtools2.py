@@ -176,3 +176,55 @@ def test_fstat_resample_snps(f2_blocks, fun):
     np.testing.assert_array_equal(ours["id"], [r["id"] for r in t["rows"]])
     np.testing.assert_allclose(ours["est"], [float(r["est"]) for r in t["rows"]], rtol=F_RTOL, atol=1e-15)
     np.testing.assert_allclose(ours["se"], [float(r["se"]) for r in t["rows"]], rtol=SE_RTOL)
+
+
+INDS_FILE = REF_DIR / "resample_inds.json"
+
+
+@pytest.fixture(scope="module")
+def inds_ref():
+    if not INDS_FILE.exists():
+        pytest.skip("resample_inds.json not generated")
+    ref = json.loads(INDS_FILE.read_text())
+    if not os.path.exists(f"{ref['prefix']}.geno"):
+        pytest.skip(f"genotype data not available: {ref['prefix']}")
+    return ref
+
+
+def _f2_args(ref: dict) -> dict:
+    p = ref["params"]
+    return {"auto_only": p["auto_only"], "block_size": p["blgsize"], "maxmiss": p["maxmiss"],
+            "poly_only": p["poly_only"] == "f2"}
+
+
+@pytest.mark.slow
+def test_resample_inds(inds_ref):
+    """Each statistic with each individual left out, against admixtools2 on
+    f2_from_geno(inds, pops) without that individual."""
+    ref = inds_ref
+    args = (ref["prefix"], ref["inds"], ref["pops"])
+    f2a = _f2_args(ref)
+    qa = pm.qpadm_resample_inds(*args, ref["qpadm"]["target"], ref["qpadm"]["left"], ref["qpadm"]["right"],
+                                f2_args=f2a)
+    qw = pm.qpwave_resample_inds(*args, ref["qpwave"]["left"], ref["qpwave"]["right"], f2_args=f2a)
+    qd = pm.qpdstat_resample_inds(*args, *ref["qpdstat"], f2_args=f2a)
+    q3 = pm.qp3pop_resample_inds(*args, *ref["qp3pop"], f2_args=f2a)
+    qg = pm.qpgraph_resample_inds(*args, [tuple(e) for e in ref["graph"]], f2_args=f2a, seed=1)
+    rows = ref["rows"]
+    assert list(qa.ind) == [r["ind"] for r in rows] == list(qd.ind) == list(qg.ind)
+    for k, r in enumerate(rows):
+        where = r["ind"]
+        assert qa.error[k] is None and qg.error[k] is None, where
+        np.testing.assert_allclose(qa.weights[k], [float(w) for w in r["qpadm"]["weights"]], rtol=0, atol=WEIGHT_TOL)
+        np.testing.assert_allclose(qa.result[k].weight_std_errors, [float(w) for w in r["qpadm"]["se"]], rtol=SE_RTOL)
+        assert qa.chisq[k] == pytest.approx(float(r["qpadm"]["chisq"]), rel=SE_RTOL), where
+        rd = qw.rankdrop[k]
+        assert [x["f4rank"] for x in rd] == r["qpwave"]["f4rank"], where
+        np.testing.assert_allclose([x["chisq"] for x in rd], [float(c) for c in r["qpwave"]["chisq"]], rtol=SE_RTOL)
+        assert qd.est[k] == pytest.approx(float(r["qpdstat"]["est"]), rel=F_RTOL), where
+        assert qd.se[k] == pytest.approx(float(r["qpdstat"]["se"]), rel=SE_RTOL), where
+        assert q3.est[k] == pytest.approx(float(r["qp3pop"]["est"]), rel=F_RTOL), where
+        assert q3.se[k] == pytest.approx(float(r["qp3pop"]["se"]), rel=SE_RTOL), where
+        assert qg.score[k] == pytest.approx(float(r["qpgraph"]["score"]), rel=OPT_RTOL), where
+        spread = float(r["qpgraph"]["high"]) - float(r["qpgraph"]["low"])
+        assert abs(qg.weights[k][0] - float(r["qpgraph"]["weight"])) <= max(WEIGHT_TOL, spread), where

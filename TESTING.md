@@ -769,6 +769,14 @@ scores 5e-12, out-of-sample scores 4.5e-8, qpGraph weights 1.4e-5 on a graph
 whose starts spread over 4e-5. `crates/popmix-core/tests/rcompat_golden.rs`
 also checks R's `sample(replace = TRUE)`, which draws the blocks, exactly.
 
+With `--run-slow`, `test_resample_inds` checks the `_resample_inds`
+functions against `resample_inds.json` (`generate_resample_inds.R`): three
+samples of each dg_6pop population and Chimp.REF; for each of the 15 in a
+population of more than one, qpAdm, qpWave, qpdstat, qp3pop and qpGraph on
+admixtools2's `f2_from_geno(inds, pops)` without it, at the tolerances
+above. `tests/python/test_extract_f2_formats.py` checks `extract_f2(inds,
+pops)` itself.
+
 ### f4-, D- and f3-statistic scans vs admixtools2 2.0.10
 
 `tests/golden/test_dstat_admixtools2.py` checks `qpdstat` and `qp3pop` given
@@ -1075,6 +1083,7 @@ The `chr20_22_reference.json` contains:
 | `fst.json` | FST block lengths and blocks, `fst()` |
 | `qpadm_models.json` (dg_11pop) | `qpadm_p`, `test_cladality`, `qpwave_pairs`, `qpadm_rotate`, `rotate_models`, `qpadm_multi`, `qpadm_models` |
 | `resample.json` (dg_6pop) | `boo_list` draws; qpGraph, qpAdm, qpWave, qpdstat and qp3pop `_resample_snps`; `qpgraph_resample_multi`; `compare_fits` |
+| `resample_inds.json` (dg_6pop) | qpAdm, qpWave, qpdstat, qp3pop and qpGraph with each of 15 samples left out (`f2_from_geno(inds, pops)`) |
 
 ### Test Data Requirements by Test Type
 
