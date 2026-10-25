@@ -27,6 +27,17 @@ pub mod streaming;
 pub mod vcf;
 pub mod writers;
 
+/// Check that `range` is a range of SNP indices of a file with `n_snps` SNPs.
+pub(crate) fn check_snp_range(range: &std::ops::Range<usize>, n_snps: usize) -> Result<()> {
+    if range.start > range.end || range.end > n_snps {
+        return Err(PopmixError::Validation(format!(
+            "SNP range {}..{} is not within the {n_snps} SNPs of the file",
+            range.start, range.end
+        )));
+    }
+    Ok(())
+}
+
 /// Supported genotype file formats.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GenoFormat {

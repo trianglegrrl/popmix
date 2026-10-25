@@ -140,6 +140,7 @@ impl PlinkReader {
     ///
     /// Returns a GenotypeMatrix with only the specified SNPs.
     pub fn read_snp_range(&mut self, range: std::ops::Range<usize>) -> Result<GenotypeMatrix> {
+        crate::check_snp_range(&range, self.snps.len())?;
         // Copy values before mmap borrow
         let n_samples = self.samples.len();
         let n_snps = range.len();
@@ -168,6 +169,7 @@ impl PlinkReader {
 
     /// Read genotypes for a single SNP.
     pub fn read_snp(&mut self, snp_idx: usize) -> Result<Vec<Genotype>> {
+        crate::check_snp_range(&(snp_idx..snp_idx + 1), self.snps.len())?;
         // Copy values before mmap borrow
         let n_samples = self.samples.len();
         let bytes_per_snp = self.bytes_per_snp;

@@ -152,6 +152,7 @@ impl PackedAncestryMapReader {
 
     /// Read genotypes for a range of SNPs.
     pub fn read_snp_range(&mut self, range: std::ops::Range<usize>) -> Result<GenotypeMatrix> {
+        crate::check_snp_range(&range, self.snps.len())?;
         // Copy values before mmap borrow
         let n_samples = self.samples.len();
         let n_snps = range.len();

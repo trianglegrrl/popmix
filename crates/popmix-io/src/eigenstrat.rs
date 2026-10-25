@@ -85,6 +85,7 @@ impl EigenstratReader {
     ///
     /// Returns a GenotypeMatrix with only the specified SNPs.
     pub fn read_snp_range(&self, range: std::ops::Range<usize>) -> Result<GenotypeMatrix> {
+        crate::check_snp_range(&range, self.snps.len())?;
         let geno_path = format!("{}.geno", self.prefix);
         let file = File::open(&geno_path).map_err(|e| PopmixError::io_with_path(e, &geno_path))?;
         let reader = BufReader::new(file);
@@ -337,5 +338,27 @@ mod tests {
             Some(Genotype::Missing)
         );
         assert_eq!(Genotype::from_eigenstrat_char(b'X'), None);
+    }
+
+    #[test]
+    fn a_snp_range_outside_the_file_is_an_error() {
+        let fixture = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/small_eigenstrat"
+        );
+        let reader = EigenstratReader::new(fixture).unwrap();
+        let n = reader.snps().len();
+        assert_eq!(reader.read_snp_range(1..n).unwrap().n_snps(), n - 1);
+        for range in [
+            0..n + 1,
+            n + 5..n + 10,
+            std::ops::Range { start: 3, end: 2 },
+        ] {
+            let err = reader
+                .read_snp_range(range.clone())
+                .unwrap_err()
+                .to_string();
+            assert!(err.contains("SNP range"), "{range:?}: {err}");
+        }
     }
 }
