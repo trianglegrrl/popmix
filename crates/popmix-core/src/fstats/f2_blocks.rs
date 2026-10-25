@@ -58,7 +58,7 @@ pub struct F2Blocks {
     pub fst: Option<FstBlocks>,
 }
 
-/// Per-block FST numerator and denominator, as admixtools2 `mats_to_fstarr`.
+/// Per-block FST numerator and denominator, on admixtools2's FST SNP set.
 ///
 /// admixtools2 computes FST on all SNPs kept by `maxmiss`, monomorphic ones
 /// included, with blocks built on those SNPs, so these blocks differ from
@@ -171,7 +171,8 @@ impl Default for F2Options {
     }
 }
 
-/// admixtools2 `cpp_is_polymorphic`: some two observed frequencies differ.
+/// Whether a SNP is polymorphic across populations: some two observed
+/// frequencies differ (missing populations are ignored).
 fn is_polymorphic(freqs: ndarray::ArrayView1<f64>) -> bool {
     let mut observed = freqs.iter().filter(|f| f.is_finite());
     match observed.next() {
@@ -180,8 +181,9 @@ fn is_polymorphic(freqs: ndarray::ArrayView1<f64>) -> bool {
     }
 }
 
-/// Rows of `af` kept by admixtools2 `discard_from_aftable` (maxmiss) and,
-/// if asked, `cpp_is_polymorphic`.
+/// Rows of `af` kept for the f2 blocks: SNPs missing in more than
+/// `max_missing` of the populations are dropped and, if `poly_only`, so are
+/// SNPs not polymorphic across the populations.
 fn kept_snps(af: &AlleleFrequencies, opts: &F2Options) -> Vec<usize> {
     let n_pops = af.populations.len() as f64;
     (0..af.snps.len())
@@ -731,7 +733,7 @@ mod tests {
         }
     }
 
-    /// admixtools2 per-SNP f2 (cpp_mats_to_f2_arr).
+    /// Per-SNP bias-corrected f2: (p1 - p2)^2 - p1(1-p1)/(n1-1) - p2(1-p2)/(n2-1).
     fn snp_f2(a: (f64, u32), b: (f64, u32)) -> f64 {
         let corr = |(p, n): (f64, u32)| p * (1.0 - p) / (n as f64 - 1.0).max(1.0);
         (a.0 - b.0).powi(2) - corr(a) - corr(b)
@@ -854,10 +856,10 @@ mod tests {
 
     #[test]
     fn test_f2_estimate_and_se_weight_blocks_by_length() {
-        // Two blocks of 3 and 1 SNPs. admixtools2 (est_to_loo +
-        // cpp_jack_vec_stats): the estimate is the length-weighted mean of
-        // block means, and the variance is the weighted block jackknife
-        // mean over blocks of (h - 1)(est - loo)^2, h = total / length.
+        // Two blocks of 3 and 1 SNPs. As in admixtools2 f2(): the estimate
+        // is the length-weighted mean of block means, and the variance is
+        // the weighted block jackknife mean over blocks of
+        // (h - 1)(est - loo)^2, h = total / length.
         let pop = |p: f64| [(p, 10), (0.5, 10), (0.5, 10)];
         let rows = [
             (0.00, pop(0.1)),
