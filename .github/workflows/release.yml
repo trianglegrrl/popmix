@@ -1,0 +1,141 @@
+# Build wheels and the sdist, check that each wheel installs and runs, and
+# publish to PyPI when a version tag (v1.2.3) is pushed. Running it by hand
+# (workflow_dispatch) builds and checks without publishing.
+#
+# Publishing uses PyPI trusted publishing: on pypi.org, the popmix project
+# trusts this repository, workflow file release.yml and environment "pypi".
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            target: x86_64
+          - runner: ubuntu-24.04-arm
+            target: aarch64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          manylinux: "2014"
+          args: --release --out dist -i python3.9 python3.10 python3.11 python3.12 python3.13
+      - name: Install and run the wheel
+        run: |
+          # the built wheel, then the dependencies it declares, from PyPI
+          pip install popmix --no-index --find-links dist --no-deps
+          pip install popmix --find-links dist
+          popmix --version
+          python -c "import popmix, popmix._core; print(popmix.__version__)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-linux-${{ matrix.target }}
+          path: dist
+
+  macos:
+    strategy:
+      matrix:
+        include:
+          - runner: macos-13
+            target: x86_64
+          - runner: macos-14
+            target: aarch64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: |
+            3.9
+            3.10
+            3.11
+            3.12
+            3.13
+      - uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist -i python3.9 python3.10 python3.11 python3.12 python3.13
+      - name: Install and run the wheel
+        run: |
+          # the built wheel, then the dependencies it declares, from PyPI
+          pip install popmix --no-index --find-links dist --no-deps
+          pip install popmix --find-links dist
+          popmix --version
+          python -c "import popmix, popmix._core; print(popmix.__version__)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-macos-${{ matrix.target }}
+          path: dist
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: |
+            3.9
+            3.10
+            3.11
+            3.12
+            3.13
+      - uses: PyO3/maturin-action@v1
+        with:
+          target: x64
+          args: --release --out dist -i python3.9 python3.10 python3.11 python3.12 python3.13
+      - name: Install and run the wheel
+        shell: bash
+        run: |
+          # the built wheel, then the dependencies it declares, from PyPI
+          pip install popmix --no-index --find-links dist --no-deps
+          pip install popmix --find-links dist
+          popmix --version
+          python -c "import popmix, popmix._core; print(popmix.__version__)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-windows-x64
+          path: dist
+
+  sdist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-sdist
+          path: dist
+
+  publish:
+    needs: [linux, macos, windows, sdist]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/popmix/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wheels-*
+          merge-multiple: true
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@release/v1
