@@ -89,3 +89,63 @@ def heatmap(
     if path is not None:
         ax.figure.savefig(path, dpi=150)
     return ax
+
+
+def pca(
+    result,
+    *,
+    x: int = 1,
+    y: int = 2,
+    title: str | None = None,
+    path: str | os.PathLike[str] | None = None,
+    ax: Any = None,
+):
+    """Scatter plot of two principal components of a ``smartpca`` result.
+
+    PCA samples are drawn as filled circles and projected samples as open
+    triangles, colored by population.
+
+    Parameters
+    ----------
+    result
+        A ``popmix.PcaResult``.
+    x, y
+        Components on the axes (from 1).
+    title
+        Plot title.
+    path
+        If given, save the figure there.
+    ax
+        Axes to draw on; a new figure if None.
+
+    Returns
+    -------
+    matplotlib.axes.Axes
+    """
+    plt = _pyplot()
+    df = result.coords
+    if ax is None:
+        _, ax = plt.subplots(figsize=(7, 6))
+    pops = list(dict.fromkeys(df["pop"]))
+    colors = plt.get_cmap("tab20" if len(pops) > 10 else "tab10")
+    for i, p in enumerate(pops):
+        for role, marker, fill in (("pca", "o", True), ("project", "^", False)):
+            d = df[(df["pop"] == p) & (df["role"] == role)]
+            if d.empty:
+                continue
+            color = colors(i % colors.N)
+            ax.scatter(d[f"PC{x}"], d[f"PC{y}"], marker=marker, s=18,
+                       facecolors=color if fill else "none", edgecolors=color, label=p)
+    ev = result.eigenvalues
+    share = ev / ev.sum()
+    ax.set_xlabel(f"PC{x} ({100 * share[x - 1]:.1f}%)")
+    ax.set_ylabel(f"PC{y} ({100 * share[y - 1]:.1f}%)")
+    handles, labels = ax.get_legend_handles_labels()
+    unique = dict(zip(labels, handles))  # noqa: B905 (strict= needs Python 3.10)
+    ax.legend(unique.values(), unique.keys(), fontsize=7, frameon=False, loc="best")
+    if title:
+        ax.set_title(title)
+    ax.figure.tight_layout()
+    if path is not None:
+        ax.figure.savefig(path, dpi=150)
+    return ax

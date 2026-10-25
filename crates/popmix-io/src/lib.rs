@@ -161,7 +161,8 @@ pub use packedancestrymap::{is_packed_format, PackedAncestryMapReader};
 pub use ped::PedReader;
 pub use plink::PlinkReader;
 pub use streaming::{
-    compute_allele_frequencies_packedancestrymap, detect_ploidy_packedancestrymap, PackedRows,
+    compute_allele_frequencies_packedancestrymap, detect_ploidy_packedancestrymap,
+    detect_ploidy_packedancestrymap_selected, PackedRows,
 };
 pub use vcf::VcfReader;
 pub use writers::{

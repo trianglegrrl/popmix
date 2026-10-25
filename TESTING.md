@@ -767,6 +767,92 @@ dataset: combination generation, the outgroup-f3 and D matrices (symmetry,
 entries equal to the scans), clustering order, heatmaps, and the `qpdstat`,
 `qp3pop`, `outgroup-f3` and `dstat-matrix` commands.
 
+### PCA vs EIGENSOFT 7.2.1 smartpca
+
+`tests/golden/test_pca_eigensoft.py` checks `smartpca` against EIGENSOFT
+7.2.1 smartpca (`tests/golden/eigensoft/v7.2.1/<config>/pca.json`). The
+stock binary prints eigenvector entries to 4 decimals and eigenvalues to 6,
+so the reference comes from smartpca built from the 7.2.1 source with only
+its output formats changed to `%.17g` (`smartpca-hiprec.patch`,
+`build_smartpca.sh`); `generate_pca.py` runs both and checks that they agree
+to the stock binary's printed precision.
+
+| Check | Compared against | Tolerance |
+|-------|------------------|-----------|
+| `test_snps` | SNPs used in the final pass, SNPs dropped as monomorphic, PCA samples | exact |
+| `test_outliers` | `REMOVED outlier` lines: sample, round, eigenvector, score | exact; score rtol 1e-6 |
+| `test_eigenvalues` | every eigenvalue (`evaloutname`) | rtol 1e-9 |
+| `test_coords` | every sample's coordinates (`evecoutname`), PCA and projected, each eigenvector up to sign | atol 1e-9 |
+| `test_tracy_widom` | the Tracy-Widom table, `compat="eigensoft-7.2.1"` | TW and neff rtol 1e-6, p rtol 1e-4 |
+| `test_corrected_p_values_differ_only_beyond_the_table` | EIGENSOFT-0001 | exact factor |
+
+Configs: `family_all` (all 54 samples), `family_lsqproject` and
+`family_project_no_outliers` (PCA on French and Yoruba, Simulation and
+Simulation.1 projected, with and without `lsqproject`), and with
+`--run-slow` `aadr_1kg_lsqproject` and `aadr_1kg_project` (PCA on six 1000
+Genomes populations, CEU, TSI, FIN, YRI, CHB, GIH; 63 YRI outliers removed
+over five rounds; three ancient populations projected). Regenerate with
+`tests/golden/eigensoft/build_smartpca.sh`, then
+`python tests/golden/eigensoft/generate_pca.py [config...]`.
+
+`tests/python/test_pca.py` checks the API's defaults and errors, the PCA
+plot and the `pca` command.
+
+### Kinship vs PLINK 2 (KING-robust) and READv2
+
+`tests/golden/test_king_plink2.py` checks `king` against PLINK v2.0.0-a.7LM
+(`tests/golden/plink2/<version>/<config>/king.json`, from
+`generate_king.py`): the config's populations are written as PLINK files by
+EIGENSOFT convertf, and PLINK 2 run with `--make-king-table counts` (per-pair
+counts) and `--make-king bin` (the kinship matrix as doubles).
+
+| Check | Compared against | Tolerance |
+|-------|------------------|-----------|
+| `test_pairs` | the pairs, in PLINK 2's order | exact |
+| `test_counts` | NSNP, HETHET, IBS0 and the het-hom counts (PLINK2-0001: labels swapped) | exact |
+| `test_kinship` | `.king.bin`, minus infinity for pseudo-haploid samples | rtol 1e-10 |
+
+Configs: `family` (all 54 samples) and, with `--run-slow`,
+`aadr_yri_ceu_lbk` (YRI.DG, CEU.DG and 69 pseudo-haploid Germany_EN_LBK.AG
+samples; 36,046 pairs).
+
+`tests/golden/test_read_readv2.py` checks `read_kinship` against READv2 2.01
+(`tests/golden/readv2/73739be/<config>/read.json`, from `generate_read.py`,
+with READv2 installed as that script describes), run with its defaults on
+PLINK files written by EIGENSOFT convertf. With `compat="readv2-2.01"`: the
+normalization value (rtol 1e-12), the relationship and first-degree type of
+every pair and the overlapping SNPs (exact), and P0, normalized P0, SEs, z
+scores, the share of first-degree windows, effective SNPs, the kinship and
+its interval (rtol 1e-10). Corrected, P0 and kinship are unchanged and only
+the SEs and interval differ. Configs: `family` (49 diploid French and Yoruba
+samples) and, with `--run-slow`, `aadr_gurgy` (the 78 pseudo-haploid
+Neolithic Gurgy samples, whose pedigree has 59 first-degree pairs: 29 called
+parent-offspring, 28 siblings).
+
+`tests/python/test_kinship.py` checks the API's options and the `kinship`
+command.
+
+### Site-frequency spectra vs admixtools2 and dadi
+
+`tests/golden/test_sfs.py` checks:
+
+| Check | Compared against | Tolerance |
+|-------|------------------|-----------|
+| `test_joint_sfs_as_admixtools2` | admixtools2 `joint_sfs()` on `packedancestrymap_to_afs()` (`sfs.json`, from `generate_sfs.R`), `compat="admixtools2-2.0.10"`: every cell of the table, SNPs counted | exact |
+| `test_joint_sfs_corrected_keeps_the_inexact_snps` | ADMIXTOOLS2-0003: corrected, every SNP with data in every population is counted | exact |
+| `test_projected_sfs_as_dadi` | dadi 2.4.4 `Spectrum.from_data_dict` (`tests/golden/dadi/v2.4.4/<config>/sfs.json`, from `generate_sfs.py`) on allele counts from PLINK 2, projected, unfolded and folded | rtol 1e-10; folded mask exact |
+| `test_summary_statistics_as_dadi` | dadi `S`, `pi`, `Watterson_theta`, `Tajima_D` of one-population spectra | rtol 1e-10 |
+
+admixtools2 configs: `family_3pop` (Simulation, Simulation.1, Yoruba) and,
+with `--run-slow`, `dg_3pop` (Mbuti.DG, Han.DG, Chimp.REF) and
+`ancient_2pop` (pseudo-haploid Yamnaya with missing data, French.DG). dadi
+configs: `family` (Yoruba at full size and projected, French, French x
+Yoruba) and, with `--run-slow`, `aadr_1kg` (CEU.DG at full size and
+projected, YRI.DG, CEU x YRI, CEU x YRI x CHB), autosomes only.
+
+`tests/python/test_sfs.py` checks projection, folding, the summary
+statistics' errors, the joint table layout and the `sfs` command.
+
 `tests/python/test_cli.py::TestCommandsMatchAdmixtools2` (`--run-slow`) runs
 the CLI itself (`popmix extract-f2`, then `f2`, `f3`, `f4`, `qpwave`, `qpadm`
 with `--f2-dir`) on the dg_6pop populations and compares with the same

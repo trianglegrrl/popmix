@@ -121,6 +121,13 @@ impl GenotypeMatrix {
         }
     }
 
+    /// Mark every sample diploid.
+    pub fn set_all_diploid(&mut self) {
+        self.samples
+            .iter_mut()
+            .for_each(|s| s.ploidy = Ploidy::Diploid);
+    }
+
     /// Get unique population IDs in order of first appearance.
     pub fn populations(&self) -> Vec<PopulationId> {
         let mut seen = std::collections::HashSet::new();

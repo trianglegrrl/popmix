@@ -15,6 +15,12 @@ rules for adding one.
 | DATES-0003 | Fits the printed (rounded) values | Full precision | `compat="dates-v753"` |
 | ADMIXTOOLS2-0001 | qpAdm `popdrop` nested path compares siblings, not nested models | A real nested path from the full model | `compat="admixtools2-2.0.10"` |
 | ADMIXTOOLS2-0002 | Constrained qpAdm with ≥ 3 sources stops with an error | Returns the full result | nothing to reproduce |
+| ADMIXTOOLS2-0003 | `joint_sfs()` drops SNPs whose allele count is not exactly an integer in floating point | Counts them | `compat="admixtools2-2.0.10"` (`joint_sfs`) |
+| EIGENSOFT-0001 | smartpca reports the Tracy-Widom density as the p-value beyond its table | The tail | `compat="eigensoft-7.2.1"` |
+| PLINK2-0001 | `--make-king-table` labels its two het-hom counts the wrong way round | Counts named as they are | nothing to reproduce (labels only) |
+| READV2-0001 | Each jackknife window also counts the last SNP of the window before | Disjoint windows | `compat="readv2-2.01"` |
+| READV2-0002 | The block jackknife never leaves out the last window | Every window left out once | `compat="readv2-2.01"` |
+| READV2-0003 | The "kinship coefficient" 95% interval is that of the normalized P0 | The kinship coefficient's interval | `compat="readv2-2.01"` |
 
 ## The process
 
@@ -241,12 +247,37 @@ qpWave/qpAdm fits by the C++ code path (`cpp = TRUE`, the default).
   `qpadm_popdrop_corrected` on `dg_11pop`; `fit.rs`
   `test_constrained_popdrop_with_three_sources`.
 
+### ADMIXTOOLS2-0003: joint_sfs() drops SNPs whose count is not exactly an integer
+
+- **admixtools2:** `joint_sfs()` (`R/fstats.R`) takes the allele count of
+  each population as `afs * counts`, frequency times sample size, groups the
+  SNPs by those values and joins them onto the integer grid
+  `expand_grid(0:max_count, ...)`. Frequency times sample size is not always
+  an exact integer in floating point (23/42 * 42 = 23.000000000000004), and
+  such a SNP matches no row of the grid, so it is silently left out.
+- **Effect:** 930 of 21,162 SNPs (4.4%) of `family_3pop` and 67,979 of
+  1,233,013 (5.5%) of `dg_3pop` are dropped, depending only on the sample
+  sizes and counts; the spectrum is not just smaller but distorted, since
+  which counts round badly depends on the count.
+- **popmix:** counts within 1e-6 of an integer are rounded. Half counts (a
+  heterozygous call in a pseudo-haploid sample) are still left out, and
+  reported.
+- **Also documented, not a bug in the numbers:** `joint_sfs(pref = ...)`
+  calls `geno_to_afs()`, which does not exist in 2.0.10; the reference
+  generator calls `packedancestrymap_to_afs()` and passes its result.
+
 ### Matched, not corrected
 
 - **Ploidy from the first 1,000 SNPs.** A sample is treated as
   pseudo-haploid if it has no heterozygous call among the first 1,000 SNPs
-  (`cpp_packedancestrymap_ploidy`). A low-coverage diploid sample with no
-  calls there would be misclassified. popmix matches this.
+  (`cpp_packedancestrymap_ploidy`). A diploid sample with no calls there is
+  misclassified: AADR's NA18606.DG (CHB, a high-coverage genome) is one. Its
+  heterozygous calls then count as half an allele. popmix matches this
+  everywhere admixtools2 uses it (f2, f3 from genotypes, `joint_sfs`); `sfs`
+  instead treats as pseudo-haploid only samples with no heterozygous call at
+  any SNP (`pseudohaploid="detect"`), since for a spectrum a half count drops
+  the SNP (258,804 of CEU x YRI x CHB's 1.1 million SNPs with the 1,000-SNP
+  rule).
 - **qpAdm weight SEs scale by sqrt(blocks - 1).** admixtools2's C++ path
   (`cpp_get_weights_covariance`, the default) and its R path
   (`get_weights_covariance`) scale the leave-one-out weights differently,
@@ -293,6 +324,13 @@ qpWave/qpAdm fits by the C++ code path (`cpp = TRUE`, the default).
   sequences to `get.edge.ids()`, which igraph 2 rejects. The reference
   generator shims that one call (same vertex ids, as a plain vector) and
   records it; this affects only how the reference is produced.
+- **joint_sfs() counts SNPs with missing data at their observed count.** A
+  SNP where 40 of 42 alleles are observed enters the 42-allele spectrum as if
+  its count were among 42. popmix's `joint_sfs` matches; `sfs` with a
+  projection (dadi's method) is the spectrum for data with missing calls.
+- **X and Y counted with autosomal ploidy.** admixtools2 reads every SNP and
+  counts a diploid male's X as two alleles. popmix's `joint_sfs` does the
+  same; `sfs` uses autosomes by default.
 - **FST drops missing blocks per pair.** `fst(f2_dir, pop1, pop2)` reads one
   pair and leaves out that pair's undefined blocks; `fst(prefix)` over many
   populations leaves out a block for every pair if any pair is undefined
@@ -320,3 +358,109 @@ These change no number that both tools compute.
 - **qp3pop on f2 blocks keeps the combination order.** admixtools2 returns
   it sorted by population (a side effect of dplyr `summarize`), but keeps the
   order from genotypes and in qpdstat; popmix keeps it in every case.
+
+## EIGENSOFT 7.2.1 (smartpca)
+
+`EigensoftCompat` in `crates/popmix-core/src/pca/tracy_widom.rs`;
+`compat="eigensoft-7.2.1"` in Python (`smartpca`), `--compat
+eigensoft-7.2.1` on the CLI (`pca`).
+
+### EIGENSOFT-0001: Tracy-Widom density reported as the p-value beyond the table
+
+- **smartpca:** `gettw` (`src/nicksrc/statsubs.c`) interpolates the
+  Tracy-Widom tail and density from a table on [-8, 8]. Beyond the table it
+  uses the Margetis-Edelman asymptotic forms, but assigns them the wrong way
+  round: `*tailp = twdensx (x); *densp = twtailx (x);`. Every eigenvalue
+  with a TW statistic above 8, which is any strongly significant one, gets
+  the asymptotic density as its p-value.
+- **Effect:** the density is the tail times sqrt(x), so the p-value is too
+  large by sqrt(TW): a factor of 5.1 for the first eigenvalue of
+  `family_all` (TW 26.3; 7.0e-41 printed, 1.3e-41 correct). Such p-values
+  are far below any threshold, so no conclusion changes.
+- **popmix:** the asymptotic tail. `test_corrected_p_values_differ_only_beyond_the_table`
+  checks that only these p-values change, by exactly 1/sqrt(TW).
+
+### Matched, not corrected
+
+- **Pseudo-haploid samples count as diploid.** smartpca reads genotypes 0, 1
+  and 2 whatever the sample's ploidy, so a pseudo-haploid sample coded 0/2
+  enters the mean and the normalization as a homozygote. popmix matches.
+- **Eigenvector signs.** They are whatever the eigensolver returns (LAPACK
+  `dspev` in smartpca, nalgebra in popmix), so they can differ between the
+  two; the tests compare each eigenvector up to sign.
+
+## PLINK 2 (KING-robust kinship)
+
+Checked against PLINK v2.0.0-a.7LM (31 Dec 2025).
+
+### PLINK2-0001: het-hom counts labeled the wrong way round
+
+- **PLINK 2:** `--make-king-table counts cols=...,ibs1` reports
+  `HET1_HOM2` and `HET2_HOM1`. `HET1_HOM2` holds the SNPs where IID2 is
+  heterozygous and IID1 homozygous, the reverse of its name: for the first
+  pair of `family` (IID1 NA00001, IID2 NA00000) it is 4210, and NA00000 is
+  the heterozygote at 4210 of those SNPs, NA00001 at 4360.
+- **Effect:** none on the kinship, which uses only their sum.
+- **popmix:** `het1_hom2` is het in `id1`, hom in `id2`. The golden test
+  compares it with PLINK's `HET2_HOM1`.
+
+### Matched, not corrected
+
+- **No heterozygote, kinship minus infinity.** KING-robust divides by the
+  smaller heterozygote count; a sample with none (any pseudo-haploid sample)
+  gives minus infinity, as in PLINK 2. popmix matches; READ-style kinship is
+  the estimator for such samples.
+
+## READv2 (READ-style kinship)
+
+`ReadCompat` in `crates/popmix-core/src/kinship/read.rs`;
+`compat="readv2-2.01"` in Python (`read_kinship`), `--compat readv2-2.01`
+on the CLI (`kinship --method read`). Checked against READv2 2.01
+(GuntherLab/READv2 commit 73739be).
+
+### READV2-0001: jackknife windows overlap by one SNP
+
+- **READv2:** windows are cut where `floor(position / window_size)` changes,
+  at indices `i` (the last SNP of a window), and taken as
+  `arr[pre_ind:i+1]` with `pre_ind = i` afterwards, so every window but the
+  first starts with the previous window's last SNP. The same happens to the
+  20 Mb windows that tell parent-offspring from siblings.
+- **Effect:** about one SNP in 2000 counts twice in the window SEs and the
+  first-degree window shares; the genome-wide P0 and the kinship are not
+  affected.
+- **popmix:** disjoint windows.
+
+### READV2-0002: the jackknife leaves out each window but the last
+
+- **READv2:** `blockJN_SE` computes the leave-one-out means for
+  `range(num_blocks - 1)`, so the last window is never left out, but scales
+  the variance by `(num_blocks - 1) / num_blocks` as if all were.
+- **Effect:** the SE misses one of about 600 replicates. With READV2-0001,
+  correcting both changes the SE by 1.6% for the median `aadr_gurgy` pair
+  and by up to 28%; no relationship or first-degree type changes there.
+- **popmix:** every window left out once.
+
+### READV2-0003: the kinship interval is the normalized P0's
+
+- **READv2:** `KinshipCoefficient_95percCI[min,max]` is the normalized P0
+  plus and minus 1.96 SE, next to `KinshipCoefficient`, which is 1 minus the
+  normalized P0. For a first-degree pair with kinship 0.272 it reports
+  [0.714, 0.741].
+- **popmix:** the interval of the kinship coefficient, 1 minus that interval
+  reversed ([0.259, 0.286]).
+
+### Matched, not corrected
+
+- **Unweighted windows in the jackknife.** The SE is the jackknife of the
+  plain mean of the 5 Mb windows' P0, not of the genome-wide P0 (which
+  weights windows by their SNPs); popmix matches.
+- **Unrelated pairs measured against the second-degree threshold.** For a
+  pair classified unrelated, `Zdown` is its distance in SEs to the
+  second-degree boundary (0.90625), not to the third-degree range (0.953125),
+  presumably because third-degree pairs cannot be told apart reliably;
+  popmix matches.
+- **Windows by base-pair bin only.** READv2 cuts windows where the bin
+  changes and ignores chromosome boundaries; on human data the bin changes
+  at every chromosome boundary anyway. popmix also cuts at chromosome
+  boundaries, except in compat mode.
+

@@ -22,7 +22,12 @@ Commands:
     qp3pop      f3-statistics for many population combinations
     outgroup-f3 Outgroup f3 matrix, with an optional heatmap
     dstat-matrix D-statistic matrix for pairs of populations, with an optional heatmap
+    pca         Principal component analysis as smartpca, with projection
+    kinship     Kinship for every pair of samples (KING-robust or READ-style)
+    sfs         Site-frequency spectrum (dadi projection or admixtools2 joint_sfs)
 """
+
+from __future__ import annotations
 
 import json
 import sys
@@ -40,7 +45,7 @@ def parse_population_list(ctx, param, value: str) -> list:
     return [p.strip() for p in value.split(",") if p.strip()]
 
 
-def parse_snp_range(ctx, param, value: Optional[str]) -> Optional[Tuple[int, int]]:
+def parse_snp_range(ctx, param, value: str | None) -> tuple[int, int] | None:
     """Parse SNP range in format 'start:end'."""
     if not value:
         return None
@@ -115,7 +120,7 @@ def f2_source_options(command):
     return command
 
 
-def load_f2_blocks(input_prefix: Optional[str], f2_dir: Optional[str], populations: list,
+def load_f2_blocks(input_prefix: str | None, f2_dir: str | None, populations: list,
                    block_size: float, maxmiss: float, all_chromosomes: bool):
     """f2 blocks for POPULATIONS, as admixtools2's extract_f2() computes them.
 
@@ -185,7 +190,7 @@ def info(prefix: str, populations: bool):
             for pop in pop_list[:5]:
                 click.echo(f"  - {pop}")
             click.echo(f"  ... and {len(pop_list) - 5} more")
-            click.echo(f"\nTip: Use --populations to show all populations with counts")
+            click.echo("\nTip: Use --populations to show all populations with counts")
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
@@ -196,7 +201,7 @@ def info(prefix: str, populations: bool):
 @click.option("--filter", "-f", "pattern", help="Filter populations (supports wildcards like French*)")
 @click.option("--format", "output_format", type=click.Choice(["text", "json", "tsv"]), default="text",
               help="Output format")
-def populations(prefix: str, pattern: Optional[str], output_format: str):
+def populations(prefix: str, pattern: str | None, output_format: str):
     """List all populations in a dataset with sample counts.
 
     PREFIX is the path prefix for the genotype files (without extension),
@@ -237,7 +242,7 @@ def populations(prefix: str, pattern: Optional[str], output_format: str):
                 click.echo()
                 if len(pop_counts) > 0:
                     example_pops = [p for p, _ in pop_counts[:3]]
-                    click.echo(f'Tip: Use --filter "pattern*" to search')
+                    click.echo('Tip: Use --filter "pattern*" to search')
                     click.echo(f'Tip: Specify populations with: --populations "{",".join(example_pops)}"')
 
     except Exception as e:
@@ -256,7 +261,7 @@ def populations(prefix: str, pattern: Optional[str], output_format: str):
 @click.option("--maxmiss", type=click.FloatRange(0, 1), default=0.0,
               help="Drop SNPs missing in more than this fraction of populations (default: 0)")
 @click.option("--auto-only/--all-chromosomes", default=True, help="Use only autosomal SNPs (default: auto-only)")
-def extract_f2(input_prefix: str, output_dir: str, snp_range: Optional[Tuple[int, int]],
+def extract_f2(input_prefix: str, output_dir: str, snp_range: tuple[int, int] | None,
                block_size: float, populations: list, maxmiss: float, auto_only: bool):
     """Extract F2 blocks from genotype data, as admixtools2's extract_f2().
 
@@ -309,7 +314,7 @@ def extract_f2(input_prefix: str, output_dir: str, snp_range: Optional[Tuple[int
 @f2_source_options
 @click.option("--format", "output_format", type=click.Choice(["text", "json", "tsv"]), default="text",
               help="Output format")
-def f2(pop1: str, pop2: str, input_prefix: Optional[str], f2_dir: Optional[str], block_size: float,
+def f2(pop1: str, pop2: str, input_prefix: str | None, f2_dir: str | None, block_size: float,
        maxmiss: float, all_chromosomes: bool, output_format: str):
     """Compute f2 statistic between two populations.
 
@@ -359,7 +364,7 @@ def stat_source_options(command):
     return command
 
 
-def stat_source(input_prefix: Optional[str], f2_dir: Optional[str], populations: list):
+def stat_source(input_prefix: str | None, f2_dir: str | None, populations: list):
     """The genotype prefix, or the saved f2 blocks, for a statistic scan."""
     if (input_prefix is None) == (f2_dir is None):
         raise click.UsageError("Give one of --input (genotypes) or --f2-dir (saved f2 blocks)")
@@ -374,7 +379,7 @@ def stat_source(input_prefix: Optional[str], f2_dir: Optional[str], populations:
     return f2_blocks
 
 
-def write_table(df, output_format: str, output: Optional[str], index: bool = False) -> None:
+def write_table(df, output_format: str, output: str | None, index: bool = False) -> None:
     """Write a result table as TSV or JSON records to OUTPUT or stdout."""
     if output_format == "json":
         text = df.to_json(orient="index" if index else "records", indent=2, double_precision=15)
@@ -387,8 +392,8 @@ def write_table(df, output_format: str, output: Optional[str], index: bool = Fal
         click.echo(text, nl=False)
 
 
-def write_matrix(matrix, order: str, output_format: str, output: Optional[str], heatmap: Optional[str],
-                 title: str, center: Optional[float]) -> None:
+def write_matrix(matrix, order: str, output_format: str, output: str | None, heatmap: str | None,
+                 title: str, center: float | None) -> None:
     """Order a population matrix, write it, and optionally draw its heatmap."""
     if order == "cluster":
         labels = pm.cluster_order(matrix)
@@ -425,9 +430,9 @@ def with_options(options):
               help="D-statistics instead of f4 (needs --input)")
 @stat_source_options
 @with_options(scan_output_options)
-def qpdstat(pop1: list, pop2: list, pop3: list, pop4: list, d_mode: bool, input_prefix: Optional[str],
-            f2_dir: Optional[str], block_size: float, all_chromosomes: bool, output_format: str,
-            output: Optional[str]):
+def qpdstat(pop1: list, pop2: list, pop3: list, pop4: list, d_mode: bool, input_prefix: str | None,
+            f2_dir: str | None, block_size: float, all_chromosomes: bool, output_format: str,
+            output: str | None):
     """f4- or D-statistics f(pop1, pop2; pop3, pop4) for many combinations, as admixtools2 qpdstat.
 
     With --pop2, --pop3 and --pop4, every combination of one population from
@@ -459,8 +464,8 @@ def qpdstat(pop1: list, pop2: list, pop3: list, pop4: list, d_mode: bool, input_
 @stat_source_options
 @with_options(scan_output_options)
 def qp3pop(pop1: list, pop2: list, pop3: list, outgroup_mode: bool, no_bias_correction: bool,
-           input_prefix: Optional[str], f2_dir: Optional[str], block_size: float, all_chromosomes: bool,
-           output_format: str, output: Optional[str]):
+           input_prefix: str | None, f2_dir: str | None, block_size: float, all_chromosomes: bool,
+           output_format: str, output: str | None):
     """f3-statistics f3(pop1; pop2, pop3) for many combinations, as admixtools2 qp3pop.
 
     From genotypes, f3 is normalized by the target's heterozygosity unless
@@ -495,9 +500,9 @@ matrix_options = [
 @with_options(matrix_options)
 @stat_source_options
 @with_options(scan_output_options)
-def outgroup_f3(outgroup: str, populations: list, value: str, order: str, heatmap: Optional[str],
-                input_prefix: Optional[str], f2_dir: Optional[str], block_size: float,
-                all_chromosomes: bool, output_format: str, output: Optional[str]):
+def outgroup_f3(outgroup: str, populations: list, value: str, order: str, heatmap: str | None,
+                input_prefix: str | None, f2_dir: str | None, block_size: float,
+                all_chromosomes: bool, output_format: str, output: str | None):
     """Matrix of outgroup f3(outgroup; A, B) for every pair of populations.
 
     Higher values mean more shared drift. With --heatmap, also a heatmap.
@@ -526,10 +531,10 @@ def outgroup_f3(outgroup: str, populations: list, value: str, order: str, heatma
 @with_options(matrix_options)
 @stat_source_options
 @with_options(scan_output_options)
-def dstat_matrix(populations: list, pop1: Optional[str], pop2: Optional[str], pop3: Optional[str],
-                 pop4: Optional[str], f4_mode: bool, value: str, order: str, heatmap: Optional[str],
-                 input_prefix: Optional[str], f2_dir: Optional[str], block_size: float,
-                 all_chromosomes: bool, output_format: str, output: Optional[str]):
+def dstat_matrix(populations: list, pop1: str | None, pop2: str | None, pop3: str | None,
+                 pop4: str | None, f4_mode: bool, value: str, order: str, heatmap: str | None,
+                 input_prefix: str | None, f2_dir: str | None, block_size: float,
+                 all_chromosomes: bool, output_format: str, output: str | None):
     """Matrix of D- (or f4-) statistics for every pair X, Y of populations.
 
     Give --pop3 and --pop4 for D(X, Y; pop3, pop4), or --pop1 and --pop2 for
@@ -552,13 +557,157 @@ def dstat_matrix(populations: list, pop1: Optional[str], pop2: Optional[str], po
 
 
 @cli.command()
+@click.option("--input", "-i", "input_prefix", required=True, help="Genotype prefix")
+@click.option("--pca-pops", callback=parse_population_list, default="",
+              help="Comma-separated populations the PCA is computed on (default: all others)")
+@click.option("--project-pops", callback=parse_population_list, default="",
+              help="Comma-separated populations projected onto the PCA")
+@click.option("--components", type=int, default=10, help="Eigenvectors reported (default: 10)")
+@click.option("--outlier-iterations", type=int, default=5,
+              help="Rounds of outlier removal, 0 for none (default: 5)")
+@click.option("--outlier-components", type=int, default=10,
+              help="Eigenvectors examined for outliers (default: 10)")
+@click.option("--outlier-sigma", type=float, default=6.0,
+              help="Outlier threshold in standard deviations (default: 6)")
+@click.option("--lsqproject", is_flag=True, default=False,
+              help="Project by least squares on observed genotypes (for samples with missing data)")
+@click.option("--compat", type=click.Choice(["eigensoft-7.2.1"]), default=None,
+              help="Reproduce EIGENSOFT 7.2.1 smartpca exactly (see DEVIATIONS.md)")
+@click.option("--output-prefix", "-o", required=True,
+              help="Writes PREFIX.coords.tsv, .eval, .tracy_widom.tsv and .outliers.tsv")
+@click.option("--plot", default=None, help="Also plot PC1 against PC2 to this image file (needs popmix[plot])")
+def pca(input_prefix: str, pca_pops: list, project_pops: list, components: int, outlier_iterations: int,
+        outlier_components: int, outlier_sigma: float, lsqproject: bool, compat: str | None,
+        output_prefix: str, plot: str | None):
+    """Principal component analysis as EIGENSOFT smartpca, with projection.
+
+    The PCA is computed on --pca-pops and the samples of --project-pops are
+    projected onto it (smartpca poplistname); use --lsqproject for ancient
+    samples with missing data.
+    """
+    try:
+        validate_populations(input_prefix, pca_pops + project_pops)
+        r = pm.smartpca(input_prefix, pca_pops or None, project_pops, n_components=components,
+                        outlier_iterations=outlier_iterations, outlier_components=outlier_components,
+                        outlier_sigma=outlier_sigma, lsqproject=lsqproject, compat=compat)
+        r.coords.to_csv(f"{output_prefix}.coords.tsv", sep="\t", index=False, float_format="%.12g")
+        with open(f"{output_prefix}.eval", "w") as f:
+            f.write("".join(f"{x:.12g}\n" for x in r.eigenvalues))
+        r.tracy_widom.to_csv(f"{output_prefix}.tracy_widom.tsv", sep="\t", index=False, float_format="%.12g")
+        r.outliers.to_csv(f"{output_prefix}.outliers.tsv", sep="\t", index=False, float_format="%.12g")
+        click.echo(f"{r.n_pca_samples} PCA samples, {len(r.coords) - r.n_pca_samples} projected, "
+                   f"{r.n_snps_used} SNPs, {len(r.outliers)} outliers removed")
+        if plot:
+            from popmix import plot as plots
+
+            plots.pca(r, path=plot)
+    except click.ClickException:
+        raise
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@cli.command()
+@click.option("--input", "-i", "input_prefix", required=True, help="Genotype prefix")
+@click.option("--populations", callback=parse_population_list, default="",
+              help="Comma-separated populations whose samples are compared (default: all)")
+@click.option("--method", type=click.Choice(["king", "read"]), default="king",
+              help="king: KING-robust, for diploid calls (as PLINK 2 --make-king-table); "
+                   "read: READ-style, for pseudo-haploid ancient samples (as READv2)")
+@click.option("--norm", type=click.Choice(["median", "mean", "max"]), default="median",
+              help="With --method read: normalize P0 by this statistic over the pairs (default: median)")
+@click.option("--norm-value", type=float, default=None,
+              help="With --method read: normalize P0 by this value instead")
+@click.option("--window-size", type=int, default=5_000_000,
+              help="With --method read: jackknife window in base pairs (default: 5000000)")
+@click.option("--compat", type=click.Choice(["readv2-2.01"]), default=None,
+              help="With --method read: reproduce READv2 exactly (see DEVIATIONS.md)")
+@click.option("--output", "-o", default=None, help="Write the table here instead of stdout")
+def kinship(input_prefix: str, populations: list, method: str, norm: str, norm_value: float | None,
+            window_size: int, compat: str | None, output: str | None):
+    """Kinship for every pair of samples: KING-robust or READ-style.
+
+    KING-robust needs diploid genotype calls; for pseudo-haploid ancient
+    samples use --method read, which compares them within one group and
+    normalizes by the typical (by default median) pair.
+    """
+    try:
+        validate_populations(input_prefix, populations)
+        pops = populations or None
+        if method == "king":
+            df = pm.king(input_prefix, pops)
+        else:
+            df = pm.read_kinship(input_prefix, pops, norm=norm, norm_value=norm_value, window_size=window_size,
+                                 compat=compat)
+            click.echo(f"normalization value (P0 of unrelated pairs): {df.attrs['norm_value']:.6g}", err=True)
+        write_table(df, "tsv", output)
+    except click.ClickException:
+        raise
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@cli.command()
+@click.option("--input", "-i", "input_prefix", required=True, help="Genotype prefix")
+@click.option("--populations", required=True, callback=parse_population_list,
+              help="Comma-separated populations, one axis each")
+@click.option("--projection", callback=parse_population_list, default="",
+              help="Comma-separated allele counts to project each population to (default: full sizes)")
+@click.option("--folded", is_flag=True, default=False, help="Fold the spectrum (minor allele counts)")
+@click.option("--joint", is_flag=True, default=False,
+              help="admixtools2 joint_sfs(): counts among observed alleles, no projection")
+@click.option("--compat", type=click.Choice(["admixtools2-2.0.10"]), default=None,
+              help="With --joint: reproduce admixtools2 exactly (see DEVIATIONS.md)")
+@click.option("--all-chromosomes", is_flag=True, default=False,
+              help="Use every SNP, not only autosomes (the default with --joint, as admixtools2)")
+@click.option("--output", "-o", default=None, help="Write the spectrum table here instead of stdout")
+def sfs(input_prefix: str, populations: list, projection: list, folded: bool, joint: bool,
+        compat: str | None, all_chromosomes: bool, output: str | None):
+    """Site-frequency spectrum, as dadi (projected) or admixtools2 joint_sfs().
+
+    Writes one row per entry: the count in each population and n, the number
+    of SNPs (expected, after projection). For one population, also prints S,
+    pi, Watterson's theta and Tajima's D.
+    """
+    import itertools
+
+    import pandas as pd
+
+    try:
+        validate_populations(input_prefix, populations)
+        if joint:
+            df = pm.joint_sfs(input_prefix, populations, compat=compat, auto_only=False)
+        else:
+            sizes = [int(x) for x in projection] or None
+            spec = pm.sfs(input_prefix, populations, sizes, folded=folded, auto_only=not all_chromosomes)
+            grid = list(itertools.product(*(range(d) for d in spec.data.shape)))
+            df = pd.DataFrame(grid, columns=populations)
+            df["n"] = spec.data.ravel()
+            df["masked"] = spec.mask.ravel()
+            if len(populations) == 1 and not folded:
+                click.echo(f"S\t{spec.S():.6g}\npi\t{spec.pi():.6g}\n"
+                           f"watterson_theta\t{spec.watterson_theta():.6g}\ntajima_d\t{spec.tajima_d():.6g}")
+        if output is None:
+            click.echo(df.to_csv(sep="\t", index=False, float_format="%.12g"), nl=False)
+        else:
+            df.to_csv(output, sep="\t", index=False, float_format="%.12g")
+    except click.ClickException:
+        raise
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@cli.command()
 @click.option("--target", required=True, help="Target population (potentially admixed)")
 @click.option("--source1", required=True, help="First source population")
 @click.option("--source2", required=True, help="Second source population")
 @f2_source_options
 @click.option("--format", "output_format", type=click.Choice(["text", "json", "tsv"]), default="text",
               help="Output format")
-def f3(target: str, source1: str, source2: str, input_prefix: Optional[str], f2_dir: Optional[str],
+def f3(target: str, source1: str, source2: str, input_prefix: str | None, f2_dir: str | None,
        block_size: float, maxmiss: float, all_chromosomes: bool, output_format: str):
     """Compute f3 statistic (admixture test).
 
@@ -585,7 +734,7 @@ def f3(target: str, source1: str, source2: str, input_prefix: Optional[str], f2_
             click.echo(f"  Z-score: {result['z_score']:.3f}")
             click.echo(f"  N blocks: {int(result['n_blocks'])}")
             if result['estimate'] < 0 and result['z_score'] < -3:
-                click.echo(f"  => Significant admixture signal")
+                click.echo("  => Significant admixture signal")
 
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
@@ -600,7 +749,7 @@ def f3(target: str, source1: str, source2: str, input_prefix: Optional[str], f2_
 @f2_source_options
 @click.option("--format", "output_format", type=click.Choice(["text", "json", "tsv"]), default="text",
               help="Output format")
-def f4(pop1: str, pop2: str, pop3: str, pop4: str, input_prefix: Optional[str], f2_dir: Optional[str],
+def f4(pop1: str, pop2: str, pop3: str, pop4: str, input_prefix: str | None, f2_dir: str | None,
        block_size: float, maxmiss: float, all_chromosomes: bool, output_format: str):
     """Compute f4 statistic (D-statistic / ABBA-BABA test).
 
@@ -626,7 +775,7 @@ def f4(pop1: str, pop2: str, pop3: str, pop4: str, input_prefix: Optional[str], 
             click.echo(f"  Z-score: {result['z_score']:.3f}")
             click.echo(f"  N blocks: {int(result['n_blocks'])}")
             if abs(result['z_score']) > 3:
-                click.echo(f"  => Significant deviation from tree-like evolution")
+                click.echo("  => Significant deviation from tree-like evolution")
 
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
@@ -641,8 +790,8 @@ def f4(pop1: str, pop2: str, pop3: str, pop4: str, input_prefix: Optional[str], 
 @f2_source_options
 @click.option("--format", "output_format", type=click.Choice(["text", "json", "tsv"]), default="text",
               help="Output format")
-def qpadm(target: str, left: list, right: list, constrained: bool, input_prefix: Optional[str],
-          f2_dir: Optional[str], block_size: float, maxmiss: float, all_chromosomes: bool,
+def qpadm(target: str, left: list, right: list, constrained: bool, input_prefix: str | None,
+          f2_dir: str | None, block_size: float, maxmiss: float, all_chromosomes: bool,
           output_format: str):
     """Estimate admixture weights using qpAdm.
 
@@ -704,7 +853,7 @@ def qpadm(target: str, left: list, right: list, constrained: bool, input_prefix:
 @f2_source_options
 @click.option("--format", "output_format", type=click.Choice(["text", "json", "tsv"]), default="text",
               help="Output format")
-def qpwave(left: list, right: list, input_prefix: Optional[str], f2_dir: Optional[str],
+def qpwave(left: list, right: list, input_prefix: str | None, f2_dir: str | None,
            block_size: float, maxmiss: float, all_chromosomes: bool, output_format: str):
     """Test admixture wave count using qpWave.
 
@@ -770,7 +919,7 @@ def qpwave(left: list, right: list, input_prefix: Optional[str], f2_dir: Optiona
 @click.option("--output-format", "-of", "output_format", required=True,
               type=click.Choice(["ancestrymap", "eigenstrat", "ped", "packedped", "plink", "packedancestrymap"]),
               help="Output format")
-def convertf(input_prefix: str, output_prefix: str, input_format: Optional[str], output_format: str):
+def convertf(input_prefix: str, output_prefix: str, input_format: str | None, output_format: str):
     """Convert between genotype file formats.
 
     Supports conversion between 6 input formats:
@@ -823,7 +972,7 @@ def convertf(input_prefix: str, output_prefix: str, input_format: Optional[str],
               type=click.Choice(["ancestrymap", "eigenstrat", "ped", "packedped", "plink", "packedancestrymap", "vcf"]),
               help="Format for file B (auto-detected if not specified)")
 def merge(file_a: str, file_b: str, output: str, output_format: str,
-          input_format_a: Optional[str], input_format_b: Optional[str]):
+          input_format_a: str | None, input_format_b: str | None):
     """Merge two genotype datasets.
 
     Combines samples from two genotype files, keeping only SNPs that
@@ -901,7 +1050,7 @@ def merge(file_a: str, file_b: str, output: str, output_format: str,
               help="Output format")
 def dates(input_prefix: str, test_pop: str, source1: str, source2: str,
           bin_width: float, max_distance: float, min_distance: float, qbin: int,
-          compat: Optional[str], output_format: str):
+          compat: str | None, output_format: str):
     """Estimate admixture date using DATES algorithm.
 
     DATES estimates the time since admixture by fitting an exponential decay
@@ -1028,8 +1177,8 @@ def graph_leaves(edges: list) -> list:
 @f2_source_options
 @click.option("--format", "output_format", type=click.Choice(["text", "json", "tsv"]), default="text",
               help="Output format")
-def qpgraph(graph_file: str, admix_weights: Optional[str], numstart: int, seed: int, diag: float,
-            diag_f3: float, unconstrained: bool, input_prefix: Optional[str], f2_dir: Optional[str],
+def qpgraph(graph_file: str, admix_weights: str | None, numstart: int, seed: int, diag: float,
+            diag_f3: float, unconstrained: bool, input_prefix: str | None, f2_dir: str | None,
             block_size: float, maxmiss: float, all_chromosomes: bool, output_format: str):
     """Fit an admixture graph, as admixtools2 qpgraph does.
 
@@ -1106,9 +1255,9 @@ def qpgraph(graph_file: str, admix_weights: Optional[str], numstart: int, seed: 
 @f2_source_options
 @click.option("--format", "output_format", type=click.Choice(["text", "json"]), default="text",
               help="Output format")
-def find_graphs(populations: list, nadmix: int, outgroup: Optional[str], method: str, beam_width: int,
-                top: int, output_graph: Optional[str], numstart: int, seed: int, input_prefix: Optional[str],
-                f2_dir: Optional[str], block_size: float, maxmiss: float, all_chromosomes: bool,
+def find_graphs(populations: list, nadmix: int, outgroup: str | None, method: str, beam_width: int,
+                top: int, output_graph: str | None, numstart: int, seed: int, input_prefix: str | None,
+                f2_dir: str | None, block_size: float, maxmiss: float, all_chromosomes: bool,
                 output_format: str):
     """Search for the admixture graphs that best fit the data.
 

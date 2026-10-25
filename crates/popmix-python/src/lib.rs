@@ -6,6 +6,9 @@
 #![allow(clippy::useless_conversion)]
 
 mod geno_fstats;
+mod kinship;
+mod pca;
+mod sfs;
 
 use std::collections::{BTreeMap, HashMap};
 
@@ -2960,6 +2963,9 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(extract_f2, m)?)?;
     m.add_function(wrap_pyfunction!(f2_from_frequencies, m)?)?;
     geno_fstats::register(m)?;
+    pca::register(m)?;
+    kinship::register(m)?;
+    sfs::register(m)?;
 
     // qpAdm/qpWave functions
     m.add_function(wrap_pyfunction!(qpwave, m)?)?;

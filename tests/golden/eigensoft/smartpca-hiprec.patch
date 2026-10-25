@@ -1,0 +1,100 @@
+--- a/src/eigensrc/smartpca.c
++++ b/src/eigensrc/smartpca.c
+@@ -1,3 +1,4 @@
++/* popmix reference build: EIGENSOFT 7.2.1 with eigenvalue, eigenvector, TW and outlier output printed with %.17g (full double precision); nothing else changed. */
+ #include <stdio.h>
+ #include <string.h>
+ #include <stdlib.h>
+@@ -1097,7 +1098,7 @@
+       indx = xindlist[j];
+       outpt = outinfo[j];
+       fprintf (outlfile,
+-               "REMOVED outlier %s iter %d evec %d sigmage %.3f pop: %s\n",
++               "REMOVED outlier %s iter %d evec %d sigmage %.17g pop: %s\n",
+                indx->ID, outliter, outpt->vecno, outpt->score, indx->egroup);
+       indx->ignore = YES;
+     }
+@@ -1151,17 +1152,17 @@
+         zn = MAX (ynrows, zn);
+       tail = dotwcalc (lambda + i, m - i, &tw, &zn, &zvar, nostatslim);
+       esize[i] = zn;
+-      printf ("%4d  %12.6f", i + 1, lambda[i]);
++      printf ("%4d  %.17g", i + 1, lambda[i]);
+       if (i == 0)
+         printf ("%12s", "NA");
+       else
+-        printf ("%12.6f", lambda[i] - lambda[i - 1]);
++        printf (" %.17g", lambda[i] - lambda[i - 1]);
+       if (tail >= 0.0)
+-        printf (" %9.3f %12.6g", tw, tail);
++        printf (" %.17g %.17g", tw, tail);
+       else
+         printf (" %9s %12s", "NA", "NA");
+       if (zn > 0.0) {
+-        printf (" %9.3f", zn);
++        printf (" %.17g", zn);
+       }
+       else {
+         printf (" %9s", "NA");
+@@ -1206,14 +1207,14 @@
+     if (outputvname != NULL) {
+       openit (outputvname, &ovfile, "w");
+       for (j = 0; j < nrows; j++) {
+-        fprintf (ovfile, "%12.6f\n", lambda[j]);
++        fprintf (ovfile, "%.17g\n", lambda[j]);
+       }
+       fclose (ovfile);
+     }
+ 
+     fprintf (ofile, "%20s ", "#eigvals:");
+     for (j = 0; j < numeigs; j++) {
+-      fprintf (ofile, "%9.3f ", lambda[j]);
++      fprintf (ofile, "%.17g ", lambda[j]);
+     }
+     fprintf (ofile, "\n");
+     ZALLOC (fvecs, nrows * numeigs, double);
+@@ -1237,7 +1238,7 @@
+           xpt = fvecs + j * nrows;
+           y = xpt[i];
+           if (indx -> flag == 7777) y *= edgarw[j] ;  
+-          fprintf (ofile, "%10.4f  ", y);
++          fprintf (ofile, "%.17g  ", y);
+         }
+         fprintf (ofile, "%15s\n", indx->egroup);
+       }
+@@ -1403,7 +1404,7 @@
+       for (j = 0; j < numeigs; j++) {
+         y = acoeffs[j * numindivs + i];
+         if (indx -> flag == 7777) y *= edgarw[j] ;  
+-        fprintf (ofile, "%10.4f  ", y);
++        fprintf (ofile, "%.17g  ", y);
+       }
+       if (qtmode) {
+         fprintf (ofile, "%15.6e\n", indx->qval);
+@@ -3433,7 +3434,7 @@
+ 
+   fprintf (ofile, "%20s ", "#eigvals:");
+   for (j = 0; j < numeigs; j++) {
+-    fprintf (ofile, "%9.3f ", eigenvals[j]);
++    fprintf (ofile, "%.17g ", eigenvals[j]);
+   }
+   fprintf (ofile, "\n");
+ 
+@@ -3456,7 +3457,7 @@
+         y = xpt[i];
+         if (indx -> flag == 7777) y *= edgarw[j] ;
+         if (hiprec) fprintf (ofile, "%12.6f  ", y);
+-        else fprintf (ofile, "%10.4f  ", y);
++        else fprintf (ofile, "%.17g  ", y);
+       }
+       fprintf (ofile, "%15s\n", indx->egroup);
+     }
+@@ -3523,7 +3524,7 @@
+     fprintf (ofile, "%20s ", indx->ID);
+     for (j = 0; j < numeigs; j++) {
+       y = bcoeffs[j * numindivs + i];
+-      fprintf (ofile, "%10.4f  ", y);
++      fprintf (ofile, "%.17g  ", y);
+     }
+     fprintf (ofile, "%15s\n", indx->egroup);
+   }

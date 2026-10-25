@@ -6,23 +6,26 @@ use pyo3::types::PyDict;
 
 use popmix_core::{
     F3GenoOptions, F4Mode, GenoPopulations, GenoStats, GenotypeMatrix, GenotypeRows, MatrixRows,
-    Snp,
+    Sample, Snp,
 };
 use popmix_io::{detect_ploidy_packedancestrymap, is_packed_format, PackedRows};
 
 use crate::{read_genotypes_internal, to_py_err};
 
 /// The SNPs, samples and row source for statistics on `populations`.
-enum Source {
+pub(crate) enum Source {
     Packed(PackedRows),
     Matrix(GenotypeMatrix, Vec<usize>, Vec<usize>),
 }
 
-fn open_source(
+/// Open `prefix` for the samples of `populations`: the row source (one row
+/// per kept SNP, the selected samples in .ind order), the kept SNPs, the
+/// samples' populations and ploidies, and the selected samples themselves.
+pub(crate) fn open_source(
     prefix: &str,
     populations: &[String],
     auto_only: bool,
-) -> PyResult<(Source, Vec<Snp>, GenoPopulations)> {
+) -> PyResult<(Source, Vec<Snp>, GenoPopulations, Vec<Sample>)> {
     let index = |pop: &str| populations.iter().position(|p| p == pop);
     let geno_path = format!("{prefix}.geno");
     let packed = std::path::Path::new(&geno_path).exists()
@@ -42,11 +45,13 @@ fn open_source(
     };
 
     let mut selected = Vec::new();
+    let mut selected_samples = Vec::new();
     let mut sample_pop = Vec::new();
     let mut ploidy = Vec::new();
     for (i, s) in samples.iter().enumerate() {
         if let Some(p) = index(s.population.as_str()) {
             selected.push(i);
+            selected_samples.push(s.clone());
             sample_pop.push(p);
             ploidy.push(s.ploidy.effective_ploidy());
         }
@@ -87,7 +92,24 @@ fn open_source(
         sample_pop,
         ploidy,
     };
-    Ok((source, kept, pops))
+    Ok((source, kept, pops, selected_samples))
+}
+
+pub(crate) fn rows_of(source: &mut Source) -> Box<dyn GenotypeRows + '_> {
+    match source {
+        Source::Packed(rows) => Box::new(RowsRef(rows)),
+        Source::Matrix(m, snps, samples) => {
+            Box::new(MatrixRows::new(m, snps.clone(), samples.clone()))
+        }
+    }
+}
+
+struct RowsRef<'a>(&'a mut PackedRows);
+
+impl GenotypeRows for RowsRef<'_> {
+    fn next_row(&mut self, out: &mut [u8]) -> popmix_core::Result<()> {
+        self.0.next_row(out)
+    }
 }
 
 fn run<F>(source: Source, f: F) -> PyResult<GenoStats>
@@ -163,7 +185,7 @@ pub fn f4_from_geno(
     block_size: f64,
     auto_only: bool,
 ) -> PyResult<PyObject> {
-    let (source, snps, pops) = open_source(prefix, &populations, auto_only)?;
+    let (source, snps, pops, _) = open_source(prefix, &populations, auto_only)?;
     let mode = if f4mode { F4Mode::F4 } else { F4Mode::D };
     let out = py.allow_threads(|| {
         run(source, |rows| {
@@ -201,7 +223,7 @@ pub fn f3_from_geno(
     block_size: f64,
     auto_only: bool,
 ) -> PyResult<PyObject> {
-    let (source, snps, pops) = open_source(prefix, &populations, auto_only)?;
+    let (source, snps, pops, _) = open_source(prefix, &populations, auto_only)?;
     let options = F3GenoOptions {
         apply_corr,
         outgroup_mode: outgroupmode,

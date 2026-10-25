@@ -16,8 +16,11 @@ pub mod error;
 pub mod fstats;
 pub mod genotype_matrix;
 pub mod genotypes;
+pub mod kinship;
+pub mod pca;
 pub mod qpadm;
 pub mod qpgraph;
+pub mod sfs;
 pub mod threading;
 
 // Re-exports for convenience
@@ -29,6 +32,14 @@ pub use fstats::{
 };
 pub use genotype_matrix::{AlleleFrequencies, GenotypeMatrix};
 pub use genotypes::{Chromosome, Genotype, Ploidy, PopulationId, Sample, Snp};
+pub use kinship::{
+    king_robust, read_kinship, BitGenotypes, KingPair, ReadCompat, ReadNorm, ReadOptions,
+    ReadResult,
+};
+pub use pca::{
+    smartpca, EigensoftCompat, Outlier, PackedGenotypes, PcaOptions, PcaResult, SampleRole,
+    TracyWidomRow,
+};
 pub use qpadm::{
     f4ratio, qpadm, qpadm_rotate, qpwave, qpwave_pairs, Admixtools2Compat, F4Matrix,
     F4RatioOptions, F4RatioResult, PopDropRow, QpAdmOptions, QpAdmResult, QpAdmRotateOptions,
@@ -41,6 +52,7 @@ pub use qpgraph::{
     GraphSearchResult, NodeId, QpGraphEdge, QpGraphF3, QpGraphOptions, QpGraphResult, QpGraphStart,
     ScoredGraph,
 };
+pub use sfs::{joint_sfs, projected_sfs, JointSfsCompat, JointSfsSnps, SfsSummary, Spectrum};
 pub use threading::init_thread_pool;
 
 // DATES re-exports

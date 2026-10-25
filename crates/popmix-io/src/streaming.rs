@@ -259,6 +259,45 @@ pub fn detect_ploidy_packedancestrymap(
     Ok(())
 }
 
+/// Like [`detect_ploidy_packedancestrymap`], for the samples in `selected`
+/// only, stopping once each has shown a heterozygous call: a sample with
+/// none among the first `n_snps_check` SNPs is pseudo-haploid. Other samples'
+/// ploidy is left as it is.
+pub fn detect_ploidy_packedancestrymap_selected(
+    geno_path: &str,
+    samples: &mut [Sample],
+    selected: &[usize],
+    n_snps_check: usize,
+    n_snps_total: usize,
+) -> Result<()> {
+    let n_check = n_snps_check.min(n_snps_total);
+    let bytes_per_snp = record_length(geno_path, samples.len(), n_snps_total)?;
+    let mut file = std::io::BufReader::with_capacity(
+        1 << 22,
+        File::open(geno_path).map_err(|e| PopmixError::io_with_path(e, geno_path))?,
+    );
+    file.seek(SeekFrom::Start(bytes_per_snp as u64))
+        .map_err(|e| PopmixError::io_with_path(e, geno_path))?;
+    let mut pending: Vec<usize> = selected.to_vec();
+    let mut snp_buffer = vec![0u8; bytes_per_snp];
+    for _ in 0..n_check {
+        if pending.is_empty() {
+            break;
+        }
+        file.read_exact(&mut snp_buffer)
+            .map_err(|e| PopmixError::io_with_path(e, geno_path))?;
+        pending.retain(|&s| decode_packed_byte(snp_buffer[s / 4])[s % 4] != 1);
+    }
+    for &s in selected {
+        samples[s].ploidy = if pending.contains(&s) {
+            Ploidy::Pseudohaploid
+        } else {
+            Ploidy::Diploid
+        };
+    }
+    Ok(())
+}
+
 /// Genotype rows streamed from a PACKEDANCESTRYMAP file: the SNPs marked in
 /// `keep`, in file order, for the given samples (by index in the .ind file).
 pub struct PackedRows {
@@ -415,5 +454,20 @@ mod tests {
             assert_eq!(row, want, "SNP {snp}");
         }
         assert!(rows.next_row(&mut row).is_err());
+    }
+
+    #[test]
+    fn selected_ploidy_matches_the_full_detection() {
+        let geno_path = format!("{SMALL}.geno");
+        let mut all = read_ind_file(&format!("{SMALL}.ind")).unwrap();
+        let n_snps = read_snp_file(&format!("{SMALL}.snp")).unwrap().len();
+        detect_ploidy_packedancestrymap(&geno_path, &mut all, n_snps, n_snps).unwrap();
+        let mut some = read_ind_file(&format!("{SMALL}.ind")).unwrap();
+        let selected = [0, 5, 53];
+        detect_ploidy_packedancestrymap_selected(&geno_path, &mut some, &selected, n_snps, n_snps)
+            .unwrap();
+        for &s in &selected {
+            assert_eq!(some[s].ploidy, all[s].ploidy);
+        }
     }
 }

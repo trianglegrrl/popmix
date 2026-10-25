@@ -74,6 +74,9 @@ from popmix.dstats import (
     qpdstat,
     sample_ploidy,
 )
+from popmix.kinship import king, read_kinship
+from popmix.pca import PcaResult, smartpca
+from popmix.sfs import Sfs, joint_sfs, sfs
 
 # Convenient aliases
 Sample = PySample
@@ -127,6 +130,13 @@ __all__ = [
     "outgroup_f3_matrix",
     "dstat_matrix",
     "cluster_order",
+    "smartpca",
+    "king",
+    "read_kinship",
+    "sfs",
+    "joint_sfs",
+    "Sfs",
+    "PcaResult",
     # qpAdm/qpWave functions
     "qpwave",
     "qpadm",
