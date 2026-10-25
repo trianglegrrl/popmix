@@ -3,6 +3,7 @@ name = "popmix-io"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
 description = "File format I/O for population genetics data (PLINK, EIGENSTRAT, PACKEDANCESTRYMAP)"
 
 [dependencies]
