@@ -380,7 +380,7 @@ fn chisq_upper_tail(x: f64, df: usize) -> f64 {
 /// feasible candidate with the lowest objective is the optimum (D is positive
 /// semi-definite, so the problem is convex). 3^n candidates: fine for the few
 /// sources qpAdm models have.
-fn simplex_qp(d_mat: &DMatrix<f64>, d_vec: &DVector<f64>) -> Result<DVector<f64>> {
+pub(crate) fn simplex_qp(d_mat: &DMatrix<f64>, d_vec: &DVector<f64>) -> Result<DVector<f64>> {
     const TOL: f64 = 1e-12;
     let n = d_vec.len();
     let objective = |w: &DVector<f64>| 0.5 * (w.transpose() * d_mat * w)[(0, 0)] - d_vec.dot(w);

@@ -130,3 +130,25 @@ def test_initgraph_and_max_admix(f2):
     assert {gs._numadmix(g.edges) for g in graphs} <= {0, 1}
     with pytest.raises(ValueError, match="leaves"):
         pm.find_graphs(f2, POPS, method="evolutionary", initgraph=tree[:-1] + [("b", "Other")])
+
+
+
+
+
+@pytest.mark.slow
+def test_msprime_script_runs(tmp_path):
+    """A script from msprime_sim runs and writes genotypes popmix reads with
+    the graph's populations (the simulation itself is unseeded, as
+    admixtools2 writes it)."""
+    pytest.importorskip("msprime")
+    pytest.importorskip("multiprocess")
+    edges = [("R", "O"), ("R", "n1"), ("n1", "A"), ("n1", "n2"), ("n2", "B"), ("n2", "C")]
+    path = pm.msprime_sim(edges, outpref=tmp_path / "sim", nsnps=300, ind_per_pop=4, neff=200, mutation_rate=1e-2,
+                          numcores=2, fix_leaf=True, run=True)
+    assert os.path.exists(path)
+    assert len((tmp_path / "sim.geno").read_text().splitlines()) == 300
+    assert len((tmp_path / "sim.ind").read_text().splitlines()) == 16
+    # the script spreads the SNPs over 50 Morgans: 10 blocks
+    f2 = pm.extract_f2(str(tmp_path / "sim"), ["O", "A", "B", "C"], auto_only=False, block_size=5)
+    assert f2.n_blocks >= 5
+    assert all(f2.f2(a, b)["estimate"] > 0 for a, b in [("O", "A"), ("A", "B"), ("B", "C")])

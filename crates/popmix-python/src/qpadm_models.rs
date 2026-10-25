@@ -45,7 +45,31 @@ fn qpadm_p<'py>(
     Ok(d)
 }
 
+/// admixtools2 ``lazadm``: least-squares admixture weights and their
+/// jackknife standard errors. Returns a dict: left, weights, se.
+#[pyfunction(name = "lazadm")]
+#[pyo3(signature = (f2_blocks, target, left, right, constrained=true))]
+fn lazadm<'py>(
+    py: Python<'py>,
+    f2_blocks: &PyF2Blocks,
+    target: &str,
+    left: Vec<String>,
+    right: Vec<String>,
+    constrained: bool,
+) -> PyResult<Bound<'py, PyDict>> {
+    let l: Vec<&str> = left.iter().map(|s| s.as_str()).collect();
+    let r: Vec<&str> = right.iter().map(|s| s.as_str()).collect();
+    let res =
+        popmix_core::lazadm(&f2_blocks.inner, target, &l, &r, constrained).map_err(to_py_err)?;
+    let d = PyDict::new_bound(py);
+    d.set_item("left", res.left)?;
+    d.set_item("weights", res.weights)?;
+    d.set_item("se", res.std_errors)?;
+    Ok(d)
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(lazadm, m)?)?;
     m.add_function(wrap_pyfunction!(qpadm_p, m)?)?;
     Ok(())
 }

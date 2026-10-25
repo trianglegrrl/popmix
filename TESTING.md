@@ -816,6 +816,18 @@ qpDstat, qp3Pop, qpAdm, qpF4ratio, qpGraph and qpfstats
 `generate_classic.py`; dg_6pop populations of AADR v62): the same tables,
 values as read exactly and derived columns within 1e-12.
 
+`tests/golden/test_more_stats_admixtools2.py` checks `lazadm` (constrained
+and not), `qpf4diff` (two sets of five populations) and, with `--run-slow`,
+`qpfstats` (the fitted f2 blocks of five populations, from AADR genotypes)
+against `more_stats.json` (`generate_more_stats.R`): weights and standard
+errors rtol 1e-6, f-statistics 1e-10 (qpfstats' blocks 1e-9).
+
+`tests/golden/test_msprime_admixtools2.py` checks that `msprime_sim` and
+`msprime_genome` write admixtools2's script exactly for three dg_6pop
+graphs with its defaults and other options (`msprime.json`,
+`generate_msprime.R`); with `--run-slow` and msprime installed,
+`tests/python/test_graph_search.py` runs one.
+
 ### f4-, D- and f3-statistic scans vs admixtools2 2.0.10
 
 `tests/golden/test_dstat_admixtools2.py` checks `qpdstat` and `qp3pop` given
@@ -1124,6 +1136,8 @@ The `chr20_22_reference.json` contains:
 | `resample.json` (dg_6pop) | `boo_list` draws; qpGraph, qpAdm, qpWave, qpdstat and qp3pop `_resample_snps`; `qpgraph_resample_multi`; `compare_fits` |
 | `graph_constraints.json` (dg_6pop) | `summarize_numadmix`, `summarize_zerof4` and event-order status for 746 graphs |
 | `find_graphs.json` (dg_6pop) | `find_graphs()` best score and graphs fitted, 8 seeds, two cases |
+| `more_stats.json` (dg_6pop) | `lazadm`, `qpf4diff`, `qpfstats` |
+| `msprime.json` (dg_6pop) | `msprime_sim` and `msprime_genome` scripts for three graphs |
 | `resample_inds.json` (dg_6pop) | qpAdm, qpWave, qpdstat, qp3pop and qpGraph with each of 15 samples left out (`f2_from_geno(inds, pops)`) |
 
 ### Test Data Requirements by Test Type

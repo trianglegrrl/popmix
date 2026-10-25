@@ -427,6 +427,10 @@ These change no number that both tools compute.
   without each individual as `extract_f2` (admixtools2 `f2_from_geno(inds,
   pops)`) does, so they agree with admixtools2's statistics on those f2
   blocks.
+- **msprime scripts: which parent gets `admix_default`.** admixtools2 gives
+  it to the parent whose name sorts first in R's locale (`min()`); popmix
+  sorts by code point, which agrees for names of one case. With the default
+  of 0.5 it makes no difference.
 - **Resampling seeds are explicit.** admixtools2's bootstrap draws from R's
   global random state, and runs qpGraph in parallel streams (furrr) unless
   given a `seed`. popmix takes the bootstrap seed as `boot_seed` (the same

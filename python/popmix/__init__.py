@@ -96,6 +96,7 @@ from popmix.graph_constraints import (
 from popmix.graph_search import EvolvedGraph, find_graphs
 from popmix.kinship import king, read_kinship
 from popmix.qpadm_models import (
+    lazadm,
     qpadm_models,
     qpadm_multi,
     qpadm_p,
@@ -105,6 +106,7 @@ from popmix.qpadm_models import (
     test_cladality,
 )
 from popmix.pca import PcaResult, smartpca
+from popmix.qpfstats import qpf4diff, qpfstats
 from popmix.resample import (
     boo_list,
     compare_fits,
@@ -122,6 +124,7 @@ from popmix.resample import (
     qpwave_resample_snps,
 )
 from popmix.sfs import Sfs, joint_sfs, sfs
+from popmix.simulate import msprime_genome, msprime_sim, pseudo_dates
 
 # Convenient aliases
 Sample = PySample
@@ -199,6 +202,12 @@ __all__ = [
     "qpadm_models",
     "rotate_models",
     "test_cladality",
+    "lazadm",
+    "msprime_sim",
+    "msprime_genome",
+    "pseudo_dates",
+    "qpf4diff",
+    "qpfstats",
     # Resampling
     "loo_list",
     "boo_list",

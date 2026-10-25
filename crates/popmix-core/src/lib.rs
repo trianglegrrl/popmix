@@ -47,10 +47,10 @@ pub use pca::{
     TracyWidomRow,
 };
 pub use qpadm::{
-    f4ratio, qpadm, qpadm_p, qpadm_rotate, qpwave, qpwave_pairs, Admixtools2Compat, F4Matrix,
-    F4RatioOptions, F4RatioResult, PopDropRow, QpAdmOptions, QpAdmP, QpAdmResult,
-    QpAdmRotateOptions, QpAdmRotateResult, QpWaveOptions, QpWavePairResult, QpWavePairsResult,
-    QpWaveResult, RankTest, RotationModel,
+    f4ratio, lazadm, qpadm, qpadm_p, qpadm_rotate, qpwave, qpwave_pairs, Admixtools2Compat,
+    F4Matrix, F4RatioOptions, F4RatioResult, LazAdmResult, PopDropRow, QpAdmOptions, QpAdmP,
+    QpAdmResult, QpAdmRotateOptions, QpAdmRotateResult, QpWaveOptions, QpWavePairResult,
+    QpWavePairsResult, QpWaveResult, RankTest, RotationModel,
 };
 pub use qpgraph::{
     all_graphs, find_graphs, fit_graph, graph_key, qpgraph, AdmixGraph, AdmixNode, EdgeType,

@@ -247,3 +247,20 @@ def qpadm_models(pops: Sequence[str], allpops: bool = True, more_right: bool = T
             if right and (not more_right or len(right) > len(left)):
                 rows.append((left, right))
     return pd.DataFrame(rows, columns=["left", "right"])
+
+
+def lazadm(f2_blocks: _core.PyF2Blocks, left: Sequence[str], right: Sequence[str], target: str,
+           constrained: bool = True) -> pd.DataFrame:
+    """Admixture weights of ``target`` from ``left`` by least squares on
+    f4-statistics with ``right``, without qpAdm's covariance weighting, and
+    their block jackknife standard errors (admixtools2 ``lazadm``).
+
+    Returns
+    -------
+    pandas.DataFrame
+        target, left, weight, se and z.
+    """
+    r = _core.lazadm(f2_blocks, target, _pops(left), _pops(right), constrained)
+    t = pd.DataFrame({"target": target, "left": r["left"], "weight": r["weights"], "se": r["se"]})
+    t["z"] = t.weight / t.se
+    return t
