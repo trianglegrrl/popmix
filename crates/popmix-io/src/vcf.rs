@@ -195,8 +195,10 @@ fn parse_vcf_header_and_variants(path: &str, is_gzipped: bool) -> Result<(Vec<Sa
             let ref_allele = fields[3].chars().next().unwrap_or('N');
             let alt_allele = fields[4].chars().next().unwrap_or('N');
 
-            // VCF doesn't have genetic position - use 0.0
-            snps.push(Snp::new(id, chrom, pos, 0.0, ref_allele, alt_allele));
+            // VCF doesn't have genetic position - use 0.0. Genotypes count ALT
+            // copies, and the counted allele is listed first (EIGENSTRAT .snp
+            // column 5, PLINK A1), as PLINK 2 and convertf list it.
+            snps.push(Snp::new(id, chrom, pos, 0.0, alt_allele, ref_allele));
         }
     }
 
@@ -395,8 +397,10 @@ mod tests {
         assert_eq!(snp.id, "rs1");
         assert_eq!(snp.chromosome, Chromosome::Autosome(1));
         assert_eq!(snp.position_bp, 100);
-        assert_eq!(snp.allele_ref, 'A');
-        assert_eq!(snp.allele_alt, 'G');
+        // REF A, ALT G: the counted allele (listed first, as PLINK 2 and
+        // convertf list it after importing a VCF) is ALT
+        assert_eq!(snp.allele_ref, 'G');
+        assert_eq!(snp.allele_alt, 'A');
     }
 
     #[test]
@@ -437,31 +441,32 @@ mod tests {
         assert_eq!(vcf_matrix.n_snps(), eigenstrat_matrix.n_snps());
         assert_eq!(vcf_matrix.n_samples(), eigenstrat_matrix.n_samples());
 
-        // Both VCF and EIGENSTRAT use ALT allele count convention in our implementation:
-        // VCF 0/0 (HomRef=0) ↔ EIGENSTRAT '0' (HomRef=0)
-        // VCF 0/1 (Het=1) ↔ EIGENSTRAT '1' (Het=1)
-        // VCF 1/1 (HomAlt=2) ↔ EIGENSTRAT '2' (HomAlt=2)
-        //
-        // However, the EIGENSTRAT genotype values in from_eigenstrat_char treat
-        // the digit as "count of reference allele", which is INVERTED from VCF.
-        //
-        // EIGENSTRAT '0' → 0 copies of REF → HomAlt in VCF terms
-        // EIGENSTRAT '2' → 2 copies of REF → HomRef in VCF terms
-        //
-        // BUT the existing from_eigenstrat_char maps:
-        //   '0' → HomRef (treating 0 as "homozygous reference" directly)
-        //   '2' → HomAlt (treating 2 as "homozygous alternate")
-        //
-        // So the existing code interprets EIGENSTRAT digits as ALT allele count,
-        // which matches VCF convention. Our test data was created to match.
+        // A genotype value counts copies of the allele listed first (EIGENSTRAT
+        // .snp column 5); compare copies of the same named allele, so a
+        // reversed allele order cannot pass. The fixture's .snp lists each
+        // VCF ALT allele first, as convertf does for an imported VCF.
+        let copies = |snp: &popmix_core::genotypes::Snp, g: Genotype, allele: char| match g {
+            Genotype::Missing => None,
+            _ if snp.allele_ref == allele => Some(g as u8),
+            _ if snp.allele_alt == allele => Some(2 - g as u8),
+            _ => panic!("{} has no allele {allele}", snp.id),
+        };
         for snp_idx in 0..vcf_matrix.n_snps() {
             for sample_idx in 0..vcf_matrix.n_samples() {
-                let vcf_geno = vcf_matrix.get(snp_idx, sample_idx);
-                let eig_geno = eigenstrat_matrix.get(snp_idx, sample_idx);
+                let allele = eigenstrat_matrix.snps()[snp_idx].allele_ref;
+                let vcf = copies(
+                    &vcf_matrix.snps()[snp_idx],
+                    vcf_matrix.get(snp_idx, sample_idx),
+                    allele,
+                );
+                let eig = copies(
+                    &eigenstrat_matrix.snps()[snp_idx],
+                    eigenstrat_matrix.get(snp_idx, sample_idx),
+                    allele,
+                );
                 assert_eq!(
-                    vcf_geno, eig_geno,
-                    "Mismatch at SNP {}, sample {}: VCF={:?}, EIGENSTRAT={:?}",
-                    snp_idx, sample_idx, vcf_geno, eig_geno
+                    vcf, eig,
+                    "copies of {allele} at SNP {snp_idx}, sample {sample_idx}"
                 );
             }
         }
