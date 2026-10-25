@@ -43,11 +43,11 @@ from the code, not yet shown.
   PLINK, text EIGENSTRAT, VCF or PED; nor does `read_genotypes()
   .allele_frequencies()` (README "Method 1"). Same samples: f2(A, Anc) 0.0206
   packed vs 0.0485 text/PLINK. Affects f2, FST, f3, qpGraph for aDNA.
-  admixtools2 corrects PLINK input (`R/io.R:540`). PG [confirmed]
+  admixtools2 corrects PLINK input. PG [confirmed]
 - [x] **A3. f3/f4 wrong when a population repeats.** *Done in e3d4f45.* `fstats/f3_f4.rs:75-86,
   ~132` read the self-pair block value −2p(1−p)/(n−1) (the comment in
   `fstats/f2.rs:58-69` claiming f2(A,A)=0 is false); admixtools2 zeroes the
-  diagonal (`R/io.R:953`). f3(French; French, Yoruba) = −0.00288, z = −177
+  diagonal. f3(French; French, Yoruba) = −0.00288, z = −177
   (should be 0); f4(F,Y;F,S) 6% off f3(F;Y,S). Check qpdstat/qp3pop with
   `unique_only=False`. PD [confirmed]
 - [x] **A4. Saturated qpAdm (dof 0) reported as p = 1, "Good model fit".** *Done in 982142e.*
@@ -62,8 +62,7 @@ from the code, not yet shown.
   - duplicated population overwrites the first column (`streaming.rs`
     `pop_to_col.insert`) PD [reviewer-verified]
   - qpAdm with target or a source also in right runs and reports a good fit
-    (weights −235/+236); admixtools2 stops with "Duplicated pops"
-    (`qpadm.R:221`); the CLI de-duplicates silently (`cli/__init__.py:138`)
+    (weights −235/+236); admixtools2 stops with "Duplicated pops"; the CLI de-duplicates silently (`cli/__init__.py:138`)
     PD, PG [reviewer-verified]
   - `sources=['French','French']` fails with a cryptic singular-system error
     PD [reviewer-verified]
@@ -168,24 +167,31 @@ Research (2026-10-25, Perplexity plus primary sources):
 - Not legal advice. A lawyer's review before 1.0.0 removes the residual risk.
 
 Tasks:
-- [ ] **C1. Provenance audit.** For every module, record what it was written
+- [x] **C1. Provenance audit.** *Done in 6fe4e9f.* For every module, record what it was written
   from (paper, documentation, black-box reference output, or reference
   source) and whether any GPL source was translated. Flag modules whose
   structure, names or comments follow admixtools2 R code or R's C source.
-- [ ] **C2. Rewrite flagged modules from neutral sources.** L-BFGS-B from the
+- [ ] **C2. Rewrite flagged modules from neutral sources.** The audit's list (PROVENANCE.md): qpadm/fit.rs, lazadm.rs, qpgraph_fit.rs
+  edge lengths, graph_search.py, qpfstats.py, graph_constraints.py,
+  simulate.py, classic.py (admixtools2, GPL-3); all of alder/ (ALDER 1.03,
+  academic use only); rcompat/lbfgsb.rs (R, GPL-2+; re-base on BSD 3.0);
+  then the partial ones: graph_search.rs order, jackknife.rs, f4ratio.rs,
+  resample.py, qpadm_models.py, rng.rs, dates/ld_decay.rs mesh helpers (DATES
+  has no licence). Golden tests of rewritten modules should compare public
+  outputs, not admixtools2's internal stages. L-BFGS-B from the
   paper and the BSD 3.0 Fortran (keeping R's 2.x behaviour, documented as
   behaviour); R's RNG from MT19937 (BSD) plus R's documented seeding,
   verified black-box against R; admixtools2 algorithms from Patterson et al.
   2012, Harney et al. 2021, Maier et al. 2023 and black-box outputs. The
   golden tests stay the oracle.
-- [ ] **C3. Remove source-line pointers into GPL code** from comments and
-  docs (e.g. "`R/io.R:953`"), keeping behaviour descriptions.
-- [ ] **C4. NOTICE / THIRD-PARTY file** with the BSD attributions (Broad
+- [x] **C3. Remove source-line pointers into GPL code** *Done with the TASKS update after 6fe4e9f.* from comments and
+  docs (file and line references), keeping behaviour descriptions.
+- [x] **C4. NOTICE / THIRD-PARTY file** *Done in 6fe4e9f.* with the BSD attributions (Broad
   library, L-BFGS-B, MT19937) and any other required notices.
-- [ ] **C5. Process change (CLAUDE.md, `.cursor/rules`):** implement from
+- [x] **C5. Process change (CLAUDE.md, `.cursor/rules`):** *Done in b556631.* implement from
   papers, documentation and reference outputs; do not translate or consult
   GPL source while writing code. The R source can still be run as an oracle.
-- [ ] **C6. Check the remaining tools' licences** (ALDER, ROLLOFF, READv2,
+- [x] **C6. Check the remaining tools' licences** *Done in 6fe4e9f.* (ALDER, ROLLOFF, READv2,
   ADMIXTURE, EIGENSOFT top-level) and record them in C4.
 - [ ] **C7. Optional: legal review** of the result before tagging 1.0.0.
 
@@ -518,7 +524,7 @@ thread count.
   (`CHECKSUMS.normalized.md5`).
 - [ ] **O5. Update CLAUDE.md, README, TESTING.md and generator defaults** to
   v66.p1 paths; keep v62.0 only where a test pins a specific old result.
-- [ ] **O6. Data ethics check in CI:** a test that fails if any individual or
+- [x] **O6. Data ethics check in CI:** *Done in 803ae88.* a test that fails if any individual or
   population removed in a `.p1` release appears in the repository or test
   data.
 
