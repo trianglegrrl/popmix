@@ -47,7 +47,6 @@ quirks in places), **independent** (only the behaviour matches).
 | `python/popmix/graph_constraints.py` | admixtools2 graph constraint checks | GPL-3 | from the documented definitions |
 | `python/popmix/simulate.py` | admixtools2 msprime script generator | GPL-3 | from the msprime documentation |
 | `python/popmix/classic.py` | admixtools2 output parsers | GPL-3 | against sample ADMIXTOOLS output |
-| `crates/popmix-core/src/alder/` (all four files) | ALDER 1.03 | academic only | from Loh et al. 2013 |
 | `crates/popmix-core/src/rcompat/lbfgsb.rs` | R's L-BFGS-B 2.3 (f2c) and `optim` driver | GPL-2+ | re-base the core on BSD L-BFGS-B 3.0 (keeping 2.3's behaviour, as behaviour), rewrite the driver |
 
 ### Partly; to rewrite with the above
@@ -78,9 +77,15 @@ helpers above, every reader and writer in `popmix-io` (merge, VCF, TGENO),
 and the Python bindings, CLI, f2 directories, DOT, RDS, plots and SFS
 wrappers.
 
+## Removed
+
+- **ALDER** (`alder/`, the `alder` function and command): a translation of
+  ALDER 1.03, which is licensed for academic and non-profit use only.
+  Removed for 1.0; DATES and ROLLOFF date admixture.
+
 ## Test patches
 
-`tests/golden/{alder,dates,rolloff,eigensoft}/*.patch` modify the reference
+`tests/golden/{dates,rolloff,eigensoft}/*.patch` modify the reference
 tools to print full precision for the golden tests, and carry a few lines of
 their source as context. They are test tooling, not part of the packages
 (neither the sdist nor the wheels include `tests/`).

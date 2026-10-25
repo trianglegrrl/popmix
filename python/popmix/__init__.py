@@ -58,7 +58,6 @@ from popmix._core import (
     version,
 )
 from popmix.admixture import AdmixtureResult, admixture, admixture_loglik
-from popmix.alder import AlderResult, alder
 from popmix.classic import (
     parse_qp3pop_output,
     parse_qpadm_output,
@@ -184,10 +183,8 @@ __all__ = [
     "read_kinship",
     "sfs",
     "admixture",
-    "alder",
     "rolloff",
     "RolloffResult",
-    "AlderResult",
     "admixture_loglik",
     "AdmixtureResult",
     "joint_sfs",

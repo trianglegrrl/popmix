@@ -205,45 +205,6 @@ def admixture(
     return ax
 
 
-def alder_curve(
-    result,
-    *,
-    title: str | None = None,
-    path: str | os.PathLike[str] | None = None,
-    ax: Any = None,
-):
-    """The weighted LD curve of an ``alder`` result and its fitted exponential.
-
-    Bins before the fit start are drawn lighter; the dashed line is the
-    inter-chromosome affine term.
-
-    Returns
-    -------
-    matplotlib.axes.Axes
-    """
-    plt = _pyplot()
-    c = result.curve
-    df = c.curve[np.isfinite(c.curve["d_cm"])]
-    fit = c.fit
-    if ax is None:
-        _, ax = plt.subplots(figsize=(7, 4))
-    before = df["d_cm"] < 100 * c.fit_start
-    ax.scatter(df["d_cm"][before], df["wld"][before], s=4, color="0.7")
-    ax.scatter(df["d_cm"][~before], df["wld"][~before], s=4, color="C0", label="weighted LD")
-    d = df["d_cm"][~before].to_numpy()
-    ax.plot(d, fit["amp_exp"] * np.exp(-fit["decay"] * d / 100) + fit["amp_aff"], color="C3",
-            label=f"fit: {fit['decay']:.1f} ± {fit['decay_se']:.1f} generations")
-    ax.axhline(fit["amp_aff"], color="C3", ls="--", lw=0.8)
-    ax.set_xlabel("genetic distance (cM)")
-    ax.set_ylabel("weighted LD")
-    ax.legend(frameon=False, fontsize=8)
-    ax.set_title(title or f"{result.test_pop} with {' and '.join(c.refs)}")
-    ax.figure.tight_layout()
-    if path is not None:
-        ax.figure.savefig(path, dpi=150)
-    return ax
-
-
 def rolloff_curve(
     result,
     *,

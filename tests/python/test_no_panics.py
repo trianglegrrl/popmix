@@ -113,7 +113,6 @@ def test_extract_f2(block_size, maxmiss, pops):
 @given(binsize=numbers, maxdis=numbers, admixed=names)
 def test_ld_methods(binsize, maxdis, admixed):
     survive(pm.rolloff, SMALL, admixed, ["French", "Yoruba"], binsize=binsize, maxdis=maxdis)
-    survive(pm.alder, SMALL, admixed, ["French", "Yoruba"], binsize=binsize, maxdis=maxdis)
 
 
 @FEW

@@ -45,7 +45,7 @@ tests/
     ├── test_*.py          # one file per analysis and reference
     ├── admixtools2/       # admixtools2 2.0.10 references and their R generators
     ├── admixtools_classic/  # classic ADMIXTOOLS program output
-    ├── admixture/  alder/  dadi/  eigensoft/  plink2/  readv2/  rolloff/
+    ├── admixture/  dadi/  eigensoft/  plink2/  readv2/  rolloff/
     ├── dates/             # DATES v753 runs and data
     ├── formats/           # convertf 8, mergeit and plink2 references
     └── rlang/             # R's RNG and L-BFGS-B, for the R-compatible numerics
@@ -616,27 +616,7 @@ fit, Simulation and Simulation.1 projected), `family_supervised`, and with
 `tests/python/test_admixture.py` checks bounds, the clusters, projection of
 fit samples, errors, the bar plot and the `admixture` command.
 
-### ALDER vs ALDER 1.03, ROLLOFF vs ADMIXTOOLS 7.0.2
-
-`tests/golden/test_alder.py` checks `alder` against ALDER 1.03 rebuilt to
-print full precision (`tests/golden/alder/build_alder.sh`,
-`alder-hiprec.patch`; `generate_alder.py` checks it against the stock build
-to its printed precision), run with `compat="alder-1.03"`, for the main
-(two-reference) run and the one-reference run with each reference:
-
-| Check | Compared against | Tolerance |
-|-------|------------------|-----------|
-| `test_ld_corr` | where test LD stops being correlated with each reference's; the fit start | rtol 1e-12 |
-| `test_curve`, `test_jackknife_curves` | weighted LD per bin and the affine term, all data and each chromosome left out | rtol 1e-9, atol 1e-11 of the curve's largest value (FFT rounding); counts exact (ALDER truncates and wraps when printing) |
-| `test_fits` | decay, amp_tot, amp_exp, amp_aff, their SEs and jackknife replicates, at each of the five fit starts, for every curve | rtol 1e-6 |
-| `test_admixture_test` | pre-test, z-scores, p-value, decay differences, outcome | rtol 1e-6; outcome exact |
-| `test_mixture_fraction` | one-reference mixture-fraction bound | rtol 1e-6 |
-| `test_corrected_affine_term_leaves_out_unweighted_snps` | ALDER-0001 | |
-
-Configs: `family` (Simulation.1 with French and Yoruba) and, with
-`--run-slow`, `aadr_asw` (1000 Genomes ASW with YRI and CEU),
-`aadr_asw_lbk` (YRI and pseudo-haploid Germany_EN_LBK) and
-`aadr_asw_mindis` (fit start given).
+### ROLLOFF vs ADMIXTOOLS 7.0.2
 
 `tests/golden/test_rolloff.py` checks `rolloff` against rolloff from
 ADMIXTOOLS 7.0.2 rebuilt to print full precision
@@ -649,8 +629,7 @@ YRI and CEU, chromosomes 18-22) the fits, each with a squared error no
 larger than nls's (decay rtol 1e-5, affine term and amplitude 1e-4), and the
 jackknife (rtol 1e-5).
 
-`tests/python/test_alder.py` and `tests/python/test_rolloff.py` check the
-APIs, the ALDER plot and the `alder` and `rolloff` commands.
+`tests/python/test_rolloff.py` checks the API and the `rolloff` command.
 
 `tests/python/test_cli.py::TestCommandsMatchAdmixtools2` (`--run-slow`) runs
 the CLI itself (`popmix extract-f2`, then `f2`, `f3`, `f4`, `qpwave`, `qpadm`

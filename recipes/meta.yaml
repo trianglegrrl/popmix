@@ -47,7 +47,6 @@ test:
     - popmix qpgraph --help
     - popmix pca --help
     - popmix admixture --help
-    - popmix alder --help
     - popmix rolloff --help
     - popmix dates --help
 
@@ -63,7 +62,7 @@ about:
   description: |
     Popmix reimplements admixtools2 (f2, f3, f4, D, qpWave, qpAdm, qpGraph and
     graph search, resampling), smartpca, KING-robust and READ kinship,
-    site-frequency spectra, ADMIXTURE, DATES, ALDER and ROLLOFF in Rust with a
+    site-frequency spectra, ADMIXTURE, DATES and ROLLOFF in Rust with a
     Python interface and command line. Each is checked against the original
     tool on real data; known bugs in the originals are fixed by default and
     reproducible with a compat option (DEVIATIONS.md).

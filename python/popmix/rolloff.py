@@ -71,8 +71,7 @@ def rolloff(
     ``chithresh``). The date is the decay rate of C + A exp(-m d) fit to
     the correlations (least squares, as rexpfit.r's nls), with a weighted
     jackknife over chromosomes (weights: SNPs per chromosome in the .snp
-    file, as expfit.sh). DATES (``popmix.dates``) and ALDER (``alder``) are
-    its successors.
+    file, as expfit.sh). DATES (``popmix.dates``) is its successor.
 
     Parameters
     ----------

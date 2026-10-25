@@ -6,7 +6,6 @@
 #![allow(clippy::useless_conversion)]
 
 mod admixture;
-mod alder;
 mod geno_fstats;
 mod kinship;
 mod pca;
@@ -3246,7 +3245,6 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     kinship::register(m)?;
     sfs::register(m)?;
     admixture::register(m)?;
-    alder::register(m)?;
     qpadm_models::register(m)?;
     rcompat::register(m)?;
     rolloff::register(m)?;

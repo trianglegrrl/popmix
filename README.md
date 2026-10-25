@@ -7,16 +7,16 @@ A fast Rust/Python toolkit for population genetics analysis. Popmix computes F-s
 Popmix answers questions about human (and other species') population history:
 
 - **How different are two populations?** (f2, FST)
-- **Is a population admixed?** (f3, qpAdm, ALDER)
+- **Is a population admixed?** (f3, qpAdm)
 - **Did gene flow occur between populations?** (f4, D-statistics, scans and matrices)
 - **What graph of splits and admixtures fits the data?** (qpGraph, graph search)
-- **When did populations mix?** (DATES, ALDER, ROLLOFF)
+- **When did populations mix?** (DATES, ROLLOFF)
 - **What are the ancestry proportions?** (qpAdm, ADMIXTURE)
 - **How many ancestral populations contributed?** (qpWave)
 - **How are the samples structured and related?** (PCA as smartpca, KING-robust and READ kinship, site-frequency spectra)
 
 Popmix reimplements [admixtools2](https://github.com/uqrmaie1/admixtools), DATES,
-smartpca, ADMIXTURE, ALDER and ROLLOFF in Rust with Python bindings and a
+smartpca, ADMIXTURE and ROLLOFF in Rust with Python bindings and a
 command line. Each analysis is checked against the original tool on real data
 (TESTING.md). Where an original has a bug, popmix fixes it and offers a
 `compat` option that reproduces the original; each one is described in
@@ -206,7 +206,6 @@ Popmix auto-detects the format from file extensions:
 | Command | What |
 |---------|------|
 | `admixture` | Ancestry proportions with K ancestral populations, as ADMIXTURE. |
-| `alder` | ALDER weighted LD: date admixture in TEST and, with two references, test for it. |
 | `convertf` | Convert between genotype file formats. |
 | `dates` | Estimate admixture date using DATES algorithm. |
 | `dstat-matrix` | Matrix of D- (or f4-) statistics for every pair X, Y of populations. |
@@ -676,8 +675,8 @@ Commands that report a few statistics (`f2`, `f3`, `f4`, `qpadm`, `qpwave`,
 `dates`, `qpgraph`, ...) print text by default and take `--format json` or
 `--format tsv`. The scans (`qpdstat`, `qp3pop`, `outgroup-f3`,
 `dstat-matrix`, `kinship`, `sfs`) write a TSV table (or JSON with
-`--format json`) to stdout, or to a file with `-o`. `pca`, `admixture`,
-`alder` and `rolloff` write their result files under `--output-prefix`.
+`--format json`) to stdout, or to a file with `-o`. `pca`, `admixture`
+and `rolloff` write their result files under `--output-prefix`.
 Each command's `--help` lists what it takes.
 
 Bad input gives a one-line `Error: ...` and exit code 1; `popmix --debug
@@ -740,7 +739,6 @@ and the 1000 Genomes samples in it):
 | Kinship | PLINK 2 (KING-robust), READv2 | 1e-10 |
 | SFS | admixtools2, dadi 2.4.4 | exact, 1e-10 |
 | ADMIXTURE | ADMIXTURE 1.3.0 | log-likelihood at least ADMIXTURE's |
-| ALDER | ALDER 1.03 | curves 1e-9, fits 1e-6 |
 | ROLLOFF | ADMIXTOOLS 7.0.2 | curves 1e-9; fits at least as good |
 
 See TESTING.md for every check and DEVIATIONS.md for where popmix
@@ -761,7 +759,7 @@ Beyond the walkthroughs above, the Python API and CLI cover (each with
 | `kinship` | KING-robust and READ kinship |
 | `sfs` | joint and projected site-frequency spectra |
 | `admixture` | ADMIXTURE: unsupervised, supervised, projection, cross-validation |
-| `alder`, `rolloff` | admixture dates from weighted LD |
+| `rolloff` | admixture dates from weighted LD |
 | `pm.read_admixtools2_f2`, `write_admixtools2_f2` | admixtools2 f2 directories |
 | `pm.parse_qp*_output` | output of classic ADMIXTOOLS programs |
 | `pm.msprime_sim`, `msprime_genome` | msprime simulations of a graph |

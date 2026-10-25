@@ -12,7 +12,6 @@
 //! All algorithms are optimized for parallel execution using rayon.
 
 pub mod admixture;
-pub mod alder;
 pub mod dates;
 pub mod error;
 pub mod fstats;
@@ -33,7 +32,6 @@ pub use admixture::{
     admixture, admixture_cv, admixture_loglik, admixture_projection, admixture_supervised,
     AdmixtureFit, AdmixtureOptions,
 };
-pub use alder::{alder, AlderCompat, AlderOptions, AlderResult};
 pub use error::{PopmixError, Result};
 pub use fstats::{
     f2_estimate, f2_single_snp, f3_from_genotypes, f4_from_genotypes, BlockAssignment,

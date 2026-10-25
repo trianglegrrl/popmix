@@ -26,7 +26,6 @@ Commands:
     kinship     Kinship for every pair of samples (KING-robust or READ-style)
     sfs         Site-frequency spectrum (dadi projection or admixtools2 joint_sfs)
     admixture   Ancestry proportions as ADMIXTURE (unsupervised, supervised, projection)
-    alder       ALDER weighted LD: admixture dates and test
     rolloff     ROLLOFF: admixture dates from weighted LD correlation
 """
 
@@ -788,55 +787,6 @@ def admixture(input_prefix: str, populations: list, k: int, supervised: list, fi
             from popmix import plot as plots
 
             plots.admixture(r, path=plot)
-    except click.ClickException:
-        raise
-    except EXPECTED_ERRORS as e:
-        fail(e)
-
-
-@cli.command()
-@click.option("--input", "-i", "input_prefix", required=True, help="Genotype prefix (with a genetic map)")
-@click.option("--test", "test_pop", required=True, help="Test (possibly admixed) population")
-@click.option("--refs", required=True, callback=parse_population_list,
-              help="One or two comma-separated reference populations")
-@click.option("--mindis", type=float, default=None,
-              help="Fit from this distance (Morgans) instead of where LD stops being correlated")
-@click.option("--binsize", type=float, default=0.0005, help="Distance bin in Morgans (default: 0.0005)")
-@click.option("--maxdis", type=float, default=0.5, help="Largest distance fit, Morgans (default: 0.5)")
-@click.option("--mincount", type=int, default=4, help="Test samples called at a SNP (default: 4)")
-@click.option("--compat", type=click.Choice(["alder-1.03"]), default=None,
-              help="Reproduce ALDER 1.03 exactly (see DEVIATIONS.md)")
-@click.option("--output-prefix", "-o", default=None,
-              help="Also write PREFIX.curve.tsv and PREFIX.fits.tsv")
-@click.option("--plot", default=None, help="Also plot the curve and fit to this image file (needs popmix[plot])")
-def alder(input_prefix: str, test_pop: str, refs: list, mindis: float | None, binsize: float, maxdis: float,
-          mincount: int, compat: str | None, output_prefix: str | None, plot: str | None):
-    """ALDER weighted LD: date admixture in TEST and, with two references, test for it."""
-    try:
-        validate_populations(input_prefix, [test_pop] + refs)
-        r = pm.alder(input_prefix, test_pop, refs, mindis=mindis, binsize=binsize, maxdis=maxdis,
-                     mincount=mincount, compat=compat)
-        for ref, stop in r.ld_corr_stops.items():
-            if stop is not None:
-                click.echo(f"LD correlated with {ref} to {100 * stop:.2f} cM")
-        f = r.curve.fit
-        click.echo(f"fit from {f['mindis_cm']:.2f} cM: decay {f['decay']:.2f} +/- {f['decay_se']:.2f} "
-                   f"generations, amplitude {f['amp_exp']:.6g} +/- {f['amp_exp_se']:.6g}")
-        if r.test is not None:
-            t = r.test
-            verdict = "SUCCEEDS" if t["succeeds"] else "FAILS"
-            click.echo(f"admixture test {verdict} (z = {t['z']:.2f}, p = {t['p']:.2g})"
-                       f"{'' if t['consistent'] else '; warning: decay rates inconsistent'}")
-        if r.mixture_fraction is not None:
-            m, se = r.mixture_fraction
-            click.echo(f"mixture fraction lower bound: {100 * m:.1f}% +/- {100 * se:.1f}%")
-        if output_prefix:
-            r.curve.curve.to_csv(f"{output_prefix}.curve.tsv", sep="\t", index=False, float_format="%.12g")
-            r.curve.fits.to_csv(f"{output_prefix}.fits.tsv", sep="\t", index=False, float_format="%.12g")
-        if plot:
-            from popmix import plot as plots
-
-            plots.alder_curve(r, path=plot)
     except click.ClickException:
         raise
     except EXPECTED_ERRORS as e:

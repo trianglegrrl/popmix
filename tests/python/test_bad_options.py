@@ -30,12 +30,6 @@ def test_rolloff_maxdis(maxdis):
         pm.rolloff(SMALL, "Simulation.1", ["French", "Yoruba"], maxdis=maxdis)
 
 
-@pytest.mark.parametrize("binsize", BAD_BINSIZES)
-def test_alder_binsize(binsize):
-    with pytest.raises(ValueError, match="binsize"):
-        pm.alder(SMALL, "Simulation.1", ["French", "Yoruba"], binsize=binsize)
-
-
 @pytest.fixture(scope="module")
 def geno():
     return pm.read_genotypes(SMALL)
