@@ -166,7 +166,7 @@ pub use streaming::{
     compute_allele_frequencies_packedancestrymap, detect_ploidy_packedancestrymap,
     detect_ploidy_packedancestrymap_selected, PackedRows,
 };
-pub use vcf::VcfReader;
+pub use vcf::{VcfReader, VcfSkipped};
 pub use writers::{
     write_ancestrymap, write_eigenstrat, write_packedancestrymap, write_packedped, write_ped,
     write_plink,

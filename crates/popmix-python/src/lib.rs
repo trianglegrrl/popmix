@@ -45,6 +45,29 @@ fn to_py_err(e: popmix_core::PopmixError) -> PyErr {
     }
 }
 
+/// Open a VCF, warning (UserWarning) about the records skipped because they
+/// are not biallelic SNPs: popmix's formats hold two single-base alleles.
+fn open_vcf(path: &str) -> PyResult<VcfReader> {
+    let reader = VcfReader::new(path).map_err(to_py_err)?;
+    let k = reader.skipped();
+    if k.total() > 0 {
+        Python::with_gil(|py| {
+            PyErr::warn_bound(
+                py,
+                &py.get_type_bound::<pyo3::exceptions::PyUserWarning>(),
+                &format!(
+                    "{path}: skipped {} records that are not biallelic SNPs ({} multiallelic, {} indels or symbolic alleles)",
+                    k.total(),
+                    k.multiallelic,
+                    k.not_snp
+                ),
+                1,
+            )
+        })?;
+    }
+    Ok(reader)
+}
+
 /// An error naming any of `pops` that is not in the f2 blocks.
 fn require_populations(f2: &F2Blocks, pops: &[&str]) -> PyResult<()> {
     let unknown: Vec<&str> = pops
@@ -426,7 +449,7 @@ fn read_packedancestrymap(
 ///     population is set to its sample ID by default.
 #[pyfunction]
 fn read_vcf(path: &str) -> PyResult<PyGenotypeMatrix> {
-    let reader = VcfReader::new(path).map_err(to_py_err)?;
+    let reader = open_vcf(path)?;
     let geno = reader.read_all().map_err(to_py_err)?;
     Ok(PyGenotypeMatrix { inner: geno })
 }
@@ -576,7 +599,7 @@ fn convertf(
             reader.read_all().map_err(to_py_err)?
         }
         GenoFormat::Vcf => {
-            let reader = VcfReader::new(input_prefix).map_err(to_py_err)?;
+            let reader = open_vcf(input_prefix)?;
             reader.read_all().map_err(to_py_err)?
         }
     };
@@ -686,7 +709,7 @@ fn merge(
                 reader.read_all().map_err(to_py_err)
             }
             GenoFormat::Vcf => {
-                let reader = VcfReader::new(prefix).map_err(to_py_err)?;
+                let reader = open_vcf(prefix)?;
                 reader.read_all().map_err(to_py_err)
             }
         }
@@ -792,7 +815,7 @@ fn dataset_info(prefix: &str) -> PyResult<HashMap<String, PyObject>> {
 
         // Check for VCF format (full path with extension)
         if (prefix.ends_with(".vcf") || prefix.ends_with(".vcf.gz")) && Path::new(prefix).exists() {
-            let reader = VcfReader::new(prefix).map_err(to_py_err)?;
+            let reader = open_vcf(prefix)?;
             info.insert("format".to_string(), "vcf".to_object(py));
             info.insert("n_samples".to_string(), reader.num_samples().to_object(py));
             info.insert("n_snps".to_string(), reader.num_snps().to_object(py));
@@ -811,7 +834,7 @@ fn dataset_info(prefix: &str) -> PyResult<HashMap<String, PyObject>> {
         // Check for VCF format with prefix
         let vcf_gz_path = format!("{}.vcf.gz", prefix);
         if Path::new(&vcf_gz_path).exists() {
-            let reader = VcfReader::new(&vcf_gz_path).map_err(to_py_err)?;
+            let reader = open_vcf(&vcf_gz_path)?;
             info.insert("format".to_string(), "vcf".to_object(py));
             info.insert("n_samples".to_string(), reader.num_samples().to_object(py));
             info.insert("n_snps".to_string(), reader.num_snps().to_object(py));
@@ -828,7 +851,7 @@ fn dataset_info(prefix: &str) -> PyResult<HashMap<String, PyObject>> {
         }
         let vcf_path = format!("{}.vcf", prefix);
         if Path::new(&vcf_path).exists() {
-            let reader = VcfReader::new(&vcf_path).map_err(to_py_err)?;
+            let reader = open_vcf(&vcf_path)?;
             info.insert("format".to_string(), "vcf".to_object(py));
             info.insert("n_samples".to_string(), reader.num_samples().to_object(py));
             info.insert("n_snps".to_string(), reader.num_snps().to_object(py));
@@ -928,19 +951,19 @@ fn list_populations(prefix: &str) -> PyResult<Vec<(String, usize)>> {
 
     // Check for VCF format (full path with extension)
     if (prefix.ends_with(".vcf") || prefix.ends_with(".vcf.gz")) && Path::new(prefix).exists() {
-        let reader = VcfReader::new(prefix).map_err(to_py_err)?;
+        let reader = open_vcf(prefix)?;
         return Ok(count_populations(reader.samples()));
     }
 
     // Check for VCF format with prefix
     let vcf_gz_path = format!("{}.vcf.gz", prefix);
     if Path::new(&vcf_gz_path).exists() {
-        let reader = VcfReader::new(&vcf_gz_path).map_err(to_py_err)?;
+        let reader = open_vcf(&vcf_gz_path)?;
         return Ok(count_populations(reader.samples()));
     }
     let vcf_path = format!("{}.vcf", prefix);
     if Path::new(&vcf_path).exists() {
-        let reader = VcfReader::new(&vcf_path).map_err(to_py_err)?;
+        let reader = open_vcf(&vcf_path)?;
         return Ok(count_populations(reader.samples()));
     }
 
@@ -2835,19 +2858,19 @@ pub(crate) fn read_genotypes_any_format(prefix: &str) -> PyResult<GenotypeMatrix
 
     // Check for VCF format (full path with extension)
     if (prefix.ends_with(".vcf") || prefix.ends_with(".vcf.gz")) && Path::new(prefix).exists() {
-        let reader = VcfReader::new(prefix).map_err(to_py_err)?;
+        let reader = open_vcf(prefix)?;
         return reader.read_all().map_err(to_py_err);
     }
 
     // Check for VCF format with prefix
     let vcf_gz_path = format!("{}.vcf.gz", prefix);
     if Path::new(&vcf_gz_path).exists() {
-        let reader = VcfReader::new(&vcf_gz_path).map_err(to_py_err)?;
+        let reader = open_vcf(&vcf_gz_path)?;
         return reader.read_all().map_err(to_py_err);
     }
     let vcf_path = format!("{}.vcf", prefix);
     if Path::new(&vcf_path).exists() {
-        let reader = VcfReader::new(&vcf_path).map_err(to_py_err)?;
+        let reader = open_vcf(&vcf_path)?;
         return reader.read_all().map_err(to_py_err);
     }
 

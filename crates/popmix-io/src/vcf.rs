@@ -21,12 +21,52 @@ use popmix_core::{
 /// Reader for VCF (Variant Call Format) files.
 ///
 /// Supports both plain text (.vcf) and gzip-compressed (.vcf.gz) files.
+/// Only SNPs with at most two alleles are read (a single-base REF, and a
+/// single-base ALT or none, `.`); other records are skipped and counted
+/// ([`VcfReader::skipped`]), as with PLINK 2's `--snps-only just-acgt
+/// --max-alleles 2`. A site with no ALT is kept, monomorphic, with `.` as
+/// its counted allele, as PLINK 2 and convertf write it.
 pub struct VcfReader {
     path: String,
     samples: Vec<Sample>,
     snps: Vec<Snp>,
+    skipped: VcfSkipped,
     /// Whether the file is gzip compressed
     is_gzipped: bool,
+}
+
+/// Records a VCF reader skipped, by reason.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct VcfSkipped {
+    /// More than one ALT allele.
+    pub multiallelic: usize,
+    /// An indel or a symbolic allele (not one base each).
+    pub not_snp: usize,
+}
+
+impl VcfSkipped {
+    /// Records skipped in all.
+    pub fn total(&self) -> usize {
+        self.multiallelic + self.not_snp
+    }
+}
+
+/// Why a record is not a biallelic SNP, or None if it is one.
+fn skip_reason(ref_allele: &str, alt: &str) -> Option<fn(&mut VcfSkipped)> {
+    let base = |a: &str| {
+        a.len() == 1
+            && matches!(
+                a.as_bytes()[0].to_ascii_uppercase(),
+                b'A' | b'C' | b'G' | b'T'
+            )
+    };
+    if alt.contains(',') {
+        Some(|k| k.multiallelic += 1)
+    } else if !base(ref_allele) || !(base(alt) || alt == ".") {
+        Some(|k| k.not_snp += 1)
+    } else {
+        None
+    }
 }
 
 impl VcfReader {
@@ -40,12 +80,13 @@ impl VcfReader {
         let is_gzipped = path_str.ends_with(".gz");
 
         // Parse header to get samples and SNP count
-        let (samples, snps) = parse_vcf_header_and_variants(&path_str, is_gzipped)?;
+        let (samples, snps, skipped) = parse_vcf_header_and_variants(&path_str, is_gzipped)?;
 
         Ok(VcfReader {
             path: path_str,
             samples,
             snps,
+            skipped,
             is_gzipped,
         })
     }
@@ -68,6 +109,11 @@ impl VcfReader {
     /// Get SNP metadata.
     pub fn snps(&self) -> &[Snp] {
         &self.snps
+    }
+
+    /// Records skipped because they are not biallelic SNPs.
+    pub fn skipped(&self) -> VcfSkipped {
+        self.skipped
     }
 
     /// Read all genotypes into a GenotypeMatrix.
@@ -121,7 +167,10 @@ pub fn parse_vcf_gt(gt: &str) -> Option<Genotype> {
 }
 
 /// Parse VCF header and count variants.
-fn parse_vcf_header_and_variants(path: &str, is_gzipped: bool) -> Result<(Vec<Sample>, Vec<Snp>)> {
+fn parse_vcf_header_and_variants(
+    path: &str,
+    is_gzipped: bool,
+) -> Result<(Vec<Sample>, Vec<Snp>, VcfSkipped)> {
     let file = File::open(path).map_err(|e| PopmixError::io_with_path(e, path))?;
 
     let reader: Box<dyn BufRead> = if is_gzipped {
@@ -133,6 +182,7 @@ fn parse_vcf_header_and_variants(path: &str, is_gzipped: bool) -> Result<(Vec<Sa
 
     let mut samples = Vec::new();
     let mut snps = Vec::new();
+    let mut skipped = VcfSkipped::default();
 
     for (line_num, line_result) in reader.lines().enumerate() {
         let line = line_result.map_err(|e| PopmixError::io_with_path(e, path))?;
@@ -192,6 +242,10 @@ fn parse_vcf_header_and_variants(path: &str, is_gzipped: bool) -> Result<(Vec<Sa
             } else {
                 fields[2].to_string()
             };
+            if let Some(count) = skip_reason(fields[3], fields[4]) {
+                count(&mut skipped);
+                continue;
+            }
             let ref_allele = fields[3].chars().next().unwrap_or('N');
             let alt_allele = fields[4].chars().next().unwrap_or('N');
 
@@ -210,7 +264,7 @@ fn parse_vcf_header_and_variants(path: &str, is_gzipped: bool) -> Result<(Vec<Sa
         ));
     }
 
-    Ok((samples, snps))
+    Ok((samples, snps, skipped))
 }
 
 /// Read genotypes from VCF file.
@@ -254,6 +308,11 @@ fn read_vcf_genotypes(
                 line_num + 1,
                 format!("Expected {} columns, got {}", 9 + n_samples, fields.len()),
             ));
+        }
+
+        // the records the header pass skipped
+        if skip_reason(fields[3], fields[4]).is_some() {
+            continue;
         }
 
         // Find GT position in FORMAT field
@@ -385,6 +444,35 @@ mod tests {
         let b = VcfReader::new(VCF_FIXTURE).unwrap().read_all().unwrap();
         assert_eq!(a.n_snps(), b.n_snps());
         assert!((0..a.n_snps()).all(|j| a.snp_raw(j) == b.snp_raw(j)));
+    }
+
+    const VCF_MULTIALLELIC_FIXTURE: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/small_vcf_multiallelic.vcf"
+    );
+
+    #[test]
+    fn only_biallelic_snps_are_read() {
+        // rs2 has two ALT alleles, rs3 and rs7 are indels, rs5 is a
+        // symbolic allele: skipped and counted, not miscoded. rs4 has no ALT:
+        // kept, monomorphic, as PLINK 2 keeps it
+        let reader = VcfReader::new(VCF_MULTIALLELIC_FIXTURE).unwrap();
+        let ids: Vec<&str> = reader.snps().iter().map(|s| s.id.as_str()).collect();
+        assert_eq!(ids, ["rs1", "rs4", "rs6"]);
+        assert_eq!(
+            reader.skipped(),
+            VcfSkipped {
+                multiallelic: 1,
+                not_snp: 3
+            }
+        );
+        let m = reader.read_all().unwrap();
+        assert_eq!(m.n_snps(), 3);
+        assert_eq!(reader.snps()[1].allele_ref, '.');
+        // rs6: C>T with 1/1, 0/1, 0/0, counted on ALT
+        assert_eq!(m.get(2, 0), Genotype::HomAlt);
+        assert_eq!(m.get(2, 1), Genotype::Het);
+        assert_eq!(m.get(2, 2), Genotype::HomRef);
     }
 
     #[test]
