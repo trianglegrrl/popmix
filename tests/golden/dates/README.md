@@ -23,6 +23,10 @@ Note: The estimate is approximately 2 SE below the true value, which is within e
 - `Simulation.jin`: Jackknife estimates per chromosome
 - `Simulation.jout`: Final result (mean, SE)
 - `Simulation.fit`: Exponential fit (distance_cM, observed, fitted, residual)
+- `Simulation.out.1` ... `Simulation.out.22`: LD decay leaving out each
+  chromosome, and `Simulation.dates.log`: the run's log. DATES names these
+  `Simulation.out:1` and `Simulation:log`; the colons are replaced so the
+  repository checks out on Windows.
 
 ## Usage in Testing
 
