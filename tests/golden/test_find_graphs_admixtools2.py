@@ -3,9 +3,14 @@
 all_graphs.json (generate_all_graphs.R) holds, for several (leaves, nadmix)
 cases on the dg_6pop f2 blocks, every graph generate_all_graphs() returns in
 its order, each with its graph_hash() key and qpgraph() score. popmix must
-generate the same set of graphs (in an order of its own) and, at admixtools2's admixture
-weights, fit each to admixtools2's score; its searches must find a graph at
-least as good as admixtools2's best.
+generate the same set of graphs and, at admixtools2's admixture weights, fit
+each to admixtools2's score; its searches must find a graph at least as good
+as admixtools2's best.
+
+popmix also generates them in admixtools2's order, with the same edge layout
+(established from these outputs, see graph_search.rs): qpgraph's random
+starts follow the vertex order, so the layout decides which local optimum a
+two-admixture fit reaches.
 """
 
 import json
@@ -68,6 +73,28 @@ def test_same_graphs(i):
     assert len(ours_keys) == len(ours), "duplicate graphs"
     theirs = {tuple(g["key"]) for g in case["graphs"]}
     assert ours_keys == theirs, f"{len(ours_keys - theirs)} extra, {len(theirs - ours_keys)} missing"
+
+
+@pytest.mark.parametrize("i", _cases())
+def test_same_order(i):
+    case = _reference()["cases"][i]
+    ours = [pm.graph_key(g) for g in pm.all_graphs(case["leaves"], case["nadmix"])]
+    assert ours == [g["key"] for g in case["graphs"]]
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("i", _cases())
+def test_popmix_edge_lists_at_admixtools2_weights(f2_blocks, i):
+    """popmix's own edge list of each graph, at admixtools2's weights, scores
+    what admixtools2 scores: the same vertex order and admixture edges."""
+    case = _reference()["cases"][i]
+    ours = pm.all_graphs(case["leaves"], case["nadmix"])
+    bad = []
+    for k, (edges, g) in enumerate(zip(ours, case["graphs"])):  # noqa: B905
+        score = pm.qpgraph(f2_blocks, edges, admix_weights=g["weights"] or None).score
+        if not _close(score, g["score"], FIXED_RTOL):
+            bad.append(f"graph {k}: {score!r} != {g['score']!r}")
+    assert not bad, f"{len(bad)} of {len(ours)} differ:\n" + "\n".join(bad[:10])
 
 
 @pytest.mark.parametrize("i", _cases())
