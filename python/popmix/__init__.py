@@ -34,7 +34,6 @@ from popmix._core import (
     qpgraph,
     build_tree,
     fit_graph,
-    find_graphs,
     all_graphs,
     graph_key,
     # DATES functions
@@ -73,6 +72,16 @@ from popmix.dstats import (
     sample_ploidy,
 )
 from popmix.admixture import AdmixtureResult, admixture, admixture_loglik
+from popmix.graph_constraints import (
+    satisfies_constraints,
+    satisfies_eventorder,
+    satisfies_nonzerof4,
+    satisfies_numadmix,
+    satisfies_zerof4,
+    summarize_numadmix,
+    summarize_zerof4,
+)
+from popmix.graph_search import EvolvedGraph, find_graphs
 from popmix.kinship import king, read_kinship
 from popmix.qpadm_models import (
     qpadm_models,
@@ -197,6 +206,14 @@ __all__ = [
     "find_graphs",
     "all_graphs",
     "graph_key",
+    "EvolvedGraph",
+    "summarize_numadmix",
+    "summarize_zerof4",
+    "satisfies_numadmix",
+    "satisfies_zerof4",
+    "satisfies_nonzerof4",
+    "satisfies_eventorder",
+    "satisfies_constraints",
     # DATES functions
     "dates",
     # Classes

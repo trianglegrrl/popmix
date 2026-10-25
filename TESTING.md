@@ -740,6 +740,25 @@ admixtures, 4 with 1 and 2; 2976 graphs):
 | `test_exhaustive_search` | `find_graphs(method="exhaustive")` fits the same graphs; its best is at most admixtools2's best | trees rtol 1e-10; best rtol 1e-6 |
 | `test_stepwise_search_finds_the_exhaustive_optimum` | stepwise search, 5 populations, 1 admixture | best of all 1485, rtol 1e-6 (an optimized score) |
 
+`tests/golden/test_graph_constraints_admixtools2.py` checks the graph
+constraints against `graph_constraints.json` (`generate_graph_constraints.R`):
+for every 4th graph of `all_graphs.json` (746 graphs), admixtools2's
+`summarize_numadmix`, `summarize_zerof4` and the status (true, false or
+undecided) of 6 to 8 event-order constraints of both types, all exactly;
+`satisfies_numadmix`, `satisfies_zerof4` and `satisfies_nonzerof4` follow
+from them.
+
+`tests/golden/test_graph_search_admixtools2.py` (`--run-slow`) compares the
+evolutionary search with admixtools2 `find_graphs()` (`find_graphs.json`,
+`generate_find_graphs.R`: 8 seeds each for 5 populations with 1 admixture
+and 4 with 2, Chimp.REF as outgroup). Their random numbers differ, so over
+30 popmix seeds: the best run reaches the best of admixtools2's runs and the
+exhaustive optimum; with one admixture at least 40% of runs reach the
+optimum (admixtools2: 5 of 8); and the median number of graphs fitted is
+within a factor of 2 of admixtools2's. `tests/python/test_graph_search.py`
+checks the graph operations (valid graphs, same leaves, outgroup kept),
+reproducibility, constraints, `initgraph` and `max_admix`.
+
 Regenerate with `/usr/bin/Rscript tests/golden/admixtools2/generate_all_graphs.R`
 (about 6 minutes).
 
@@ -1083,6 +1102,8 @@ The `chr20_22_reference.json` contains:
 | `fst.json` | FST block lengths and blocks, `fst()` |
 | `qpadm_models.json` (dg_11pop) | `qpadm_p`, `test_cladality`, `qpwave_pairs`, `qpadm_rotate`, `rotate_models`, `qpadm_multi`, `qpadm_models` |
 | `resample.json` (dg_6pop) | `boo_list` draws; qpGraph, qpAdm, qpWave, qpdstat and qp3pop `_resample_snps`; `qpgraph_resample_multi`; `compare_fits` |
+| `graph_constraints.json` (dg_6pop) | `summarize_numadmix`, `summarize_zerof4` and event-order status for 746 graphs |
+| `find_graphs.json` (dg_6pop) | `find_graphs()` best score and graphs fitted, 8 seeds, two cases |
 | `resample_inds.json` (dg_6pop) | qpAdm, qpWave, qpdstat, qp3pop and qpGraph with each of 15 samples left out (`f2_from_geno(inds, pops)`) |
 
 ### Test Data Requirements by Test Type

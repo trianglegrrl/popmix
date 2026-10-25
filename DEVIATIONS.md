@@ -325,6 +325,20 @@ qpWave/qpAdm fits by the C++ code path (`cpp = TRUE`, the default).
   0.00406303, 0.00114228). Before popmix used R's starts and L-BFGS-B, its
   own quasi-Newton search from its own starts agreed on 59, 1310 and 825 of
   these graphs.
+- **The evolutionary graph search draws its own random numbers.**
+  `find_graphs(method="evolutionary")` makes admixtools2's moves
+  (negative-edge rearrangements, subtree prune and regraft, leaf swaps,
+  admixture moves and flips, root placement, adding and removing admixture
+  edges) on the best graph so far, with its selection, deduplication,
+  constraints and stopping rules, but its random choices come from Python's
+  generator, so a run takes a different path from admixtools2's with the
+  same seed. Compared over runs (`test_graph_search_admixtools2.py`): with
+  5 populations and 1 admixture, popmix reaches the optimum in at least half
+  of 30 runs and admixtools2 in 5 of 8; with 4 populations and 2
+  admixtures, popmix's best run reaches the exhaustive optimum (0.001137),
+  better than any of admixtools2's 8 runs (0.001239), but its median run
+  ends higher (0.001655 against 0.00142). Both fit a similar number of
+  graphs (52 and 56, 67 and 80).
 - **admixtools2 2.0.10 needs igraph 1.x for qpGraph.** It passes vertex
   sequences to `get.edge.ids()`, which igraph 2 rejects. The reference
   generator shims that one call (same vertex ids, as a plain vector) and
