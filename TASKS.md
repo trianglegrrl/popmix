@@ -54,7 +54,7 @@ from the code, not yet shown.
   `qpadm/fit.rs:464-467`; admixtools2 gives p = NA (checked: French.DG =
   Han.DG + Yoruba.DG, right Mbuti.DG, Chimp.REF, weights 1.22/−0.22).
   Not in DEVIATIONS.md. PR, PG [confirmed]
-- [ ] **A5. Unknown, duplicated or overlapping populations accepted.**
+- [x] **A5. Unknown, duplicated or overlapping populations accepted.** *Done in 6190214.*
   - `extract_f2(..., ["French","Yoruba","NoSuchPop"])` succeeds; every
     statistic with it returns `None` [confirmed]. Other paths drop the name or
     give `n_blocks == 0` (`genotype_matrix.rs:267`, `streaming.rs:68`)
@@ -109,7 +109,8 @@ from the code, not yet shown.
   with A4.) `partial_cmp(..).unwrap()` at `qpwave_pairs.rs:54`,
   `qpgraph/fitting.rs:85`, `dates/ld_decay.rs:275` (sorts input positions),
   `lib.rs:2082,2348`; use `f64::total_cmp`. RS, AI [suspected]
-- [ ] **B5. Errors swallowed in model loops.** `qpadm/rotate.rs:156`,
+- [ ] **B5. Errors swallowed in model loops.** (Names are checked before the
+  loops since A5, so a typo is an error; the `Err(_) => continue` remain.) `qpadm/rotate.rs:156`,
   `qpadm/qpwave_pairs.rs:110` `Err(_) => continue`: a typo returns `Ok` with
   zero models. Validate names first; skip only a typed singular-matrix error.
   RS [reviewer-verified]
