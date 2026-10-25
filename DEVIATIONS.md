@@ -345,19 +345,23 @@ qpWave/qpAdm fits by the C++ code path (`cpp = TRUE`, the default).
   `qp3pop`, `sample_ploidy`, `read_genotypes` and the CLI commands that read
   genotypes; `sfs` already did this). `pseudohaploid="admixtools2"` keeps the
   first-1,000 rule.
-- **Impact:** f2 of a population holding such a sample. With NA18606.DG among
-  CHB.DG's samples, f2(CHB.DG, Han.DG) is 0.000385318 by default and
-  0.000384351 with the admixtools2 rule (0.25%, 0.05 SE); a population of
-  that sample alone would change far more. Populations without it change
-  only through the shared SNP set (`poly_only`), and in the AADR test not at
-  all. No admixtools2 golden holds such a sample.
+- **Impact:** f2 of a population holding such a sample. On AADR v66.p1, with
+  NA18606.DG among CHB.DG's samples, f2(CHB.DG, Han.DG) is 0.000420873 by
+  default and 0.000419073 with the admixtools2 rule (0.43%, 0.07 SE); with
+  HGDP00581.DG in Druze.DG, f2(Druze.DG, Han.DG) is 0.0385412 and 0.0384821
+  (0.15%, 0.16 SE). A population of that sample alone would change far more.
+  Populations without it change only through the shared SNP set
+  (`poly_only`), and in the AADR tests not at all. v66.p1 labels
+  HGDP00581.DG Druze (v62.0 left it out, as Ignore_Druze.DG), so the
+  dg_11pop admixtools2 goldens hold it; they compare with
+  `pseudohaploid="admixtools2"`.
 - **Tests:** isolation and oracle on small data
   (`tests/python/test_extract_f2_formats.py`: a diploid sample made
   homozygous over the first 1,000 SNPs is diploid by default, and only
   statistics with its population change), live on AADR
-  (`tests/golden/test_ploidy_rule.py`: only NA18606.DG is reclassified, only
-  CHB.DG's statistics change, and the default equals counting every sample
-  diploid).
+  (`tests/golden/test_ploidy_rule.py`: for NA18606.DG and HGDP00581.DG, only
+  that genome is reclassified, only its population's statistics change, and
+  the default equals counting every sample diploid).
 
 ### Matched, not corrected
 
@@ -397,17 +401,17 @@ qpWave/qpAdm fits by the C++ code path (`cpp = TRUE`, the default).
   |---|---|---|---|
   | 4 populations, 1 admixture (84) | 84 | 0 | 0 |
   | 5 populations, 1 admixture (1485) | 1485 | 0 | 0 |
-  | 4 populations, 2 admixtures (1302) | 1219 | 50 | 33 |
+  | 4 populations, 2 admixtures (1302) | 1222 | 41 | 39 |
 
-  The 83 two-admixture graphs that differ are ones whose score is nearly
-  flat along a ridge of local minima; the score's own rounding (1e-12 to
-  1e-11 apart from admixtools2's, from inverting the f3 covariance and the
-  quadratic program) changes a finite-difference gradient at its eighth
-  digit, and a path that starts identical to admixtools2's ends in a
-  neighbouring minimum. The best graph is the same in every set (2.382203,
-  0.00406303, 0.00114228). Before popmix used R's starts and L-BFGS-B, its
+  On AADR v66.p1, the 80 two-admixture graphs that differ are ones whose
+  score is nearly flat along a ridge of local minima; the score's own
+  rounding (1e-12 to 1e-11 apart from admixtools2's, from inverting the f3
+  covariance and the quadratic program) changes a finite-difference
+  gradient at its eighth digit, and a path that starts identical to admixtools2's ends in a
+  neighbouring minimum. The best graph is the same in every set (2.116214,
+  0.00397629, 0.00113061). Before popmix used R's starts and L-BFGS-B, its
   own quasi-Newton search from its own starts agreed on 59, 1310 and 825 of
-  these graphs.
+  these graphs (on AADR v62.0).
 - **admixtools2 2.0.10 needs igraph 1.x for qpGraph.** It passes vertex
   sequences to `get.edge.ids()`, which igraph 2 rejects. The reference
   generator shims that one call (same vertex ids, as a plain vector) and

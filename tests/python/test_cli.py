@@ -15,14 +15,11 @@ import pytest
 import popmix as pm
 
 # Test data paths
-AADR_PREFIX = "/references/aadr/v62.0_1240k_public"
+# AADR v66.p1, each individual labelled <population>.<data type>
+# (tests/golden/aadr/build_aadr_v66p1.py)
+AADR_PREFIX = str(Path(os.environ.get("POPMIX_REFERENCE_CACHE", Path.home() / ".cache/popmix-references"))
+                  / "aadr_v66p1" / "aadr_v66p1")
 AADR_HO_PREFIX = "/references/aadr_v54.1.p1/HO_public"
-
-# Actual population names in AADR v62 (with suffixes)
-POP_HAN = "Han.DG"
-POP_YORUBA = "Yoruba.DG"
-POP_FRENCH = "France_BellBeaker.AG"
-POP_MBUTI = "Mbuti.DG"
 
 
 def run_cli(*args, check=True, timeout=300):

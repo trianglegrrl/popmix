@@ -151,10 +151,11 @@ def test_qpgraph_optimized_score_of_every_graph(f2_blocks, i):
 def test_qpgraph_optimized_score_with_two_admixtures(f2_blocks, i):
     """Two admixtures: the score's rounding (1e-11 relative to admixtools2's)
     moves some finite-difference paths into other local minima, either way
-    (DEVIATIONS.md, qpGraph weight optimizer); 1219 of 1302 agree."""
+    (DEVIATIONS.md, qpGraph weight optimizer); on AADR v66.p1 1222 of 1302
+    agree, and admixtools2's is lower on 39."""
     case = _reference()["cases"][i]
     same, lower, higher = _optimized(f2_blocks, case)
-    assert len(same) >= 1219 and len(higher) <= 33, f"{len(same)} same, {len(lower)} lower, {len(higher)} higher"
+    assert len(same) >= 1222 and len(higher) <= 39, f"{len(same)} same, {len(lower)} lower, {len(higher)} higher"
     best = min(g["score"] for g in case["graphs"])
     assert _close(min(pm.qpgraph(f2_blocks, _edges(case["graphs"][k])).score for k in same + lower), best, OPT_RTOL)
 

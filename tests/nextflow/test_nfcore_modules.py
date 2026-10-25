@@ -23,7 +23,9 @@ import popmix as pm
 
 REPO = Path(__file__).resolve().parents[2]
 MODULES = Path(os.environ.get("NFCORE_MODULES", "~/nf-core/modules")).expanduser() / "modules" / "nf-core" / "popmix"
-AADR = "/references/aadr/v62.0_1240k_public"
+# AADR v66.p1, labelled by data type (tests/golden/aadr/build_aadr_v66p1.py)
+AADR = str(Path(os.environ.get("POPMIX_REFERENCE_CACHE", Path.home() / ".cache/popmix-references"))
+           / "aadr_v66p1" / "aadr_v66p1")
 DG6 = REPO / "tests" / "golden" / "admixtools2" / "v2.0.10" / "dg_6pop"
 SMALL = REPO / "tests" / "golden" / "dates" / "family_chr20_22"
 FIXTURES = REPO / "tests" / "fixtures"

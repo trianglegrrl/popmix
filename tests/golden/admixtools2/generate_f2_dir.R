@@ -8,7 +8,10 @@
 
 suppressPackageStartupMessages(library(admixtools))
 
-AADR_PREFIX <- "/references/aadr/v62.0_1240k_public"
+# AADR v66.p1, each individual labelled <population>.<data type>, as
+# tests/golden/aadr/build_aadr_v66p1.py builds it in the reference cache;
+AADR_DIR <- file.path(Sys.getenv("POPMIX_REFERENCE_CACHE", path.expand("~/.cache/popmix-references")), "aadr_v66p1")
+AADR_PREFIX <- file.path(AADR_DIR, "aadr_v66p1")
 POPS <- c("Han.DG", "French.DG", "Yoruba.DG", "Mbuti.DG", "Papuan.DG", "Chimp.REF")
 script_dir <- dirname(normalizePath(sub("--file=", "", grep("--file=", commandArgs(), value = TRUE))))
 dest <- file.path(script_dir, paste0("v", packageVersion("admixtools")), "dg_6pop", "f2_dir")

@@ -38,7 +38,12 @@ local({
   lockBinding("get.edge.ids", imports)
 })
 
-AADR_PREFIX <- "/references/aadr/v62.0_1240k_public"
+# AADR v66.p1, each individual labelled <population>.<data type>, as
+# tests/golden/aadr/build_aadr_v66p1.py builds it in the reference cache;
+# its manifest.json records the release files' checksums.
+AADR_DIR <- file.path(Sys.getenv("POPMIX_REFERENCE_CACHE", path.expand("~/.cache/popmix-references")), "aadr_v66p1")
+AADR_PREFIX <- file.path(AADR_DIR, "aadr_v66p1")
+AADR_DATASET <- jsonlite::read_json(file.path(AADR_DIR, "manifest.json"))
 POPS <- c("Han.DG", "French.DG", "Yoruba.DG", "Mbuti.DG", "Papuan.DG", "Chimp.REF")
 CASES <- list(
   list(leaves = c("Chimp.REF", "Mbuti.DG", "Yoruba.DG", "French.DG", "Han.DG"), nadmix = 0),
@@ -96,5 +101,5 @@ cases <- lapply(CASES, function(case) {
   list(leaves = case$leaves, nadmix = case$nadmix, graphs = rows)
 })
 
-write_json(list(admixtools_version = version, pops = POPS, cases = cases), file.path(dest, "all_graphs.json"),
-           digits = I(17), auto_unbox = TRUE, matrix = "rowmajor")
+write_json(list(admixtools_version = version, dataset = AADR_DATASET, pops = POPS, cases = cases),
+           file.path(dest, "all_graphs.json"), digits = I(17), auto_unbox = TRUE, matrix = "rowmajor")

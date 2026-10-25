@@ -29,7 +29,12 @@ suppressPackageStartupMessages({
   library(dplyr)
 })
 
-AADR_PREFIX <- "/references/aadr/v62.0_1240k_public"
+# AADR v66.p1, each individual labelled <population>.<data type>, as
+# tests/golden/aadr/build_aadr_v66p1.py builds it in the reference cache;
+# its manifest.json records the release files' checksums.
+AADR_DIR <- file.path(Sys.getenv("POPMIX_REFERENCE_CACHE", path.expand("~/.cache/popmix-references")), "aadr_v66p1")
+AADR_PREFIX <- file.path(AADR_DIR, "aadr_v66p1")
+AADR_DATASET <- jsonlite::read_json(file.path(AADR_DIR, "manifest.json"))
 
 CONFIGS <- list(
   family_3pop = list(prefix = "tests/golden/dates/family_chr20_22",
@@ -63,6 +68,7 @@ run_config <- function(name, cfg) {
     sfs = lapply(as.list(sfs), unname),
     not_integer = not_integer
   )
+  if (identical(cfg$prefix, AADR_PREFIX)) out$dataset <- AADR_DATASET
   dest <- file.path(out_root, name)
   dir.create(dest, recursive = TRUE, showWarnings = FALSE)
   write_json(out, file.path(dest, "sfs.json"), digits = I(17), auto_unbox = TRUE)

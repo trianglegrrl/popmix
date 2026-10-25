@@ -43,6 +43,12 @@ Chimp.REF, a single pseudo-haploid sample for which admixtools2 cannot compute
 FST), with its own SNP set and blocks: fst_block_lengths (exact), fst_blocks
 (per-block FST, rtol 1e-10) and fst_estimates (est rtol 1e-10, se rtol 1e-6).
 
+popmix reads the genotypes with admixtools2's ploidy rule
+(pseudohaploid="admixtools2", ADMIXTOOLS2-0007): in AADR v66.p1 dg_11pop's
+Druze.DG holds HGDP00581.DG, a diploid genome with no heterozygous call
+among its first 1,000 SNPs, which admixtools2 counts as pseudo-haploid. In
+the other configs the two rules agree on every sample.
+
 Tolerances are those in CLAUDE.md: f-statistics rtol 1e-10, standard errors
 rtol 1e-6. SNP counts and block lengths must match exactly.
 """
@@ -88,6 +94,9 @@ def _result_for(name: str):
             block_size=params["blgsize"],
             maxmiss=params["maxmiss"],
             poly_only=params["poly_only"] == "f2",
+            # admixtools2's ploidy rule (ADMIXTOOLS2-0007): dg_11pop's Druze.DG
+            # holds a diploid genome it takes as pseudo-haploid
+            pseudohaploid="admixtools2",
         )
         _results[name] = (ref, f2)
     return _results[name]
@@ -492,6 +501,7 @@ def _fst_result_for(name: str):
             fst_ref["pops"],
             block_size=ref["params"]["blgsize"],
             maxmiss=ref["params"]["maxmiss"],
+            pseudohaploid="admixtools2",
         )
         _fst[name] = (fst_ref, f2)
     return _fst[name]

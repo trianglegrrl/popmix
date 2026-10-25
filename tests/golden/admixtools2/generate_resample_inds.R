@@ -29,7 +29,12 @@ local({
   lockBinding("get.edge.ids", imports)
 })
 
-AADR_PREFIX <- "/references/aadr/v62.0_1240k_public"
+# AADR v66.p1, each individual labelled <population>.<data type>, as
+# tests/golden/aadr/build_aadr_v66p1.py builds it in the reference cache;
+# its manifest.json records the release files' checksums.
+AADR_DIR <- file.path(Sys.getenv("POPMIX_REFERENCE_CACHE", path.expand("~/.cache/popmix-references")), "aadr_v66p1")
+AADR_PREFIX <- file.path(AADR_DIR, "aadr_v66p1")
+AADR_DATASET <- jsonlite::read_json(file.path(AADR_DIR, "manifest.json"))
 POPS <- c("Han.DG", "French.DG", "Yoruba.DG", "Mbuti.DG", "Papuan.DG", "Chimp.REF")
 ind <- read.table(paste0(AADR_PREFIX, ".ind"), col.names = c("id", "sex", "pop"), colClasses = "character")
 ind <- ind[ind$pop %in% POPS, ]
@@ -70,7 +75,7 @@ rows <- lapply(left_out, function(id) {
 
 script_dir <- dirname(normalizePath(sub("--file=", "", grep("--file=", commandArgs(), value = TRUE))))
 dest <- file.path(script_dir, paste0("v", packageVersion("admixtools")), "dg_6pop")
-out <- list(admixtools_version = as.character(packageVersion("admixtools")), prefix = AADR_PREFIX,
+out <- list(admixtools_version = as.character(packageVersion("admixtools")), prefix = AADR_PREFIX, dataset = AADR_DATASET,
             inds = poplist$id, pops = poplist$pop,
             params = list(blgsize = 0.05, maxmiss = 0, auto_only = TRUE, poly_only = "f2"),
             graph = lapply(seq_len(nrow(GRAPH)), function(i) GRAPH[i, ]), qpadm = QPADM, qpwave = QPWAVE,

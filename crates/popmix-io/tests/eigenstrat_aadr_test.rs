@@ -1,6 +1,6 @@
 //! Integration tests for EIGENSTRAT reader with text format data.
 //!
-//! Note: AADR v62 data is actually PACKEDANCESTRYMAP format, not text EIGENSTRAT.
+//! Note: AADR is distributed as packed binary (PACKEDANCESTRYMAP, TGENO), not text EIGENSTRAT.
 //! These tests use a small text EIGENSTRAT fixture.
 
 use popmix_io::EigenstratReader;

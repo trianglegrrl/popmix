@@ -56,8 +56,10 @@ def f2_blocks():
         pytest.skip(f"genotype data not available: {f2_ref['prefix']}")
     assert f2_ref["pops"] == _ref()["pops"]
     p = f2_ref["params"]
+    # admixtools2's ploidy rule (ADMIXTOOLS2-0007): Druze.DG holds a diploid
+    # genome it takes as pseudo-haploid (test_fstats_admixtools2.py)
     return pm.extract_f2(f2_ref["prefix"], f2_ref["pops"], auto_only=p["auto_only"], block_size=p["blgsize"],
-                         maxmiss=p["maxmiss"], poly_only=p["poly_only"] == "f2")
+                         maxmiss=p["maxmiss"], poly_only=p["poly_only"] == "f2", pseudohaploid="admixtools2")
 
 
 def _check_stats(ours: dict, theirs: dict, where: str):

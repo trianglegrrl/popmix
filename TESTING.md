@@ -365,7 +365,7 @@ admixtures, 4 with 1 and 2; 2976 graphs):
 | `test_qpgraph_at_admixtools2_weights` | `qpgraph()` score of every graph, popmix fitted at admixtools2's best weights | rtol 1e-10 |
 | `test_qpgraph_tree_scores` | `qpgraph()` score of every tree (nothing to optimize) | rtol 1e-10 |
 | `test_qpgraph_optimized_score_of_every_graph` | `qpgraph()` optimized score of every 1-admixture graph (84 and 1485) | rtol 1e-6 |
-| `test_qpgraph_optimized_score_with_two_admixtures` | the same for 2 admixtures: at least 1219 of 1302 agree, at most 33 higher (rounding sends some paths to other minima, DEVIATIONS.md); the best graph's score | rtol 1e-6 |
+| `test_qpgraph_optimized_score_with_two_admixtures` | the same for 2 admixtures: at least 1222 of 1302 agree, at most 39 higher (rounding sends some paths to other minima, DEVIATIONS.md); the best graph's score | rtol 1e-6 |
 | `test_exhaustive_search` | `find_graphs(method="exhaustive")` fits the same graphs; its best is at most admixtools2's best | trees rtol 1e-10; best rtol 1e-6 |
 | `test_stepwise_search_finds_the_exhaustive_optimum` | stepwise search, 5 populations, 1 admixture | best of all 1485, rtol 1e-6 (an optimized score) |
 

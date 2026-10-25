@@ -18,7 +18,12 @@ suppressPackageStartupMessages({
 })
 future::plan("sequential")
 
-AADR_PREFIX <- "/references/aadr/v62.0_1240k_public"
+# AADR v66.p1, each individual labelled <population>.<data type>, as
+# tests/golden/aadr/build_aadr_v66p1.py builds it in the reference cache;
+# its manifest.json records the release files' checksums.
+AADR_DIR <- file.path(Sys.getenv("POPMIX_REFERENCE_CACHE", path.expand("~/.cache/popmix-references")), "aadr_v66p1")
+AADR_PREFIX <- file.path(AADR_DIR, "aadr_v66p1")
+AADR_DATASET <- jsonlite::read_json(file.path(AADR_DIR, "manifest.json"))
 POPS <- c("Druze.DG", "Basque.DG", "Sardinian.DG", "Yoruba.DG", "Han.DG", "Dinka.DG",
           "Mbuti.DG", "Papuan.DG", "Karitiana.DG", "Ulchi.DG", "Chimp.REF")
 RIGHT <- c("Mbuti.DG", "Papuan.DG", "Karitiana.DG", "Ulchi.DG", "Chimp.REF")
@@ -82,7 +87,7 @@ models_ref <- list(qm(c("A", "B", "C", "D", "E"), TRUE, TRUE), qm(c("A", "B", "C
 
 script_dir <- dirname(normalizePath(sub("--file=", "", grep("--file=", commandArgs(), value = TRUE))))
 dest <- file.path(script_dir, paste0("v", packageVersion("admixtools")), "dg_11pop")
-out <- list(admixtools_version = as.character(packageVersion("admixtools")), pops = POPS,
+out <- list(admixtools_version = as.character(packageVersion("admixtools")), dataset = AADR_DATASET, pops = POPS,
             qpadm_p = qpadm_p_ref, test_cladality = cladality,
             qpwave_pairs = list(left = pairs_left, right = RIGHT, result = table_out(pairs)),
             qpadm_rotate = c(rot, list(result = table_out(rotate))),

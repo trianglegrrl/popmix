@@ -1,30 +1,51 @@
 //! Integration tests for PACKEDANCESTRYMAP reader with real AADR data.
 //!
-//! These tests require the AADR v62 dataset to be present at the expected path.
+//! These tests read AADR v66.p1 as PACKEDANCESTRYMAP, the dataset
+//! tests/golden/aadr/build_aadr_v66p1.py builds in the reference cache
+//! (`$POPMIX_REFERENCE_CACHE`, default `~/.cache/popmix-references`).
 //! They will be skipped if the data is not available.
 
-use std::path::Path;
+use std::path::PathBuf;
 
 use popmix_io::PackedAncestryMapReader;
 
-const AADR_PREFIX: &str = "/references/aadr/v62.0_1240k_public";
-
-fn data_available() -> bool {
-    Path::new(&format!("{}.geno", AADR_PREFIX)).exists()
+fn aadr_prefix() -> String {
+    let cache = std::env::var_os("POPMIX_REFERENCE_CACHE")
+        .map(PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".cache/popmix-references"))
+        })
+        .unwrap_or_default();
+    cache
+        .join("aadr_v66p1/aadr_v66p1")
+        .to_string_lossy()
+        .into_owned()
 }
 
-/// Test that we can open and read basic metadata from AADR v62 PACKEDANCESTRYMAP dataset.
+/// Samples in the dataset: one line each in its .ind file.
+fn aadr_samples() -> usize {
+    std::fs::read_to_string(format!("{}.ind", aadr_prefix()))
+        .expect("Failed to read the .ind file")
+        .lines()
+        .count()
+}
+
+fn data_available() -> bool {
+    PathBuf::from(format!("{}.geno", aadr_prefix())).exists()
+}
+
+/// Test that we can open and read basic metadata from the AADR PACKEDANCESTRYMAP dataset.
 #[test]
 fn test_open_aadr_packedancestrymap_dataset() {
     if !data_available() {
         eprintln!("Skipping test: AADR PACKEDANCESTRYMAP data not available");
         return;
     }
-    let reader = PackedAncestryMapReader::new(AADR_PREFIX)
+    let reader = PackedAncestryMapReader::new(aadr_prefix())
         .expect("Failed to open AADR PACKEDANCESTRYMAP dataset");
 
     // Verify expected dimensions
-    assert_eq!(reader.num_samples(), 17629, "Expected 17629 samples");
+    assert_eq!(reader.num_samples(), aadr_samples());
     assert_eq!(reader.num_snps(), 1233013, "Expected 1233013 SNPs");
 
     // Check first sample
@@ -55,7 +76,7 @@ fn test_read_snps_aadr_packedancestrymap() {
         return;
     }
 
-    let mut reader = PackedAncestryMapReader::new(AADR_PREFIX)
+    let mut reader = PackedAncestryMapReader::new(aadr_prefix())
         .expect("Failed to open AADR PACKEDANCESTRYMAP dataset");
 
     // Read first 100 SNPs
@@ -64,7 +85,7 @@ fn test_read_snps_aadr_packedancestrymap() {
         .expect("Failed to read SNP range");
 
     assert_eq!(geno_matrix.n_snps(), 100);
-    assert_eq!(geno_matrix.n_samples(), 17629);
+    assert_eq!(geno_matrix.n_samples(), aadr_samples());
 
     // Verify we got some non-missing genotypes
     let mut total_calls = 0u64;
@@ -119,7 +140,7 @@ fn test_detect_ploidy_aadr_packedancestrymap() {
         return;
     }
 
-    let mut reader = PackedAncestryMapReader::new(AADR_PREFIX)
+    let mut reader = PackedAncestryMapReader::new(aadr_prefix())
         .expect("Failed to open AADR PACKEDANCESTRYMAP dataset");
 
     // Detect ploidy based on first 1000 SNPs
@@ -155,13 +176,13 @@ fn test_read_single_snp_aadr_packedancestrymap() {
         return;
     }
 
-    let mut reader = PackedAncestryMapReader::new(AADR_PREFIX)
+    let mut reader = PackedAncestryMapReader::new(aadr_prefix())
         .expect("Failed to open AADR PACKEDANCESTRYMAP dataset");
 
     // Read SNP at index 1000
     let genotypes = reader.read_snp(1000).expect("Failed to read single SNP");
 
-    assert_eq!(genotypes.len(), 17629);
+    assert_eq!(genotypes.len(), aadr_samples());
 
     // Count genotypes
     let mut counts = [0usize; 4];

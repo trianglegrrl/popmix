@@ -38,7 +38,12 @@ suppressPackageStartupMessages({
   library(dplyr)
 })
 
-AADR_PREFIX <- "/references/aadr/v62.0_1240k_public"
+# AADR v66.p1, each individual labelled <population>.<data type>, as
+# tests/golden/aadr/build_aadr_v66p1.py builds it in the reference cache;
+# its manifest.json records the release files' checksums.
+AADR_DIR <- file.path(Sys.getenv("POPMIX_REFERENCE_CACHE", path.expand("~/.cache/popmix-references")), "aadr_v66p1")
+AADR_PREFIX <- file.path(AADR_DIR, "aadr_v66p1")
+AADR_DATASET <- jsonlite::read_json(file.path(AADR_DIR, "manifest.json"))
 
 CONFIGS <- list(
   family_4pop = list(
@@ -59,10 +64,13 @@ CONFIGS <- list(
     grid = list(pop1 = "Russia_Samara_EBA_Yamnaya.AG", pop2 = c("Sardinian.DG", "French.DG"),
                 pop3 = "Mbuti.DG", pop4 = "Chimp.REF")
   ),
+  # pseudo-haploid Samara Yamnaya and five diploid shotgun Yamnaya genomes
+  # (v62.0's Russia_Kalmykia_EBA_Yamnaya.SG and Russia_Remontnoye_EBA_Yamnaya.SG,
+  # relabelled in v66.p1)
   mixed_ploidy = list(
     prefix = AADR_PREFIX,
-    relabel = list(Yamnaya_mixed = c("Russia_Samara_EBA_Yamnaya.AG", "Russia_Kalmykia_EBA_Yamnaya.SG",
-                                     "Russia_Remontnoye_EBA_Yamnaya.SG")),
+    relabel = list(Yamnaya_mixed = c("Russia_Samara_EBA_Yamnaya.AG", "Russia_EBA_Kalmykia_Yamnaya.SG",
+                                     "Russia_EBA_Yamnaya.SG")),
     pops = c("Yamnaya_mixed", "French.DG", "Mbuti.DG", "Han.DG"),
     grid = list(pop1 = "Yamnaya_mixed", pop2 = "French.DG", pop3 = "Mbuti.DG", pop4 = "Han.DG")
   )
@@ -132,6 +140,7 @@ run_config <- function(name, cfg) {
     f4_blocks = f4_blocks,
     f3_blocks = f3_blocks
   )
+  if (identical(cfg$prefix, AADR_PREFIX)) out$dataset <- AADR_DATASET
   dest <- file.path(out_root, name)
   dir.create(dest, recursive = TRUE, showWarnings = FALSE)
   write_json(out, file.path(dest, "dstat.json"), digits = I(17), auto_unbox = TRUE, pretty = TRUE,

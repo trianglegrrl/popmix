@@ -31,7 +31,12 @@ local({
   lockBinding("get.edge.ids", imports)
 })
 
-AADR_PREFIX <- "/references/aadr/v62.0_1240k_public"
+# AADR v66.p1, each individual labelled <population>.<data type>, as
+# tests/golden/aadr/build_aadr_v66p1.py builds it in the reference cache;
+# its manifest.json records the release files' checksums.
+AADR_DIR <- file.path(Sys.getenv("POPMIX_REFERENCE_CACHE", path.expand("~/.cache/popmix-references")), "aadr_v66p1")
+AADR_PREFIX <- file.path(AADR_DIR, "aadr_v66p1")
+AADR_DATASET <- jsonlite::read_json(file.path(AADR_DIR, "manifest.json"))
 POPS <- c("Han.DG", "French.DG", "Yoruba.DG", "Mbuti.DG", "Papuan.DG", "Chimp.REF")
 f2_blocks <- f2_from_geno(AADR_PREFIX, pops = POPS, blgsize = 0.05, maxmiss = 0, minmaf = 0, maxmaf = 0.5,
                           auto_only = TRUE, adjust_pseudohaploid = TRUE, poly_only = "f2", apply_corr = TRUE,
@@ -60,7 +65,7 @@ qpgraph_rows <- function(res) lapply(seq_len(nrow(res)), function(i) list(
   low = admix_weight(res$edges[[i]], "low"), high = admix_weight(res$edges[[i]], "high"),
   error = !is.null(res$error[[i]])))
 
-out <- list(admixtools_version = as.character(packageVersion("admixtools")), pops = POPS,
+out <- list(admixtools_version = as.character(packageVersion("admixtools")), dataset = AADR_DATASET, pops = POPS,
             graphs = lapply(GRAPHS, function(g) lapply(seq_len(nrow(g)), function(i) g[i, ])))
 
 set.seed(1)

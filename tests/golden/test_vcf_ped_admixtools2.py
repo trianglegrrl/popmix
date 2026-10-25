@@ -1,7 +1,7 @@
 """Golden master tests: f2 from VCF and PED input vs admixtools2.
 
 vcf_ped/<name>.json (generate_vcf_ped.py) holds admixtools2 f2_from_geno()
-of the small family data and of dg_6pop populations of AADR v62 in PLINK
+of the small family data and of dg_6pop populations of AADR v66.p1 in PLINK
 format, with 5 cM blocks and with 2 Mb blocks; the same genotypes as PLINK
 2 exports them in VCF and PED are in the reference cache. popmix's f2
 blocks from the PED (whose map gives 5 cM blocks) and from the VCF (no map:

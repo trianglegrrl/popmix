@@ -1,17 +1,19 @@
-"""ADMIXTOOLS2-0007, live: a diploid genome whose first 1,000 SNPs hold no
+"""ADMIXTOOLS2-0007, live: diploid genomes whose first 1,000 SNPs hold no
 heterozygous call.
 
 admixtools2 calls a sample pseudo-haploid when it has no heterozygous call
-among the first 1,000 SNPs. AADR's NA18606.DG (in CHB.DG), a high-coverage
-genome, has 959 calls there and none heterozygous, so admixtools2 counts its
-later heterozygous calls as half an allele. popmix's default looks at every
-SNP; ``pseudohaploid="admixtools2"`` keeps the first-1,000 rule.
+among the first 1,000 SNPs. AADR's NA18606.DG (in CHB.DG) and HGDP00581.DG
+(in Druze.DG, and so in the dg_11pop goldens), high-coverage genomes, have
+no heterozygous call there, so admixtools2 counts their later heterozygous
+calls as half an allele. popmix's default looks at every SNP;
+``pseudohaploid="admixtools2"`` keeps the first-1,000 rule.
 
-AADR v62.0 (popmix cannot read v66.p1's TGENO yet, task O1).
+AADR v66.p1, labelled by data type (tests/golden/aadr/build_aadr_v66p1.py).
 """
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -20,39 +22,56 @@ import popmix as pm
 
 pytestmark = pytest.mark.slow
 
-AADR = "/references/aadr/v62.0_1240k_public"
-POPS = ["CHB.DG", "Han.DG", "French.DG", "Mbuti.DG"]
+AADR = str(Path(os.environ.get("POPMIX_REFERENCE_CACHE", Path.home() / ".cache/popmix-references"))
+           / "aadr_v66p1" / "aadr_v66p1")
+OTHERS = ["Han.DG", "French.DG", "Mbuti.DG"]
+# the genome, and its population
+CASES = {"NA18606.DG": "CHB.DG", "HGDP00581.DG": "Druze.DG"}
+_rules: dict = {}
 
 
-@pytest.fixture(scope="module")
-def rules():
+def _pops(sample: str) -> list[str]:
+    return [CASES[sample], *OTHERS]
+
+
+def rules(sample: str) -> dict:
     if not Path(f"{AADR}.geno").exists():
-        pytest.skip("AADR v62.0 not available")
-    return {rule: pm.extract_f2(AADR, POPS, pseudohaploid=rule) for rule in ("detect", "admixtools2", "diploid")}
+        pytest.skip("AADR v66.p1 dataset not built")
+    if sample not in _rules:
+        _rules[sample] = {rule: pm.extract_f2(AADR, _pops(sample), pseudohaploid=rule)
+                          for rule in ("detect", "admixtools2", "diploid")}
+    return _rules[sample]
 
 
-def test_only_na18606_is_reclassified():
+@pytest.mark.parametrize("sample", CASES)
+def test_only_that_genome_is_reclassified(sample):
     if not Path(f"{AADR}.geno").exists():
-        pytest.skip("AADR v62.0 not available")
-    detect = pm.sample_ploidy(AADR, POPS)
-    first1000 = pm.sample_ploidy(AADR, POPS, pseudohaploid="admixtools2")
+        pytest.skip("AADR v66.p1 dataset not built")
+    detect = pm.sample_ploidy(AADR, _pops(sample))
+    first1000 = pm.sample_ploidy(AADR, _pops(sample), pseudohaploid="admixtools2")
     changed = {s for s in detect if detect[s] != first1000[s]}
-    assert changed == {"NA18606.DG"}
-    assert (detect["NA18606.DG"], first1000["NA18606.DG"]) == (2, 1)
+    assert changed == {sample}
+    assert (detect[sample], first1000[sample]) == (2, 1)
 
 
-def test_isolation_only_chb_statistics_change(rules):
-    detect, compat = rules["detect"], rules["admixtools2"]
-    for a, b in [("Han.DG", "French.DG"), ("Han.DG", "Mbuti.DG"), ("French.DG", "Mbuti.DG")]:
-        assert detect.f2(a, b) == compat.f2(a, b), (a, b)
-    for other in ("Han.DG", "French.DG", "Mbuti.DG"):
-        assert detect.f2("CHB.DG", other)["estimate"] != compat.f2("CHB.DG", other)["estimate"], other
+@pytest.mark.parametrize("sample", CASES)
+def test_isolation_only_its_population_changes(sample):
+    r = rules(sample)
+    detect, compat = r["detect"], r["admixtools2"]
+    for i, a in enumerate(OTHERS):
+        for b in OTHERS[i + 1:]:
+            assert detect.f2(a, b) == compat.f2(a, b), (a, b)
+    for other in OTHERS:
+        assert detect.f2(CASES[sample], other)["estimate"] != compat.f2(CASES[sample], other)["estimate"], other
 
 
-def test_oracle_the_default_treats_the_genome_as_diploid(rules):
+@pytest.mark.parametrize("sample", CASES)
+def test_oracle_the_default_treats_the_genome_as_diploid(sample):
     """Every sample of these populations has heterozygous calls, so the
     default must equal counting all of them as diploid."""
-    detect, diploid = rules["detect"], rules["diploid"]
-    for i, a in enumerate(POPS):
-        for b in POPS[i + 1:]:
+    r = rules(sample)
+    detect, diploid = r["detect"], r["diploid"]
+    pops = _pops(sample)
+    for i, a in enumerate(pops):
+        for b in pops[i + 1:]:
             assert detect.f2(a, b) == diploid.f2(a, b), (a, b)
