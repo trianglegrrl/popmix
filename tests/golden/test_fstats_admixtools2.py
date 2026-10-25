@@ -335,7 +335,9 @@ def _check_qpadm_popdrop_corrected(name: str):
         for x, y in zip(r.popdrop, compat.popdrop):
             for field in ("pattern", "wt", "dof", "chi_sq", "p_value", "f4rank", "weights",
                           "feasible"):
-                if getattr(x, field) != getattr(y, field):
+                a, b = getattr(x, field), getattr(y, field)
+                both_na = isinstance(a, float) and isinstance(b, float) and math.isnan(a) and math.isnan(b)
+                if a != b and not both_na:  # a saturated model's p is NA in both
                     mismatches.append(f"{label} pat {x.pattern}: {field} differs from compat")
         rows = {row["pat"]: row for row in m["popdrop"]}
         path = _reference_nested_path(m["popdrop"])

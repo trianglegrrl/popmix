@@ -56,11 +56,7 @@ pub fn qpadm_p(
     let qinv = fit::fudged_inverse(&f4.covariance, fudge)?;
     let rank_fit = fit::fit_rank(&xmat, &qinv, rnk, fudge)?;
     let (chi_sq, dof) = fit::evaluate_fit(&xmat, &qinv, &rank_fit, rnk);
-    let p_value = if dof == 0 {
-        f64::NAN
-    } else {
-        fit::chisq_p_value(chi_sq, dof)
-    };
+    let p_value = fit::chisq_p_value(chi_sq, dof);
     let nr = xmat.nrows();
     let weights = if rnk == 0 {
         (nr == 1).then(|| vec![1.0])

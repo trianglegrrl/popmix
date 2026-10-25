@@ -460,10 +460,18 @@ pub(crate) fn qpadm_weight_std_errors(
         .collect())
 }
 
-/// Upper tail probability of a chi-squared distribution. 1 when dof is 0.
+/// Order models by p-value, best first, with untested models (NaN p, from
+/// 0 degrees of freedom) after every tested one.
+pub(crate) fn by_p_descending(a: f64, b: f64) -> std::cmp::Ordering {
+    a.is_nan().cmp(&b.is_nan()).then(b.total_cmp(&a))
+}
+
+/// The p-value of a model's fit: the upper tail probability of a
+/// chi-squared distribution. NaN (admixtools2's NA) when dof is 0: a
+/// saturated model is not tested, so it has no p-value.
 pub(crate) fn chisq_p_value(chisq: f64, dof: usize) -> f64 {
     if dof == 0 {
-        return 1.0;
+        return f64::NAN;
     }
     ChiSquared::new(dof as f64)
         .map(|d| d.sf(chisq))
@@ -474,6 +482,22 @@ pub(crate) fn chisq_p_value(chisq: f64, dof: usize) -> f64 {
 mod tests {
     use super::*;
     use approx::assert_relative_eq;
+
+    #[test]
+    fn untested_models_rank_after_tested_ones() {
+        let mut p = [0.2, f64::NAN, 0.9, 0.01, f64::NAN, 0.5];
+        p.sort_by(|a, b| by_p_descending(*a, *b));
+        assert_eq!(&p[..4], &[0.9, 0.5, 0.2, 0.01]);
+        assert!(p[4..].iter().all(|x| x.is_nan()));
+    }
+
+    #[test]
+    fn a_saturated_model_has_no_p_value() {
+        assert!(chisq_p_value(0.3, 0).is_nan());
+        assert!(chisq_p_value(0.0, 0).is_nan());
+        // R pchisq for nested differences keeps its point mass at 0
+        assert_eq!(chisq_upper_tail(0.3, 0), 0.0);
+    }
 
     #[test]
     fn test_rank_one_matrix_fits_rank_one_exactly() {

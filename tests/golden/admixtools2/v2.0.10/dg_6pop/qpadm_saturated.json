@@ -1,0 +1,55 @@
+{
+  "target": "French.DG",
+  "left": ["Han.DG", "Yoruba.DG"],
+  "right": ["Mbuti.DG", "Chimp.REF"],
+  "admixtools_version": "2.0.10",
+  "weights": [
+    {
+      "left": "Han.DG",
+      "weight": "1.2167836672091745",
+      "se": "0.17148839334837621"
+    },
+    {
+      "left": "Yoruba.DG",
+      "weight": "-0.21678366720917444",
+      "se": "0.1714883933483764"
+    }
+  ],
+  "rankdrop": [
+    {
+      "f4rank": 1,
+      "dof": 0,
+      "chisq": "7.0194066915914155e-07",
+      "p": "NA"
+    },
+    {
+      "f4rank": 0,
+      "dof": 2,
+      "chisq": "53.542220024312208",
+      "p": "2.3629506269722253e-12"
+    }
+  ],
+  "popdrop": [
+    {
+      "pat": "00",
+      "dof": 0,
+      "chisq": "7.0194066915914155e-07",
+      "p": "NA",
+      "feasible": false
+    },
+    {
+      "pat": "01",
+      "dof": 1,
+      "chisq": "2.5731438710629959",
+      "p": "0.10869152684147003",
+      "feasible": true
+    },
+    {
+      "pat": "10",
+      "dof": 1,
+      "chisq": "57.707517837364421",
+      "p": "3.0413818284187444e-14",
+      "feasible": true
+    }
+  ]
+}

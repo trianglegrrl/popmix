@@ -203,10 +203,15 @@ mod tests {
         // Should have rank tests from 0 to min(n_left-1, n_right-1) = min(2, 1) = 1
         assert!(!result.rank_tests.is_empty());
 
-        // Each rank test should have valid values
+        // Each rank test should have valid values; one with 0 degrees of
+        // freedom tests nothing and has no p-value
         for test in &result.rank_tests {
             assert!(test.chi_sq >= 0.0);
-            assert!(test.p_value >= 0.0 && test.p_value <= 1.0);
+            if test.df == 0 {
+                assert!(test.p_value.is_nan());
+            } else {
+                assert!(test.p_value >= 0.0 && test.p_value <= 1.0);
+            }
         }
     }
 

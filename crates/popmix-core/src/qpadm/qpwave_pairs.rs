@@ -47,11 +47,13 @@ impl QpWavePairsResult {
             .collect()
     }
 
-    /// Get the pair with highest p-value (most likely clade).
+    /// Get the pair with highest p-value (most likely clade); pairs with no
+    /// p-value (0 degrees of freedom) are not candidates.
     pub fn best_clade(&self) -> Option<&QpWavePairResult> {
         self.pairs
             .iter()
-            .max_by(|a, b| a.p_value.partial_cmp(&b.p_value).unwrap())
+            .filter(|p| !p.p_value.is_nan())
+            .max_by(|a, b| a.p_value.total_cmp(&b.p_value))
     }
 
     /// Get p-value matrix as a hashmap for easy lookup.

@@ -5,6 +5,7 @@
 
 use crate::fstats::F2Blocks;
 use crate::genotypes::PopulationId;
+use crate::qpadm::fit;
 use crate::qpadm::qpadm_impl::{qpadm, QpAdmOptions};
 use crate::Result;
 use itertools::Itertools;
@@ -161,12 +162,8 @@ pub fn qpadm_rotate(
         }
     }
 
-    // Sort by p-value descending (best fits first)
-    models.sort_by(|a, b| {
-        b.p_value
-            .partial_cmp(&a.p_value)
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
+    // Best fits first; untested (saturated) models last
+    models.sort_by(|a, b| fit::by_p_descending(a.p_value, b.p_value));
 
     let n_feasible = models.iter().filter(|m| m.is_feasible).count();
 
@@ -269,10 +266,10 @@ mod tests {
         assert_eq!(result.n_combinations, 7);
         assert!(!result.models.is_empty(), "Should have some valid models");
 
-        // Models should be sorted by p-value descending
-        for i in 1..result.models.len() {
+        // Models sorted by p-value descending, untested (NaN p) ones last
+        for w in result.models.windows(2) {
             assert!(
-                result.models[i - 1].p_value >= result.models[i].p_value,
+                w[1].p_value.is_nan() || w[0].p_value >= w[1].p_value,
                 "Models should be sorted by p-value descending"
             );
         }
