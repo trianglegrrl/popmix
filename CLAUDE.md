@@ -44,7 +44,7 @@ This prevents maturin build errors caused by conflicting Python environments.
 cd /home/a/popmix
 python -m venv .venv
 unset CONDA_PREFIX && source .venv/bin/activate
-pip install maturin pytest hypothesis numpy pandas click rich
+pip install maturin pytest hypothesis numpy pandas click
 ```
 
 ## Quick Start
