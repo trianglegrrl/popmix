@@ -124,3 +124,24 @@ installed come first.
   as references.
 - C1: matplotlib is an optional extra (`popmix[plot]`); tables are always
   written.
+
+## Status (2026-10-25)
+
+Done: all of Phase A and B (commits 45b7898 to 10a6a45), C1 plots
+(019b86a), C2 cleanup (a35ccd5), PCA output independent of the thread count
+(4ab0928). C3/C4 prepared locally:
+
+- bioconda: `recipes/meta.yaml` builds from the git tree; the local
+  conda-build (Python 3.11, conda-forge) builds the package and passes its
+  import and CLI tests. Publishing needs a PyPI release of popmix (the name
+  is free) and its sdist sha256, then a PR to bioconda/bioconda-recipes.
+- nf-core: modules for every command, 21 in `~/nf-core/modules` on branch
+  `add-popmix` (untracked there); all 42 nf-tests pass locally, snapshots
+  stable on rerun. The `family_chr20_22` test data must go to
+  nf-core/test-datasets first.
+
+Both last steps publish to outside services and wait for a decision.
+
+Known gaps, recorded in DEVIATIONS.md: the evolutionary graph search's
+median run with two admixtures ends higher than admixtools2's; individual
+resampling uses popmix's f2, not admixtools2's extract_counts estimator.
