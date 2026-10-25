@@ -11,7 +11,7 @@ use popmix_core::{
 use popmix_io::{is_packed_format, PackedRows};
 
 use crate::ploidy::{ploidy_rule, PloidyRule};
-use crate::{read_genotypes_any_format, to_py_err};
+use crate::{read_genotypes_of, to_py_err};
 
 /// The SNPs, samples and row source for statistics on `populations`.
 pub(crate) enum Source {
@@ -73,7 +73,7 @@ fn open_source_filtered_with(
         rule.apply_packed(&geno_path, &mut samples, &pop_refs, snps.len())?;
         (samples, snps, None)
     } else {
-        let mut geno = read_genotypes_any_format(prefix)?;
+        let mut geno = read_genotypes_of(prefix, populations)?;
         rule.apply(&mut geno);
         (geno.samples().to_vec(), geno.snps().to_vec(), Some(geno))
     };
@@ -297,7 +297,7 @@ pub fn sample_ploidy(
         rule.apply_packed(&geno_path, &mut samples, &pop_refs, n_snps)?;
         samples
     } else {
-        let mut geno = read_genotypes_any_format(prefix)?;
+        let mut geno = read_genotypes_of(prefix, &populations)?;
         rule.apply(&mut geno);
         geno.samples().to_vec()
     };

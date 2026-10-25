@@ -54,6 +54,17 @@ pub struct PackedAncestryMapReader {
 /// length cannot tell (it is at least 48 bytes), so without this a lost .ind
 /// line would silently shift every later sample's genotypes.
 pub fn check_header(geno_path: &str, n_samples: usize, n_snps: usize) -> Result<()> {
+    check_header_counts(geno_path, "GENO", n_samples, n_snps)
+}
+
+/// [`check_header`] for a header that starts with `magic` ("GENO", or
+/// "TGENO" for the transposed format).
+pub(crate) fn check_header_counts(
+    geno_path: &str,
+    magic: &str,
+    n_samples: usize,
+    n_snps: usize,
+) -> Result<()> {
     let mut head = [0u8; 64];
     let mut file = File::open(geno_path).map_err(|e| PopmixError::io_with_path(e, geno_path))?;
     let read = std::io::Read::read(&mut file, &mut head)
@@ -65,13 +76,13 @@ pub fn check_header(geno_path: &str, n_samples: usize, n_snps: usize) -> Result<
         .take(3)
         .collect();
     let counts = match fields.as_slice() {
-        ["GENO", n, m] => n.parse::<usize>().ok().zip(m.parse::<usize>().ok()),
+        [m0, n, m] if *m0 == magic => n.parse::<usize>().ok().zip(m.parse::<usize>().ok()),
         _ => None,
     };
     let Some((header_samples, header_snps)) = counts else {
         return Err(PopmixError::InvalidFileFormat {
             file: geno_path.to_string(),
-            details: "no \"GENO <samples> <snps>\" header".to_string(),
+            details: format!("no \"{magic} <samples> <snps>\" header"),
         });
     };
     if (header_samples, header_snps) != (n_samples, n_snps) {

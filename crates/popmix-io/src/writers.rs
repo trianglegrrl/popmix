@@ -186,9 +186,50 @@ pub fn write_packedancestrymap(prefix: impl AsRef<Path>, matrix: &GenotypeMatrix
     Ok(())
 }
 
+/// Write a GenotypeMatrix as TGENO (.geno, .snp, .ind): the packed format
+/// stored individual by individual, as AdmixTools 8 and AADR v66 write it
+/// (see [`crate::tgeno`]).
+pub fn write_tgeno(prefix: impl AsRef<Path>, matrix: &GenotypeMatrix) -> Result<()> {
+    let prefix = prefix.as_ref();
+    write_tgeno_geno(&format!("{}.geno", prefix.display()), matrix)?;
+    write_snp_file(&format!("{}.snp", prefix.display()), matrix.snps())?;
+    write_ind_file(&format!("{}.ind", prefix.display()), matrix.samples())?;
+    Ok(())
+}
+
 // ============================================================================
 // Internal helper functions - Genotype files
 // ============================================================================
+
+fn write_tgeno_geno(path: &str, matrix: &GenotypeMatrix) -> Result<()> {
+    let mut writer = BufWriter::new(File::create(path)?);
+    let (n_samples, n_snps) = (matrix.n_samples(), matrix.n_snps());
+    let ind_ids: Vec<&str> = matrix.samples().iter().map(|s| s.id.as_str()).collect();
+    let snp_ids: Vec<&str> = matrix.snps().iter().map(|s| s.id.as_str()).collect();
+    let header_text = format!(
+        "TGENO {} {} {:x} {:x}",
+        n_samples,
+        n_snps,
+        crate::packedancestrymap::header_hash(&ind_ids),
+        crate::packedancestrymap::header_hash(&snp_ids)
+    );
+    let mut header = vec![0u8; crate::tgeno::HEADER_LEN];
+    header[..header_text.len()].copy_from_slice(header_text.as_bytes());
+    writer.write_all(&header)?;
+
+    // one record per individual: SNP 0 in the high bits of byte 0
+    let mut record = vec![0u8; n_snps.div_ceil(4)];
+    for sample_idx in 0..n_samples {
+        record.fill(0);
+        for snp_idx in 0..n_snps {
+            let bits = matrix.get(snp_idx, sample_idx).to_packed_bits();
+            record[snp_idx / 4] |= bits << (6 - (snp_idx % 4) * 2);
+        }
+        writer.write_all(&record)?;
+    }
+    writer.flush()?;
+    Ok(())
+}
 
 fn write_ancestrymap_geno(path: &str, matrix: &GenotypeMatrix) -> Result<()> {
     let file = File::create(path)?;

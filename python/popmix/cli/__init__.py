@@ -1086,10 +1086,12 @@ def qpwave(left: list, right: list, input_prefix: str | None, f2_dir: str | None
 @click.option("--input", "-i", "input_prefix", required=True, help="Input genotype file prefix (or full path for VCF)")
 @click.option("--output", "-o", "output_prefix", required=True, help="Output genotype file prefix")
 @click.option("--input-format", "-if", "input_format", default=None,
-              type=click.Choice(["ancestrymap", "eigenstrat", "ped", "packedped", "plink", "packedancestrymap", "vcf"]),
+              type=click.Choice(["ancestrymap", "eigenstrat", "ped", "packedped", "plink", "packedancestrymap", "tgeno",
+                                "vcf"]),
               help="Input format (auto-detected if not specified)")
 @click.option("--output-format", "-of", "output_format", required=True,
-              type=click.Choice(["ancestrymap", "eigenstrat", "ped", "packedped", "plink", "packedancestrymap"]),
+              type=click.Choice(["ancestrymap", "eigenstrat", "ped", "packedped", "plink", "packedancestrymap",
+                                "tgeno"]),
               help="Output format")
 def convertf(input_prefix: str, output_prefix: str, input_format: str | None, output_format: str):
     """Convert between genotype file formats.
@@ -1134,13 +1136,16 @@ def convertf(input_prefix: str, output_prefix: str, input_format: str | None, ou
 @click.option("--file-b", "-b", required=True, help="Second input genotype file (prefix or full VCF path)")
 @click.option("--output", "-o", required=True, help="Output genotype file prefix")
 @click.option("--output-format", "-of", required=True,
-              type=click.Choice(["ancestrymap", "eigenstrat", "ped", "packedped", "plink", "packedancestrymap"]),
+              type=click.Choice(["ancestrymap", "eigenstrat", "ped", "packedped", "plink", "packedancestrymap",
+                                "tgeno"]),
               help="Output format")
 @click.option("--input-format-a", "-ifa", default=None,
-              type=click.Choice(["ancestrymap", "eigenstrat", "ped", "packedped", "plink", "packedancestrymap", "vcf"]),
+              type=click.Choice(["ancestrymap", "eigenstrat", "ped", "packedped", "plink", "packedancestrymap", "tgeno",
+                                "vcf"]),
               help="Format for file A (auto-detected if not specified)")
 @click.option("--input-format-b", "-ifb", default=None,
-              type=click.Choice(["ancestrymap", "eigenstrat", "ped", "packedped", "plink", "packedancestrymap", "vcf"]),
+              type=click.Choice(["ancestrymap", "eigenstrat", "ped", "packedped", "plink", "packedancestrymap", "tgeno",
+                                "vcf"]),
               help="Format for file B (auto-detected if not specified)")
 def merge(file_a: str, file_b: str, output: str, output_format: str,
           input_format_a: str | None, input_format_b: str | None):

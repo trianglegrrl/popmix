@@ -9,7 +9,7 @@ use popmix_core::{joint_sfs, projected_sfs, AlleleFrequencies, JointSfsCompat, S
 use popmix_io::{compute_allele_frequencies_packedancestrymap, is_packed_format};
 
 use crate::ploidy::{ploidy_rule, PloidyRule};
-use crate::{read_genotypes_internal, to_py_err};
+use crate::to_py_err;
 
 /// Allele frequencies and counts of `populations`, in that order, with
 /// pseudo-haploid samples (found by `rule`) counting one allele.
@@ -32,7 +32,7 @@ fn allele_frequencies(
         compute_allele_frequencies_packedancestrymap(&geno_path, &samples, &snps, &pops, auto_only)
             .map_err(to_py_err)?
     } else {
-        let mut geno = read_genotypes_internal(prefix)?;
+        let mut geno = crate::read_genotypes_of(prefix, populations)?;
         rule.apply(&mut geno);
         let geno = if auto_only {
             geno.filter_autosomal().map_err(to_py_err)?

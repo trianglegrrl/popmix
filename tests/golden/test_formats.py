@@ -34,6 +34,8 @@ CACHE = Path(os.environ.get("POPMIX_REFERENCE_CACHE", Path.home() / ".cache/popm
 CONVERTF = os.environ.get("POPMIX_CONVERTF",
                           str(Path.home() / ".local/share/popmix-references/admixtools-8.0.2/bin/convertf"))
 
+AADR_V66 = Path("/references/aadr/v66.p1/v66.p1_1240K.aadr.patch.PUB")
+
 # format -> (prefix in the cache, blocks, whether the file carries population labels)
 FORMATS = {
     "packed": ("packed", "cm", True),
@@ -124,7 +126,7 @@ def test_vcf_conversion_matches_plink2_and_convertf(ref: dict, tmp_path: Path, f
     _assert_same_genotypes(out, CACHE / "fromvcf_text")
 
 
-@pytest.mark.parametrize("fmt", ["eigenstrat", "plink", "packedancestrymap"])
+@pytest.mark.parametrize("fmt", ["eigenstrat", "plink", "packedancestrymap", "tgeno"])
 def test_packed_conversion_matches_convertf(ref: dict, tmp_path: Path, fmt: str) -> None:
     out = tmp_path / "ours"
     _popmix_convertf(CACHE / "packed", out, fmt)
@@ -132,3 +134,23 @@ def test_packed_conversion_matches_convertf(ref: dict, tmp_path: Path, fmt: str)
         _to_text_with_convertf(out, tmp_path / "ours_text")
         out = tmp_path / "ours_text"
     _assert_same_genotypes(out, CACHE / "text")
+
+
+def test_aadr_v66_is_tgeno() -> None:
+    if not Path(f"{AADR_V66}.geno").exists():
+        pytest.skip("AADR v66.p1 not available")
+    assert pm.dataset_info(str(AADR_V66))["format"] == "tgeno"
+
+
+def test_f2_straight_from_the_aadr_tgeno_matches_admixtools2(ref: dict) -> None:
+    """The packed reference files are convertf's subset of this TGENO file:
+    reading only these individuals' records must give admixtools2's f2."""
+    if not Path(f"{AADR_V66}.geno").exists():
+        pytest.skip("AADR v66.p1 not available")
+    ours = pm.extract_f2(str(AADR_V66), ref["pops"])
+    want = ref["cm"]
+    assert list(ours.block_lengths) == [int(x) for x in want["block_lengths"]]
+    for pair, values in want["f2"].items():
+        a, b = pair.split("|")
+        np.testing.assert_allclose(ours.f2_per_block(a, b), np.array([float(x) for x in values]),
+                                   rtol=1e-10, atol=1e-15, err_msg=pair)

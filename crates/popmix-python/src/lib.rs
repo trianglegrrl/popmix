@@ -23,10 +23,11 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
 use popmix_core::{AlleleFrequencies, BlockDefinition, F2Blocks, GenotypeMatrix, Ploidy, Sample};
+use popmix_io::tgeno::{is_tgeno_format, TgenoReader};
 use popmix_io::{
     compute_allele_frequencies_packedancestrymap, is_packed_format, merge::merge_genotypes,
     read_f2_blocks, write_ancestrymap, write_eigenstrat, write_f2_blocks, write_packedancestrymap,
-    write_packedped, write_ped, AncestryMapReader, EigenstratReader, GenoFormat,
+    write_packedped, write_ped, write_tgeno, AncestryMapReader, EigenstratReader, GenoFormat,
     PackedAncestryMapReader, PedReader, PlinkReader, VcfReader,
 };
 
@@ -536,7 +537,14 @@ fn read_genotypes_range(prefix: &str, range: (usize, usize)) -> PyResult<PyGenot
     // Check for EIGENSTRAT/PACKEDANCESTRYMAP format (.geno file)
     let geno_path = format!("{}.geno", prefix);
     if Path::new(&geno_path).exists() {
-        // Check if it's packed (binary) or text format
+        // Check if it's packed (binary), transposed packed or text format
+        if is_tgeno_format(&geno_path).map_err(to_py_err)? {
+            let reader = TgenoReader::new(prefix).map_err(to_py_err)?;
+            let (start, end) = range;
+            return Ok(PyGenotypeMatrix {
+                inner: reader.read_snp_range(start..end).map_err(to_py_err)?,
+            });
+        }
         if is_packed_format(&geno_path).map_err(to_py_err)? {
             return read_packedancestrymap(prefix, snp_range);
         } else {
@@ -629,6 +637,9 @@ fn convertf(
             let reader = open_vcf(input_prefix)?;
             reader.read_all().map_err(to_py_err)?
         }
+        GenoFormat::Tgeno => TgenoReader::new(input_prefix)
+            .and_then(|r| r.read_all())
+            .map_err(to_py_err)?,
     };
 
     let n_samples = geno.n_samples();
@@ -651,6 +662,9 @@ fn convertf(
         }
         GenoFormat::Ped => {
             write_ped(out_path, &geno).map_err(to_py_err)?;
+        }
+        GenoFormat::Tgeno => {
+            write_tgeno(out_path, &geno).map_err(to_py_err)?;
         }
         GenoFormat::Vcf => {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
@@ -740,6 +754,9 @@ fn merge(
                 let reader = open_vcf(prefix)?;
                 reader.read_all().map_err(to_py_err)
             }
+            GenoFormat::Tgeno => TgenoReader::new(prefix)
+                .and_then(|r| r.read_all())
+                .map_err(to_py_err),
         }
     }
 
@@ -775,6 +792,9 @@ fn merge(
         }
         GenoFormat::Ped => {
             write_ped(out_path, &merged).map_err(to_py_err)?;
+        }
+        GenoFormat::Tgeno => {
+            write_tgeno(out_path, &merged).map_err(to_py_err)?;
         }
         GenoFormat::Vcf => {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
@@ -924,6 +944,24 @@ fn dataset_info(prefix: &str) -> PyResult<HashMap<String, PyObject>> {
         // Check for EIGENSTRAT/PACKEDANCESTRYMAP format
         let geno_path = format!("{}.geno", prefix);
         if Path::new(&geno_path).exists() {
+            if is_tgeno_format(&geno_path).map_err(to_py_err)? {
+                let reader = TgenoReader::new(prefix).map_err(to_py_err)?;
+                info.insert("format".to_string(), "tgeno".to_object(py));
+                info.insert(
+                    "n_samples".to_string(),
+                    reader.samples().len().to_object(py),
+                );
+                info.insert("n_snps".to_string(), reader.snps().len().to_object(py));
+                let pops: Vec<String> = reader
+                    .samples()
+                    .iter()
+                    .map(|s| s.population.to_string())
+                    .collect::<std::collections::HashSet<_>>()
+                    .into_iter()
+                    .collect();
+                info.insert("populations".to_string(), pops.to_object(py));
+                return Ok(info);
+            }
             if is_packed_format(&geno_path).map_err(to_py_err)? {
                 let reader = PackedAncestryMapReader::new(prefix).map_err(to_py_err)?;
                 info.insert("format".to_string(), "packedancestrymap".to_object(py));
@@ -1012,6 +1050,10 @@ fn list_populations(prefix: &str) -> PyResult<Vec<(String, usize)>> {
     // Check for EIGENSTRAT/PACKEDANCESTRYMAP format
     let geno_path = format!("{}.geno", prefix);
     if Path::new(&geno_path).exists() {
+        if is_tgeno_format(&geno_path).map_err(to_py_err)? {
+            let reader = TgenoReader::new(prefix).map_err(to_py_err)?;
+            return Ok(count_populations(reader.samples()));
+        }
         if is_packed_format(&geno_path).map_err(to_py_err)? {
             let reader = PackedAncestryMapReader::new(prefix).map_err(to_py_err)?;
             return Ok(count_populations(reader.samples()));
@@ -1591,13 +1633,38 @@ fn extract_f2(
         return Ok(PyF2Blocks { inner: f2_blocks });
     }
 
-    // Fallback: load all genotypes for other formats (PLINK, text EIGENSTRAT)
-    let mut geno = read_genotypes_internal(prefix)?;
+    let mut geno =
+        if Path::new(&geno_path).exists() && is_tgeno_format(&geno_path).map_err(to_py_err)? {
+            // TGENO stores each sample's genotypes together: read only the
+            // records of the requested populations' samples
+            let reader = TgenoReader::new(prefix).map_err(to_py_err)?;
+            let mut samples = reader.samples().to_vec();
+            if let Some(labels) = &relabel {
+                apply_sample_labels(&mut samples, labels)?;
+            }
+            require_sample_populations(&samples, &populations)?;
+            let selected: Vec<usize> = (0..samples.len())
+                .filter(|&i| {
+                    populations
+                        .iter()
+                        .any(|p| p == samples[i].population.as_str())
+                })
+                .collect();
+            let mut geno = reader.read_samples(&selected).map_err(to_py_err)?;
+            for (sample, &i) in geno.samples_mut().iter_mut().zip(&selected) {
+                *sample = samples[i].clone();
+            }
+            geno
+        } else {
+            // Fallback: load all genotypes for other formats (PLINK, text EIGENSTRAT)
+            let mut geno = read_genotypes_internal(prefix)?;
+            if let Some(labels) = &relabel {
+                apply_sample_labels(geno.samples_mut(), labels)?;
+            }
+            require_sample_populations(geno.samples(), &populations)?;
+            geno
+        };
     popmix_core::genotypes::check_sorted(geno.snps()).map_err(to_py_err)?;
-    if let Some(labels) = &relabel {
-        apply_sample_labels(geno.samples_mut(), labels)?;
-    }
-    require_sample_populations(geno.samples(), &populations)?;
     rule.apply(&mut geno);
 
     // Filter to autosomal if requested
@@ -2812,6 +2879,25 @@ fn read_genotypes_internal(prefix: &str) -> PyResult<GenotypeMatrix> {
     Ok(geno)
 }
 
+/// The genotypes of the samples of `populations` (or more): for TGENO only
+/// their records are read, for other formats the whole file.
+pub(crate) fn read_genotypes_of(prefix: &str, populations: &[String]) -> PyResult<GenotypeMatrix> {
+    let geno_path = format!("{prefix}.geno");
+    if std::path::Path::new(&geno_path).exists()
+        && is_tgeno_format(&geno_path).map_err(to_py_err)?
+    {
+        let reader = TgenoReader::new(prefix).map_err(to_py_err)?;
+        let selected: Vec<usize> = (0..reader.samples().len())
+            .filter(|&i| {
+                let pop = reader.samples()[i].population.as_str();
+                populations.iter().any(|p| p == pop)
+            })
+            .collect();
+        return reader.read_samples(&selected).map_err(to_py_err);
+    }
+    read_genotypes_any_format(prefix)
+}
+
 pub(crate) fn read_genotypes_any_format(prefix: &str) -> PyResult<GenotypeMatrix> {
     use std::path::Path;
 
@@ -2848,6 +2934,10 @@ pub(crate) fn read_genotypes_any_format(prefix: &str) -> PyResult<GenotypeMatrix
     // Check for EIGENSTRAT/PACKEDANCESTRYMAP format (.geno file)
     let geno_path = format!("{}.geno", prefix);
     if Path::new(&geno_path).exists() {
+        if is_tgeno_format(&geno_path).map_err(to_py_err)? {
+            let reader = TgenoReader::new(prefix).map_err(to_py_err)?;
+            return reader.read_all().map_err(to_py_err);
+        }
         if is_packed_format(&geno_path).map_err(to_py_err)? {
             let mut reader = PackedAncestryMapReader::new(prefix).map_err(to_py_err)?;
             return reader.read_all().map_err(to_py_err);

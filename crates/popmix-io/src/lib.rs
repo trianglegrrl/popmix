@@ -24,6 +24,7 @@ pub mod packedancestrymap;
 pub mod ped;
 pub mod plink;
 pub mod streaming;
+pub mod tgeno;
 pub mod vcf;
 pub mod writers;
 
@@ -77,6 +78,10 @@ pub enum GenoFormat {
     /// VCF format (.vcf, .vcf.gz)
     /// Variant Call Format, optionally gzip-compressed
     Vcf,
+
+    /// TGENO (.geno, .snp, .ind): packed genotypes stored individual by
+    /// individual, with a TGENO header (AADR v66 and later)
+    Tgeno,
 }
 
 impl GenoFormat {
@@ -129,7 +134,10 @@ impl GenoFormat {
         // Check for EIGENSTRAT or PACKEDANCESTRYMAP format: .geno file
         let geno_path = format!("{}.geno", prefix_str);
         if Path::new(&geno_path).exists() {
-            // Distinguish by checking for GENO magic header
+            // Distinguish by checking for the TGENO or GENO magic header
+            if tgeno::is_tgeno_format(&geno_path)? {
+                return Ok(GenoFormat::Tgeno);
+            }
             if packedancestrymap::is_packed_format(&geno_path)? {
                 return Ok(GenoFormat::PackedAncestrymap);
             } else {
@@ -155,10 +163,11 @@ impl GenoFormat {
             "packedped" | "plink" | "bed" => Ok(GenoFormat::PackedPed),
             "packedancestrymap" => Ok(GenoFormat::PackedAncestrymap),
             "vcf" => Ok(GenoFormat::Vcf),
+            "tgeno" | "transpose_packed" => Ok(GenoFormat::Tgeno),
             _ => Err(PopmixError::InvalidFileFormat {
                 file: s.to_string(),
                 details: format!(
-                    "Unknown format '{}'. Valid formats: ancestrymap, eigenstrat, ped, packedped, packedancestrymap, vcf",
+                    "Unknown format '{}'. Valid formats: ancestrymap, eigenstrat, ped, packedped, packedancestrymap, tgeno, vcf",
                     s
                 ),
             }),
@@ -174,6 +183,7 @@ impl GenoFormat {
             GenoFormat::PackedPed => "PACKEDPED",
             GenoFormat::PackedAncestrymap => "PACKEDANCESTRYMAP",
             GenoFormat::Vcf => "VCF",
+            GenoFormat::Tgeno => "TGENO",
         }
     }
 }
@@ -193,7 +203,7 @@ pub use streaming::{
 pub use vcf::{VcfReader, VcfSkipped};
 pub use writers::{
     write_ancestrymap, write_eigenstrat, write_packedancestrymap, write_packedped, write_ped,
-    write_plink,
+    write_plink, write_tgeno,
 };
 
 /// Genetic positions of PLINK .bim and .map files in Morgans.
