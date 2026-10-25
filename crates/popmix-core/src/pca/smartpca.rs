@@ -237,6 +237,32 @@ fn row_value(g: u8, norm: &ColumnNorm) -> f64 {
 
 const BLOCK: usize = 512;
 
+/// SNPs per group in the parallel sums. Groups are fixed, and their partial
+/// sums are added in group order, so results do not depend on the thread count.
+const GROUP: usize = 16 * BLOCK;
+
+/// `zero() + part(0) + part(1) + ... + part(n_groups - 1)`, in that order,
+/// computing `threads` parts at a time.
+fn ordered_sum<T: Send>(
+    n_groups: usize,
+    zero: impl Fn() -> T,
+    part: impl Fn(usize) -> T + Sync,
+    add: impl Fn(&mut T, T),
+) -> T {
+    let mut acc = zero();
+    let batch = rayon::current_num_threads().max(1);
+    for start in (0..n_groups).step_by(batch) {
+        let parts: Vec<T> = (start..(start + batch).min(n_groups))
+            .into_par_iter()
+            .map(&part)
+            .collect();
+        for p in parts {
+            add(&mut acc, p);
+        }
+    }
+    acc
+}
+
 /// X X' over the given SNPs, X the normalized genotypes of `used`.
 fn cross_product(
     geno: &PackedGenotypes,
@@ -245,29 +271,34 @@ fn cross_product(
     used: &[usize],
 ) -> Array2<f64> {
     let n = used.len();
-    snps.par_chunks(BLOCK)
-        .zip(norms.par_chunks(BLOCK))
-        .fold(
-            || Array2::<f64>::zeros((n, n)),
-            |mut acc, (chunk, chunk_norms)| {
-                let live: Vec<(usize, &ColumnNorm)> = chunk
-                    .iter()
-                    .zip(chunk_norms)
-                    .filter(|(_, c)| c.alive)
-                    .map(|(&s, c)| (s, c))
-                    .collect();
-                let mut x = Array2::<f64>::zeros((n, live.len()));
-                for (col, (snp, norm)) in live.iter().enumerate() {
-                    for (row, &s) in used.iter().enumerate() {
-                        let g = geno.get(*snp, s);
-                        x[[row, col]] = if g > 2 { 0.0 } else { norm.values[g as usize] };
-                    }
+    let part = |group: usize| {
+        let lo = group * GROUP;
+        let hi = (lo + GROUP).min(snps.len());
+        let mut acc = Array2::<f64>::zeros((n, n));
+        for (chunk, chunk_norms) in snps[lo..hi].chunks(BLOCK).zip(norms[lo..hi].chunks(BLOCK)) {
+            let live: Vec<(usize, &ColumnNorm)> = chunk
+                .iter()
+                .zip(chunk_norms)
+                .filter(|(_, c)| c.alive)
+                .map(|(&s, c)| (s, c))
+                .collect();
+            let mut x = Array2::<f64>::zeros((n, live.len()));
+            for (col, (snp, norm)) in live.iter().enumerate() {
+                for (row, &s) in used.iter().enumerate() {
+                    let g = geno.get(*snp, s);
+                    x[[row, col]] = if g > 2 { 0.0 } else { norm.values[g as usize] };
                 }
-                general_mat_mul(1.0, &x, &x.t(), 1.0, &mut acc);
-                acc
-            },
-        )
-        .reduce(|| Array2::<f64>::zeros((n, n)), |a, b| a + b)
+            }
+            general_mat_mul(1.0, &x, &x.t(), 1.0, &mut acc);
+        }
+        acc
+    };
+    ordered_sum(
+        snps.len().div_ceil(GROUP),
+        || Array2::<f64>::zeros((n, n)),
+        part,
+        |a, b| *a += &b,
+    )
 }
 
 /// Eigenvalues (decreasing) and unit eigenvectors (columns, same order).
@@ -564,50 +595,47 @@ fn sample_sums(
         },
         n_missing: vec![0; n],
     };
-    let chunk = snps.len().div_ceil(4 * rayon::current_num_threads()).max(1);
-    let cols: Vec<usize> = (0..snps.len()).collect();
-    cols.par_chunks(chunk)
-        .map(|cols| {
-            let mut acc = zero();
-            for &col in cols {
-                let (snp, norm) = (snps[col], &norms[col]);
-                let l = &flat[col * k..(col + 1) * k];
-                for (r, &s) in samples.iter().enumerate() {
-                    let g = geno.get(snp, s);
-                    if g > 2 {
-                        acc.n_missing[r] += 1;
-                        if lsq {
-                            let m = &mut acc.missing[r * k * k..(r + 1) * k * k];
-                            for a in 0..k {
-                                for b in a..k {
-                                    m[a * k + b] += l[a] * l[b];
-                                }
+    let part = |group: usize| {
+        let cols = group * GROUP..((group + 1) * GROUP).min(snps.len());
+        let mut acc = zero();
+        for col in cols {
+            let (snp, norm) = (snps[col], &norms[col]);
+            let l = &flat[col * k..(col + 1) * k];
+            for (r, &s) in samples.iter().enumerate() {
+                let g = geno.get(snp, s);
+                if g > 2 {
+                    acc.n_missing[r] += 1;
+                    if lsq {
+                        let m = &mut acc.missing[r * k * k..(r + 1) * k * k];
+                        for a in 0..k {
+                            for b in a..k {
+                                m[a * k + b] += l[a] * l[b];
                             }
                         }
-                        continue;
                     }
-                    let x = row_value(g, norm);
-                    if x != 0.0 {
-                        for (d, lj) in acc.dot[r * k..(r + 1) * k].iter_mut().zip(l) {
-                            *d += x * lj;
-                        }
+                    continue;
+                }
+                let x = row_value(g, norm);
+                if x != 0.0 {
+                    for (d, lj) in acc.dot[r * k..(r + 1) * k].iter_mut().zip(l) {
+                        *d += x * lj;
                     }
                 }
             }
-            acc
-        })
-        .reduce(zero, |mut a, b| {
-            a.dot.iter_mut().zip(&b.dot).for_each(|(x, y)| *x += y);
-            a.missing
-                .iter_mut()
-                .zip(&b.missing)
-                .for_each(|(x, y)| *x += y);
-            a.n_missing
-                .iter_mut()
-                .zip(&b.n_missing)
-                .for_each(|(x, y)| *x += y);
-            a
-        })
+        }
+        acc
+    };
+    ordered_sum(snps.len().div_ceil(GROUP), zero, part, |a, b| {
+        a.dot.iter_mut().zip(&b.dot).for_each(|(x, y)| *x += y);
+        a.missing
+            .iter_mut()
+            .zip(&b.missing)
+            .for_each(|(x, y)| *x += y);
+        a.n_missing
+            .iter_mut()
+            .zip(&b.n_missing)
+            .for_each(|(x, y)| *x += y);
+    })
 }
 
 /// Sum of l l' over the given SNP columns, upper triangle (`flat` holds the
@@ -699,6 +727,31 @@ mod tests {
         assert!(b.iter().all(|&x| x.signum() == -a[0].signum()));
         // PCA samples' coordinates are the unit eigenvectors
         assert!((pc1.iter().map(|x| x * x).sum::<f64>() - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn results_do_not_depend_on_the_thread_count() {
+        // enough SNPs for several parallel chunks in both sums
+        let g = two_groups(10, 40_000);
+        let mut roles = vec![SampleRole::Pca; 20];
+        roles[3] = SampleRole::Project;
+        let opts = PcaOptions {
+            outlier_iterations: 0,
+            ..Default::default()
+        };
+        let run = |threads: usize| {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap()
+                .install(|| smartpca(&g, &roles, &opts).unwrap())
+        };
+        let one = run(1);
+        for threads in [2, 3, 8] {
+            let many = run(threads);
+            assert_eq!(one.eigenvalues, many.eigenvalues, "{threads} threads");
+            assert_eq!(one.coords, many.coords, "{threads} threads");
+        }
     }
 
     #[test]
