@@ -44,7 +44,7 @@ from the code, not yet shown.
   .allele_frequencies()` (README "Method 1"). Same samples: f2(A, Anc) 0.0206
   packed vs 0.0485 text/PLINK. Affects f2, FST, f3, qpGraph for aDNA.
   admixtools2 corrects PLINK input (`R/io.R:540`). PG [confirmed]
-- [ ] **A3. f3/f4 wrong when a population repeats.** `fstats/f3_f4.rs:75-86,
+- [x] **A3. f3/f4 wrong when a population repeats.** *Done in e3d4f45.* `fstats/f3_f4.rs:75-86,
   ~132` read the self-pair block value −2p(1−p)/(n−1) (the comment in
   `fstats/f2.rs:58-69` claiming f2(A,A)=0 is false); admixtools2 zeroes the
   diagonal (`R/io.R:953`). f3(French; French, Yoruba) = −0.00288, z = −177
