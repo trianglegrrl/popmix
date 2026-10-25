@@ -125,6 +125,26 @@ pub fn jackknife_with_total(loo: &[f64], lengths: &[f64], tot: f64) -> Option<(f
     Some(estimate_and_se(&t, &m, tot))
 }
 
+/// Jackknife estimate and standard error from leave-one-out values alone,
+/// for block means and ratios of block means whose full-data value is not
+/// given (the genotype f-statistics).
+///
+/// The total θ is the mean of the finite θ_(k) weighted by 1 − m_k / n,
+/// n the total length of **all** blocks (for a block mean this is the
+/// full-data mean exactly); then as [`jackknife_with_total`]. From
+/// `docs/cleanroom/small-helpers.md`, section 2.
+pub fn jackknife_from_loo(loo: &[f64], lengths: &[f64]) -> Option<(f64, f64)> {
+    let n: f64 = lengths.iter().sum();
+    let (s, w) = loo.iter().zip(lengths).filter(|(t, _)| t.is_finite()).fold(
+        (0.0, 0.0),
+        |(s, w), (t, m)| {
+            let wk = 1.0 - m / n;
+            (s + wk * t, w + wk)
+        },
+    );
+    jackknife_with_total(loo, lengths, s / w)
+}
+
 /// Jackknife estimates and covariance of several block-mean statistics
 /// (`stats[s][k]`).
 ///
@@ -216,6 +236,16 @@ mod tests {
         let tot = 7.0 / 3.0;
         assert_relative_eq!(loo[1], tot / 0.75, max_relative = 1e-14);
         assert_relative_eq!(loo[2], (tot - 3.0 * 0.5) / 0.5, max_relative = 1e-14);
+    }
+
+    #[test]
+    fn test_jackknife_from_loo_of_a_block_mean_is_the_plain_jackknife() {
+        let x = [0.3, -0.1, f64::NAN, 0.8, 0.2, 0.5];
+        let lengths = [120.0, 80.0, 0.0, 95.0, 130.0, 60.0];
+        let (est, se) = jackknife_from_loo(&leave_one_out(&x, &lengths), &lengths).unwrap();
+        let (est2, se2) = block_jackknife(&x, &lengths).unwrap();
+        assert_relative_eq!(est, est2, max_relative = 1e-12);
+        assert_relative_eq!(se, se2, max_relative = 1e-12);
     }
 
     #[test]

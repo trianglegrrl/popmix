@@ -1,9 +1,8 @@
 //! f4-, D- and f3-statistics computed directly from genotypes.
 //!
-//! This is admixtools2's `qpdstat()` and `qp3pop()` given a genotype prefix
-//! (`f4blockdat_from_geno` and `f3blockdat_from_geno` with `allsnps = TRUE`,
-//! then `f4blockdat_to_f4out` / `f3blockdat_to_f3out`), which differ from the
-//! statistics computed from f2 blocks:
+//! These are the statistics admixtools2's `qpdstat()` and `qp3pop()` report
+//! when given a genotype prefix with `allsnps = TRUE` (their documentation),
+//! which differ from the statistics computed from f2 blocks:
 //!
 //! - every SNP passed in is used (no polymorphism or missingness filter), and
 //!   the jackknife blocks are formed over all of them;
@@ -17,14 +16,24 @@
 //! means. f3 is `(a-b)(a-c)` less the target's bias correction, normalized by
 //! the target's heterozygosity (or, in outgroup mode, not normalized).
 //!
-//! The jackknife weights each block by its number of SNPs used, as
-//! admixtools2's `est_to_loo_dat` and `jack_dat_stats`.
+//! The jackknife weights each block by its number of SNPs used. Each
+//! statistic's leave-one-block-out value is the leave-one-out mean (for D and
+//! f3, the ratio of the leave-one-out numerator and denominator means); its
+//! total is the mean of those values weighted by 1 − m_k / n, and the
+//! estimate and standard error are the weighted block jackknife's
+//! ([`jackknife_from_loo`]).
+//!
+//! Provenance: the jackknife is written from the clean-room specifications
+//! `docs/cleanroom/small-helpers.md` (section 2) and
+//! `docs/cleanroom/jackknife.md` (Busing et al. 1999; Patterson et al.
+//! 2012), and checked against admixtools2's black-box outputs.
 
 use rayon::prelude::*;
 use statrs::distribution::{ContinuousCDF, Normal};
 
 use crate::error::{PopmixError, Result};
 use crate::fstats::blocks::BlockDefinition;
+use crate::fstats::jackknife::{jackknife_from_loo, leave_one_out};
 use crate::genotype_matrix::GenotypeMatrix;
 use crate::genotypes::Snp;
 
@@ -105,8 +114,7 @@ impl Default for F3GenoOptions {
     }
 }
 
-/// Per-block data for one statistic, as admixtools2's `f4blockdat` and
-/// `f3blockdat`: the mean numerator and denominator over the block's SNPs
+/// Per-block data for one statistic: the mean numerator and denominator over the block's SNPs
 /// used, and their number. Means are NaN for blocks with no SNP used; the
 /// denominator is NaN throughout for f4.
 #[derive(Debug, Clone)]
@@ -296,20 +304,11 @@ pub fn f4_from_genotypes(
                 F4Mode::F4 => vec![f64::NAN; blocks.len()],
                 F4Mode::D => blocks.iter().map(|b| b.1 / b.2 as f64).collect(),
             };
-            let est = masked(&num, &n);
             let loo = match mode {
-                F4Mode::F4 => est_to_loo(&est, &n),
-                F4Mode::D => ratio(&est_to_loo(&est, &n), &est_to_loo(&den, &n)),
+                F4Mode::F4 => block_loo(&num, &n),
+                F4Mode::D => loo_ratio(&block_loo(&num, &n), &block_loo(&den, &n)),
             };
-            summarize(
-                &loo,
-                &n,
-                GenoStatBlocks {
-                    num,
-                    den,
-                    n: n.clone(),
-                },
-            )
+            summarize(&loo, GenoStatBlocks { num, den, n })
         })
         .collect();
     Ok(GenoStats {
@@ -372,16 +371,8 @@ pub fn f3_from_genotypes(
             let n: Vec<u64> = blocks.iter().map(|b| b.2).collect();
             let num: Vec<f64> = blocks.iter().map(|b| b.0 / b.2 as f64).collect();
             let den: Vec<f64> = blocks.iter().map(|b| b.1 / b.2 as f64).collect();
-            let loo = ratio(&est_to_loo(&num, &n), &est_to_loo(&den, &n));
-            summarize(
-                &loo,
-                &n,
-                GenoStatBlocks {
-                    num,
-                    den,
-                    n: n.clone(),
-                },
-            )
+            let loo = loo_ratio(&block_loo(&num, &n), &block_loo(&den, &n));
+            summarize(&loo, GenoStatBlocks { num, den, n })
         })
         .collect();
     Ok(GenoStats {
@@ -390,94 +381,45 @@ pub fn f3_from_genotypes(
     })
 }
 
-/// Block estimates with no SNP, or not finite, set to NaN (admixtools2 NA).
-fn masked(est: &[f64], n: &[u64]) -> Vec<f64> {
-    est.iter()
-        .zip(n)
-        .map(|(&e, &k)| if e.is_finite() && k > 0 { e } else { f64::NAN })
-        .collect()
-}
-
-fn ratio(a: &[f64], b: &[f64]) -> Vec<f64> {
-    a.iter().zip(b).map(|(x, y)| x / y).collect()
-}
-
-/// Leave-one-block-out estimates, weighting blocks by their SNP counts
-/// (admixtools2 `est_to_loo_dat`).
-fn est_to_loo(est: &[f64], n: &[u64]) -> Vec<f64> {
-    let total_n: f64 = n.iter().map(|&k| k as f64).sum();
-    let (mut s, mut w) = (0.0, 0.0);
-    for (&e, &k) in est.iter().zip(n) {
-        if !e.is_nan() {
-            s += e * k as f64;
-            w += k as f64;
-        }
-    }
-    let tot = s / w;
-    est.iter()
-        .zip(n)
-        .map(|(&e, &k)| {
-            let rel = k as f64 / total_n;
-            (tot - e * rel) / (1.0 - rel)
-        })
-        .collect()
-}
-
-/// Jackknife estimate and variance from leave-one-out values
-/// (admixtools2 `jack_dat_stats`), then z and p.
-fn summarize(loo: &[f64], n: &[u64], blocks: GenoStatBlocks) -> GenoStat {
-    let total_n: f64 = n.iter().map(|&k| k as f64).sum();
-    // tot = weighted.mean(loo, 1 - n/sum(n), na.rm = TRUE), over all blocks
-    let (mut s, mut w) = (0.0, 0.0);
-    for (&l, &k) in loo.iter().zip(n) {
-        if !l.is_nan() {
-            let wt = 1.0 - k as f64 / total_n;
-            s += l * wt;
-            w += wt;
-        }
-    }
-    let tot = s / w;
-    let kept: Vec<(f64, f64)> = loo
+/// Leave-one-block-out values of a block mean, each block weighted by its
+/// number of SNPs used; a block without any gets a non-finite value.
+fn block_loo(values: &[f64], n: &[u64]) -> Vec<f64> {
+    let values: Vec<f64> = values
         .iter()
         .zip(n)
-        .filter(|(l, _)| l.is_finite())
-        .map(|(&l, &k)| (l, k as f64))
+        .map(|(&v, &k)| if k > 0 { v } else { f64::NAN })
         .collect();
-    if kept.is_empty() {
-        // Nothing to estimate from (admixtools2 returns NA, n included), as
-        // for f3 with a single pseudo-haploid target, whose bias correction
-        // is 0/0 at every SNP.
-        return GenoStat {
-            est: f64::NAN,
-            se: f64::NAN,
-            z: f64::NAN,
-            p: f64::NAN,
-            n: 0,
-            blocks,
-        };
-    }
-    let m = kept.len() as f64;
-    let sum_n: f64 = kept.iter().map(|x| x.1).sum();
-    let mean_diff = kept.iter().map(|(l, _)| tot - l).sum::<f64>() / m;
-    let wmean = kept.iter().map(|(l, k)| l * k).sum::<f64>() / sum_n;
-    let est = mean_diff * m + wmean;
-    let var = kept
-        .iter()
-        .map(|&(l, k)| {
-            let h = sum_n / k;
-            (h * tot - (h - 1.0) * l - est).powi(2) / (h - 1.0)
-        })
-        .sum::<f64>()
-        / m;
-    let se = var.sqrt();
+    leave_one_out(&values, &weights(n))
+}
+
+/// Leave-one-out values of a ratio: numerator's over denominator's.
+fn loo_ratio(num: &[f64], den: &[f64]) -> Vec<f64> {
+    num.iter().zip(den).map(|(a, b)| a / b).collect()
+}
+
+fn weights(n: &[u64]) -> Vec<f64> {
+    n.iter().map(|&k| k as f64).collect()
+}
+
+/// Jackknife estimate, standard error, z and two-sided normal p from the
+/// leave-one-out values; `n` counts the SNPs of the blocks with a finite
+/// leave-one-out value. Everything is NaN when no block has one.
+fn summarize(loo: &[f64], blocks: GenoStatBlocks) -> GenoStat {
+    let (est, se) = jackknife_from_loo(loo, &weights(&blocks.n)).unwrap_or((f64::NAN, f64::NAN));
     let z = est / se;
-    let normal = Normal::new(0.0, 1.0).expect("standard normal");
+    let p = 2.0 * Normal::standard().sf(z.abs());
+    let n = loo
+        .iter()
+        .zip(&blocks.n)
+        .filter(|(t, _)| t.is_finite())
+        .map(|(_, &k)| k)
+        .sum();
     GenoStat {
         est,
         se,
         z,
-        p: 2.0 * normal.cdf(-z.abs()),
-        n: n.iter().sum(),
+        p,
+        n,
         blocks,
     }
 }
