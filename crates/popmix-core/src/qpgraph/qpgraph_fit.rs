@@ -518,29 +518,40 @@ struct Model {
 }
 
 impl Model {
-    /// Drift lengths for the given admixture weights (`cpp_opt_edge_lengths`).
+    /// Drift lengths at fixed admixture weights, given the design D
+    /// (fitted f3 = D l).
+    ///
+    /// Minimises (y − Dl)ᵀP(y − Dl) + λ‖l‖² with λ = `diag` · tr(DᵀPD) / k
+    /// (k edges): by the normal equations (DᵀPD + λI) l = DᵀPy when
+    /// unconstrained, otherwise as a box QP with 0 <= l <= `EDGE_UPPER`,
+    /// solved by [`box_qp`] in the variables z_i = s_i l_i, s_i the square
+    /// root of the i-th diagonal element of DᵀPD + λI.
+    ///
+    /// Provenance: written from the clean-room specification
+    /// `docs/cleanroom/qpgraph-edge-lengths.md`, after Patterson et al. 2012
+    /// (Genetics, qpGraph) and Maier et al. 2023 (eLife, admixtools2), and
+    /// checked against admixtools2's black-box outputs at fixed weights.
     fn edge_lengths(&self, design: &DMatrix<f64>) -> Result<DVector<f64>> {
-        let pppp = design.transpose() * &self.f3.ppinv;
-        let mut cc = &pppp * design;
-        let nc = cc.ncols();
-        let tr = cc.trace() / nc as f64;
-        let mut sc = DVector::zeros(nc);
-        for i in 0..nc {
-            cc[(i, i)] += self.diag * tr;
-            sc[i] = cc[(i, i)].sqrt();
+        let k = design.ncols();
+        let dtp = design.transpose() * &self.f3.ppinv;
+        let mut a = &dtp * design;
+        let b = &dtp * &self.f3.est;
+        let lambda = self.diag * a.trace() / k as f64;
+        for i in 0..k {
+            a[(i, i)] += lambda;
         }
-        let q1 = (&pppp * &self.f3.est).component_div(&sc);
-        let cc = cc.component_div(&(&sc * sc.transpose()));
-        let z = if self.constrained {
-            let lo = DVector::zeros(nc);
-            let hi = sc.map(|s| EDGE_UPPER * s);
-            box_qp(&cc, &q1, &lo, &hi)?
-        } else {
-            cc.lu().solve(&q1).ok_or_else(|| {
-                PopmixError::Numerical("qpgraph: singular edge-length system".to_string())
-            })?
-        };
-        Ok(z.component_div(&sc))
+        if !self.constrained {
+            return a.lu().solve(&b).ok_or_else(|| PopmixError::SingularMatrix {
+                context: "qpgraph edge-length system".to_string(),
+            });
+        }
+        let s = DVector::from_fn(k, |i, _| a[(i, i)].sqrt());
+        let d = DMatrix::from_fn(k, k, |i, j| a[(i, j)] / (s[i] * s[j]));
+        let q = DVector::from_fn(k, |i, _| b[i] / s[i]);
+        let lo = DVector::zeros(k);
+        let hi = s.map(|si| EDGE_UPPER * si);
+        let z = box_qp(&d, &q, &lo, &hi)?;
+        Ok(z.component_div(&s))
     }
 
     /// Edge lengths, fitted f3 and score at the given admixture weights.
