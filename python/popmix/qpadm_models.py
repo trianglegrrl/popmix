@@ -24,9 +24,33 @@ def _pops(pops: str | Sequence[str] | None) -> list[str]:
     return [pops] if isinstance(pops, str) else list(pops)
 
 
-def _power_set(pops: Sequence[str]) -> list[list[str]]:
-    """admixtools2 ``power_set``: subsets by size, then in ``combn`` order."""
-    return [list(c) for k in range(1, len(pops) + 1) for c in itertools.combinations(pops, k)]
+def _subsets(pops: Sequence[str], max_size: int | None = None) -> list[list[str]]:
+    """The non-empty subsets of ``pops`` (up to ``max_size`` members), in the
+    order admixtools2's model sets use: smaller subsets first, and subsets of
+    one size in lexicographic order of their positions in ``pops``."""
+    pops = list(pops)
+    top = len(pops) if max_size is None else min(max_size, len(pops))
+    out: list[list[str]] = []
+    for size in range(1, top + 1):
+        out.extend([pops[i] for i in idx] for idx in itertools.combinations(range(len(pops)), size))
+    return out
+
+
+def _rotations(leftright: Sequence[str], rightfix: Sequence[str], fixed_first: bool) -> list[tuple[list, list]]:
+    """Left/right splits of ``leftright``, with ``rightfix`` always right.
+
+    Every non-empty left set of at most ``(len(leftright) + len(rightfix) - 1)
+    // 2`` populations (so the right set is always larger than the left), in
+    ``_subsets`` order. The right set is the rest of ``leftright`` (in its
+    order) followed by ``rightfix``, or ``rightfix`` first with
+    ``fixed_first``.
+    """
+    leftright, rightfix = list(leftright), list(rightfix)
+    splits = []
+    for left in _subsets(leftright, (len(leftright) + len(rightfix) - 1) // 2):
+        rest = [p for p in leftright if p not in left]
+        splits.append((left, rightfix + rest if fixed_first else rest + rightfix))
+    return splits
 
 
 def qpadm_p(
@@ -91,47 +115,44 @@ test_cladality.__test__ = False  # type: ignore[attr-defined]
 def qpwave_pairs(
     f2_blocks: _core.PyF2Blocks, left: Sequence[str], right: Sequence[str], fudge: float = 1e-4
 ) -> pd.DataFrame:
-    """Rank-0 qpWave chi-squared and p-value for every pair of ``left``
-    populations: whether each pair forms a clade with respect to ``right``.
+    """Test every pair of ``left`` populations for cladality with respect to
+    ``right`` (admixtools2 ``qpwave_pairs``): qpWave at rank 0.
 
     Returns
     -------
     pandas.DataFrame
-        ``pop1``, ``pop2``, ``chisq``, ``p``; each pair in both orders,
-        sorted by ``pop1`` then ``pop2``.
+        ``pop1``, ``pop2``, ``chisq``, ``p``: each pair in both orders, with
+        the same statistics, sorted by ``pop1`` and then ``pop2``.
     """
+    left, right = _pops(left), _pops(right)
     rows = []
-    for a, b in itertools.combinations(sorted(set(left)), 2):
-        r = qpadm_p(f2_blocks, [b], right, a, rnk=0, fudge=fudge)
-        rows += [(a, b, r["chisq"], r["p"]), (b, a, r["chisq"], r["p"])]
-    return pd.DataFrame(sorted(rows), columns=["pop1", "pop2", "chisq", "p"])
-
-
-def _all_lr2(pops: Sequence[str], rightfix: int) -> list[tuple[list[str], list[str]]]:
-    """admixtools2 ``all_lr2``: every left set of up to (n + rightfix - 1) / 2
-    populations, and the rest on the right."""
-    maxleft = min(len(pops), (len(pops) + rightfix - 1) // 2)
-    lefts = [list(c) for k in range(1, maxleft + 1) for c in itertools.combinations(pops, k)]
-    return [(left, [p for p in pops if p not in left]) for left in lefts]
+    for a, b in itertools.combinations(left, 2):
+        t = test_cladality(f2_blocks, [a, b], right, fudge=fudge)
+        rows.append((a, b, t["chisq"], t["p"]))
+        rows.append((b, a, t["chisq"], t["p"]))
+    rows.sort(key=lambda r: (r[0], r[1]))
+    return pd.DataFrame(rows, columns=["pop1", "pop2", "chisq", "p"])
 
 
 def rotate_models(
     leftright: Sequence[str], target: str, rightfix: str | Sequence[str] | None = None
 ) -> pd.DataFrame:
-    """Models that distribute ``leftright`` between left and right, as
-    admixtools2 ``rotate_models``: the input for ``qpadm_multi``.
+    """The qpAdm models of a rotation (admixtools2 ``rotate_models``), for
+    ``qpadm_multi``.
+
+    Each non-empty subset of ``leftright`` with fewer members than the
+    resulting right set is a left set; the right set is the rest of
+    ``leftright`` followed by ``rightfix``. Smaller left sets come first,
+    and left sets of one size in the order of their positions in
+    ``leftright`` (the order of admixtools2's ``qpadm_rotate`` details).
 
     Returns
     -------
     pandas.DataFrame
-        ``left``, ``right`` (the populations not on the left, then
-        ``rightfix``) and ``target``.
+        ``left``, ``right``, ``target``, one model per row.
     """
-    fix = _pops(rightfix)
-    return pd.DataFrame(
-        [(left, right + fix, target) for left, right in _all_lr2(list(leftright), len(fix))],
-        columns=["left", "right", "target"],
-    )
+    rows = [(left, right, target) for left, right in _rotations(_pops(leftright), _pops(rightfix), False)]
+    return pd.DataFrame(rows, columns=["left", "right", "target"])
 
 
 def qpadm_rotate(
@@ -143,25 +164,37 @@ def qpadm_rotate(
     fudge: float = 1e-4,
     constrained: bool = False,
 ) -> pd.DataFrame | list[_core.PyQpAdmResult]:
-    """Every qpAdm model that keeps some of ``leftright`` as sources of
-    ``target`` and moves the rest to the right, next to ``rightfix``
-    (admixtools2 ``qpadm_rotate``).
+    """Fit every qpAdm model of a rotation (admixtools2 ``qpadm_rotate``).
+
+    The models are those of ``rotate_models``, except that the right set is
+    ``rightfix`` followed by the rest of ``leftright``.
+
+    Parameters
+    ----------
+    leftright
+        Populations distributed between left and right.
+    target
+        Target population.
+    rightfix
+        Populations on the right in every model.
+    full_results
+        Return each model's full ``qpadm`` result instead of a table.
+    fudge, constrained
+        As for ``qpadm``.
 
     Returns
     -------
     pandas.DataFrame or list of QpAdmResult
-        One row per model: ``left``, ``right`` (``rightfix`` first), and the
-        ``qpadm_p`` columns; with ``full_results``, each model's full
-        ``qpadm`` result instead.
+        A data frame with ``left``, ``right`` and the ``qpadm_p`` columns
+        (``f4rank``, ``dof``, ``chisq``, ``p``, ``feasible``), one model
+        per row; with ``full_results=True``, the ``qpadm`` results.
     """
-    fix = _pops(rightfix)
-    models = [(left, fix + right) for left, right in _all_lr2(list(leftright), len(fix))]
+    models = [{"left": left, "right": right, "target": target}
+              for left, right in _rotations(_pops(leftright), _pops(rightfix), True)]
+    out = qpadm_multi(f2_blocks, models, full_results=full_results, fudge=fudge, constrained=constrained)
     if full_results:
-        return [_core.qpadm(f2_blocks, target, left, right, constrained, fudge) for left, right in models]
-    rows = [{"left": left, "right": right,
-             **qpadm_p(f2_blocks, left, right, target, fudge=fudge, constrained=constrained)}
-            for left, right in models]
-    return pd.DataFrame(rows, columns=["left", "right", "f4rank", "dof", "chisq", "p", "feasible"])
+        return out
+    return out.drop(columns="target")
 
 
 def _model_rows(models: pd.DataFrame | Mapping[str, Sequence] | Sequence[Mapping[str, Any]]) -> list[dict]:
@@ -241,9 +274,9 @@ def qpadm_models(pops: Sequence[str], allpops: bool = True, more_right: bool = T
     """
     pops = list(pops)
     rows = []
-    for left in _power_set(pops):
+    for left in _subsets(pops):
         rest = [p for p in pops if p not in left]
-        for right in ([rest] if allpops else _power_set(rest)):
+        for right in ([rest] if allpops else _subsets(rest)):
             if right and (not more_right or len(right) > len(left)):
                 rows.append((left, right))
     return pd.DataFrame(rows, columns=["left", "right"])

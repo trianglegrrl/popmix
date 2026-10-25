@@ -43,56 +43,76 @@ def fstat_combinations(
     fnum: int,
     unique_only: bool = True,
 ) -> list[tuple[str, ...]]:
-    """Population combinations for f-statistics, in admixtools2's order.
+    """The population combinations of an f3 (``fnum=3``) or f4 (``fnum=4``)
+    scan, in the order of admixtools2's ``qp3pop`` and ``qpdstat``.
 
-    With ``pop2`` (and ``pop3``, ``pop4`` as ``fnum`` needs) given, every
-    combination of one population from each list, the first list varying
-    slowest. With only ``pop1``: with ``unique_only``, each set of ``fnum``
-    populations once per distinct statistic (for f3, the three choices of
-    target; for f4, the three ways to split four populations into pairs);
-    otherwise every ordered combination (f4: every pair of pairs).
+    Established from those functions' documentation (``pop1``: a vector of
+    populations, combined with the other ``pop`` arguments; ``unique_only``:
+    redundant combinations excluded) and their output; see also
+    ``docs/cleanroom/small-helpers.md`` section 4.
+
+    With ``pop1`` alone (repeats dropped), and ``unique_only``:
+
+    - f3: each 3-subset (a, b, c) of ``pop1``, subsets in lexicographic
+      order of positions, taken in its three rotations f3(a; b, c),
+      f3(b; c, a), f3(c; a, b): all first rotations, then all second, then
+      all third;
+    - f4: each 4-subset (a, b, c, d) in its three splits (a, b; c, d),
+      (a, c; b, d), (a, d; b, c), one subset's splits together.
+
+    Without ``unique_only``, f3 is every ordered triple, repeats included,
+    with the first position varying slowest; f4 pairs every 2-subset with
+    every 2-subset (both in lexicographic order).
+
+    With every ``pop`` argument given, the combinations are their grid
+    (``pop1`` varying slowest), repeated combinations dropped;
+    ``unique_only`` does not apply.
 
     Parameters
     ----------
     pop1, pop2, pop3, pop4
-        Population names, or lists of them.
+        Population names (a string is one population). ``pop2`` to
+        ``pop{fnum}`` are given together or not at all.
     fnum
-        2, 3 or 4.
+        3 or 4.
     unique_only
-        As admixtools2 ``unique_only``.
+        Leave out redundant combinations (``pop1`` alone only).
 
     Returns
     -------
     list of tuple of str
-        Combinations, duplicates removed.
+        One tuple of ``fnum`` populations per statistic.
+
+    Raises
+    ------
+    ValueError
+        For another ``fnum``, ``pop2``... given only in part, or fewer than
+        ``fnum`` distinct populations with ``unique_only``.
     """
-    if fnum not in (2, 3, 4):
-        raise ValueError(f"fnum must be 2, 3 or 4, got {fnum}")
-    p1 = _as_list(pop1)
-    if not p1:
-        raise ValueError("pop1 is required")
-    rest = [_as_list(p) for p in (pop2, pop3, pop4)[: fnum - 1]]
-    if rest[0] is not None:
-        if any(r is None for r in rest):
-            raise ValueError(f"give all of pop1..pop{fnum}, or pop1 alone")
-        return _distinct(list(itertools.product(p1, *rest)))
-    if unique_only:
-        if len(p1) < fnum:
-            raise ValueError(f"{len(p1)} populations, need at least {fnum}")
-        combs = list(itertools.combinations(p1, fnum))
-        if fnum == 2:
-            rows = combs
-        elif fnum == 3:
-            rows = [c for perm in ((0, 1, 2), (1, 2, 0), (2, 0, 1)) for c in
-                    (tuple(x[i] for i in perm) for x in combs)]
-        else:
-            perms = ((0, 1, 2, 3), (0, 2, 1, 3), (0, 3, 1, 2))
-            rows = [tuple(c[i] for i in perm) for c in combs for perm in perms]
-        return _distinct(rows)
-    if fnum == 4:
-        pairs = list(itertools.combinations(p1, 2))
-        return _distinct([a + b for a in pairs for b in pairs])
-    return _distinct(list(itertools.product(p1, repeat=fnum)))
+    if fnum not in (3, 4):
+        raise ValueError(f"fnum must be 3 or 4, not {fnum}")
+    others = [pop2, pop3, pop4][: fnum - 1]
+    if [p for p in [pop2, pop3, pop4][fnum - 1:] if p is not None]:
+        raise ValueError(f"an f{fnum}-statistic takes populations pop1 to pop{fnum} only")
+    lists = [_as_list(p) for p in [pop1, *others]]
+    if all(p is not None for p in lists[1:]):
+        if lists[0] is None:
+            raise ValueError("pop1 is needed with the other populations")
+        return _distinct(list(itertools.product(*[list(dict.fromkeys(p)) for p in lists])))
+    if any(p is not None for p in lists[1:]):
+        raise ValueError(f"give pop2 to pop{fnum} together, or pop1 alone")
+    pops = list(dict.fromkeys(lists[0] or []))
+    if not unique_only:
+        if fnum == 3:
+            return list(itertools.product(pops, repeat=3))
+        pairs = list(itertools.combinations(pops, 2))
+        return [(*x, *y) for x in pairs for y in pairs]
+    if len(pops) < fnum:
+        raise ValueError(f"an f{fnum} scan needs at least {fnum} distinct populations, got {len(pops)}")
+    subsets = list(itertools.combinations(pops, fnum))
+    if fnum == 3:
+        return [(s[r], s[(r + 1) % 3], s[(r + 2) % 3]) for r in range(3) for s in subsets]
+    return [split for a, b, c, d in subsets for split in ((a, b, c, d), (a, c, b, d), (a, d, b, c))]
 
 
 def _is_prefix(data: Data) -> bool:

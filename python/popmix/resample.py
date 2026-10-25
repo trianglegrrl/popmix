@@ -167,38 +167,67 @@ def qpgraph_resample_multi(
 
 
 def compare_fits(scores1: Sequence[float], scores2: Sequence[float]) -> dict[str, float]:
-    """Whether one graph fits resamples better than another (admixtools2
-    ``compare_fits``), from their scores on the same bootstrap resamples.
+    """Compare two graphs' scores on the same bootstrap replicates.
 
-    Pairs with a missing or zero difference are left out.
+    The bootstrap test of Maier et al. 2023 (eLife, "comparing graphs"),
+    with the outputs documented for admixtools2's ``compare_fits``; see also
+    ``docs/cleanroom/small-helpers.md`` section 4.
+
+    The differences ``d = scores1 - scores2`` are taken per replicate;
+    missing (NaN) differences and exact ties (``d == 0``) are dropped,
+    infinite ones kept. With ``n`` differences left, ``n_pos`` of them
+    positive and ``n_neg`` negative:
+
+    - ``diff``: the mean of ``d``; ``se``: its standard deviation
+      (denominator ``n - 1``); ``z = diff / se``; ``p``: two-sided normal p
+      of ``z``.
+    - ``p_emp_nocorr``: ``2 * min(n_pos, n_neg) / n``.
+    - ``p_emp``: ``2 * min(n_pos + 1, n_neg + 1) / (n + 1)``, so never 0.
+    - ``ci_low``, ``ci_high``: the 2.5% and 97.5% quantiles of ``d``
+      (linear interpolation between order statistics).
+
+    Parameters
+    ----------
+    scores1, scores2 : sequence of float
+        Scores of two models on the same bootstrap replicates, in the same
+        order.
 
     Returns
     -------
     dict
-        ``diff`` (mean score difference), ``se``, ``z``, ``p`` (normal),
-        ``p_emp`` (two-sided bootstrap p-value, at least 2 / (n + 1)),
-        ``p_emp_nocorr`` (without that floor), ``ci_low`` and ``ci_high``
-        (2.5% and 97.5% quantiles of the differences).
+        ``diff``, ``se``, ``z``, ``p``, ``p_emp``, ``p_emp_nocorr``,
+        ``ci_low``, ``ci_high``.
+
+    Raises
+    ------
+    ValueError
+        If the two score vectors differ in length.
     """
-    if len(scores1) != len(scores2):
-        raise ValueError("Length of scores1 and scores2 differ!")
-    d = np.asarray(scores1, dtype=float) - np.asarray(scores2, dtype=float)
+    a = np.asarray(scores1, dtype=float)
+    b = np.asarray(scores2, dtype=float)
+    if a.shape != b.shape:
+        raise ValueError(f"score vectors differ in length: {a.size} and {b.size}")
+    d = a - b
     d = d[~np.isnan(d) & (d != 0)]
-    n = len(d)
-    diff = d.mean()
-    # admixtools2 boot_mat_stats with unit weights: the sample variance
-    se = math.sqrt(((d - diff) ** 2).sum() / (n - 1))
-    z = diff / se
-    frac1, frac2 = np.mean(d < 0), np.mean(d > 0)
+    n = d.size
+    n_pos = int(np.count_nonzero(d > 0))
+    n_neg = int(np.count_nonzero(d < 0))
+    nan = float("nan")
+    with np.errstate(invalid="ignore", divide="ignore"):
+        diff = float(d.mean()) if n else nan
+        se = float(np.sqrt(np.sum((d - diff) ** 2) / (n - 1))) if n > 1 else nan
+        z = float(np.float64(diff) / se)
+    p = nan if math.isnan(z) else math.erfc(abs(z) / math.sqrt(2.0))
+    q = np.quantile(d, [0.025, 0.975]) if n else (nan, nan)
     return {
         "diff": diff,
         "se": se,
         "z": z,
-        "p": math.erfc(abs(z) / math.sqrt(2)),  # 2 pnorm(-|z|)
-        "p_emp": min((np.sum(d > 0) + 1) / (n + 1), (np.sum(d < 0) + 1) / (n + 1)) * 2,
-        "p_emp_nocorr": min(frac1, frac2) * 2,
-        "ci_low": float(np.quantile(d, 0.025)),
-        "ci_high": float(np.quantile(d, 0.975)),
+        "p": p,
+        "p_emp": 2.0 * min(n_pos + 1, n_neg + 1) / (n + 1),
+        "p_emp_nocorr": 2.0 * min(n_pos, n_neg) / n if n else nan,
+        "ci_low": float(q[0]),
+        "ci_high": float(q[1]),
     }
 
 
