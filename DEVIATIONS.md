@@ -676,3 +676,29 @@ rexpfit.r's method and its weighted jackknife by dowtjack, as expfit.sh.
   chromosome present by its SNPs, as wtjack.pl intends, and the reference
   is generated the same way.
 
+
+## mergeit (AdmixTools 8.0.2)
+
+`popmix merge` is checked against mergeit (tests/golden/formats/
+generate_merge.sh); `plink --bmerge` stops at the first SNP whose alleles
+need reconciling and so serves only to show the SNPs PLINK would ask to
+`--flip`.
+
+### Matched, not corrected
+
+- **Strands.** A SNP whose alleles in file B are the complement of file A's
+  (A/G against T/C or C/T) is the same SNP on the other strand; it is kept
+  and its genotypes counted against file A's alleles.
+- **A/T and C/G SNPs are left out** (mergeit's `strandcheck`), because their
+  strand cannot be told from the alleles. So is a SNP with a third allele.
+- **Monomorphic SNPs.** The unknown allele (PLINK `0`, EIGENSTRAT `X`, VCF
+  `.`) is taken from the other file.
+
+### Interface differences
+
+- **SNPs are paired by position, not name.** mergeit and PLINK pair SNPs by
+  name, so the same SNP under two names (rs ID and chr:pos) is not merged.
+  popmix pairs by chromosome and position; where several SNPs of file B
+  share a position it takes the one with file A's name, and with none, it
+  leaves the SNP out and counts it.
+- **Every SNP left out is counted and printed** by reason.

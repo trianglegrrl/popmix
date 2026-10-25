@@ -645,10 +645,11 @@ fn convertf(
 /// Merge two genotype datasets.
 ///
 /// Merges two genotype files by SNP intersection. SNPs are matched by
-/// chromosome and position. Allele flips are detected and genotypes
-/// are recoded accordingly.
-///
-/// Based on PLINK 2.0 merge algorithm by Shaun Purcell & Christopher Chang.
+/// chromosome and position (and by name where several share one). Alleles
+/// are reconciled as AdmixTools mergeit does: swapped alleles are recoded,
+/// a SNP on the other strand is complemented, the unknown allele of a
+/// monomorphic SNP is filled in, and A/T, C/G and third-allele SNPs are left
+/// out and counted.
 ///
 /// Args:
 ///     file_a: Path prefix for first dataset
@@ -781,6 +782,14 @@ fn merge(
         result.insert(
             "snps_mismatch".to_string(),
             stats.snps_mismatch.to_object(py),
+        );
+        result.insert(
+            "other_strand_snps".to_string(),
+            stats.snps_other_strand.to_object(py),
+        );
+        result.insert(
+            "duplicate_position_snps".to_string(),
+            stats.snps_duplicate_position.to_object(py),
         );
         Ok(result)
     })

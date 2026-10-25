@@ -3,9 +3,11 @@
 //! Merges two genotype datasets by SNP intersection, handling allele matching
 //! and genotype recoding when alleles are flipped.
 //!
-//! Based on PLINK 2.0 merge implementation by Shaun Purcell & Christopher Chang.
-//! Reference: https://github.com/chrchang/plink-ng
-//! License: GPLv3
+//! SNPs are paired by position, and by name where several share one. Alleles
+//! are reconciled as AdmixTools `mergeit` does (checked black-box against it,
+//! tests/golden/formats/generate_merge.sh): a SNP reported on the other strand
+//! is complemented, an A/T or C/G SNP is left out, a third allele is left out,
+//! and the unknown allele of a monomorphic SNP is taken from the other file.
 
 use std::collections::{HashMap, HashSet};
 
@@ -70,6 +72,11 @@ pub struct MergeStats {
     pub snps_strand_ambiguous: usize,
     /// SNPs with mismatched alleles
     pub snps_mismatch: usize,
+    /// Of the SNPs kept, those reported on the other strand in file B
+    pub snps_other_strand: usize,
+    /// SNPs of file A left out because several SNPs of file B share their
+    /// position and none has their name
+    pub snps_duplicate_position: usize,
     /// Total samples in merged output
     pub samples_total: usize,
 }
@@ -82,27 +89,75 @@ pub fn is_strand_ambiguous(ref_allele: char, alt_allele: char) -> bool {
     )
 }
 
+/// Is this the allele written for the unknown second allele of a monomorphic
+/// SNP (PLINK `0`, EIGENSTRAT `X`, VCF `.`)?
+fn is_unknown(allele: char) -> bool {
+    matches!(allele, '0' | 'X' | '.' | 'N')
+}
+
+fn complement(allele: char) -> char {
+    match allele {
+        'A' => 'T',
+        'T' => 'A',
+        'C' => 'G',
+        'G' => 'C',
+        other => other,
+    }
+}
+
+/// How a SNP of file B lines up with the same SNP of file A.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Reconciled {
+    pub allele_match: AlleleMatch,
+    /// File B reports the SNP on the other strand.
+    pub other_strand: bool,
+    /// The merged SNP's alleles, in file A's order, unknowns filled from B.
+    pub alleles: (char, char),
+}
+
+/// Line up the alleles of `snp_b` with those of `snp_a`: as they are, swapped,
+/// then complemented and either. An unknown allele matches any.
+pub fn reconcile_alleles(snp_a: &Snp, snp_b: &Snp) -> Reconciled {
+    let (ra, aa) = (snp_a.allele_ref, snp_a.allele_alt);
+    let fits = |x: char, y: char| x == y || is_unknown(x) || is_unknown(y);
+    let fill = |x: char, y: char| if is_unknown(x) { y } else { x };
+    for other_strand in [false, true] {
+        let flip = |c: char| if other_strand { complement(c) } else { c };
+        let (rb, ab) = (flip(snp_b.allele_ref), flip(snp_b.allele_alt));
+        for (allele_match, (r, a)) in [
+            (AlleleMatch::Identical, (rb, ab)),
+            (AlleleMatch::Flipped, (ab, rb)),
+        ] {
+            if fits(ra, r) && fits(aa, a) {
+                let alleles = (fill(ra, r), fill(aa, a));
+                let allele_match = if is_strand_ambiguous(alleles.0, alleles.1) {
+                    AlleleMatch::StrandAmbiguous
+                } else {
+                    allele_match
+                };
+                return Reconciled {
+                    allele_match,
+                    other_strand,
+                    alleles,
+                };
+            }
+        }
+    }
+    let allele_match = if is_strand_ambiguous(ra, aa) {
+        AlleleMatch::StrandAmbiguous
+    } else {
+        AlleleMatch::Mismatch
+    };
+    Reconciled {
+        allele_match,
+        other_strand: false,
+        alleles: (ra, aa),
+    }
+}
+
 /// Match alleles between two SNPs at the same position
 pub fn match_alleles(snp_a: &Snp, snp_b: &Snp) -> AlleleMatch {
-    let (ref_a, alt_a) = (snp_a.allele_ref, snp_a.allele_alt);
-    let (ref_b, alt_b) = (snp_b.allele_ref, snp_b.allele_alt);
-
-    // Check for strand ambiguity (A/T, T/A, C/G, G/C)
-    if is_strand_ambiguous(ref_a, alt_a) {
-        return AlleleMatch::StrandAmbiguous;
-    }
-
-    // Exact match
-    if ref_a == ref_b && alt_a == alt_b {
-        return AlleleMatch::Identical;
-    }
-
-    // Flipped (need to recode genotypes: 0↔2)
-    if ref_a == alt_b && alt_a == ref_b {
-        return AlleleMatch::Flipped;
-    }
-
-    AlleleMatch::Mismatch
+    reconcile_alleles(snp_a, snp_b).allele_match
 }
 
 /// Recode genotype for flipped alleles (0↔2, 1→1, missing→missing)
@@ -119,59 +174,71 @@ pub fn recode_flipped(geno: Genotype) -> Genotype {
 pub fn build_snp_intersection(snps_a: &[Snp], snps_b: &[Snp]) -> (Vec<MergedSnp>, MergeStats) {
     let mut stats = MergeStats::default();
 
-    // Build index of SNPs in file B by (chromosome, position)
-    let mut b_index: HashMap<SnpKey, (usize, &Snp)> = HashMap::new();
+    // SNPs of file B by (chromosome, position), in file order
+    let mut b_index: HashMap<SnpKey, Vec<usize>> = HashMap::new();
     for (idx, snp) in snps_b.iter().enumerate() {
-        let key = SnpKey::from_snp(snp);
-        b_index.insert(key, (idx, snp));
+        b_index.entry(SnpKey::from_snp(snp)).or_default().push(idx);
     }
 
     let mut merged_snps = Vec::new();
-    let mut matched_b_indices: HashSet<usize> = HashSet::new();
+    // SNPs of file B paired with, or considered for, a SNP of file A
+    let mut seen_b: HashSet<usize> = HashSet::new();
 
-    // Find matching SNPs from file A
     for (a_idx, snp_a) in snps_a.iter().enumerate() {
-        let key = SnpKey::from_snp(snp_a);
-
-        if let Some(&(b_idx, snp_b)) = b_index.get(&key) {
-            let allele_match = match_alleles(snp_a, snp_b);
-
-            match allele_match {
-                AlleleMatch::Identical => {
-                    stats.snps_identical += 1;
-                    merged_snps.push(MergedSnp {
-                        snp: snp_a.clone(),
-                        file_a_idx: a_idx,
-                        file_b_idx: b_idx,
-                        allele_match,
-                    });
-                }
-                AlleleMatch::Flipped => {
-                    stats.snps_flipped += 1;
-                    merged_snps.push(MergedSnp {
-                        snp: snp_a.clone(),
-                        file_a_idx: a_idx,
-                        file_b_idx: b_idx,
-                        allele_match,
-                    });
-                }
-                AlleleMatch::StrandAmbiguous => {
-                    stats.snps_strand_ambiguous += 1;
-                    // Skip this SNP
-                }
-                AlleleMatch::Mismatch => {
-                    stats.snps_mismatch += 1;
-                    // Skip this SNP
-                }
-            }
-            matched_b_indices.insert(b_idx);
-        } else {
+        let Some(candidates) = b_index.get(&SnpKey::from_snp(snp_a)) else {
             stats.snps_only_a += 1;
+            continue;
+        };
+        let unused: Vec<usize> = candidates
+            .iter()
+            .copied()
+            .filter(|b| !seen_b.contains(b))
+            .collect();
+        let b_idx = match unused.iter().find(|&&b| snps_b[b].id == snp_a.id) {
+            Some(&b) => b,
+            None if unused.len() == 1 => unused[0],
+            None if unused.is_empty() => {
+                stats.snps_only_a += 1;
+                continue;
+            }
+            None => {
+                stats.snps_duplicate_position += 1;
+                seen_b.extend(unused);
+                continue;
+            }
+        };
+        seen_b.insert(b_idx);
+
+        let reconciled = reconcile_alleles(snp_a, &snps_b[b_idx]);
+        match reconciled.allele_match {
+            AlleleMatch::Identical => stats.snps_identical += 1,
+            AlleleMatch::Flipped => stats.snps_flipped += 1,
+            AlleleMatch::StrandAmbiguous => {
+                stats.snps_strand_ambiguous += 1;
+                continue;
+            }
+            AlleleMatch::Mismatch => {
+                stats.snps_mismatch += 1;
+                continue;
+            }
         }
+        if reconciled.other_strand {
+            stats.snps_other_strand += 1;
+        }
+        let (allele_ref, allele_alt) = reconciled.alleles;
+        merged_snps.push(MergedSnp {
+            snp: Snp {
+                allele_ref,
+                allele_alt,
+                ..snp_a.clone()
+            },
+            file_a_idx: a_idx,
+            file_b_idx: b_idx,
+            allele_match: reconciled.allele_match,
+        });
     }
 
-    // Count SNPs only in file B
-    stats.snps_only_b = snps_b.len() - matched_b_indices.len();
+    stats.snps_only_b = snps_b.len() - seen_b.len();
 
     (merged_snps, stats)
 }
@@ -412,12 +479,72 @@ mod tests {
 
     #[test]
     fn test_allele_mismatch() {
-        // Different alleles entirely (A/G vs C/T)
+        // A third allele (A/G vs A/C)
         let snp_a = make_snp(1, 100, 'A', 'G');
-        let snp_b = make_snp(1, 100, 'C', 'T');
+        let snp_b = make_snp(1, 100, 'A', 'C');
 
         let result = match_alleles(&snp_a, &snp_b);
         assert_eq!(result, AlleleMatch::Mismatch);
+    }
+
+    #[test]
+    fn alleles_on_the_other_strand_are_matched() {
+        let a = make_snp(1, 100, 'A', 'G');
+        let same = reconcile_alleles(&a, &make_snp(1, 100, 'T', 'C'));
+        assert_eq!(
+            (same.allele_match, same.other_strand),
+            (AlleleMatch::Identical, true)
+        );
+        let swapped = reconcile_alleles(&a, &make_snp(1, 100, 'C', 'T'));
+        assert_eq!(
+            (swapped.allele_match, swapped.other_strand),
+            (AlleleMatch::Flipped, true)
+        );
+        assert_eq!(swapped.alleles, ('A', 'G'));
+    }
+
+    #[test]
+    fn an_unknown_allele_is_taken_from_the_other_file() {
+        // PLINK writes 0, EIGENSTRAT X, VCF . for the allele of a monomorphic SNP
+        let b = reconcile_alleles(&make_snp(1, 100, 'A', 'G'), &make_snp(1, 100, 'G', '0'));
+        assert_eq!(
+            (b.allele_match, b.alleles),
+            (AlleleMatch::Flipped, ('A', 'G'))
+        );
+        let a = reconcile_alleles(&make_snp(1, 100, 'C', 'X'), &make_snp(1, 100, 'T', 'C'));
+        assert_eq!(
+            (a.allele_match, a.alleles),
+            (AlleleMatch::Flipped, ('C', 'T'))
+        );
+        let both = reconcile_alleles(&make_snp(1, 100, 'C', '.'), &make_snp(1, 100, 'C', 'X'));
+        assert_eq!(both.allele_match, AlleleMatch::Identical);
+        // C on one side and G on the other is a C/G SNP
+        let cg = reconcile_alleles(&make_snp(1, 100, 'C', 'X'), &make_snp(1, 100, 'G', '0'));
+        assert_eq!(cg.allele_match, AlleleMatch::StrandAmbiguous);
+    }
+
+    #[test]
+    fn snps_sharing_a_position_are_matched_by_id() {
+        let named = |id: &str, pos, r, a| Snp {
+            id: id.to_string(),
+            ..make_snp(1, pos, r, a)
+        };
+        let snps_a = vec![named("rs7", 700, 'T', 'C'), named("rs9", 900, 'A', 'G')];
+        let snps_b = vec![
+            named("rs7x", 700, 'A', 'G'),
+            named("rs7", 700, 'C', 'T'),
+            named("rs9a", 900, 'A', 'G'),
+            named("rs9b", 900, 'A', 'G'),
+        ];
+        let (merged, stats) = build_snp_intersection(&snps_a, &snps_b);
+        assert_eq!(merged.len(), 1);
+        assert_eq!(
+            (merged[0].file_b_idx, merged[0].allele_match),
+            (1, AlleleMatch::Flipped)
+        );
+        // two candidates for rs9 and neither has its name: left out, counted
+        assert_eq!(stats.snps_duplicate_position, 1);
+        assert_eq!(stats.snps_only_b, 1);
     }
 
     #[test]

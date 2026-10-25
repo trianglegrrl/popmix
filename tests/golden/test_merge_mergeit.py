@@ -1,0 +1,40 @@
+"""Golden master test: merge against AdmixTools 8 mergeit.
+
+formats/merge/{a,b}.* hold a SNP on the other strand (with and without the
+alleles swapped), an A/T SNP, a third allele, a monomorphic SNP on either
+side and two SNPs of file B at one position; formats/merge/reference.* is
+mergeit's merge of them (formats/generate_merge.sh). popmix used to drop the
+other-strand SNPs and the monomorphic ones without saying why.
+"""
+
+from __future__ import annotations
+
+import subprocess
+from pathlib import Path
+
+import popmix as pm
+
+HERE = Path(__file__).parent / "formats" / "merge"
+
+
+def _eigenstrat(prefix: Path) -> list[tuple[str, str, str, str]]:
+    snps = [line.split() for line in Path(f"{prefix}.snp").read_text().splitlines()]
+    geno = Path(f"{prefix}.geno").read_text().splitlines()
+    return [(s[0], s[4], s[5], g) for s, g in zip(snps, geno)]
+
+
+def test_merge_writes_what_mergeit_writes(tmp_path):
+    out = tmp_path / "merged"
+    result = pm.merge(file_a=str(HERE / "a"), file_b=str(HERE / "b"), output=str(out),
+                      output_format="eigenstrat")
+    assert _eigenstrat(out) == _eigenstrat(HERE / "reference")
+    assert [line.split()[0] for line in Path(f"{out}.ind").read_text().splitlines()] == ["a1", "a2", "b1", "b2"]
+    assert (result["strand_ambiguous_snps"], result["snps_mismatch"], result["other_strand_snps"]) == (1, 1, 2)
+
+
+def test_cli_says_what_was_left_out(tmp_path):
+    run = subprocess.run(["popmix", "merge", "-a", str(HERE / "a"), "-b", str(HERE / "b"), "-o", str(tmp_path / "m"),
+                          "-of", "eigenstrat"], check=True, capture_output=True, text=True)
+    assert "Left out, A/T or C/G (strand unknown): 1" in run.stdout
+    assert "Left out, allele mismatch: 1" in run.stdout
+    assert "On the other strand (complemented): 2" in run.stdout

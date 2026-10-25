@@ -1148,13 +1148,14 @@ def merge(file_a: str, file_b: str, output: str, output_format: str,
     """Merge two genotype datasets.
 
     Combines samples from two genotype files, keeping only SNPs that
-    exist in both datasets. Alleles are matched and genotypes are
-    recoded when REF/ALT are swapped between files.
+    exist in both datasets, paired by position (and by name where several
+    share one). Alleles are reconciled as AdmixTools mergeit does: genotypes
+    are recoded when the alleles are swapped, a SNP on the other strand is
+    complemented, the unknown allele of a monomorphic SNP is filled in, and
+    A/T, C/G and third-allele SNPs are left out and counted.
 
     Supports VCF input (pass full path with .vcf or .vcf.gz extension).
     VCF output is not supported.
-
-    Based on PLINK 2.0 merge algorithm by Shaun Purcell & Christopher Chang.
     """
     try:
         # Detect formats if not specified
@@ -1191,10 +1192,18 @@ def merge(file_a: str, file_b: str, output: str, output_format: str,
         click.echo(f"  Samples in file B: {result['samples_b']}")
         click.echo(f"  Total samples: {result['samples_merged']}")
 
-        if result.get('flipped_snps', 0) > 0:
-            click.echo(f"  Flipped SNPs (recoded): {result['flipped_snps']}")
-        if result.get('strand_ambiguous_snps', 0) > 0:
-            click.echo(f"  Strand-ambiguous SNPs (skipped): {result['strand_ambiguous_snps']}")
+        if result['flipped_snps'] > 0:
+            click.echo(f"  Alleles swapped (recoded): {result['flipped_snps']}")
+        if result['other_strand_snps'] > 0:
+            click.echo(f"  On the other strand (complemented): {result['other_strand_snps']}")
+        dropped = [
+            (result['strand_ambiguous_snps'], "A/T or C/G (strand unknown)"),
+            (result['snps_mismatch'], "allele mismatch"),
+            (result['duplicate_position_snps'], "several SNPs of file B at the position, none with the name"),
+        ]
+        for count, reason in dropped:
+            if count > 0:
+                click.echo(f"  Left out, {reason}: {count}")
 
         click.echo(f"\nOutput files written to {output}")
 

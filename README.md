@@ -285,12 +285,16 @@ Merge complete:
   Samples in file A: 10
   Samples in file B: 17629
   Total samples: 17639
-  Flipped SNPs (recoded): 1234
+  Alleles swapped (recoded): 1234
+  Left out, A/T or C/G (strand unknown): 210
 
 Output files written to merged_data
 ```
 
-Based on [PLINK 2.0](https://github.com/chrchang/plink-ng) merge algorithm by Shaun Purcell & Christopher Chang.
+Alleles are reconciled as AdmixTools `mergeit` does: swapped alleles are
+recoded, a SNP reported on the other strand is complemented, the unknown
+allele of a monomorphic SNP (PLINK `0`, EIGENSTRAT `X`) is filled in, and
+A/T, C/G and third-allele SNPs are left out and counted.
 
 ### `popmix extract-f2`
 
