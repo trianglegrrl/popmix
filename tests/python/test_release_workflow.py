@@ -48,10 +48,12 @@ def test_builds_wheels_for_each_platform_and_python(workflow: dict) -> None:
         for python in PYTHONS:
             assert python in args, f"{name} misses Python {python}"
     assert "manylinux" in _uses(jobs["linux"], "PyO3/maturin-action")[0]["with"]
-    # Intel and ARM wheels on Linux and macOS
-    for name in ("linux", "macos"):
-        targets = {m["target"] for m in jobs[name]["strategy"]["matrix"]["include"]}
-        assert targets == {"x86_64", "aarch64"}, name
+    # Intel and ARM wheels: one each on Linux, one universal2 wheel on macOS
+    targets = {m["target"] for m in jobs["linux"]["strategy"]["matrix"]["include"]}
+    assert targets == {"x86_64", "aarch64"}
+    assert _uses(jobs["macos"], "PyO3/maturin-action")[0]["with"]["target"] == (
+        "universal2-apple-darwin"
+    )
     assert _uses(jobs["sdist"], "PyO3/maturin-action")[0]["with"]["command"] == "sdist"
 
 
