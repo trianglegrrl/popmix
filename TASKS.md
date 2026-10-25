@@ -50,7 +50,7 @@ from the code, not yet shown.
   diagonal (`R/io.R:953`). f3(French; French, Yoruba) = −0.00288, z = −177
   (should be 0); f4(F,Y;F,S) 6% off f3(F;Y,S). Check qpdstat/qp3pop with
   `unique_only=False`. PD [confirmed]
-- [ ] **A4. Saturated qpAdm (dof 0) reported as p = 1, "Good model fit".**
+- [x] **A4. Saturated qpAdm (dof 0) reported as p = 1, "Good model fit".** *Done in 982142e.*
   `qpadm/fit.rs:464-467`; admixtools2 gives p = NA (checked: French.DG =
   Han.DG + Yoruba.DG, right Mbuti.DG, Chimp.REF, weights 1.22/−0.22).
   Not in DEVIATIONS.md. PR, PG [confirmed]
@@ -105,7 +105,8 @@ from the code, not yet shown.
   `sfs.rs:146`, `streaming.rs:185`). RS [reviewer-verified]
 - [ ] **B3. Non-ASCII query panics.** `popmix-python/src/lib.rs:952`
   `&query_lower[..3]`; `suggest_populations(P, "ééé", 5)`. RS [confirmed]
-- [ ] **B4. NaN panics.** `partial_cmp(..).unwrap()` at `qpwave_pairs.rs:54`,
+- [ ] **B4. NaN panics.** (`qpwave_pairs.rs:54` and the rotation sort fixed
+  with A4.) `partial_cmp(..).unwrap()` at `qpwave_pairs.rs:54`,
   `qpgraph/fitting.rs:85`, `dates/ld_decay.rs:275` (sorts input positions),
   `lib.rs:2082,2348`; use `f64::total_cmp`. RS, AI [suspected]
 - [ ] **B5. Errors swallowed in model loops.** `qpadm/rotate.rs:156`,
