@@ -8,21 +8,28 @@
 //! `incident_edges` order).
 //!
 //! 1. f3(base; i, j) for every pair i <= j of the other leaves, from the
-//!    leave-one-block-out f2 values, with their jackknife covariance
-//!    (`qpgraph_precompute_f3`, `jack_mat_stats`). `diag_f3 * trace` is added
-//!    to the covariance diagonal before it is inverted.
+//!    leave-one-block-out f2 values, with their weighted block-jackknife
+//!    covariance (Busing et al. 1999; `docs/cleanroom/jackknife.md`).
+//!    `diag_f3 * trace` is added to the covariance diagonal before it is
+//!    inverted.
 //! 2. For given admixture weights, each drift edge's share of each leaf's
-//!    ancestry (`graph_to_pwts`, `cpp_fill_pwts`) makes f3 linear in the
-//!    edge lengths. The lengths minimise the covariance-weighted f3 residual
-//!    with `diag * mean(diag)` added to the normal equations, subject to
-//!    lengths >= 0 (`cpp_opt_edge_lengths`, which hands the problem to
-//!    quadprog). The score is the weighted residual (`qpgraph_score`).
+//!    ancestry (the weights of the paths from the root to the leaf through
+//!    that edge) makes f3 linear in the edge lengths (Patterson et al. 2012).
+//!    The lengths minimise the covariance-weighted f3 residual with
+//!    `diag * mean(diag)` added to the normal equations, subject to
+//!    lengths >= 0: a box-constrained quadratic program, solved exactly by
+//!    popmix's own active-set solver (`docs/cleanroom/qpgraph-edge-lengths.md`).
+//!    The score is the covariance-weighted squared residual.
 //! 3. The admixture weights minimise the score over [0, 1] from `numstart`
 //!    starts drawn as admixtools2 draws them after `set.seed(seed)`
 //!    (`matrix(runif(numstart * nadmix), numstart)`), each with R's
 //!    `optim(method = "L-BFGS-B")` and admixtools2's controls (`fnscale`
 //!    1e-6, `maxit` 1e4, finite-difference gradients); the best start wins,
 //!    the first among ties.
+//!
+//! Provenance: Patterson et al. 2012 (Genetics, qpGraph), Maier et al. 2023
+//! (eLife, admixtools2), admixtools2's documentation, the clean-room
+//! specifications in `docs/cleanroom/`, and admixtools2's black-box outputs.
 
 use nalgebra::{DMatrix, DVector};
 use ndarray::Array2;
@@ -287,8 +294,10 @@ impl Paths {
         }
     }
 
-    /// Share of each leaf's ancestry through each drift edge (`graph_to_pwts`
-    /// then `cpp_fill_pwts`): drift edges x leaves.
+    /// Share of each leaf's ancestry through each drift edge: drift edges x
+    /// leaves. Without admixture it is the fraction of the leaf's paths
+    /// through the edge; with admixture, edges on only some of the paths to
+    /// the leaf get the summed weights of those paths.
     fn pwts(&self, weights: &[f64]) -> DMatrix<f64> {
         let nleaf = self.numpaths.len();
         let mut base = DMatrix::zeros(self.n_normal, nleaf);
@@ -307,8 +316,8 @@ impl Paths {
         if weights.is_empty() {
             return base;
         }
-        // cpp_fill_pwts overwrites only the edges that are not on every path
-        // to the leaf (graph_to_weightind's `cnt < numpaths`).
+        // only the edges on some but not all of the paths to the leaf take
+        // the path weights; the others keep the unweighted share
         DMatrix::from_fn(self.n_normal, nleaf, |e, l| {
             if count[(e, l)] > 0 && count[(e, l)] < self.numpaths[l] {
                 filled[(e, l)]
@@ -335,7 +344,7 @@ fn f3_design(pwts: &DMatrix<f64>) -> DMatrix<f64> {
 }
 
 /// f3 estimates, their covariance and the inverse of the regularized
-/// covariance (`qpgraph_precompute_f3`).
+/// covariance.
 struct F3Stats {
     est: DVector<f64>,
     var: DMatrix<f64>,
@@ -378,7 +387,9 @@ fn precompute_f3(f2_blocks: &F2Blocks, pops: &[&str], diag_f3: f64) -> Result<F3
         ));
     }
 
-    // jack_mat_stats2
+    // The weighted block jackknife of the leave-one-out f3 values: the
+    // estimate is their mean weighted by 1 - m_k / n (Busing et al. 1999),
+    // the covariance (1/g) sum_k u_k u_k' with u_k = (est - loo_k) sqrt(h_k - 1).
     let n: f64 = lengths.iter().sum();
     let h: Vec<f64> = lengths.iter().map(|l| n / l).collect();
     let w_sum: f64 = h.iter().map(|h| 1.0 - 1.0 / h).sum();

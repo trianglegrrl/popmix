@@ -8,9 +8,10 @@
 //! This matrix has dimensions (n-1) x (m-1) because L1 and R1 serve as
 //! reference populations.
 //!
-//! The covariance matrix is the weighted block jackknife of admixtools2
-//! (`est_to_loo_nafix` + `jack_pairarr_stats`), with blocks weighted by
-//! their length in SNPs; see [`block_jackknife_cov`].
+//! The covariance matrix is the weighted block jackknife (Busing et al.
+//! 1999, as used by Patterson et al. 2012), with blocks weighted by their
+//! length in SNPs; see [`block_jackknife_cov`] and
+//! `docs/cleanroom/jackknife.md`.
 
 use ndarray::{Array1, Array2};
 
@@ -28,8 +29,9 @@ pub struct F4Matrix {
     /// Covariance matrix of the vectorized F4 values
     /// Shape: ((n_left-1)*(n_right-1), (n_left-1)*(n_right-1))
     pub covariance: Array2<f64>,
-    /// Leave-one-block-out f4 matrices, one per block (admixtools2
-    /// `est_to_loo_nafix`), used for qpAdm weight standard errors.
+    /// Leave-one-block-out f4 matrices, one per block, with missing block
+    /// values counted as 0 (see [`leave_one_out_nafix`]), used for qpAdm
+    /// weight standard errors.
     pub leave_one_out: Vec<Array2<f64>>,
     /// Left populations (first is reference)
     pub left_pops: Vec<PopulationId>,
@@ -101,10 +103,10 @@ impl F4Matrix {
 
     /// Compute the covariance matrix of all F4 statistics using weighted jackknife.
     ///
-    /// Uses the admixtools2 formula which accounts for variable block sizes:
-    /// h_k = total_snps / block_snps_k
-    /// xtau_k = (est * h_k - loo_k * (h_k - 1) - block_k) / sqrt(h_k - 1)
-    /// var = sum(xtau * xtau') / numblocks
+    /// The delete-m jackknife for unequal block sizes (Busing et al. 1999):
+    /// with h_k = n / m_k and pseudo-values τ_k = h_k θ − (h_k − 1) θ_(k),
+    /// cov = (1/g) Σ_k u_k u_kᵀ, u_k = (τ_k − θ_J) / sqrt(h_k − 1); see
+    /// [`block_jackknife_cov`].
     ///
     /// The covariance is needed for proper chi-squared tests in qpWave.
     fn compute_covariance(
