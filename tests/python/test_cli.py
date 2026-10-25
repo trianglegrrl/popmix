@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 
+import popmix as pm
+
 # Test data paths
 AADR_PREFIX = "/references/aadr/v62.0_1240k_public"
 AADR_HO_PREFIX = "/references/aadr_v54.1.p1/HO_public"
@@ -50,8 +52,7 @@ class TestCLIHelp:
     def test_version_shows_version(self):
         """popmix --version should show version number."""
         result = run_cli("--version")
-        # Should contain a version like 0.1.0
-        assert "0." in result.stdout or "version" in result.stdout.lower()
+        assert result.stdout.strip() == f"popmix, version {pm.__version__}"
 
     def test_no_args_shows_help(self):
         """popmix with no args should show help or error."""

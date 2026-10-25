@@ -102,9 +102,6 @@ popmix qpadm -i /path/to/genotypes --target French --left Yamnaya,Anatolia_N --r
 ### From PyPI (recommended)
 
 ```bash
-# Full installation (all features)
-pip install popmix[all]
-
 # Basic installation
 pip install popmix
 
@@ -117,12 +114,15 @@ pip install popmix[reports]
 # With MultiQC integration
 pip install popmix[multiqc]
 
+# With plots (matplotlib)
+pip install popmix[plot]
+
 ```
 
 ### From Source
 
 ```bash
-git clone https://github.com/your-org/popmix
+git clone https://github.com/trianglegrrl/popmix
 cd popmix
 python -m venv .venv
 source .venv/bin/activate
@@ -833,7 +833,7 @@ Beyond the commands below, the Python API and CLI cover (each with
 
 ```bash
 # Setup
-git clone https://github.com/your-org/popmix
+git clone https://github.com/trianglegrrl/popmix
 cd popmix
 python -m venv .venv
 unset CONDA_PREFIX && source .venv/bin/activate
@@ -854,8 +854,9 @@ pytest tests/ -v --run-slow      # Full test suite (~30 min)
 If you use Popmix in your research, please cite:
 
 ```
-Popmix: A fast toolkit for population genetics F-statistics
-https://github.com/your-org/popmix
+Popmix 1.0.0: f-statistics, admixture graphs, qpAdm, PCA, ADMIXTURE and
+admixture dating
+https://github.com/trianglegrrl/popmix
 ```
 
 Also cite the original methods:

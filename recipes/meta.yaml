@@ -1,5 +1,5 @@
 {% set name = "popmix" %}
-{% set version = "0.1.0" %}
+{% set version = "1.0.0" %}
 
 package:
   name: {{ name|lower }}
@@ -53,7 +53,7 @@ test:
     - popmix dates --help
 
 about:
-  home: https://github.com/popmix/popmix
+  home: https://github.com/trianglegrrl/popmix
   license: MIT
   license_family: MIT
   license_file:
@@ -67,7 +67,7 @@ about:
     Python interface and command line. Each is checked against the original
     tool on real data; known bugs in the originals are fixed by default and
     reproducible with a compat option (DEVIATIONS.md).
-  dev_url: https://github.com/popmix/popmix
+  dev_url: https://github.com/trianglegrrl/popmix
 
 extra:
   recipe-maintainers:
