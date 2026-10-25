@@ -342,18 +342,18 @@ pub fn compute_ld_decay_by_chromosome(
         )
     } else {
         let qbin = opts.qbin;
-        let tags = mesh_tags(snps, binsize, qbin);
+        let cells = mesh_cells(snps, binsize, qbin);
         // DATES: diffmax = nnint(qbin * maxdis / binsize)
         let diffmax = (qbin as f64 * maxdis / binsize).round() as usize;
         // per-sample sums are added in sample order, whatever the thread count
         let lag_sums = ordered_sum(
             test_indices.len(),
-            || vec![LagSums::new(diffmax); chroms.len()],
+            || vec![MeshLagSums::new(diffmax); chroms.len()],
             |i| {
                 mesh_individual_lag_sums(
                     &snps_by_chrom,
                     &residuals(test_indices[i]),
-                    &tags,
+                    &cells,
                     diffmax,
                     opts.compat,
                 )
@@ -509,93 +509,106 @@ fn exact_individual_bins(
     chrom_bins
 }
 
-/// DATES `setqbins`: mesh cell of every SNP in file order. Distance runs
-/// along the whole genome with a 5 Morgan gap at each chromosome change.
-fn mesh_tags(snps: &[Snp], binsize: f64, qbin: usize) -> Vec<usize> {
-    let qb = binsize / qbin as f64;
-    let mut tags = Vec::with_capacity(snps.len());
-    let mut ydis = 0.0;
-    let mut last_genpos = 0.0;
-    let mut last_chrom: Option<&Chromosome> = None;
+/// Gap (Morgans) put between chromosomes on the genome-wide mesh axis.
+const CHROMOSOME_GAP: f64 = 5.0;
 
-    for snp in snps {
-        match last_chrom {
-            None => {}
-            Some(c) if *c != snp.chromosome => ydis += 5.0,
-            Some(_) => ydis += snp.position_morgans - last_genpos,
-        }
-        last_chrom = Some(&snp.chromosome);
-        last_genpos = snp.position_morgans;
-        tags.push((ydis / qb).floor() as usize);
-    }
-
-    tags
+/// The mesh cell of every SNP, in the order given.
+///
+/// The SNPs are laid end to end on one axis starting at 0: each step to the
+/// next SNP adds the difference of their genetic positions on the same
+/// chromosome and [`CHROMOSOME_GAP`] when the chromosome changes. A SNP's
+/// cell is floor(axis / (binsize / qbin)).
+///
+/// Provenance: written from the clean-room specification
+/// `docs/cleanroom/dates-mesh.md`, after Narasimhan et al. 2019 (Science,
+/// supplementary methods of DATES), and checked against DATES v753 run as a
+/// black box.
+fn mesh_cells(snps: &[Snp], binsize: f64, qbin: usize) -> Vec<usize> {
+    let width = binsize / qbin as f64;
+    let mut axis = 0.0;
+    snps.iter()
+        .enumerate()
+        .map(|(i, snp)| {
+            if i > 0 {
+                let prev = &snps[i - 1];
+                axis += if prev.chromosome == snp.chromosome {
+                    snp.position_morgans - prev.position_morgans
+                } else {
+                    CHROMOSOME_GAP
+                };
+            }
+            (axis / width).floor() as usize
+        })
+        .collect()
 }
 
-/// Lag sums for one chromosome (DATES `ddcbins[k]`), lags 0..=diffmax.
-/// With z0 = SNP count, z1 = Σy, z2 = Σy² per mesh cell:
-/// `dd_ab[d] = Σ_i a[i] × b[i + d]`.
+/// Per-lag sums over mesh cell pairs (i, i + d) on one chromosome, for lags
+/// d = 0..=D. With n(i), Σy(i) and Σy²(i) the count, sum and sum of squares
+/// of the values in cell i, each field holds at lag d the sum over i of the
+/// product named.
+///
+/// Provenance: as [`mesh_cells`] (`docs/cleanroom/dates-mesh.md`).
 #[derive(Debug, Clone)]
-struct LagSums {
-    dd00: Vec<f64>,
-    dd01: Vec<f64>,
-    dd10: Vec<f64>,
-    dd11: Vec<f64>,
-    dd02: Vec<f64>,
-    dd20: Vec<f64>,
+struct MeshLagSums {
+    /// n(i) · n(i + d)
+    pairs: Vec<f64>,
+    /// n(i) · Σy(i + d)
+    later: Vec<f64>,
+    /// Σy(i) · n(i + d)
+    earlier: Vec<f64>,
+    /// Σy(i) · Σy(i + d)
+    cross: Vec<f64>,
+    /// n(i) · Σy²(i + d)
+    later_sq: Vec<f64>,
+    /// Σy²(i) · n(i + d)
+    earlier_sq: Vec<f64>,
 }
 
-impl LagSums {
-    fn new(diffmax: usize) -> Self {
-        let z = vec![0.0; diffmax + 1];
-        LagSums {
-            dd00: z.clone(),
-            dd01: z.clone(),
-            dd10: z.clone(),
-            dd11: z.clone(),
-            dd02: z.clone(),
-            dd20: z,
+impl MeshLagSums {
+    /// All zero, lags 0..=`max_lag`.
+    fn new(max_lag: usize) -> Self {
+        let z = vec![0.0; max_lag + 1];
+        MeshLagSums {
+            pairs: z.clone(),
+            later: z.clone(),
+            earlier: z.clone(),
+            cross: z.clone(),
+            later_sq: z.clone(),
+            earlier_sq: z,
         }
     }
 
-    fn merge(&mut self, other: &LagSums) {
-        let pairs = [
-            (&mut self.dd00, &other.dd00),
-            (&mut self.dd01, &other.dd01),
-            (&mut self.dd10, &other.dd10),
-            (&mut self.dd11, &other.dd11),
-            (&mut self.dd02, &other.dd02),
-            (&mut self.dd20, &other.dd20),
-        ];
-        for (a, b) in pairs {
-            for (x, y) in a.iter_mut().zip(b.iter()) {
-                *x += y;
-            }
-        }
+    fn merge(&mut self, other: &MeshLagSums) {
+        let add = |a: &mut Vec<f64>, b: &[f64]| a.iter_mut().zip(b).for_each(|(x, y)| *x += y);
+        add(&mut self.pairs, &other.pairs);
+        add(&mut self.later, &other.later);
+        add(&mut self.earlier, &other.earlier);
+        add(&mut self.cross, &other.cross);
+        add(&mut self.later_sq, &other.later_sq);
+        add(&mut self.earlier_sq, &other.earlier_sq);
     }
 
-    /// DATES `ddcorr`: lag d goes to bin (int)(d × (binsize/qbin) / binsize).
-    /// Lag 0 (pairs within one mesh cell) is not used.
-    fn to_bins(&self, binsize: f64, qbin: usize, n_alloc: usize) -> Vec<CorrBin> {
-        let mut bins = vec![CorrBin::default(); n_alloc];
-        let dbinsize = binsize / qbin as f64;
-        for d in 1..self.dd00.len() {
-            if self.dd00[d] < 0.5 {
+    /// Distance bins: lag d >= 1 with at least one pair (pair count >= 0.5,
+    /// the FFT leaves rounding error) is at distance d · binsize / qbin and
+    /// goes to bin trunc(distance / binsize) if that is below `n_bins`. The
+    /// later SNP of a pair is y1 in [`CorrBin`].
+    fn to_bins(&self, binsize: f64, qbin: usize, n_bins: usize) -> Vec<CorrBin> {
+        let width = binsize / qbin as f64;
+        let mut bins = vec![CorrBin::default(); n_bins];
+        for d in 1..self.pairs.len() {
+            if self.pairs[d] < 0.5 {
                 continue;
             }
-            let ys = d as f64 * dbinsize;
-            let s = (ys / binsize) as usize;
-            if s >= n_alloc {
+            let bin = (d as f64 * width / binsize) as usize;
+            let Some(b) = bins.get_mut(bin) else {
                 continue;
-            }
-            // DATES addcorr2(corrpt, dd00, dd01, dd10, dd11, dd02, dd20)
-            let b = &mut bins[s];
-            b.s0 += self.dd00[d];
-            b.s1 += self.dd01[d];
-            b.s2 += self.dd10[d];
-            b.s12 += self.dd11[d];
-            b.s11 += self.dd02[d];
-            b.s22 += self.dd20[d];
+            };
+            b.s0 += self.pairs[d];
+            b.s1 += self.later[d];
+            b.s2 += self.earlier[d];
+            b.s12 += self.cross[d];
+            b.s11 += self.later_sq[d];
+            b.s22 += self.earlier_sq[d];
         }
         bins
     }
@@ -605,20 +618,20 @@ impl LagSums {
 fn mesh_individual_lag_sums(
     snps_by_chrom: &[Vec<usize>],
     residuals: &[Vec<(usize, f64)>],
-    tags: &[usize],
+    cells: &[usize],
     diffmax: usize,
     compat: DatesCompat,
-) -> Vec<LagSums> {
+) -> Vec<MeshLagSums> {
     let mut planner = FftPlanner::<f64>::new();
 
     snps_by_chrom
         .iter()
         .zip(residuals.iter())
         .map(|(_, chrom_res)| {
-            let mut sums = LagSums::new(diffmax);
+            let mut sums = MeshLagSums::new(diffmax);
             let (Some(slo), Some(shi)) = (
-                chrom_res.iter().map(|&(i, _)| tags[i]).min(),
-                chrom_res.iter().map(|&(i, _)| tags[i]).max(),
+                chrom_res.iter().map(|&(i, _)| cells[i]).min(),
+                chrom_res.iter().map(|&(i, _)| cells[i]).max(),
             ) else {
                 return sums;
             };
@@ -631,7 +644,7 @@ fn mesh_individual_lag_sums(
             let mut z1 = vec![0.0; len];
             let mut z2 = vec![0.0; len];
             for &(snp_idx, y) in chrom_res {
-                let s = tags[snp_idx] - slo;
+                let s = cells[snp_idx] - slo;
                 z0[s] += 1.0;
                 z1[s] += y;
                 z2[s] += y * y;
@@ -694,16 +707,16 @@ fn mesh_individual_lag_sums(
                 diffmax.min(len - 1)
             };
             for d in 0..=maxlag {
-                sums.dd00[d] = auto(&c00, d);
-                sums.dd11[d] = auto(&c11, d);
+                sums.pairs[d] = auto(&c00, d);
+                sums.cross[d] = auto(&c11, d);
                 if d < n {
-                    sums.dd01[d] = c01[d];
-                    sums.dd02[d] = c02[d];
+                    sums.later[d] = c01[d];
+                    sums.later_sq[d] = c02[d];
                 }
                 if d <= n {
                     let neg = (n - d) % n;
-                    sums.dd10[d] = c01[neg];
-                    sums.dd20[d] = c02[neg];
+                    sums.earlier[d] = c01[neg];
+                    sums.earlier_sq[d] = c02[neg];
                 }
             }
             sums
