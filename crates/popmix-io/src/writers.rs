@@ -281,8 +281,16 @@ fn write_packedancestrymap_geno(path: &str, matrix: &GenotypeMatrix) -> Result<(
     let record_size = bytes_per_row.max(48);
 
     // Write header: "GENO" magic + metadata, padded to record_size
-    // Format: GENO {n_samples} {n_snps} {hash}
-    let header_text = format!("GENO {} {} 0", n_samples, n_snps);
+    // Format: GENO {n_samples} {n_snps} {ind_hash} {snp_hash}
+    let ind_ids: Vec<&str> = matrix.samples().iter().map(|s| s.id.as_str()).collect();
+    let snp_ids: Vec<&str> = matrix.snps().iter().map(|s| s.id.as_str()).collect();
+    let header_text = format!(
+        "GENO {} {} {:x} {:x}",
+        n_samples,
+        n_snps,
+        crate::packedancestrymap::header_hash(&ind_ids),
+        crate::packedancestrymap::header_hash(&snp_ids)
+    );
     let mut header = vec![0u8; record_size];
     let header_bytes = header_text.as_bytes();
     header[..header_bytes.len()].copy_from_slice(header_bytes);

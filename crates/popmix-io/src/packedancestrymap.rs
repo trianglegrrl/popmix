@@ -6,7 +6,9 @@
 //! Format:
 //! - Record size: max(48, ceil(n_samples / 4)) bytes per record
 //!   (minimum 48 bytes per the AdmixTools specification)
-//! - Header: First record contains "GENO {n_samples} {n_snps} {hash}..." padded with zeros
+//! - Header: First record contains "GENO {n_samples} {n_snps} {ind_hash} {snp_hash}"
+//!   padded with zeros; the hashes (lower-case hex, see [`header_hash`]) let
+//!   AdmixTools refuse a .geno whose .ind or .snp file has changed
 //! - Data: SNP-major, 2-bit packed genotypes (4 genotypes per byte)
 //!
 //! Genotype encoding (2 bits per sample):
@@ -273,9 +275,67 @@ fn decode_packed_genotypes(bytes: &[u8], n_samples: usize) -> impl Iterator<Item
         .take(n_samples)
 }
 
+/// The header hash of a list of IDs (the .ind sample IDs, or the .snp SNP
+/// IDs, in file order), as AdmixTools convertf writes and checks it: each ID
+/// hashes to h = 23 h + byte over its bytes, and the list to
+/// H = 17 H XOR h over its IDs, in wrapping 32-bit arithmetic. The rule is
+/// the format's, verified against headers convertf wrote
+/// (tests/golden/test_formats.py).
+pub fn header_hash<S: AsRef<str>>(ids: &[S]) -> u32 {
+    ids.iter().fold(0u32, |list, id| {
+        let one = id
+            .as_ref()
+            .bytes()
+            .fold(0u32, |h, b| h.wrapping_mul(23).wrapping_add(u32::from(b)));
+        list.wrapping_mul(17) ^ one
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn header_hashes_are_admixtools() {
+        assert_eq!(header_hash(&["IND1", "IND2", "IND3"]), 0x10f4828d);
+        assert_eq!(
+            header_hash(&["rs1", "rs2", "rs3", "rs4", "rs5"]),
+            0x3ebb563c
+        );
+        assert_eq!(header_hash::<&str>(&[]), 0);
+        assert_eq!(header_hash(&["Loschbour.AG"]), 0x7df5c4fd);
+    }
+
+    #[test]
+    fn written_headers_carry_the_hashes() {
+        let dir = tempfile::tempdir().unwrap();
+        let prefix = dir.path().join("t");
+        let samples = vec![
+            Sample::new("IND1", "A"),
+            Sample::new("IND2", "A"),
+            Sample::new("IND3", "B"),
+        ];
+        let snps: Vec<Snp> = ["rs1", "rs2", "rs3", "rs4", "rs5"]
+            .iter()
+            .enumerate()
+            .map(|(i, id)| {
+                Snp::new(
+                    *id,
+                    popmix_core::Chromosome::Autosome(1),
+                    i as u32 + 1,
+                    0.0,
+                    'A',
+                    'G',
+                )
+            })
+            .collect();
+        let m = GenotypeMatrix::new(Array2::zeros((5, 3)), samples, snps).unwrap();
+        crate::writers::write_packedancestrymap(&prefix, &m).unwrap();
+        let geno = std::fs::read(prefix.with_extension("geno")).unwrap();
+        let header = String::from_utf8_lossy(&geno[..48]);
+        let fields: Vec<&str> = header.trim_end_matches('\0').split_whitespace().collect();
+        assert_eq!(fields, ["GENO", "3", "5", "10f4828d", "3ebb563c"]);
+    }
 
     #[test]
     fn test_decode_packed_byte() {
