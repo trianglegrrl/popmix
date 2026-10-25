@@ -1,0 +1,319 @@
+<title>popmix Benchmarks</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one reading column; summary chart, then the case table, then scaling small multiples. */
+:root {
+  --bg: #f7f8f9; --surface: #ffffff; --fg: #15191e; --fg-2: #4a5360; --fg-3: #737d8a;
+  --rule: #dde1e6; --grid: #e9ecef;
+  --popmix: #2a78d6; --ref: #eb6834;
+  --good: #1b7f4b; --bad: #b42323;
+  --font-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121519; --surface: #1a1e23; --fg: #eceef1; --fg-2: #b4bcc6; --fg-3: #8a94a0;
+  --rule: #2c323a; --grid: #242a31; --popmix: #3987e5; --ref: #d95926; --good: #4cc38a; --bad: #f07070;
+  color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #121519; --surface: #1a1e23; --fg: #eceef1; --fg-2: #b4bcc6; --fg-3: #8a94a0;
+  --rule: #2c323a; --grid: #242a31; --popmix: #3987e5; --ref: #d95926; --good: #4cc38a; --bad: #f07070;
+  color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font: 15px/1.55 var(--font-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+main { max-width: 1080px; margin: 0 auto; padding-block: 40px 64px; display: grid; gap: 48px; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; line-height: 1.15; }
+h1 { font-size: 2.4rem; font-weight: 600; letter-spacing: -0.01em; }
+h2 { font-size: 1.5rem; font-weight: 600; }
+h3 { font-size: 1.05rem; font-weight: 600; }
+p { margin: 0; max-width: 68ch; color: var(--fg-2); }
+section { display: grid; gap: 16px; min-width: 0; }
+.eyebrow { font: 500 0.75rem/1 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-3); }
+header { display: grid; gap: 14px; }
+dl.facts { display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 4px 0 0; }
+dl.facts div { display: grid; gap: 2px; }
+dl.facts dt { font: 500 0.7rem/1.2 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-3); }
+dl.facts dd { margin: 0; font-size: 0.92rem; }
+.panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 16px; min-width: 0; }
+.legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 0.85rem; color: var(--fg-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.86rem; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font: 500 0.7rem/1.3 var(--font-mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--fg-3); white-space: nowrap; }
+td.num { font-family: var(--font-mono); text-align: right; white-space: nowrap; }
+td .sub { display: block; color: var(--fg-3); font-size: 0.78rem; }
+.pill { display: inline-flex; align-items: center; gap: 4px; font: 500 0.75rem/1 var(--font-mono); padding: 4px 7px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+.pill.ok { color: var(--good); } .pill.no { color: var(--bad); }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+svg { display: block; width: 100%; height: auto; overflow: visible; }
+svg text { fill: var(--fg-3); font: 11px var(--font-mono); }
+svg .label { fill: var(--fg-2); font: 12px var(--font-body); }
+svg .gridline { stroke: var(--grid); stroke-width: 1; }
+svg .axis { stroke: var(--rule); stroke-width: 1; }
+svg .unity { stroke: var(--fg-3); stroke-width: 1; stroke-dasharray: 3 3; }
+.chart-title { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; align-items: baseline; margin-bottom: 6px; }
+.chart-title small { color: var(--fg-3); font-size: 0.8rem; }
+.empty { color: var(--fg-3); font-style: italic; }
+#tip { position: fixed; pointer-events: none; background: var(--surface); color: var(--fg); border: 1px solid var(--rule);
+  border-radius: 4px; padding: 6px 9px; font: 12px/1.4 var(--font-mono); box-shadow: 0 2px 8px rgb(0 0 0 / 0.12); z-index: 5; max-width: 280px; }
+.hit { fill: transparent; cursor: default; }
+.hit:focus { outline: none; } .hit:focus-visible { stroke: var(--fg); stroke-width: 1.5; }
+footer p { font-size: 0.85rem; }
+code { font-family: var(--font-mono); font-size: 0.88em; }
+</style>
+
+<main>
+  <header>
+    <span class="eyebrow">popmix against the reference tools</span>
+    <h1>popmix Benchmarks</h1>
+    <p id="intro"></p>
+    <dl class="facts" id="facts"></dl>
+  </header>
+
+  <section>
+    <h2>Speed-up per analysis</h2>
+    <p>Reference tool's median wall time divided by popmix's best, on the same input. Right of the dashed line, popmix is faster.</p>
+    <div class="panel"><svg id="speedup" role="img" aria-label="Speed-up of popmix over each reference tool"></svg></div>
+  </section>
+
+  <section>
+    <h2>Every case</h2>
+    <p>Median of the repeats after one warm-up run, so every measured run reads from the page cache. Agreement compares the two outputs in the same run, at the tolerances of the golden tests.</p>
+    <div class="table-wrap panel"><table id="cases"></table></div>
+  </section>
+
+  <section>
+    <h2>Scaling</h2>
+    <p id="scaling-intro">Time and peak memory as the input grows, on series cut from AADR v66.p1. Both axes are logarithmic.</p>
+    <div class="legend"><span><i style="background:var(--popmix)"></i>popmix</span><span><i style="background:var(--ref)"></i>reference tool</span></div>
+    <div id="scaling" class="grid2"></div>
+  </section>
+
+  <footer><p id="method"></p></footer>
+</main>
+<div id="tip" hidden></div>
+
+<script>
+const DATA = /*DATA*/null;
+const NS = "http://www.w3.org/2000/svg";
+const el = (tag, attrs = {}, parent) => {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if (parent) parent.appendChild(e);
+  return e;
+};
+const h = (tag, text, cls) => { const e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; };
+const fmtS = s => s < 1 ? `${(s * 1000).toFixed(0)} ms` : s < 120 ? `${s.toFixed(2)} s` : `${(s / 60).toFixed(1)} min`;
+const fmtMB = mb => mb < 1024 ? `${mb.toFixed(0)} MB` : `${(mb / 1024).toFixed(1)} GB`;
+const fmtX = x => x >= 10 ? `${x.toFixed(0)}×` : `${x.toFixed(1)}×`;
+const fmtN = n => n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e4 ? `${(n / 1e3).toFixed(0)}k` : String(n);
+
+const tip = document.getElementById("tip");
+function hover(target, lines) {
+  const show = ev => {
+    tip.textContent = "";
+    lines.forEach((l, i) => { const d = h("div", l); if (i === 0) d.style.fontWeight = "500"; tip.appendChild(d); });
+    tip.hidden = false;
+    const r = target.getBoundingClientRect();
+    const x = ev && ev.clientX != null ? ev.clientX : r.left + r.width / 2;
+    const y = ev && ev.clientY != null ? ev.clientY : r.top;
+    tip.style.left = Math.min(x + 12, innerWidth - tip.offsetWidth - 8) + "px";
+    tip.style.top = Math.max(8, y - tip.offsetHeight - 10) + "px";
+  };
+  target.setAttribute("tabindex", "0");
+  target.addEventListener("pointerenter", show); target.addEventListener("pointermove", show);
+  target.addEventListener("focus", () => show());
+  target.addEventListener("pointerleave", () => tip.hidden = true); target.addEventListener("blur", () => tip.hidden = true);
+}
+
+function bestPopmix(c) {
+  return Object.entries(c.popmix).reduce((a, b) => b[1].wall_s.median < a[1].wall_s.median ? b : a);
+}
+
+function header(d) {
+  const m = d.machine, v = d.versions;
+  document.getElementById("intro").textContent =
+    `Each case runs popmix's command line and the reference tool's own program on identical inputs, ${d.repeats} times, and checks that the two agree. Inputs are cut from AADR v66.p1 by AdmixTools convertf.`;
+  const facts = [["Measured", d.date], ["Machine", `${m.cpu || "?"}, ${m.cpus} threads, ${m.memory_gb} GB`],
+    ["popmix", `${v.popmix} (${v.popmix_commit})`], ["admixtools2", v.admixtools2], ["R", (v.R || "").replace("R version ", "")]];
+  const dl = document.getElementById("facts");
+  for (const [k, val] of facts) { const div = h("div"); div.append(h("dt", k), h("dd", val)); dl.appendChild(div); }
+}
+
+function logTicks(lo, hi) {
+  const out = [];
+  for (let e = Math.floor(Math.log10(lo)); e <= Math.ceil(Math.log10(hi)); e++)
+    for (const m of [1, 2, 5]) { const t = m * 10 ** e; if (t >= lo * 0.999 && t <= hi * 1.001) out.push(t); }
+  return out;
+}
+
+function speedup(d) {
+  const svg = document.getElementById("speedup");
+  const rows = Object.entries(d.cases).map(([name, c]) => {
+    const [t, best] = bestPopmix(c);
+    return { name, c, t, best, x: c.reference_runs.wall_s.median / best.wall_s.median };
+  });
+  const W = 720, rowH = 30, L = 150, R = 60, T = 8, B = 28, H = T + rows.length * rowH + B;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  const lo = Math.min(0.2, ...rows.map(r => r.x / 1.3)), hi = Math.max(50, ...rows.map(r => r.x * 1.3));
+  const sx = v => L + (Math.log(v) - Math.log(lo)) / (Math.log(hi) - Math.log(lo)) * (W - L - R);
+  for (const t of logTicks(lo, hi)) {
+    el("line", { x1: sx(t), x2: sx(t), y1: T, y2: H - B, class: "gridline" }, svg);
+    el("text", { x: sx(t), y: H - B + 16, "text-anchor": "middle" }, svg).textContent = `${t}×`;
+  }
+  el("line", { x1: sx(1), x2: sx(1), y1: T - 4, y2: H - B, class: "unity" }, svg);
+  rows.forEach((r, i) => {
+    const y = T + i * rowH + rowH / 2;
+    el("text", { x: L - 10, y: y + 4, "text-anchor": "end", class: "label" }, svg).textContent = r.name;
+    const x0 = sx(1), x1 = sx(r.x);
+    el("line", { x1: x0, x2: x1, y1: y, y2: y, stroke: r.x >= 1 ? "var(--popmix)" : "var(--bad)", "stroke-width": 2 }, svg);
+    el("circle", { cx: x1, cy: y, r: 5, fill: r.x >= 1 ? "var(--popmix)" : "var(--bad)", stroke: "var(--surface)", "stroke-width": 2 }, svg);
+    el("text", { x: r.x >= 1 ? x1 + 10 : x1 - 10, y: y + 4, "text-anchor": r.x >= 1 ? "start" : "end" }, svg).textContent = fmtX(r.x);
+    const hit = el("rect", { x: 0, y: y - rowH / 2, width: W, height: rowH, class: "hit" }, svg);
+    hover(hit, [r.name, `${r.c.reference}: ${fmtS(r.c.reference_runs.wall_s.median)}`,
+      `popmix (${r.t} threads): ${fmtS(r.best.wall_s.median)}`, `speed-up ${fmtX(r.x)}`]);
+  });
+}
+
+function agreementText(a) {
+  return Object.entries(a).filter(([k]) => k !== "pass")
+    .map(([k, v]) => `${k.replace(/_/g, " ")} ${typeof v === "number" && !Number.isInteger(v) ? v.toExponential(1) : v}`).join(", ");
+}
+
+function caseTable(d) {
+  const t = document.getElementById("cases");
+  const head = t.createTHead().insertRow();
+  for (const c of ["Analysis", "Reference", "Reference", "popmix (threads)", "Speed-up", "Peak memory ref / popmix", "Agreement", "Same at every thread count"])
+    head.appendChild(h("th", c));
+  const body = t.createTBody();
+  for (const [name, c] of Object.entries(d.cases)) {
+    const [threads, best] = bestPopmix(c), ref = c.reference_runs, x = ref.wall_s.median / best.wall_s.median;
+    const tr = body.insertRow();
+    const a = tr.insertCell(); a.append(h("span", name)); a.append(h("span", c.analysis, "sub"));
+    tr.insertCell().textContent = c.reference;
+    const rc = tr.insertCell(); rc.className = "num"; rc.append(fmtS(ref.wall_s.median), h("span", `CV ${(ref.wall_s.cv * 100).toFixed(1)}%`, "sub"));
+    const pc = tr.insertCell(); pc.className = "num"; pc.append(`${fmtS(best.wall_s.median)} (${threads})`, h("span", `CV ${(best.wall_s.cv * 100).toFixed(1)}%`, "sub"));
+    const sc = tr.insertCell(); sc.className = "num"; sc.textContent = fmtX(x); if (x < 1) sc.style.color = "var(--bad)";
+    const mc = tr.insertCell(); mc.className = "num"; mc.textContent = `${fmtMB(ref.peak_rss_mb.median)} / ${fmtMB(best.peak_rss_mb.median)}`;
+    const ag = tr.insertCell(); const ok = best.agreement && best.agreement.pass;
+    ag.append(h("span", ok ? "✓ pass" : "✗ fail", `pill ${ok ? "ok" : "no"}`), h("span", best.agreement ? agreementText(best.agreement) : "", "sub"));
+    const id = tr.insertCell(); const same = c.identical_across_threads;
+    id.append(h("span", same ? "✓ identical" : "✗ differs", `pill ${same ? "ok" : "no"}`),
+      h("span", Object.entries(c.popmix).map(([t, r]) => `${t}: ${fmtS(r.wall_s.median)}`).join(" · "), "sub"));
+  }
+}
+
+const CURVES = {
+  populations: { x: "populations (10 samples each)", what: "f2 extraction" },
+  snps: { x: "SNPs", what: "f2 extraction, 16 populations" },
+  samples: { x: "samples", what: "" },
+  threads: { x: "threads", what: "popmix by thread count" },
+};
+const ANALYSES = { extract_f2: "f2 extraction", pca: "PCA (10 PCs)", kinship: "KING kinship", extract_f2_tgeno: "f2 extraction from TGENO" };
+
+function xValue(curve, p) {
+  if (curve === "snps") return p.input.snps;
+  if (curve === "samples") return p.input.samples;
+  if (curve === "populations") return p.input.populations;
+  return null;
+}
+
+function lineChart(parent, title, subtitle, series, xLabel, yFmt, logX) {
+  const panel = h("div", null, "panel"); parent.appendChild(panel);
+  const tt = h("div", null, "chart-title"); tt.append(h("h3", title), h("small", subtitle)); panel.appendChild(tt);
+  const svg = el("svg", { role: "img", "aria-label": `${title}: ${subtitle}` }); panel.appendChild(svg);
+  const W = 460, H = 260, L = 58, R = 14, T = 10, B = 40;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  const pts = series.flatMap(s => s.points);
+  if (!pts.length) return;
+  const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+  const xlo = Math.min(...xs), xhi = Math.max(...xs), ylo = Math.min(...ys) / 1.5, yhi = Math.max(...ys) * 1.5;
+  const lx = v => logX ? Math.log(v) : v;
+  const sx = v => xlo === xhi ? (L + W - R) / 2 : L + (lx(v) - lx(xlo)) / (lx(xhi) - lx(xlo)) * (W - L - R);
+  const sy = v => T + (1 - (Math.log(v) - Math.log(ylo)) / (Math.log(yhi) - Math.log(ylo))) * (H - T - B);
+  for (const t of logTicks(ylo, yhi)) {
+    el("line", { x1: L, x2: W - R, y1: sy(t), y2: sy(t), class: "gridline" }, svg);
+    el("text", { x: L - 6, y: sy(t) + 4, "text-anchor": "end" }, svg).textContent = yFmt(t);
+  }
+  const xt = [...new Set(xs)].sort((a, b) => a - b);
+  let last = -Infinity;
+  for (const t of xt) {
+    if (sx(t) - last < 34) continue; last = sx(t);
+    el("text", { x: sx(t), y: H - B + 16, "text-anchor": "middle" }, svg).textContent = fmtN(t);
+  }
+  el("line", { x1: L, x2: W - R, y1: H - B, y2: H - B, class: "axis" }, svg);
+  el("text", { x: (L + W - R) / 2, y: H - 6, "text-anchor": "middle", class: "label" }, svg).textContent = xLabel;
+  for (const s of series) {
+    const ps = [...s.points].sort((a, b) => a.x - b.x);
+    if (ps.length > 1) el("polyline", { points: ps.map(p => `${sx(p.x)},${sy(p.y)}`).join(" "), fill: "none", stroke: s.color, "stroke-width": 2, "stroke-linejoin": "round", "stroke-dasharray": s.dash || "" }, svg);
+    for (const p of ps) {
+      el("circle", { cx: sx(p.x), cy: sy(p.y), r: 4, fill: s.color, stroke: "var(--surface)", "stroke-width": 2 }, svg);
+      hover(el("circle", { cx: sx(p.x), cy: sy(p.y), r: 11, class: "hit" }, svg), [`${s.name}, ${fmtN(p.x)} ${xLabel}`, yFmt(p.y), ...(p.note || [])]);
+    }
+  }
+}
+
+function scaling(d) {
+  const root = document.getElementById("scaling");
+  const s = d.scaling;
+  if (!s) { root.appendChild(h("p", "Scaling curves have not been measured on this machine yet.", "empty")); return; }
+  for (const [curve, pointsByKey] of Object.entries(s.curves)) {
+    const points = Object.values(pointsByKey);
+    const analyses = [...new Set(points.map(p => p.analysis))];
+    for (const an of analyses) {
+      const ps = points.filter(p => p.analysis === an);
+      if (curve === "threads") {
+        const p = ps[0];
+        const ours = Object.entries(p.popmix).map(([t, r]) => ({ x: +t, y: r.wall_s.median }));
+        const ref = Object.entries(p.reference).filter(([t]) => +t > 0).map(([t, r]) => ({ x: +t, y: r.wall_s.median }));
+        const ideal = ours.length ? ours.map(q => ({ x: q.x, y: ours.find(o => o.x === Math.min(...ours.map(z => z.x))).y / q.x })) : [];
+        const series = [{ name: "popmix", color: "var(--popmix)", points: ours }, { name: "linear speed-up", color: "var(--fg-3)", dash: "4 4", points: ideal }];
+        if (ref.length) series.push({ name: "reference", color: "var(--ref)", points: ref });
+        lineChart(root, `${ANALYSES[an] || an}: threads`, `${fmtN(p.input.samples)} samples, ${p.input.populations} populations`, series, "threads", fmtS, true);
+        continue;
+      }
+      if (curve === "full_aadr") continue;
+      const toPts = (pick, metric) => ps.flatMap(p => {
+        const r = pick(p); if (!r) return [];
+        const note = r.agreement ? [`agreement: ${r.agreement.pass ? "pass" : "FAIL"}`] : [];
+        return [{ x: xValue(curve, p), y: r[metric].median, note }];
+      });
+      const ourPick = p => Object.values(p.popmix)[0], refPick = p => Object.values(p.reference)[0];
+      const label = CURVES[curve].x;
+      for (const [metric, fmt, what] of [["wall_s", fmtS, "wall time"], ["peak_rss_mb", fmtMB, "peak memory"]]) {
+        lineChart(root, `${ANALYSES[an] || an}: ${what}`, `by ${label}`,
+          [{ name: "popmix", color: "var(--popmix)", points: toPts(ourPick, metric) }, { name: "reference", color: "var(--ref)", points: toPts(refPick, metric) }],
+          label, fmt, true);
+      }
+    }
+  }
+  const full = s.curves.full_aadr;
+  if (full) {
+    const panel = h("div", null, "panel"); root.appendChild(panel);
+    panel.appendChild(h("h3", "All of AADR v66.p1"));
+    const tbl = h("table"); panel.appendChild(h("div", null, "table-wrap")).appendChild(tbl);
+    const hr = tbl.createTHead().insertRow(); for (const c of ["Input", "Reference", "popmix", "Peak memory ref / popmix"]) hr.appendChild(h("th", c));
+    const tb = tbl.createTBody();
+    for (const p of Object.values(full)) {
+      const ours = Object.values(p.popmix)[0], ref = Object.values(p.reference)[0];
+      const tr = tb.insertRow();
+      tr.insertCell().textContent = `${ANALYSES[p.analysis] || p.analysis}: ${fmtN(p.input.samples)} samples × ${fmtN(p.input.snps)} SNPs, ${p.input.populations} populations`;
+      const a = tr.insertCell(); a.className = "num"; a.textContent = ref ? fmtS(ref.wall_s.median) : "–";
+      const b = tr.insertCell(); b.className = "num"; b.textContent = fmtS(ours.wall_s.median);
+      const c = tr.insertCell(); c.className = "num"; c.textContent = `${ref ? fmtMB(ref.peak_rss_mb.median) : "–"} / ${fmtMB(ours.peak_rss_mb.median)}`;
+    }
+  }
+}
+
+function method(d) {
+  document.getElementById("method").textContent =
+    "Wall and CPU time come from os.wait4 on each child process; peak memory from GNU time. popmix runs as its command line, one process per run, as a user would run it. "
+    + "Inputs and scripts: benchmarks/ in the popmix repository (run.py, scaling.py, cases.py). Rendered by benchmarks/report_html.py.";
+}
+
+if (DATA) { header(DATA); speedup(DATA); caseTable(DATA); scaling(DATA); method(DATA); }
+</script>
