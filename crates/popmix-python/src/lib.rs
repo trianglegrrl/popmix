@@ -6,11 +6,13 @@
 #![allow(clippy::useless_conversion)]
 
 mod admixture;
+mod alder;
 mod geno_fstats;
 mod kinship;
 mod pca;
 mod qpadm_models;
 mod rcompat;
+mod rolloff;
 mod sfs;
 
 use std::collections::{BTreeMap, HashMap};
@@ -3100,8 +3102,10 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     kinship::register(m)?;
     sfs::register(m)?;
     admixture::register(m)?;
+    alder::register(m)?;
     qpadm_models::register(m)?;
     rcompat::register(m)?;
+    rolloff::register(m)?;
 
     // qpAdm/qpWave functions
     m.add_function(wrap_pyfunction!(qpwave, m)?)?;

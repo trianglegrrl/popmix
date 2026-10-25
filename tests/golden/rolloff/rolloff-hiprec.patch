@@ -1,0 +1,54 @@
+--- a/src/rolloff.c	2026-10-24 22:47:28.412874482 -0400
++++ b/src/rolloff.c	2026-10-24 22:47:43.303080958 -0400
+@@ -1,3 +1,5 @@
++/* popmix reference build: AdmixTools 7.0.2 rolloff with its output file printed with %.17g
++   (full double precision); nothing else changed. */
+ #include <stdio.h>
+ #include <string.h>
+ #include <unistd.h>
+@@ -721,14 +723,14 @@
+ 
+     y = (k + 1) * bsize;
+     corrpt = corrbins[k];
+-    fprintf (fff, "%9.3f ", 100.0 * y);
+-    fprintf (fff, "%12.6f ", ww[k]);
++    fprintf (fff, "%.17g ", 100.0 * y);
++    fprintf (fff, "%.17g ", ww[k]);
+ //  fprintf(fff, "%12.6f ", corrpt -> Z) ;
+     if (runmode != 2) {
+       calccorr (corrpt, 1, NO);
+       yreg = corrpt->S12 / (corrpt->S11 + 1.0e-20);
+-      fprintf (fff, "%12.6f ", yreg);
+-      fprintf (fff, "%12.6f ", corrpt->corr);
++      fprintf (fff, "%.17g ", yreg);
++      fprintf (fff, "%.17g ", corrpt->corr);
+       fprintf (fff, "%12.0f ", corrpt->S0);
+     }
+     fprintf (fff, "\n");
+--- a/src/dowtjack.c	2026-10-24 22:47:28.409874440 -0400
++++ b/src/dowtjack.c	2026-10-24 22:47:52.186204178 -0400
+@@ -1,3 +1,4 @@
++/* popmix reference build: output printed with %.17g. */
+ #include <stdio.h>
+ #include <limits.h>
+ #include <math.h>  
+@@ -104,14 +105,14 @@
+  /*call weightjack */
+ 	weightjack(&est, &sig, mean, jmean, jwt, len);
+         if (terse) { 
+-	fprintf(ofile,"%9.3f ", est);	 	// d format ??
+-	fprintf(ofile,"%9.3f", sig);	 	
++	fprintf(ofile,"%.17g ", est);	 	// d format ??
++	fprintf(ofile,"%.17g", sig);	 	
+ 	fprintf(ofile,"\n");
+         }
+         else { 
+-	fprintf(ofile,"mean: %9.3f ", est);	 	// d format ??
+-	fprintf(ofile,"std error: %9.3f ", sig);	 	
+-	fprintf(ofile,"Z: %9.3f", est/sig);	 	
++	fprintf(ofile,"mean: %.17g ", est);	 	// d format ??
++	fprintf(ofile,"std error: %.17g ", sig);	 	
++	fprintf(ofile,"Z: %.17g", est/sig);	 	
+ 	fprintf(ofile,"\n");
+        }  
+ 	free(jmean);

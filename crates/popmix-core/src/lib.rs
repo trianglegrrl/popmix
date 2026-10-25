@@ -12,6 +12,7 @@
 //! All algorithms are optimized for parallel execution using rayon.
 
 pub mod admixture;
+pub mod alder;
 pub mod dates;
 pub mod error;
 pub mod fstats;
@@ -22,6 +23,7 @@ pub mod pca;
 pub mod qpadm;
 pub mod qpgraph;
 pub mod rcompat;
+pub mod rolloff;
 pub mod sfs;
 pub mod threading;
 
@@ -30,6 +32,7 @@ pub use admixture::{
     admixture, admixture_cv, admixture_loglik, admixture_projection, admixture_supervised,
     AdmixtureFit, AdmixtureOptions,
 };
+pub use alder::{alder, AlderCompat, AlderOptions, AlderResult};
 pub use error::{PopmixError, Result};
 pub use fstats::{
     f2_estimate, f2_single_snp, f3_from_genotypes, f4_from_genotypes, BlockAssignment,
@@ -58,6 +61,7 @@ pub use qpgraph::{
     GraphSearchResult, NodeId, QpGraphEdge, QpGraphF3, QpGraphOptions, QpGraphResult, QpGraphStart,
     ScoredGraph,
 };
+pub use rolloff::{fit_rolloff, rolloff, RolloffBins, RolloffFit, RolloffOptions, RolloffResult};
 pub use sfs::{joint_sfs, projected_sfs, JointSfsCompat, JointSfsSnps, SfsSummary, Spectrum};
 pub use threading::init_thread_pool;
 

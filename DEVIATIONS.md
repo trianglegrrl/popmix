@@ -21,6 +21,7 @@ rules for adding one.
 | ADMIXTOOLS2-0006 | PLINK files with chromosome codes X and Y stop with an error (`auto_only = TRUE`) | Reads them; X and Y are not autosomes | nothing to reproduce |
 | EIGENSOFT-0001 | smartpca reports the Tracy-Widom density as the p-value beyond its table | The tail | `compat="eigensoft-7.2.1"` |
 | PLINK2-0001 | `--make-king-table` labels its two het-hom counts the wrong way round | Counts named as they are | nothing to reproduce (labels only) |
+| ALDER-0001 | The inter-chromosome affine term counts pairs with SNPs that have no weight | Pairs it sums over | `compat="alder-1.03"` |
 | READV2-0001 | Each jackknife window also counts the last SNP of the window before | Disjoint windows | `compat="readv2-2.01"` |
 | READV2-0002 | The block jackknife never leaves out the last window | Every window left out once | `compat="readv2-2.01"` |
 | READV2-0003 | The "kinship coefficient" 95% interval is that of the normalized P0 | The kinship coefficient's interval | `compat="readv2-2.01"` |
@@ -593,4 +594,63 @@ local maxima: at K = 3 on `family` (two source populations and admixed
 samples), ADMIXTURE's run ends at -1044310.79 and popmix's at -1044149.28.
 With P fixed (projection) the problem is convex and the two agree to the
 printed precision.
+
+## ALDER 1.03
+
+`AlderCompat` in `crates/popmix-core/src/alder/mod.rs`; `compat="alder-1.03"`
+in Python (`alder`), `--compat alder-1.03` on the CLI.
+
+### ALDER-0001: the affine term counts pairs it does not sum over
+
+- **ALDER:** the inter-chromosome affine term (`compute_inter_chrom_affine`)
+  is a sum over pairs of SNPs on different chromosomes divided by their
+  number. The sum skips SNPs without a weight (a reference with no data
+  there, `snp_ignore`), but the count (`AffineData.count`, the SNPs with no
+  missing data in the test population) includes them.
+- **Effect:** none when every SNP has a weight (`family`, `aadr_asw`). With
+  a pseudo-haploid ancient reference (`aadr_asw_lbk`, ASW with YRI and
+  Germany_EN_LBK) the affine term is 2.2% too small and the date 0.6% too
+  young (5.126 against 5.156 generations).
+- **popmix:** counts only the SNPs it sums over.
+
+### Matched, not corrected
+
+- **amp_tot.** The total amplitude is amp_exp plus half the affine term, as
+  ALDER reports it.
+- **Genotypes as called.** Pseudo-haploid samples count as homozygous
+  diploids, as ALDER reads them.
+- **Printed counts.** ALDER's raw output truncates its (FFT-computed) bin
+  counts, and prints them with `%Ld`, a `long double` format, given a
+  `long long`, so the inter-chromosome pair count comes out wrapped to 32
+  bits. This affects only its output; the golden tests allow for it.
+
+## ROLLOFF (ADMIXTOOLS 7.0.2)
+
+Checked against rolloff from ADMIXTOOLS 7.0.2, with its curves fit by
+rexpfit.r's method and its weighted jackknife by dowtjack, as expfit.sh.
+
+### Matched, not corrected
+
+- **Bins labeled by their upper edge.** A pair at distance d goes in bin
+  floor(d / binsize), written (and fit) at (bin + 1) binsize.
+- **Run mode 0 weights.** (pA - pB) / sqrt(mean frequency), as rolloff
+  (the source marks it "??"); run mode 1, pA - pB, is the default and the
+  one tested.
+- **No weight centering.** The source's comments say weights are forced to
+  mean 0, and `clipwt` was meant to zero tiny weights, but neither does
+  anything; popmix matches.
+- **The fit is unbounded.** rexpfit.r starts nls from a DEoptim search with
+  the decay in (0, 500] but nls itself is unbounded; on noisy curves
+  (the 4 admixed samples of `family`) it leaves the range (decay 998).
+  popmix's least-squares fit keeps the decay within (0, 500], so the two
+  agree where the curve determines a date (`aadr_asw`). There nls stops at
+  its convergence tolerance on a flat ridge of the affine term and the
+  amplitude: popmix's fits have a smaller squared error in every case (all
+  data and each chromosome left out), and their decays agree within 7.7e-6,
+  the jackknife within 3.4e-6.
+- **expfit.sh's jackknife assumes chromosomes 1-22.** wtjack.pl matches
+  per-chromosome fits to chromosomes 1 to 22 in order; with a subset of
+  chromosomes its weights and estimates are misaligned. popmix weights each
+  chromosome present by its SNPs, as wtjack.pl intends, and the reference
+  is generated the same way.
 

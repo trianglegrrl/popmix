@@ -81,6 +81,24 @@ impl PackedGenotypes {
         }
     }
 
+    /// The given samples (by index), in that order.
+    pub fn select_samples(&self, samples: &[usize]) -> PackedGenotypes {
+        let bytes_per_snp = samples.len().div_ceil(4);
+        let mut data = vec![0u8; bytes_per_snp * self.n_snps];
+        for snp in 0..self.n_snps {
+            let out = &mut data[snp * bytes_per_snp..(snp + 1) * bytes_per_snp];
+            for (k, &s) in samples.iter().enumerate() {
+                out[k / 4] |= self.get(snp, s) << (2 * (k % 4));
+            }
+        }
+        PackedGenotypes {
+            n_samples: samples.len(),
+            n_snps: self.n_snps,
+            bytes_per_snp,
+            data,
+        }
+    }
+
     /// Whether some sample has a genotype at the SNP.
     pub fn any_called(&self, snp: usize) -> bool {
         (0..self.n_samples).any(|s| self.get(snp, s) <= 2)
@@ -726,6 +744,9 @@ mod tests {
     #[test]
     fn selecting_snps_keeps_their_genotypes() {
         let g = two_groups(3, 20);
+        let picked = g.select_samples(&[4, 1]);
+        assert_eq!(picked.n_samples(), 2);
+        assert!((0..20).all(|j| picked.get(j, 0) == g.get(j, 4) && picked.get(j, 1) == g.get(j, 1)));
         let sub = g.select_snps(&[5, 2]);
         assert_eq!(sub.n_snps(), 2);
         for s in 0..6 {
