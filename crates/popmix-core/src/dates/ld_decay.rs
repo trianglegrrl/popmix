@@ -23,8 +23,8 @@
 use super::compat::DatesCompat;
 use crate::genotype_matrix::{AlleleFrequencies, GenotypeMatrix};
 use crate::genotypes::{Chromosome, Snp};
+use crate::threading::ordered_sum;
 use crate::Result;
-use rayon::prelude::*;
 use rustfft::{num_complex::Complex, FftPlanner};
 
 /// DATES `numchrom`: chromosomes outside 1..=22 are not used.
@@ -289,47 +289,45 @@ pub fn compute_ld_decay_by_chromosome(
     };
 
     let chrom_bins: Vec<Vec<CorrBin>> = if opts.qbin == 0 {
-        test_indices
-            .par_iter()
-            .map(|&sample_idx| {
+        ordered_sum(
+            test_indices.len(),
+            || vec![vec![CorrBin::default(); n_alloc]; chroms.len()],
+            |i| {
                 exact_individual_bins(
                     snps,
                     &snps_by_chrom,
-                    &residuals(sample_idx),
+                    &residuals(test_indices[i]),
                     binsize,
                     maxdis,
                     n_alloc,
                 )
-            })
-            .reduce(
-                || vec![vec![CorrBin::default(); n_alloc]; chroms.len()],
-                merge_chrom_bins,
-            )
+            },
+            |a, b| merge_chrom_bins(a, b),
+        )
     } else {
         let qbin = opts.qbin;
         let tags = mesh_tags(snps, binsize, qbin);
         // DATES: diffmax = nnint(qbin * maxdis / binsize)
         let diffmax = (qbin as f64 * maxdis / binsize).round() as usize;
-        let lag_sums = test_indices
-            .par_iter()
-            .map(|&sample_idx| {
+        // per-sample sums are added in sample order, whatever the thread count
+        let lag_sums = ordered_sum(
+            test_indices.len(),
+            || vec![LagSums::new(diffmax); chroms.len()],
+            |i| {
                 mesh_individual_lag_sums(
                     &snps_by_chrom,
-                    &residuals(sample_idx),
+                    &residuals(test_indices[i]),
                     &tags,
                     diffmax,
                     opts.compat,
                 )
-            })
-            .reduce(
-                || vec![LagSums::new(diffmax); chroms.len()],
-                |mut a, b| {
-                    for (x, y) in a.iter_mut().zip(b.iter()) {
-                        x.merge(y);
-                    }
-                    a
-                },
-            );
+            },
+            |a, b| {
+                for (x, y) in a.iter_mut().zip(b.iter()) {
+                    x.merge(y);
+                }
+            },
+        );
         lag_sums
             .iter()
             .map(|sums| sums.to_bins(binsize, qbin, n_alloc))
@@ -382,13 +380,12 @@ fn chromosome_number(chrom: &Chromosome) -> Option<u8> {
     }
 }
 
-fn merge_chrom_bins(mut a: Vec<Vec<CorrBin>>, b: Vec<Vec<CorrBin>>) -> Vec<Vec<CorrBin>> {
+fn merge_chrom_bins(a: &mut [Vec<CorrBin>], b: Vec<Vec<CorrBin>>) {
     for (xa, xb) in a.iter_mut().zip(b.iter()) {
         for (x, y) in xa.iter_mut().zip(xb.iter()) {
             x.merge(y);
         }
     }
-    a
 }
 
 /// Weighted residuals y = (g/2 - prediction) × (p1 - p2) for one individual,
@@ -755,6 +752,70 @@ mod tests {
             (0..n_snps).map(|i| af.frequencies[[i, idx1]]).collect(),
             (0..n_snps).map(|i| af.frequencies[[i, idx2]]).collect(),
         )
+    }
+
+    #[test]
+    fn bins_do_not_depend_on_the_thread_count() {
+        // 64 test samples with irregular genotypes, so the order in which
+        // their sums are added shows in the last bits.
+        let mut samples: Vec<Sample> = (0..64)
+            .map(|i| Sample::new(format!("test_{i}"), PopulationId::new("test")))
+            .collect();
+        for (pop, n) in [("source1", 8), ("source2", 8)] {
+            samples
+                .extend((0..n).map(|i| Sample::new(format!("{pop}_{i}"), PopulationId::new(pop))));
+        }
+        let snps: Vec<Snp> = (0..200)
+            .map(|i| {
+                Snp::new(
+                    format!("rs{i}"),
+                    Chromosome::Autosome(1 + (i / 100) as u8),
+                    (i * 7919) as u32,
+                    (i % 100) as f64 * 0.0031,
+                    'A',
+                    'G',
+                )
+            })
+            .collect();
+        let mut state = 0x2545_f491_4f6c_dd1du64;
+        let data = Array2::from_shape_fn((snps.len(), samples.len()), |_| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            (state % 3) as u8
+        });
+        let geno = GenotypeMatrix::new(data, samples, snps).unwrap();
+        let af = AlleleFrequencies::from_genotypes(&geno);
+        let (s1, s2) = source_freqs(&geno, &af);
+        let weights: Vec<f64> = s1.iter().zip(&s2).map(|(a, b)| a - b).collect();
+        for qbin in [0, 10] {
+            let run = |threads| {
+                let pool = rayon::ThreadPoolBuilder::new()
+                    .num_threads(threads)
+                    .build()
+                    .unwrap();
+                let opts = LdOptions {
+                    bin_width_cm: 0.05,
+                    max_distance_cm: 2.0,
+                    min_pairs_per_bin: 1,
+                    qbin,
+                    ..Default::default()
+                };
+                let bins = pool
+                    .install(|| {
+                        compute_ld_decay(&geno, &af, "test", &weights, &s1, &s2, Some(opts))
+                    })
+                    .unwrap();
+                bins.iter()
+                    .map(|b| (b.weighted_ld.to_bits(), b.correlation.to_bits()))
+                    .collect::<Vec<_>>()
+            };
+            let one = run(1);
+            assert!(!one.is_empty());
+            for threads in [2, 3, 8] {
+                assert_eq!(run(threads), one, "qbin {qbin}, {threads} threads");
+            }
+        }
     }
 
     #[test]

@@ -59,6 +59,29 @@ pub fn current_threads() -> usize {
     rayon::current_num_threads()
 }
 
+/// `zero() + part(0) + part(1) + ... + part(n_groups - 1)`, in that order,
+/// computing `threads` parts at a time.
+pub fn ordered_sum<T: Send>(
+    n_groups: usize,
+    zero: impl Fn() -> T,
+    part: impl Fn(usize) -> T + Sync,
+    add: impl Fn(&mut T, T),
+) -> T {
+    use rayon::prelude::*;
+    let mut acc = zero();
+    let batch = rayon::current_num_threads().max(1);
+    for start in (0..n_groups).step_by(batch) {
+        let parts: Vec<T> = (start..(start + batch).min(n_groups))
+            .into_par_iter()
+            .map(&part)
+            .collect();
+        for p in parts {
+            add(&mut acc, p);
+        }
+    }
+    acc
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

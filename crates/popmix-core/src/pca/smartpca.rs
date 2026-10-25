@@ -26,6 +26,7 @@ use rayon::prelude::*;
 use super::tracy_widom::{tracy_widom_table, EigensoftCompat, TracyWidomRow};
 use crate::error::{PopmixError, Result};
 use crate::fstats::GenotypeRows;
+use crate::threading::ordered_sum;
 
 /// Genotypes of a set of samples, two bits each (0, 1, 2; 3 missing), SNP by SNP.
 #[derive(Debug, Clone)]
@@ -240,28 +241,6 @@ const BLOCK: usize = 512;
 /// SNPs per group in the parallel sums. Groups are fixed, and their partial
 /// sums are added in group order, so results do not depend on the thread count.
 const GROUP: usize = 16 * BLOCK;
-
-/// `zero() + part(0) + part(1) + ... + part(n_groups - 1)`, in that order,
-/// computing `threads` parts at a time.
-fn ordered_sum<T: Send>(
-    n_groups: usize,
-    zero: impl Fn() -> T,
-    part: impl Fn(usize) -> T + Sync,
-    add: impl Fn(&mut T, T),
-) -> T {
-    let mut acc = zero();
-    let batch = rayon::current_num_threads().max(1);
-    for start in (0..n_groups).step_by(batch) {
-        let parts: Vec<T> = (start..(start + batch).min(n_groups))
-            .into_par_iter()
-            .map(&part)
-            .collect();
-        for p in parts {
-            add(&mut acc, p);
-        }
-    }
-    acc
-}
 
 /// X X' over the given SNPs, X the normalized genotypes of `used`.
 fn cross_product(
