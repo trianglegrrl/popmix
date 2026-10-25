@@ -18,6 +18,7 @@ rules for adding one.
 | ADMIXTOOLS2-0003 | `joint_sfs()` drops SNPs whose allele count is not exactly an integer in floating point | Counts them | `compat="admixtools2-2.0.10"` (`joint_sfs`) |
 | ADMIXTOOLS2-0004 | `write_dot()` renames nodes on edges (removes "." and "-") but declares them unrenamed | Quoted names, unchanged | `compat="admixtools2-2.0.10"` (`write_dot`) |
 | ADMIXTOOLS2-0005 | `parse_qpgraph_graphfile()` returns node labels instead of population names, and fails by default | Population names | `compat="admixtools2-2.0.10"` (`parse_qpgraph_graphfile`) |
+| ADMIXTOOLS2-0006 | PLINK files with chromosome codes X and Y stop with an error (`auto_only = TRUE`) | Reads them; X and Y are not autosomes | nothing to reproduce |
 | EIGENSOFT-0001 | smartpca reports the Tracy-Widom density as the p-value beyond its table | The tail | `compat="eigensoft-7.2.1"` |
 | PLINK2-0001 | `--make-king-table` labels its two het-hom counts the wrong way round | Counts named as they are | nothing to reproduce (labels only) |
 | READV2-0001 | Each jackknife window also counts the last SNP of the window before | Disjoint windows | `compat="readv2-2.01"` |
@@ -298,6 +299,17 @@ qpWave/qpAdm fits by the C++ code path (`cpp = TRUE`, the default).
 - **popmix:** returns population names (labels with `uselabels=True`).
 - **Reference:** generated with `split_multi = FALSE`.
 
+### ADMIXTOOLS2-0006: PLINK chromosome codes X and Y stop f2_from_geno()
+
+- **admixtools2:** with `auto_only = TRUE` (the default), `discard_snps()`
+  (`R/io.R`) parses chromosome names as numbers and stops with "Could not
+  parse chromosome numbers!" if any is not a number, so a .bim with PLINK's
+  usual codes X and Y (as PLINK 2 and popmix's `convertf` write them)
+  cannot be read; with numeric codes (23, 24) it works.
+- **popmix:** reads X, Y, XY and MT as non-autosomes.
+- **Reference:** generated from a copy of the PLINK files with numeric
+  codes (`plink2 --output-chr 26`).
+
 ### Matched, not corrected
 
 - **Ploidy from the first 1,000 SNPs.** A sample is treated as
@@ -420,6 +432,12 @@ These change no number that both tools compute.
   `qpadm_models` and the resampling functions return pandas data frames
   with admixtools2's rows and columns; `qpadm_p` returns one row as a dict.
   Resampling block indices (`sel`) are 0-based.
+- **PLINK genetic positions in centimorgans are recognized.** admixtools2
+  (and EIGENSOFT, and the Reich lab's PLINK files) read and write the third
+  column of a .bim or .map in Morgans; PLINK 2 documents centimorgans.
+  popmix reads Morgans too, but treats a file whose largest position is
+  over 10 (no chromosome is 10 Morgans long) as centimorgans, which
+  admixtools2 would take 100 times too long; it writes Morgans.
 - **Leaving out individuals recomputes the usual f2.** admixtools2's
   `*_resample_inds` read per-individual and per-pair counts precomputed by
   `extract_counts()` and combine them into f2 (`indpairs_to_f2blocks`), an

@@ -11,7 +11,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 
-use flate2::read::GzDecoder;
+use flate2::read::MultiGzDecoder;
 use ndarray::Array2;
 
 use popmix_core::{
@@ -125,7 +125,8 @@ fn parse_vcf_header_and_variants(path: &str, is_gzipped: bool) -> Result<(Vec<Sa
     let file = File::open(path).map_err(|e| PopmixError::io_with_path(e, path))?;
 
     let reader: Box<dyn BufRead> = if is_gzipped {
-        Box::new(BufReader::new(GzDecoder::new(file)))
+        // bgzip (the usual .vcf.gz) is a series of gzip members
+        Box::new(BufReader::new(MultiGzDecoder::new(file)))
     } else {
         Box::new(BufReader::new(file))
     };
@@ -220,7 +221,8 @@ fn read_vcf_genotypes(
     let file = File::open(path).map_err(|e| PopmixError::io_with_path(e, path))?;
 
     let reader: Box<dyn BufRead> = if is_gzipped {
-        Box::new(BufReader::new(GzDecoder::new(file)))
+        // bgzip (the usual .vcf.gz) is a series of gzip members
+        Box::new(BufReader::new(MultiGzDecoder::new(file)))
     } else {
         Box::new(BufReader::new(file))
     };
@@ -352,6 +354,35 @@ mod tests {
 
         let sample_ids: Vec<&str> = reader.samples().iter().map(|s| s.id.as_str()).collect();
         assert_eq!(sample_ids, vec!["IND1", "IND2", "IND3"]);
+    }
+
+    #[test]
+    fn test_bgzipped_vcf_reads_every_member() {
+        // bgzip writes a series of gzip members; split the fixture across two
+        use flate2::{write::GzEncoder, Compression};
+        use std::io::Write;
+        let text = std::fs::read_to_string(VCF_FIXTURE).unwrap();
+        let cut = text
+            .match_indices('\n')
+            .nth(text.lines().count() - 3)
+            .unwrap()
+            .0
+            + 1;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("x.vcf.gz");
+        let mut bytes = Vec::new();
+        for part in [&text[..cut], &text[cut..]] {
+            let mut enc = GzEncoder::new(Vec::new(), Compression::default());
+            enc.write_all(part.as_bytes()).unwrap();
+            bytes.extend(enc.finish().unwrap());
+        }
+        std::fs::write(&path, bytes).unwrap();
+        let reader = VcfReader::new(path.to_str().unwrap()).unwrap();
+        assert_eq!(reader.num_snps(), 5);
+        let a = reader.read_all().unwrap();
+        let b = VcfReader::new(VCF_FIXTURE).unwrap().read_all().unwrap();
+        assert_eq!(a.n_snps(), b.n_snps());
+        assert!((0..a.n_snps()).all(|j| a.snp_raw(j) == b.snp_raw(j)));
     }
 
     #[test]

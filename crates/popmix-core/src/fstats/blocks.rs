@@ -1,12 +1,18 @@
 //! Genetic map block definitions for jackknife resampling.
 //!
 //! SNPs are grouped into blocks based on genetic map position (in Morgans).
-//! The default block size is 0.05 Morgans (5 centiMorgans).
+//! The default block size is 0.05 Morgans (5 centiMorgans). As admixtools2
+//! `get_block_lengths`: a block size of 100 or more is in base pairs, and
+//! without a genetic map (fewer than two distinct map positions, as in a
+//! VCF) blocks are 2 Mb of base-pair position.
 
 use crate::genotypes::Snp;
 
 /// Default block size in Morgans (5 cM).
 pub const DEFAULT_BLOCK_SIZE_MORGAN: f64 = 0.05;
+
+/// Block size in base pairs when there is no genetic map (admixtools2).
+pub const NO_MAP_BLOCK_SIZE_BP: f64 = 2e6;
 
 /// Definition of how to partition SNPs into blocks.
 #[derive(Debug, Clone)]
@@ -44,6 +50,21 @@ impl BlockDefinition {
             };
         }
 
+        // admixtools2: a size of 100 or more is base pairs; no map, 2 Mb
+        let distinct = |f: &dyn Fn(&Snp) -> f64| {
+            let first = f(&snps[0]);
+            snps.iter().filter(|s| f(s) != first).take(2).count()
+        };
+        let bp = |s: &Snp| s.position_bp as f64;
+        let morgans = |s: &Snp| s.position_morgans;
+        let (size, coord): (f64, &dyn Fn(&Snp) -> f64) = if self.block_size >= 100.0 {
+            (self.block_size, &bp)
+        } else if distinct(&morgans) == 0 && distinct(&bp) >= 2 {
+            (NO_MAP_BLOCK_SIZE_BP, &bp)
+        } else {
+            (self.block_size, &morgans)
+        };
+
         let mut snp_to_block = Vec::with_capacity(snps.len());
         let mut block_starts = Vec::new();
         let mut block_lengths = Vec::new();
@@ -51,14 +72,14 @@ impl BlockDefinition {
         let mut current_block = 0;
         let mut current_block_start = 0;
         let mut current_chr = snps[0].chromosome.clone();
-        let mut current_block_start_morgans = snps[0].position_morgans;
+        let mut current_block_start_pos = coord(&snps[0]);
 
         for (snp_idx, snp) in snps.iter().enumerate() {
             // Start a new block if:
             // 1. Chromosome changed
             // 2. Exceeded block size in genetic distance (block_size is in Morgans)
-            let new_block = snp.chromosome != current_chr
-                || (snp.position_morgans - current_block_start_morgans) >= self.block_size;
+            let new_block =
+                snp.chromosome != current_chr || (coord(snp) - current_block_start_pos) >= size;
 
             if new_block && snp_idx > 0 {
                 // Record the previous block
@@ -69,7 +90,7 @@ impl BlockDefinition {
                 current_block += 1;
                 current_block_start = snp_idx;
                 current_chr = snp.chromosome.clone();
-                current_block_start_morgans = snp.position_morgans;
+                current_block_start_pos = coord(snp);
             }
 
             snp_to_block.push(current_block);
@@ -142,6 +163,32 @@ mod tests {
                 )
             })
             .collect()
+    }
+
+    #[test]
+    fn test_large_block_sizes_are_base_pairs() {
+        // SNPs every 1000 bp: 2500 bp blocks hold 3 SNPs
+        let snps = make_snps_same_chr(9, 1.0);
+        let blocks = BlockDefinition::new(2500.0).assign_blocks(&snps);
+        assert_eq!(blocks.block_lengths, vec![3, 3, 3]);
+    }
+
+    #[test]
+    fn test_no_genetic_map_uses_2mb_blocks() {
+        let snps: Vec<Snp> = (0..10)
+            .map(|i| {
+                Snp::new(
+                    format!("rs{i}"),
+                    Chromosome::Autosome(1),
+                    i * 500_000,
+                    0.0,
+                    'A',
+                    'G',
+                )
+            })
+            .collect();
+        let blocks = BlockDefinition::default().assign_blocks(&snps);
+        assert_eq!(blocks.block_lengths, vec![4, 4, 2]);
     }
 
     #[test]

@@ -414,12 +414,17 @@ fn write_bim_file(path: &str, snps: &[Snp]) -> Result<()> {
     let mut writer = BufWriter::new(file);
 
     for snp in snps {
-        // .bim uses centiMorgans
-        let cm = snp.position_morgans * 100.0;
+        // Morgans, as EIGENSOFT convertf writes it and admixtools2 reads it,
+        // in full precision
         writeln!(
             writer,
-            "{}\t{}\t{:.6}\t{}\t{}\t{}",
-            snp.chromosome, snp.id, cm, snp.position_bp, snp.allele_ref, snp.allele_alt
+            "{}\t{}\t{}\t{}\t{}\t{}",
+            snp.chromosome,
+            snp.id,
+            snp.position_morgans,
+            snp.position_bp,
+            snp.allele_ref,
+            snp.allele_alt
         )?;
     }
 

@@ -828,6 +828,15 @@ graphs with its defaults and other options (`msprime.json`,
 `generate_msprime.R`); with `--run-slow` and msprime installed,
 `tests/python/test_graph_search.py` runs one.
 
+`tests/golden/test_vcf_ped_admixtools2.py` checks f2 from VCF and PED
+input (`vcf_ped/<name>.json`, `generate_vcf_ped.py`: the small family data,
+and with `--run-slow` dg_6pop populations of AADR v62, in PLINK format and
+exported by PLINK 2 as bgzipped VCF and as PED): popmix's f2 blocks from the
+PED (5 cM blocks from its map) and from the VCF (no map: 2 Mb blocks, as
+admixtools2 makes without one; populations given by `inds`/`pops`) match
+admixtools2 `f2_from_geno()` of the PLINK files at rtol 1e-10, the block
+lengths exactly.
+
 ### f4-, D- and f3-statistic scans vs admixtools2 2.0.10
 
 `tests/golden/test_dstat_admixtools2.py` checks `qpdstat` and `qp3pop` given

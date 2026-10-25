@@ -18,6 +18,9 @@ pub struct PedReader {
     samples: Vec<Sample>,
     snps: Vec<Snp>,
     ped_path: String,
+    /// Whether the .map lists each SNP's alleles; otherwise (PLINK's
+    /// 4-column .map) they are taken from the genotypes.
+    map_has_alleles: bool,
 }
 
 impl PedReader {
@@ -48,7 +51,7 @@ impl PedReader {
         };
 
         // Read SNPs from map file
-        let snps = read_map_file(&snp_path)?;
+        let (snps, map_has_alleles) = read_map_file(&snp_path)?;
 
         // Read samples from .ped file (first 6 columns) or .pedind if present
         let pedind_path = format!("{}.pedind", prefix_str);
@@ -62,6 +65,7 @@ impl PedReader {
             samples,
             snps,
             ped_path,
+            map_has_alleles,
         })
     }
 
@@ -90,12 +94,16 @@ impl PedReader {
         let n_samples = self.samples.len();
         let n_snps = self.snps.len();
 
-        // Build allele lookup from SNPs
-        let allele_lookup: Vec<(char, char)> = self
-            .snps
-            .iter()
-            .map(|s| (s.allele_ref, s.allele_alt))
-            .collect();
+        // Allele lookup from the .map, or (4-column .map) the first two
+        // alleles each SNP's genotypes show, the first one counted
+        let mut allele_lookup: Vec<(char, char)> = if self.map_has_alleles {
+            self.snps
+                .iter()
+                .map(|s| (s.allele_ref, s.allele_alt))
+                .collect()
+        } else {
+            vec![('\0', '\0'); n_snps]
+        };
 
         // Initialize genotype matrix (SNP-major)
         let mut data = ndarray::Array2::<u8>::zeros((n_snps, n_samples));
@@ -132,17 +140,34 @@ impl PedReader {
                 let a1 = fields[geno_start + snp_idx * 2];
                 let a2 = fields[geno_start + snp_idx * 2 + 1];
 
+                if !self.map_has_alleles {
+                    let seen = &mut allele_lookup[snp_idx];
+                    for c in [parse_allele(a1), parse_allele(a2)].into_iter().flatten() {
+                        if seen.0 == '\0' {
+                            seen.0 = c;
+                        } else if seen.1 == '\0' && c != seen.0 {
+                            seen.1 = c;
+                        }
+                    }
+                }
                 let geno = parse_ped_genotype(a1, a2, allele_lookup[snp_idx]);
                 data[[snp_idx, sample_idx]] = geno as u8;
             }
         }
 
-        GenotypeMatrix::new(data, self.samples.clone(), self.snps.clone())
+        let mut snps = self.snps.clone();
+        if !self.map_has_alleles {
+            for (snp, &(r, a)) in snps.iter_mut().zip(&allele_lookup) {
+                snp.allele_ref = if r == '\0' { 'N' } else { r };
+                snp.allele_alt = if a == '\0' { 'N' } else { a };
+            }
+        }
+        GenotypeMatrix::new(data, self.samples.clone(), snps)
     }
 }
 
 /// Parse a PED genotype from two allele strings.
-fn parse_ped_genotype(a1: &str, a2: &str, (ref_allele, _alt_allele): (char, char)) -> Genotype {
+fn parse_ped_genotype(a1: &str, a2: &str, (ref_allele, alt_allele): (char, char)) -> Genotype {
     // Missing data is represented by 0
     if a1 == "0" || a2 == "0" {
         return Genotype::Missing;
@@ -158,6 +183,11 @@ fn parse_ped_genotype(a1: &str, a2: &str, (ref_allele, _alt_allele): (char, char
 
     let c1 = c1.unwrap();
     let c2 = c2.unwrap();
+
+    // a third allele (when the alleles are known) is missing data
+    if alt_allele != '\0' && [c1, c2].iter().any(|&c| c != ref_allele && c != alt_allele) {
+        return Genotype::Missing;
+    }
 
     // Count reference alleles
     let ref_count = (if c1 == ref_allele { 1 } else { 0 }) + (if c2 == ref_allele { 1 } else { 0 });
@@ -184,10 +214,11 @@ fn parse_allele(s: &str) -> Option<char> {
 
 /// Read .map file (PED SNP format).
 /// Format: CHR ID CM BP [A1 A2]
-fn read_map_file(path: &str) -> Result<Vec<Snp>> {
+fn read_map_file(path: &str) -> Result<(Vec<Snp>, bool)> {
     let file = File::open(path)?;
     let reader = BufReader::new(file);
     let mut snps = Vec::new();
+    let mut has_alleles = true;
 
     for (line_num, line) in reader.lines().enumerate() {
         let line = line?;
@@ -218,13 +249,15 @@ fn read_map_file(path: &str) -> Result<Vec<Snp>> {
             details: format!("Invalid physical position: {}", fields[3]),
         })?;
 
-        // Alleles are optional in .map, default to A/G
+        // Alleles are optional in .map (PLINK writes 4 columns); without
+        // them they come from the genotypes
         let (allele_ref, allele_alt) = if fields.len() >= 6 {
             (
                 fields[4].chars().next().unwrap_or('A'),
                 fields[5].chars().next().unwrap_or('G'),
             )
         } else {
+            has_alleles = false;
             ('A', 'G')
         };
 
@@ -238,7 +271,8 @@ fn read_map_file(path: &str) -> Result<Vec<Snp>> {
         ));
     }
 
-    Ok(snps)
+    crate::to_morgans(&mut snps);
+    Ok((snps, has_alleles))
 }
 
 /// Read .pedind file.
@@ -308,6 +342,46 @@ fn read_samples_from_ped(path: &str) -> Result<Vec<Sample>> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn test_alleles_come_from_the_genotypes_without_them_in_the_map() {
+        // PLINK writes a 4-column .map; these SNPs are C/T and G/A
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("x");
+        std::fs::write(
+            format!("{}.map", p.display()),
+            "1 s1 0.01 100\n1 s2 0.02 200\n",
+        )
+        .unwrap();
+        std::fs::write(
+            format!("{}.ped", p.display()),
+            "P a 0 0 0 -9 C C G A\nP b 0 0 0 -9 C T A A\nP c 0 0 0 -9 T T 0 0\nP d 0 0 0 -9 C G A A\n",
+        )
+        .unwrap();
+        let g = PedReader::new(&p).unwrap().read_all().unwrap();
+        // first allele seen is counted: C at s1, G at s2
+        let s1: Vec<_> = (0..4).map(|i| g.get(0, i)).collect();
+        assert_eq!(
+            s1,
+            vec![
+                Genotype::HomRef,
+                Genotype::Het,
+                Genotype::HomAlt,
+                Genotype::Missing
+            ]
+        );
+        let s2: Vec<_> = (0..4).map(|i| g.get(1, i)).collect();
+        assert_eq!(
+            s2,
+            vec![
+                Genotype::Het,
+                Genotype::HomAlt,
+                Genotype::Missing,
+                Genotype::HomAlt
+            ]
+        );
+        assert_eq!((g.snps()[0].allele_ref, g.snps()[0].allele_alt), ('C', 'T'));
+    }
+
     use super::*;
 
     #[test]

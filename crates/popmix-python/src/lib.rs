@@ -2784,6 +2784,12 @@ fn read_genotypes_internal(prefix: &str) -> PyResult<GenotypeMatrix> {
         return reader.read_all().map_err(to_py_err);
     }
 
+    // Text PLINK (.ped and .map)
+    if Path::new(&format!("{}.ped", prefix)).exists() {
+        let reader = PedReader::new(prefix).map_err(to_py_err)?;
+        return reader.read_all().map_err(to_py_err);
+    }
+
     // Check for EIGENSTRAT/PACKEDANCESTRYMAP format (.geno file)
     let geno_path = format!("{}.geno", prefix);
     if Path::new(&geno_path).exists() {

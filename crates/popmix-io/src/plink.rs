@@ -256,7 +256,9 @@ fn read_fam_file(path: &str) -> Result<Vec<Sample>> {
 
 /// Read a .bim file (PLINK SNP metadata).
 ///
-/// Format: CHR SNP_ID CM BP A1 A2 (tab or space-separated)
+/// Format: CHR SNP_ID GPOS BP A1 A2 (tab or space-separated). The genetic
+/// position is in Morgans, or in centimorgans if any exceeds 10 (see
+/// [`crate::to_morgans`]).
 fn read_bim_file(path: &str) -> Result<Vec<Snp>> {
     let content = std::fs::read_to_string(path).map_err(|e| PopmixError::io_with_path(e, path))?;
 
@@ -279,8 +281,9 @@ fn read_bim_file(path: &str) -> Result<Vec<Snp>> {
 
         let chromosome = Chromosome::parse(fields[0]);
         let id = fields[1].to_string();
-        // PLINK .bim files typically store genetic distance in cM, convert to Morgans
-        let position_morgans = fields[2].parse::<f64>().unwrap_or(0.0) / 100.0;
+        // Morgans, as EIGENSOFT and admixtools2 write and read it; rescaled
+        // below if the file is in centimorgans
+        let position_morgans = fields[2].parse::<f64>().unwrap_or(0.0);
         let position_bp = fields[3].parse::<u32>().map_err(|_| {
             PopmixError::parse(
                 path,
@@ -302,6 +305,7 @@ fn read_bim_file(path: &str) -> Result<Vec<Snp>> {
         ));
     }
 
+    crate::to_morgans(&mut snps);
     Ok(snps)
 }
 

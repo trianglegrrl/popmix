@@ -169,3 +169,41 @@ pub use writers::{
     write_ancestrymap, write_eigenstrat, write_packedancestrymap, write_packedped, write_ped,
     write_plink,
 };
+
+/// Genetic positions of PLINK .bim and .map files in Morgans.
+///
+/// EIGENSOFT and admixtools2 write and read them in Morgans (as do the
+/// Reich lab's PLINK releases), PLINK 2 documents centimorgans; no
+/// chromosome is 10 Morgans long, so positions beyond that mean the file is
+/// in centimorgans, and they are divided by 100.
+pub fn to_morgans(snps: &mut [popmix_core::Snp]) {
+    let max = snps
+        .iter()
+        .map(|s| s.position_morgans.abs())
+        .fold(0.0, f64::max);
+    if max > 10.0 {
+        for s in snps.iter_mut() {
+            s.position_morgans /= 100.0;
+        }
+    }
+}
+
+#[cfg(test)]
+mod morgan_tests {
+    use super::*;
+    use popmix_core::{Chromosome, Snp};
+
+    #[test]
+    fn test_centimorgans_are_detected() {
+        let snp = |g: f64| Snp::new("s", Chromosome::Autosome(1), 1, g, 'A', 'G');
+        let mut morgans = vec![snp(0.02013), snp(2.85)];
+        to_morgans(&mut morgans);
+        assert_eq!(morgans[1].position_morgans, 2.85);
+        let mut cm = vec![snp(2.013), snp(285.0)];
+        to_morgans(&mut cm);
+        assert!(
+            (cm[0].position_morgans - 0.02013).abs() < 1e-15
+                && (cm[1].position_morgans - 2.85).abs() < 1e-15
+        );
+    }
+}
