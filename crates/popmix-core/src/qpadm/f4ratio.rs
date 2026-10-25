@@ -24,10 +24,17 @@
 //! Where X is admixed between A and B branches, and C is a reference population
 //! on the B branch. (By f4 additivity this equals 1 - f4(A, O; X, C) / f4(A, O; B, C).)
 //!
-//! The ratio is formed per block and jackknifed as admixtools2 does: blocks
-//! whose denominator is below the threshold are left out, the estimate is the
-//! ratio of the length-weighted mean numerator and denominator, and the
-//! leave-one-out ratios go through `jack_mat_stats` with that total.
+//! The ratio is jackknifed over blocks: blocks whose denominator is below the
+//! threshold in absolute value (or with a non-finite value) are left out, the
+//! estimate is the ratio of the length-weighted mean numerator and
+//! denominator, and the leave-one-out ratios (leave-one-out numerator over
+//! leave-one-out denominator) go through the weighted block jackknife with
+//! that total ([`jackknife_with_total`]).
+//!
+//! Provenance: written from the clean-room specification
+//! `docs/cleanroom/small-helpers.md` (section 1), after Reich et al. 2009
+//! (Nature 461:489, supplement) and Patterson et al. 2012 (Genetics
+//! 192:1065), and checked against admixtools2's black-box outputs.
 
 use crate::fstats::{jackknife_with_total, leave_one_out, F2Blocks};
 use crate::genotypes::PopulationId;
@@ -54,9 +61,9 @@ pub struct F4RatioResult {
     pub z_score: f64,
     /// Number of blocks used.
     pub n_blocks: usize,
-    /// Numerator f4 value: f4(A, O; X, C).
+    /// Numerator f4 value: f4(A, O; X, B), the mean over the blocks used.
     pub f4_numerator: f64,
-    /// Denominator f4 value: f4(A, O; B, C).
+    /// Denominator f4 value: f4(A, O; C, B), the mean over the blocks used.
     pub f4_denominator: f64,
 }
 
@@ -105,79 +112,59 @@ pub fn f4ratio(
     options: Option<F4RatioOptions>,
 ) -> Result<F4RatioResult> {
     let opts = options.unwrap_or_default();
-
-    // Validate populations exist
-    for (pop, name) in [
-        (test, "test"),
-        (source_a, "source_a"),
-        (source_b, "source_b"),
-        (outgroup, "outgroup"),
-        (reference, "reference"),
-    ] {
+    for pop in [test, source_a, source_b, outgroup, reference] {
         if f2_blocks.pop_index(pop).is_none() {
-            return Err(PopmixError::PopulationNotFound(format!(
-                "Population '{}' ({}) not found in F2 blocks",
-                pop, name
-            )));
+            return Err(PopmixError::PopulationNotFound(pop.to_string()));
         }
     }
-
-    let f2 = |a: &str, b: &str| {
+    let f2 = |p: &str, q: &str| {
         f2_blocks
-            .get_block_f2_values(a, b)
-            .ok_or_else(|| PopmixError::Numerical(format!("Failed to get f2({a}, {b})")))
+            .get_block_f2_values(p, q)
+            .ok_or_else(|| PopmixError::PopulationNotFound(format!("{p} or {q}")))
     };
-    let (a, o, x, b, c) = (source_a, outgroup, test, source_b, reference);
-    // f2_f4(f2_14, f2_23, f2_13, f2_24) for f4(A, O; X, B) and f4(A, O; C, B)
-    let (f2_ab, f2_ox, f2_ax, f2_ob) = (f2(a, b)?, f2(o, x)?, f2(a, x)?, f2(o, b)?);
-    let (f2_oc, f2_ac) = (f2(o, c)?, f2(a, c)?);
+    // f4(A, B; C, D) = (f2(A, D) + f2(B, C) - f2(A, C) - f2(B, D)) / 2
+    let f4 = |a: &str, b: &str, c: &str, d: &str| -> Result<Vec<f64>> {
+        Ok(((f2(a, d)? + f2(b, c)? - f2(a, c)? - f2(b, d)?) / 2.0).to_vec())
+    };
+    let num_all = f4(source_a, outgroup, test, source_b)?;
+    let den_all = f4(source_a, outgroup, reference, source_b)?;
 
-    let n_blocks = f2_blocks.n_blocks;
-    let mut num = Vec::with_capacity(n_blocks);
-    let mut den = Vec::with_capacity(n_blocks);
-    for k in 0..n_blocks {
-        let nk = (f2_ab[k] + f2_ox[k] - f2_ax[k] - f2_ob[k]) / 2.0;
-        let dk = (f2_ab[k] + f2_oc[k] - f2_ac[k] - f2_ob[k]) / 2.0;
-        // setmiss = abs(f4_den) < thresh
-        if dk.is_nan() || dk.abs() < opts.min_denominator || !nk.is_finite() {
-            num.push(f64::NAN);
-            den.push(f64::NAN);
-        } else {
-            num.push(nk);
-            den.push(dk);
+    // Blocks with a usable denominator and finite values; the rest are absent.
+    let (mut num, mut den, mut lengths) = (Vec::new(), Vec::new(), Vec::new());
+    for ((n, d), m) in num_all
+        .iter()
+        .zip(&den_all)
+        .zip(f2_blocks.block_lengths_f64())
+    {
+        if n.is_finite() && d.is_finite() && d.abs() >= opts.min_denominator {
+            num.push(*n);
+            den.push(*d);
+            lengths.push(m);
         }
     }
-
-    let valid_blocks = den.iter().filter(|v| v.is_finite()).count();
-    if valid_blocks < 2 {
-        return Err(PopmixError::Numerical(
-            "Insufficient valid blocks for f4ratio computation".to_string(),
-        ));
+    if num.len() < 2 {
+        return Err(PopmixError::Numerical(format!(
+            "f4ratio: {} block(s) with a denominator of at least {} in absolute value; \
+             the jackknife needs two",
+            num.len(),
+            opts.min_denominator
+        )));
     }
 
-    let lengths = f2_blocks.block_lengths_f64();
-    let weighted_mean = |v: &[f64]| {
-        let (s, w) = v
-            .iter()
-            .zip(&lengths)
-            .filter(|(x, _)| x.is_finite())
-            .fold((0.0, 0.0), |(s, w), (x, l)| (s + x * l, w + l));
-        s / w
-    };
-    let f4_numerator = weighted_mean(&num);
-    let f4_denominator = weighted_mean(&den);
+    let total: f64 = lengths.iter().sum();
+    let mean = |x: &[f64]| x.iter().zip(&lengths).map(|(v, m)| v * m).sum::<f64>() / total;
+    let f4_numerator = mean(&num);
+    let f4_denominator = mean(&den);
     let tot = f4_numerator / f4_denominator;
 
-    let loo_ratio: Vec<f64> = leave_one_out(&num, &lengths)
-        .into_iter()
+    let loo: Vec<f64> = leave_one_out(&num, &lengths)
+        .iter()
         .zip(leave_one_out(&den, &lengths))
         .map(|(n, d)| n / d)
         .collect();
-    let (alpha, std_err) = jackknife_with_total(&loo_ratio, &lengths, tot).ok_or_else(|| {
-        PopmixError::Numerical("Insufficient valid blocks for f4ratio computation".to_string())
+    let (alpha, std_err) = jackknife_with_total(&loo, &lengths, tot).ok_or_else(|| {
+        PopmixError::Numerical("f4ratio: no block has a finite leave-one-out ratio".to_string())
     })?;
-
-    let z_score = if std_err > 0.0 { alpha / std_err } else { 0.0 };
 
     Ok(F4RatioResult {
         test: PopulationId::new(test),
@@ -187,8 +174,8 @@ pub fn f4ratio(
         reference: PopulationId::new(reference),
         alpha,
         std_err,
-        z_score,
-        n_blocks: valid_blocks,
+        z_score: alpha / std_err,
+        n_blocks: num.len(),
         f4_numerator,
         f4_denominator,
     })
