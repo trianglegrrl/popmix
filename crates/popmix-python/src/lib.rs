@@ -1040,6 +1040,14 @@ impl PyF2Blocks {
         self.inner.n_blocks
     }
 
+    /// These blocks, in this order and with repeats, as admixtools2
+    /// ``f2_blocks[, , blocks]`` (0-based). FST blocks are not carried over.
+    fn select_blocks(&self, blocks: Vec<usize>) -> PyResult<PyF2Blocks> {
+        Ok(PyF2Blocks {
+            inner: self.inner.select_blocks(&blocks).map_err(to_py_err)?,
+        })
+    }
+
     /// Number of SNPs in each block (the jackknife weights).
     #[getter]
     fn block_lengths(&self) -> Vec<usize> {
@@ -2412,6 +2420,7 @@ fn find_graphs(
             numstart,
             seed,
             admix_weights: None,
+            f2_blocks_test: None,
         },
     };
     let pop_refs: Vec<&str> = populations.iter().map(|s| s.as_str()).collect();
@@ -2537,6 +2546,9 @@ struct PyQpGraphResult {
     /// Inverse of the regularized f3 covariance, rows in ``f3`` order.
     #[pyo3(get)]
     ppinv: Vec<Vec<f64>>,
+    /// Score against ``f2_blocks_test``, when given.
+    #[pyo3(get)]
+    score_test: Option<f64>,
 }
 
 #[pymethods]
@@ -2572,11 +2584,13 @@ impl PyQpGraphResult {
 ///     diag: Regularization of the edge-length fit (default: 1e-4)
 ///     diag_f3: Regularization of the f3 covariance (default: 1e-5)
 ///     constrained: Lengths >= 0 and weights in [0, 1] (default: True)
+///     f2_blocks_test: Also score the fit against these blocks' f3
+///         statistics (``score_test``), for an out-of-sample score
 ///
 /// Returns:
 ///     PyQpGraphResult with fitted edges, score, f3 fits and the random starts
 #[pyfunction]
-#[pyo3(signature = (f2_blocks, edges, admix_weights=None, numstart=10, seed=1, diag=1e-4, diag_f3=1e-5, constrained=true))]
+#[pyo3(signature = (f2_blocks, edges, admix_weights=None, numstart=10, seed=1, diag=1e-4, diag_f3=1e-5, constrained=true, f2_blocks_test=None))]
 #[allow(clippy::too_many_arguments)]
 fn qpgraph(
     f2_blocks: &PyF2Blocks,
@@ -2587,6 +2601,7 @@ fn qpgraph(
     diag: f64,
     diag_f3: f64,
     constrained: bool,
+    f2_blocks_test: Option<&PyF2Blocks>,
 ) -> PyResult<PyQpGraphResult> {
     let opts = popmix_core::QpGraphOptions {
         diag,
@@ -2595,6 +2610,7 @@ fn qpgraph(
         numstart,
         seed,
         admix_weights,
+        f2_blocks_test: f2_blocks_test.map(|b| b.inner.clone()),
     };
     let r = popmix_core::qpgraph(&f2_blocks.inner, &edges, Some(opts)).map_err(to_py_err)?;
     Ok(PyQpGraphResult {
@@ -2639,6 +2655,7 @@ fn qpgraph(
             })
             .collect(),
         ppinv: r.ppinv.outer_iter().map(|row| row.to_vec()).collect(),
+        score_test: r.score_test,
     })
 }
 

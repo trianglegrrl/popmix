@@ -84,6 +84,17 @@ from popmix.qpadm_models import (
     test_cladality,
 )
 from popmix.pca import PcaResult, smartpca
+from popmix.resample import (
+    boo_list,
+    compare_fits,
+    loo_list,
+    qp3pop_resample_snps,
+    qpadm_resample_snps,
+    qpdstat_resample_snps,
+    qpgraph_resample_multi,
+    qpgraph_resample_snps,
+    qpwave_resample_snps,
+)
 from popmix.sfs import Sfs, joint_sfs, sfs
 
 # Convenient aliases
@@ -159,6 +170,16 @@ __all__ = [
     "qpadm_models",
     "rotate_models",
     "test_cladality",
+    # Resampling
+    "loo_list",
+    "boo_list",
+    "qpgraph_resample_snps",
+    "qpgraph_resample_multi",
+    "compare_fits",
+    "qpadm_resample_snps",
+    "qpwave_resample_snps",
+    "qpdstat_resample_snps",
+    "qp3pop_resample_snps",
     # qpGraph functions
     "build_tree",
     "qpgraph",

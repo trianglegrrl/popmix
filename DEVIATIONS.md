@@ -371,8 +371,14 @@ These change no number that both tools compute.
   freedom and p-value at every rank agree.
 - **Tables are data frames, populations are list columns.** `qpwave_pairs`,
   `qpadm_rotate`, `rotate_models`, `qpadm_multi(full_results = FALSE)`,
-  and `qpadm_models` return pandas data frames with admixtools2's rows and
-  columns; `qpadm_p` returns one row as a dict.
+  `qpadm_models` and the resampling functions return pandas data frames
+  with admixtools2's rows and columns; `qpadm_p` returns one row as a dict.
+  Resampling block indices (`sel`) are 0-based.
+- **Resampling seeds are explicit.** admixtools2's bootstrap draws from R's
+  global random state, and runs qpGraph in parallel streams (furrr) unless
+  given a `seed`. popmix takes the bootstrap seed as `boot_seed` (the same
+  draws as admixtools2 after `set.seed(boot_seed)`) and passes `seed` to
+  qpgraph.
 
 ## EIGENSOFT 7.2.1 (smartpca)
 

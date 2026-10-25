@@ -52,6 +52,10 @@ pub struct QpGraphOptions {
     /// Fit at these admixture weights (one per admixture node, the weight
     /// of its first incoming edge) instead of optimizing them.
     pub admix_weights: Option<Vec<f64>>,
+    /// Also score the fit against these blocks' f3 statistics, weighted by
+    /// the fitted blocks' inverse f3 covariance (admixtools2
+    /// `f2_blocks_test`, for an out-of-sample score).
+    pub f2_blocks_test: Option<F2Blocks>,
 }
 
 impl Default for QpGraphOptions {
@@ -63,6 +67,7 @@ impl Default for QpGraphOptions {
             numstart: 10,
             seed: 1,
             admix_weights: None,
+            f2_blocks_test: None,
         }
     }
 }
@@ -123,6 +128,8 @@ pub struct QpGraphResult {
     pub opt: Vec<QpGraphStart>,
     /// Inverse of the regularized f3 covariance.
     pub ppinv: Array2<f64>,
+    /// The score against `f2_blocks_test`'s f3 statistics, when given.
+    pub score_test: Option<f64>,
 }
 
 /// An edge-list graph, numbered as igraph `graph_from_edgelist` numbers it.
@@ -684,6 +691,13 @@ pub fn qpgraph(
         .collect();
 
     let ppinv = &model.f3.ppinv;
+    let score_test = match &opts.f2_blocks_test {
+        Some(test) => {
+            let res = precompute_f3(test, &pop_refs, opts.diag_f3)?.est - &fit;
+            Some((res.transpose() * ppinv * &res)[(0, 0)])
+        }
+        None => None,
+    };
     Ok(QpGraphResult {
         pops,
         edges: out_edges,
@@ -691,6 +705,7 @@ pub fn qpgraph(
         f3,
         opt,
         ppinv: Array2::from_shape_fn((ppinv.nrows(), ppinv.ncols()), |(i, j)| ppinv[(i, j)]),
+        score_test,
     })
 }
 

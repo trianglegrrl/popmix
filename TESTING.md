@@ -754,6 +754,21 @@ and feasibility exact; chi-squared rtol 1e-6, p-values 1e-4, weights 1e-6.
 Actual agreement: chi-squared within 1.2e-10, p-values 2.9e-8, weights
 4.8e-11.
 
+`tests/golden/test_resample_admixtools2.py` checks resampling against
+`resample.json` (dg_6pop, `generate_resample.R`): the bootstrap blocks
+`boo_list` draws after `set.seed` (exact), `qpgraph_resample_multi` for a
+tree and a one-admixture graph and `compare_fits` of their test scores,
+`qpgraph_resample_snps` leaving out each of the 710 blocks and with 5
+bootstrap resamples, and `qpadm_resample_snps`, `qpwave_resample_snps`,
+`qpdstat_resample_snps` and `qp3pop_resample_snps`, replicate by replicate.
+Statistics rtol 1e-10, chi-squared and SEs 1e-6, p-values 1e-4, weights 1e-6;
+qpGraph scores 1e-8, its weights 1e-6 or within admixtools2's spread over its
+starts where the score is flat, out-of-sample scores 1e-6. Actual agreement:
+f-statistics within 1.3e-13 (SEs 3e-13), qpAdm weights 1.6e-13, qpGraph
+scores 5e-12, out-of-sample scores 4.5e-8, qpGraph weights 1.4e-5 on a graph
+whose starts spread over 4e-5. `crates/popmix-core/tests/rcompat_golden.rs`
+also checks R's `sample(replace = TRUE)`, which draws the blocks, exactly.
+
 ### f4-, D- and f3-statistic scans vs admixtools2 2.0.10
 
 `tests/golden/test_dstat_admixtools2.py` checks `qpdstat` and `qp3pop` given
@@ -1059,6 +1074,7 @@ The `chr20_22_reference.json` contains:
 | `all_graphs.json` (dg_6pop) | every `generate_all_graphs()` graph for four cases: `graph_hash()` key, edges, `qpgraph()` score and best weights |
 | `fst.json` | FST block lengths and blocks, `fst()` |
 | `qpadm_models.json` (dg_11pop) | `qpadm_p`, `test_cladality`, `qpwave_pairs`, `qpadm_rotate`, `rotate_models`, `qpadm_multi`, `qpadm_models` |
+| `resample.json` (dg_6pop) | `boo_list` draws; qpGraph, qpAdm, qpWave, qpdstat and qp3pop `_resample_snps`; `qpgraph_resample_multi`; `compare_fits` |
 
 ### Test Data Requirements by Test Type
 

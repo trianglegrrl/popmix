@@ -307,6 +307,34 @@ impl F2Blocks {
     }
 
     /// Get the number of populations.
+    /// These blocks in this order, repeats allowed, as admixtools2
+    /// `f2_blocks[, , blocks]` (its bootstrap and leave-out resamplings).
+    /// FST blocks, on their own SNP set, are not carried over.
+    pub fn select_blocks(&self, blocks: &[usize]) -> crate::Result<F2Blocks> {
+        if blocks.is_empty() {
+            return Err(crate::PopmixError::Validation(
+                "select_blocks: no blocks selected".to_string(),
+            ));
+        }
+        if let Some(&b) = blocks.iter().find(|&&b| b >= self.n_blocks) {
+            return Err(crate::PopmixError::Validation(format!(
+                "select_blocks: block {b} out of range ({} blocks)",
+                self.n_blocks
+            )));
+        }
+        Ok(F2Blocks {
+            block_sums: self.block_sums.select(Axis(0), blocks),
+            block_raw_sums: self.block_raw_sums.select(Axis(0), blocks),
+            block_weights: self.block_weights.select(Axis(0), blocks),
+            block_het_sums: self.block_het_sums.select(Axis(0), blocks),
+            block_het_weights: self.block_het_weights.select(Axis(0), blocks),
+            populations: self.populations.clone(),
+            n_blocks: blocks.len(),
+            block_lengths: blocks.iter().map(|&b| self.block_lengths[b]).collect(),
+            fst: None,
+        })
+    }
+
     pub fn n_populations(&self) -> usize {
         self.populations.len()
     }
@@ -772,6 +800,35 @@ mod tests {
         let (got_est, got_se, _) = f2.f2("PopA", "PopB").unwrap();
         assert_relative_eq!(got_est, est, max_relative = 1e-12);
         assert_relative_eq!(got_se, var.sqrt(), max_relative = 1e-12);
+    }
+
+    #[test]
+    fn test_select_blocks_keeps_repeats_and_order() {
+        let af = make_test_data();
+        let f2 = F2Blocks::from_allele_frequencies(&af, &BlockDefinition::new(0.005));
+        assert!(f2.n_blocks >= 3, "{}", f2.n_blocks);
+        let all: Vec<usize> = (0..f2.n_blocks).collect();
+        let same = f2.select_blocks(&all).unwrap();
+        assert_eq!(same.block_sums, f2.block_sums);
+        assert_eq!(same.block_lengths, f2.block_lengths);
+        assert!(same.fst.is_none());
+
+        let boot = f2.select_blocks(&[2, 0, 2]).unwrap();
+        assert_eq!(boot.n_blocks, 3);
+        assert_eq!(
+            boot.block_lengths,
+            vec![
+                f2.block_lengths[2],
+                f2.block_lengths[0],
+                f2.block_lengths[2]
+            ]
+        );
+        assert_eq!(boot.block_weights.row(0), f2.block_weights.row(2));
+        assert_eq!(boot.block_het_sums.row(1), f2.block_het_sums.row(0));
+        assert_eq!(boot.block_raw_sums.row(2), f2.block_raw_sums.row(2));
+
+        assert!(f2.select_blocks(&[f2.n_blocks]).is_err());
+        assert!(f2.select_blocks(&[]).is_err());
     }
 
     #[test]
