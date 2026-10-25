@@ -73,13 +73,19 @@ impl BlockDefinition {
         let mut current_block_start = 0;
         let mut current_chr = snps[0].chromosome.clone();
         let mut current_block_start_pos = coord(&snps[0]);
+        let mut previous_pos = current_block_start_pos;
 
         for (snp_idx, snp) in snps.iter().enumerate() {
             // Start a new block if:
             // 1. Chromosome changed
             // 2. Exceeded block size in genetic distance (block_size is in Morgans)
-            let new_block =
-                snp.chromosome != current_chr || (coord(snp) - current_block_start_pos) >= size;
+            // 3. The position went back (unsorted input): a block is a run of
+            //    neighbouring SNPs
+            let pos = coord(snp);
+            let new_block = snp.chromosome != current_chr
+                || (pos - current_block_start_pos) >= size
+                || pos < previous_pos;
+            previous_pos = pos;
 
             if new_block && snp_idx > 0 {
                 // Record the previous block
@@ -189,6 +195,15 @@ mod tests {
             .collect();
         let blocks = BlockDefinition::default().assign_blocks(&snps);
         assert_eq!(blocks.block_lengths, vec![4, 4, 2]);
+    }
+
+    #[test]
+    fn a_position_going_back_starts_a_block() {
+        // cM 0, 1, 2, then back to 0.5: the last SNP is not next to the others
+        let mut snps = make_snps_same_chr(4, 1.0);
+        snps[3].position_morgans = 0.005;
+        let blocks = BlockDefinition::default().assign_blocks(&snps);
+        assert_eq!(blocks.block_lengths, vec![3, 1]);
     }
 
     #[test]

@@ -77,6 +77,7 @@ fn open_source_filtered_with(
         rule.apply(&mut geno);
         (geno.samples().to_vec(), geno.snps().to_vec(), Some(geno))
     };
+    popmix_core::genotypes::check_sorted(&snps).map_err(to_py_err)?;
 
     let mut selected = Vec::new();
     let mut selected_samples = Vec::new();

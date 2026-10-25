@@ -1541,6 +1541,7 @@ fn extract_f2(
 
         let mut samples = popmix_io::eigenstrat::read_ind_file(&ind_path).map_err(to_py_err)?;
         let snps = popmix_io::eigenstrat::read_snp_file(&snp_path).map_err(to_py_err)?;
+        popmix_core::genotypes::check_sorted(&snps).map_err(to_py_err)?;
         if let Some(labels) = &relabel {
             apply_sample_labels(&mut samples, labels)?;
         }
@@ -1565,6 +1566,7 @@ fn extract_f2(
 
     // Fallback: load all genotypes for other formats (PLINK, text EIGENSTRAT)
     let mut geno = read_genotypes_internal(prefix)?;
+    popmix_core::genotypes::check_sorted(geno.snps()).map_err(to_py_err)?;
     if let Some(labels) = &relabel {
         apply_sample_labels(geno.samples_mut(), labels)?;
     }

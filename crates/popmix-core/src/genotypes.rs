@@ -342,6 +342,40 @@ impl Snp {
     }
 }
 
+/// SNPs must come chromosome by chromosome, each in increasing position, for
+/// the jackknife blocks to be runs of neighbouring SNPs. The error names the
+/// first SNP out of order.
+pub fn check_sorted(snps: &[Snp]) -> crate::Result<()> {
+    let mut done: std::collections::HashSet<&Chromosome> = std::collections::HashSet::new();
+    for pair in snps.windows(2) {
+        let (prev, snp) = (&pair[0], &pair[1]);
+        let problem = if snp.chromosome != prev.chromosome {
+            done.insert(&prev.chromosome);
+            done.contains(&snp.chromosome).then(|| {
+                format!(
+                    "chromosome {} comes again after {}",
+                    snp.chromosome, prev.chromosome
+                )
+            })
+        } else {
+            (snp.position_bp < prev.position_bp).then(|| {
+                format!(
+                    "position {} comes after {} ({})",
+                    snp.position_bp, prev.position_bp, prev.id
+                )
+            })
+        };
+        if let Some(problem) = problem {
+            return Err(crate::PopmixError::Validation(format!(
+                "SNPs are not sorted by chromosome and position: at {}, {problem}; sort them \
+                 first (plink2 --sort-vars, for one)",
+                snp.id
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// Check a list of population names: each at most once, and each one
 /// `is_known` accepts. A typo or a population in two roles (qpAdm's
 /// target among the right, say) is an error naming them, never an empty
@@ -370,6 +404,25 @@ pub fn check_populations<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unsorted_snps_are_named() {
+        let snp = |id: &str, chr: u8, pos: u32| {
+            Snp::new(id, Chromosome::Autosome(chr), pos, 0.0, 'A', 'G')
+        };
+        assert!(check_sorted(&[snp("a", 1, 10), snp("b", 1, 10), snp("c", 2, 5)]).is_ok());
+        let back = check_sorted(&[snp("a", 1, 10), snp("b", 1, 5)])
+            .unwrap_err()
+            .to_string();
+        assert!(back.contains("at b"), "{back}");
+        let again = check_sorted(&[snp("a", 1, 10), snp("b", 2, 5), snp("c", 1, 20)])
+            .unwrap_err()
+            .to_string();
+        assert!(
+            again.contains("at c") && again.contains("chromosome 1"),
+            "{again}"
+        );
+    }
 
     #[test]
     fn population_lists_name_each_population_once_and_only_known_ones() {
