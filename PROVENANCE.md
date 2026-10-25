@@ -2,10 +2,11 @@
 
 popmix is MIT-licensed (LICENSE); code derived from ADMIXTOOLS and EIGENSOFT
 keeps their BSD-3 licence (NOTICE). This file records, module by module,
-what each part was written from, and what must change before a release
-under those licences. It comes from an audit on 2026-10-25 (TASKS.md C1)
-that compared each module with its reference tool's source: structure,
-names, control flow and comments, side by side.
+what each part was written from. It comes from an audit on 2026-10-25
+(TASKS.md C1). The audit compared each module with its reference tool's
+source side by side: structure, names, control flow and comments. The
+modules it found derived from GPL or unlicensed sources were rewritten
+clean-room, or removed (C2).
 
 Matching a reference tool's numbers exactly is the point of popmix and needs
 no permission: algorithms, formulas, file formats and outputs are not
@@ -35,23 +36,33 @@ Verdicts: **translation** (routine-by-routine correspondence with the same
 names, control flow or comments), **partly** (mirrors structure, names or
 quirks in places), **independent** (only the behaviour matches).
 
-### Must be rewritten (GPL or non-free source)
+### Rewritten clean-room for 1.0 (C2)
 
-| Module | Translated from | Licence | Work |
-|--------|-----------------|---------|------|
-| `crates/popmix-core/src/qpadm/fit.rs` | admixtools2 C++ qpAdm fit (alternating least squares, weights) | GPL-3 | from Patterson et al. 2012, Harney et al. 2021 |
-| `crates/popmix-core/src/qpgraph/qpgraph_fit.rs` (edge lengths; the weight-index helper partly) | admixtools2 C++ edge-length fit | GPL-3 | from Patterson et al. 2012, Maier et al. 2023 |
-| `crates/popmix-core/src/rcompat/lbfgsb.rs` | R's L-BFGS-B 2.3 (f2c) and `optim` driver | GPL-2+ | re-base the core on BSD L-BFGS-B 3.0 (keeping 2.3's behaviour, as behaviour), rewrite the driver |
+These modules followed a GPL or unlicensed source too closely and were
+replaced. For each, a specification of behaviour was written
+(`docs/cleanroom/*.md`) from the papers, the tools' documentation and their
+black-box output. A separate implementer who had not read the old code or
+the source then wrote the new code from the specification, the tests and
+further black-box runs. The old code was deleted unread, located by line
+numbers only.
 
-### Partly; to rewrite with the above
+| Module | Was derived from | Specification |
+|--------|------------------|---------------|
+| `crates/popmix-core/src/qpadm/fit.rs` | admixtools2 C++ qpAdm fit (GPL-3) | `qpadm-fit.md` |
+| `crates/popmix-core/src/qpgraph/qpgraph_fit.rs` (edge lengths, f3 covariance) | admixtools2 C++ and R (GPL-3) | `qpgraph-edge-lengths.md`, `jackknife.md` |
+| `crates/popmix-core/src/rcompat/lbfgsb.rs` | R's L-BFGS-B 2.3 and `optim` (GPL-2+) | `lbfgsb.md`; now translated from BSD L-BFGS-B 3.0 (NOTICE), with 2.3's subspace truncation as behaviour |
+| `crates/popmix-core/src/rcompat/rng.rs` | R's `RNG.c` (GPL-2+) | `small-helpers.md`; the Mersenne Twister from BSD `mt19937ar.c` (NOTICE) |
+| `crates/popmix-core/src/fstats/jackknife.rs`, `geno_fstats.rs` (jackknife), `qpadm/f4ratio.rs` | admixtools2 R (GPL-3) | `jackknife.md`, `small-helpers.md` |
+| `crates/popmix-core/src/qpgraph/graph_search.rs` (enumeration) | admixtools2 R (GPL-3) | `small-helpers.md`; the exclusion rule and the order were found from `generate_all_graphs` output |
+| `python/popmix/resample.py` (`compare_fits`), `qpadm_models.py` (model sets), `dstats.py` (`fstat_combinations`) | admixtools2 R (GPL-3) | `small-helpers.md` |
+| `crates/popmix-core/src/dates/ld_decay.rs` (mesh cells, lag sums to bins) | DATES `dates.c` (no licence) | `dates-mesh.md` |
 
-| Module | Mirrors | Licence |
-|--------|---------|---------|
-| `crates/popmix-core/src/qpgraph/graph_search.rs` | admixtools2's graph enumeration order (to give the same graphs in the same order) | GPL-3 |
-| `crates/popmix-core/src/fstats/jackknife.rs`, `geno_fstats.rs` (helpers), `qpadm/f4ratio.rs` | admixtools2's jackknife steps, reproduced literally | GPL-3 |
-| `python/popmix/resample.py`, `qpadm_models.py`, `dstats.py` (combination order) | admixtools2 helpers | GPL-3 |
-| `crates/popmix-core/src/rcompat/rng.rs` | R's `RNG.c` around the Mersenne Twister | GPL-2+ (the twister is BSD MT19937) |
-| `crates/popmix-core/src/dates/ld_decay.rs` (mesh tags, lag-sum binning) | DATES `dates.c` | none stated |
+Exposure during the rewrites, recorded for completeness:
+- The f4ratio implementer had earlier seen about 25 lines of the old body while reading a caller of the jackknife.
+- The graph-enumeration implementer saw the old three-line power-set helper and two closing lines of the old enumeration in range prints.
+- One R traceback from a black-box run showed internal names.
+
+None of these is the substance of the new code.
 
 ### BSD-3: kept, with attribution (NOTICE)
 

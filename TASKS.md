@@ -171,7 +171,7 @@ Tasks:
   from (paper, documentation, black-box reference output, or reference
   source) and whether any GPL source was translated. Flag modules whose
   structure, names or comments follow admixtools2 R code or R's C source.
-- [ ] **C2. Rewrite flagged modules from neutral sources.** The audit's list (PROVENANCE.md): qpadm/fit.rs, lazadm.rs, qpgraph_fit.rs
+- [x] **C2. Rewrite flagged modules from neutral sources.** *Done: rewritten clean-room from docs/cleanroom/ (1a84440, 1c4cd69, f367488, a07192a, 4cea177, 77f3f64, 3c4984f, 734f710, 05663c2, f8412a5, 0a12912), or removed (589be68, 9ed980b); see PROVENANCE.md.* The audit's list (PROVENANCE.md): qpadm/fit.rs, lazadm.rs, qpgraph_fit.rs
   edge lengths, graph_search.py, qpfstats.py, graph_constraints.py,
   simulate.py, classic.py (admixtools2, GPL-3); all of alder/ (ALDER 1.03,
   academic use only); rcompat/lbfgsb.rs (R, GPL-2+; re-base on BSD 3.0);
@@ -238,15 +238,17 @@ Tasks:
 
 ## E. Benchmarks against the reference tools, visible (P0)
 
-- [ ] **E1. Benchmark harness.** For each analysis, run popmix and the
+- [x] **E1. Benchmark harness.** *Done in 05bb262.* For each analysis, run popmix and the
   reference tool on identical inputs, N repeats (default 5): wall time, CPU
   time, peak RSS, threads; median, IQR, coefficient of variation.
-- [ ] **E2. Agreement in the same run.** Max absolute and relative difference
+- [x] **E2. Agreement in the same run.** *Done in 05bb262.* Max absolute and relative difference
   of every output against the reference, pass/fail at the CLAUDE.md
   tolerances.
 - [ ] **E3. Variation.** popmix across repeats and thread counts (1, 2, 4, 8,
   all), expected bit-identical; the reference tools' own run-to-run spread
   where they are stochastic (ADMIXTURE seeds, qpGraph starts, find_graphs).
+  (popmix across 1/4/16 threads: done in 05bb262, identical in every case;
+  the stochastic tools' spread remains, with their cases.)
 - [ ] **E4. Coverage.** admixtools2 (extract_f2, f2/f3/f4/qpdstat, qpadm,
   qpadm rotation, qpgraph, find_graphs, resampling), classic ADMIXTOOLS
   (qpDstat, qp3Pop, qpAdm, qpGraph, qpfstats), smartpca, ADMIXTURE, DATES,
