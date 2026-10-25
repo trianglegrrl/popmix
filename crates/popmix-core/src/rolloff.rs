@@ -332,7 +332,7 @@ pub fn rolloff(
         });
     }
     if options.runmode > 1 {
-        return Err(PopmixError::Numerical(format!(
+        return Err(PopmixError::Validation(format!(
             "runmode {} is not supported",
             options.runmode
         )));
@@ -381,7 +381,7 @@ pub fn rolloff(
         .collect();
     let used: Vec<usize> = (0..m).filter(|&s| weights[s].is_some()).collect();
     if used.len() < 100 {
-        return Err(PopmixError::Numerical(format!(
+        return Err(PopmixError::Validation(format!(
             "too few SNPs: {}",
             used.len()
         )));

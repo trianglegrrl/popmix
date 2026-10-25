@@ -35,6 +35,7 @@ from __future__ import annotations
 import json
 import math
 import sys
+from typing import NoReturn
 
 import click
 
@@ -56,6 +57,21 @@ def parse_population_list(ctx, param, value: str) -> list:
     if not value:
         return []
     return [p.strip() for p in value.split(",") if p.strip()]
+
+
+# Failures of the input (bad names or values, missing or malformed files) or
+# of the computation (a singular system): reported in one line. Anything else
+# is a bug and keeps its traceback.
+EXPECTED_ERRORS = (ValueError, OSError, RuntimeError)
+
+
+def fail(error: Exception) -> NoReturn:
+    """Report an expected error and exit 1; with --debug, raise it."""
+    ctx = click.get_current_context(silent=True)
+    if ctx is not None and (ctx.find_root().obj or {}).get("debug"):
+        raise error
+    click.echo(f"Error: {error}", err=True)
+    sys.exit(1)
 
 
 def parse_snp_range(ctx, param, value: str | None) -> tuple[int, int] | None:
@@ -81,8 +97,8 @@ def format_population_error(invalid_pop: str, prefix: str) -> str:
             lines.append("\nDid you mean one of these?")
             for pop, count in suggestions:
                 lines.append(f"  - {pop} ({count} samples)")
-    except Exception:
-        pass  # If suggestion fails, just skip it
+    except EXPECTED_ERRORS:
+        pass  # no suggestions if the dataset cannot be listed
 
     lines.append(f"\nTip: List all populations with: popmix populations {prefix}")
     lines.append(f'Tip: Search populations with: popmix populations {prefix} --filter "{invalid_pop[:4]}*"')
@@ -100,7 +116,7 @@ def validate_populations(prefix: str, populations: list) -> None:
 
     try:
         available = {p for p, _ in pm.list_populations(prefix)}
-    except Exception as e:
+    except EXPECTED_ERRORS as e:
         click.echo(f"Warning: Could not validate populations: {e}", err=True)
         return
 
@@ -180,11 +196,13 @@ def load_f2_blocks(input_prefix: str | None, f2_dir: str | None, populations: li
 
 @click.group()
 @click.option("--threads", "-t", type=int, default=4, help="Number of threads to use (default: 4)")
+@click.option("--debug", is_flag=True, help="Show the traceback of an error")
 @click.version_option(version=pm.__version__, prog_name="popmix")
 @click.pass_context
-def cli(ctx, threads: int):
+def cli(ctx, threads: int, debug: bool):
     """Popmix: Population genetics F-statistics and admixture analysis toolkit."""
     ctx.ensure_object(dict)
+    ctx.obj["debug"] = debug
     if threads < 1:
         raise click.BadParameter("Thread count must be at least 1")
     ctx.obj["threads"] = threads
@@ -223,9 +241,8 @@ def info(prefix: str, populations: bool):
                 click.echo(f"  - {pop}")
             click.echo(f"  ... and {len(pop_list) - 5} more")
             click.echo("\nTip: Use --populations to show all populations with counts")
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
+    except EXPECTED_ERRORS as e:
+        fail(e)
 
 
 @cli.command()
@@ -277,9 +294,8 @@ def populations(prefix: str, pattern: str | None, output_format: str):
                     click.echo('Tip: Use --filter "pattern*" to search')
                     click.echo(f'Tip: Specify populations with: --populations "{",".join(example_pops)}"')
 
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
+    except EXPECTED_ERRORS as e:
+        fail(e)
 
 
 @cli.command("extract-f2")
@@ -337,9 +353,8 @@ def extract_f2(input_prefix: str, output_dir: str, snp_range: tuple[int, int] | 
         f2_blocks.save(output_dir, source=input_prefix)
         click.echo(f"F2 blocks saved to {output_dir}")
 
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
+    except EXPECTED_ERRORS as e:
+        fail(e)
 
 
 @cli.command()
@@ -374,9 +389,8 @@ def f2(pop1: str, pop2: str, input_prefix: str | None, f2_dir: str | None, block
             click.echo(f"  Z-score: {result['z_score']:.3f}")
             click.echo(f"  N SNPs: {int(result['n_snps'])}")
 
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
+    except EXPECTED_ERRORS as e:
+        fail(e)
 
 
 def stat_source_options(command):
@@ -483,9 +497,8 @@ def qpdstat(pop1: list, pop2: list, pop3: list, pop4: list, d_mode: bool, input_
         write_table(df, output_format, output)
     except click.ClickException:
         raise
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
+    except EXPECTED_ERRORS as e:
+        fail(e)
 
 
 @cli.command()
@@ -515,9 +528,8 @@ def qp3pop(pop1: list, pop2: list, pop3: list, outgroup_mode: bool, no_bias_corr
         write_table(df, output_format, output)
     except click.ClickException:
         raise
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
+    except EXPECTED_ERRORS as e:
+        fail(e)
 
 
 matrix_options = [
@@ -551,9 +563,8 @@ def outgroup_f3(outgroup: str, populations: list, value: str, order: str, heatma
                      None if value != "z" else 0.0)
     except click.ClickException:
         raise
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
+    except EXPECTED_ERRORS as e:
+        fail(e)
 
 
 @cli.command("dstat-matrix")
@@ -588,9 +599,8 @@ def dstat_matrix(populations: list, pop1: str | None, pop2: str | None, pop3: st
                      0.0 if value in ("est", "z") else None)
     except click.ClickException:
         raise
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
+    except EXPECTED_ERRORS as e:
+        fail(e)
 
 
 @cli.command()
@@ -640,9 +650,8 @@ def pca(input_prefix: str, pca_pops: list, project_pops: list, components: int, 
             plots.pca(r, path=plot)
     except click.ClickException:
         raise
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
+    except EXPECTED_ERRORS as e:
+        fail(e)
 
 
 @cli.command()
@@ -681,9 +690,8 @@ def kinship(input_prefix: str, populations: list, method: str, norm: str, norm_v
         write_table(df, "tsv", output)
     except click.ClickException:
         raise
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
+    except EXPECTED_ERRORS as e:
+        fail(e)
 
 
 @cli.command()
@@ -732,9 +740,8 @@ def sfs(input_prefix: str, populations: list, projection: list, folded: bool, jo
             df.to_csv(output, sep="\t", index=False, float_format="%.12g")
     except click.ClickException:
         raise
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
+    except EXPECTED_ERRORS as e:
+        fail(e)
 
 
 @cli.command()
@@ -783,9 +790,8 @@ def admixture(input_prefix: str, populations: list, k: int, supervised: list, fi
             plots.admixture(r, path=plot)
     except click.ClickException:
         raise
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
+    except EXPECTED_ERRORS as e:
+        fail(e)
 
 
 @cli.command()
@@ -833,9 +839,8 @@ def alder(input_prefix: str, test_pop: str, refs: list, mindis: float | None, bi
             plots.alder_curve(r, path=plot)
     except click.ClickException:
         raise
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
+    except EXPECTED_ERRORS as e:
+        fail(e)
 
 
 @cli.command()
@@ -864,9 +869,8 @@ def rolloff(input_prefix: str, admixed: str, refs: list, binsize: float, maxdis:
             r.bins.to_csv(f"{output_prefix}.bins.tsv", sep="\t", index=False, float_format="%.12g")
     except click.ClickException:
         raise
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
+    except EXPECTED_ERRORS as e:
+        fail(e)
 
 
 @cli.command()
@@ -905,9 +909,8 @@ def f3(target: str, source1: str, source2: str, input_prefix: str | None, f2_dir
             if result['estimate'] < 0 and result['z_score'] < -3:
                 click.echo("  => Significant admixture signal")
 
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
+    except EXPECTED_ERRORS as e:
+        fail(e)
 
 
 @cli.command()
@@ -946,9 +949,8 @@ def f4(pop1: str, pop2: str, pop3: str, pop4: str, input_prefix: str | None, f2_
             if abs(result['z_score']) > 3:
                 click.echo("  => Significant deviation from tree-like evolution")
 
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
+    except EXPECTED_ERRORS as e:
+        fail(e)
 
 
 @cli.command()
@@ -1014,9 +1016,8 @@ def qpadm(target: str, left: list, right: list, constrained: bool, input_prefix:
             else:
                 click.echo("=> Poor model fit (p <= 0.05)")
 
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
+    except EXPECTED_ERRORS as e:
+        fail(e)
 
 
 @cli.command()
@@ -1077,9 +1078,8 @@ def qpwave(left: list, right: list, input_prefix: str | None, f2_dir: str | None
             else:
                 click.echo(f"=> {result.estimated_rank + 1} independent ancestry streams")
 
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
+    except EXPECTED_ERRORS as e:
+        fail(e)
 
 
 @cli.command()
@@ -1125,9 +1125,8 @@ def convertf(input_prefix: str, output_prefix: str, input_format: str | None, ou
         click.echo(f"Converted {result['n_snps']} SNPs x {result['n_samples']} samples")
         click.echo(f"Output files written to {output_prefix}")
 
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
+    except EXPECTED_ERRORS as e:
+        fail(e)
 
 
 @cli.command()
@@ -1207,9 +1206,8 @@ def merge(file_a: str, file_b: str, output: str, output_format: str,
 
         click.echo(f"\nOutput files written to {output}")
 
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
+    except EXPECTED_ERRORS as e:
+        fail(e)
 
 
 @cli.command()
@@ -1308,9 +1306,8 @@ def dates(input_prefix: str, test_pop: str, source1: str, source2: str,
             for b in result.ld_bins[:10]:
                 click.echo(f"  {b.distance_cm:6.1f}    {b.n_pairs:9d}  {b.correlation:+.6f}")
 
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
+    except EXPECTED_ERRORS as e:
+        fail(e)
 
 
 def read_graph_file(path: str) -> list:
@@ -1427,9 +1424,8 @@ def qpgraph(graph_file: str, admix_weights: str | None, numstart: int, seed: int
             for e in result.edges:
                 click.echo(f"  {e.from_node:<16} {e.to_node:<16} {e.kind:<6} {e.weight:.6f}")
 
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
+    except EXPECTED_ERRORS as e:
+        fail(e)
 
 
 @cli.command("find-graphs")
@@ -1505,9 +1501,8 @@ def find_graphs(populations: list, nadmix: int, outgroup: str | None, method: st
                 for a, b in g.edges:
                     click.echo(f"  {a}\t{b}")
 
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
+    except EXPECTED_ERRORS as e:
+        fail(e)
 
 
 def main():

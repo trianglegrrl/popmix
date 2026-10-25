@@ -36,12 +36,39 @@ use popmix_io::{
 
 fn to_py_err(e: popmix_core::PopmixError) -> PyErr {
     use popmix_core::PopmixError as E;
+    use pyo3::exceptions::{PyFileNotFoundError, PyOSError, PyRuntimeError, PyValueError};
     match e {
-        // the caller's input: a bad name or value
-        E::PopulationNotFound(_) | E::DuplicatePopulation(_) | E::Validation(_) => {
-            PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string())
+        E::FileNotFound { .. } => PyFileNotFoundError::new_err(e.to_string()),
+        E::Io(ref io) if io.kind() == std::io::ErrorKind::NotFound => {
+            PyFileNotFoundError::new_err(e.to_string())
         }
-        _ => PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()),
+        E::Io(_) => PyOSError::new_err(e.to_string()),
+        // the caller's input: a bad name, value or file
+        E::PopulationNotFound(_)
+        | E::DuplicatePopulation(_)
+        | E::Validation(_)
+        | E::InvalidFileFormat { .. }
+        | E::UnexpectedFileSize { .. }
+        | E::ParseError { .. }
+        | E::InsufficientPopulations { .. }
+        | E::InsufficientData { .. }
+        | E::DimensionMismatch { .. }
+        | E::InvalidSubset { .. }
+        | E::InvalidValue { .. }
+        | E::InvalidGraph { .. }
+        | E::InvalidAdmixtureNode { .. }
+        | E::CycleDetected { .. }
+        | E::InvalidConfig { .. }
+        | E::InvalidThreadCount(_)
+        | E::NoSnpsRemaining
+        | E::NoRootNode => PyValueError::new_err(e.to_string()),
+        // the computation: a singular system, no convergence, ...
+        E::SingularMatrix { .. }
+        | E::ConvergenceFailure { .. }
+        | E::Infeasible { .. }
+        | E::NumericalOverflow { .. }
+        | E::Numerical(_)
+        | E::LinAlg { .. } => PyRuntimeError::new_err(e.to_string()),
     }
 }
 

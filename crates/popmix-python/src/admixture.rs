@@ -138,7 +138,7 @@ pub fn admixture_py(
                     }
                 }
                 if order.len() != k {
-                    return Err(popmix_core::PopmixError::Numerical(format!(
+                    return Err(popmix_core::PopmixError::Validation(format!(
                         "{} reference populations found for K = {k}",
                         order.len()
                     )));

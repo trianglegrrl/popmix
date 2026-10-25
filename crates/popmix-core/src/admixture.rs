@@ -599,10 +599,10 @@ fn random_start(n: usize, m: usize, k: usize, seed: u64) -> (Vec<f64>, Vec<f64>)
 
 fn check(geno: &PackedGenotypes, k: usize) -> Result<()> {
     if k < 1 {
-        return Err(PopmixError::Numerical("K must be at least 1".to_string()));
+        return Err(PopmixError::Validation("K must be at least 1".to_string()));
     }
     if geno.n_samples() < 2 || geno.n_snps() < 1 {
-        return Err(PopmixError::Numerical(format!(
+        return Err(PopmixError::Validation(format!(
             "{} samples and {} SNPs: too few to fit",
             geno.n_samples(),
             geno.n_snps()
@@ -652,7 +652,7 @@ pub fn admixture_supervised(
         });
     }
     if let Some(bad) = labels.iter().flatten().find(|&&l| l >= k) {
-        return Err(PopmixError::Numerical(format!(
+        return Err(PopmixError::Validation(format!(
             "label {bad} out of range for K = {k}"
         )));
     }

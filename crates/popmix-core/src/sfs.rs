@@ -289,7 +289,7 @@ impl SfsSummary {
     /// From an unfolded one-population spectrum.
     pub fn of(sfs: &Spectrum) -> Result<SfsSummary> {
         if sfs.dims.len() != 1 {
-            return Err(PopmixError::Numerical(
+            return Err(PopmixError::Validation(
                 "summary statistics need a one-population spectrum".to_string(),
             ));
         }

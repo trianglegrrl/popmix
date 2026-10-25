@@ -41,7 +41,7 @@ def test_mindis_skips_the_ld_correlation():
 def test_errors():
     with pytest.raises(ValueError, match="cannot also be a reference"):
         pm.alder(SMALL, "French", ["French", "Yoruba"])
-    with pytest.raises(RuntimeError, match="one or two reference"):
+    with pytest.raises(ValueError, match="one or two reference"):
         pm.alder(SMALL, "Simulation.1", ["French", "Yoruba", "Simulation"])
 
 

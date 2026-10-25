@@ -41,7 +41,7 @@ def test_projection_of_a_fit_sample_gives_its_q():
 
 
 def test_supervised_needs_k_references():
-    with pytest.raises(RuntimeError, match="reference populations"):
+    with pytest.raises(ValueError, match="reference populations"):
         pm.admixture(SMALL, 3, POPS, supervised=POPS)
 
 

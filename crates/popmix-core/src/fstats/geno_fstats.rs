@@ -204,20 +204,20 @@ fn blocks_for(snps: &[Snp], block_size: f64) -> Vec<usize> {
 fn check_indices(pops: &GenoPopulations, stats: &[&[usize]]) -> Result<()> {
     let n = pops.names.len();
     if pops.sample_pop.len() != pops.ploidy.len() {
-        return Err(PopmixError::Numerical(format!(
+        return Err(PopmixError::Validation(format!(
             "{} sample populations but {} ploidies",
             pops.sample_pop.len(),
             pops.ploidy.len()
         )));
     }
     if let Some(&bad) = pops.sample_pop.iter().find(|&&p| p >= n) {
-        return Err(PopmixError::Numerical(format!(
+        return Err(PopmixError::Validation(format!(
             "sample population index {bad} out of range for {n} populations"
         )));
     }
     for s in stats {
         if let Some(&bad) = s.iter().find(|&&p| p >= n) {
-            return Err(PopmixError::Numerical(format!(
+            return Err(PopmixError::Validation(format!(
                 "population index {bad} out of range for {n} populations"
             )));
         }

@@ -169,7 +169,7 @@ fn prepare<'a>(test: &'a PackedGenotypes, snps: &[Snp]) -> Result<Prepared<'a>> 
     for (s, snp) in snps.iter().enumerate() {
         let new = s == 0 || snp.chromosome != snps[s - 1].chromosome;
         if !new && snp.position_morgans < snps[s - 1].position_morgans {
-            return Err(PopmixError::Numerical(format!(
+            return Err(PopmixError::Validation(format!(
                 "SNPs must be sorted by genetic position (SNP {} before {})",
                 snps[s - 1].id,
                 snp.id
@@ -178,7 +178,7 @@ fn prepare<'a>(test: &'a PackedGenotypes, snps: &[Snp]) -> Result<Prepared<'a>> 
         if new {
             let label = chrom_label(&snp.chromosome);
             if labels.contains(&label) {
-                return Err(PopmixError::Numerical(format!(
+                return Err(PopmixError::Validation(format!(
                     "SNPs of chromosome {label} are not contiguous"
                 )));
             }
@@ -241,7 +241,7 @@ fn run_curve(
     options: &AlderOptions,
 ) -> Result<(AlderRun, Vec<bool>)> {
     if num_refs == 1 && p.n < 4 {
-        return Err(PopmixError::Numerical(
+        return Err(PopmixError::Validation(
             "the one-reference curve needs at least 4 test samples".to_string(),
         ));
     }
@@ -521,7 +521,7 @@ pub fn alder(
 ) -> Result<AlderResult> {
     crate::options::check_bins("binsize", options.binsize, "maxdis", options.maxdis)?;
     if refs.is_empty() || refs.len() > 2 {
-        return Err(PopmixError::Numerical(format!(
+        return Err(PopmixError::Validation(format!(
             "ALDER takes one or two reference populations, got {}",
             refs.len()
         )));
@@ -534,7 +534,7 @@ pub fn alder(
         });
     }
     if options.mincount < 2 || options.mincount > test.n_samples() {
-        return Err(PopmixError::Numerical(format!(
+        return Err(PopmixError::Validation(format!(
             "mincount must be between 2 and the {} test samples",
             test.n_samples()
         )));
