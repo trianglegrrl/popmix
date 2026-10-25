@@ -44,6 +44,9 @@ pub struct QpAdmRotateResult {
     pub n_combinations: usize,
     /// Number of feasible models (weights in [0,1]).
     pub n_feasible: usize,
+    /// Combinations not fit: more sources than outgroups (rank too high to
+    /// test), or a singular or infeasible system.
+    pub n_skipped: usize,
 }
 
 impl QpAdmRotateResult {
@@ -127,6 +130,7 @@ pub fn qpadm_rotate(
 
     let mut models = Vec::new();
     let mut n_combinations = 0;
+    let mut n_skipped = 0;
 
     // Test all combinations from min_sources to max_sources
     for k in min_sources..=max_sources {
@@ -134,6 +138,10 @@ pub fn qpadm_rotate(
             n_combinations += 1;
 
             let sources: Vec<&str> = combo.iter().map(|&&s| s).collect();
+            if sources.len() > outgroups.len() {
+                n_skipped += 1;
+                continue;
+            }
 
             // Run qpAdm for this combination
             match qpadm(
@@ -161,10 +169,8 @@ pub fn qpadm_rotate(
                         is_feasible,
                     });
                 }
-                Err(_) => {
-                    // Skip failed models (e.g., singular matrix)
-                    continue;
-                }
+                Err(e) if fit::is_model_failure(&e) => n_skipped += 1,
+                Err(e) => return Err(e),
             }
         }
     }
@@ -181,6 +187,7 @@ pub fn qpadm_rotate(
         models,
         n_combinations,
         n_feasible,
+        n_skipped,
     })
 }
 
@@ -272,6 +279,9 @@ mod tests {
         // Should test all combinations: C(3,1) + C(3,2) + C(3,3) = 3 + 3 + 1 = 7
         assert_eq!(result.n_combinations, 7);
         assert!(!result.models.is_empty(), "Should have some valid models");
+        // three sources against two outgroups cannot be tested
+        assert_eq!(result.n_skipped, 1);
+        assert_eq!(result.models.len(), 6);
 
         // Models sorted by p-value descending, untested (NaN p) ones last
         for w in result.models.windows(2) {

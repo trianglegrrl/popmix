@@ -36,6 +36,8 @@ pub struct QpWavePairsResult {
     pub pairs: Vec<QpWavePairResult>,
     /// Number of pairs tested.
     pub n_pairs: usize,
+    /// Pairs whose qpWave system was singular, left out of `pairs`.
+    pub n_skipped: usize,
 }
 
 impl QpWavePairsResult {
@@ -91,6 +93,7 @@ pub fn qpwave_pairs(
     })?;
 
     let mut pairs = Vec::new();
+    let mut n_skipped = 0;
 
     // Test all population pairs
     for combo in populations.iter().combinations(2) {
@@ -113,10 +116,8 @@ pub fn qpwave_pairs(
                     });
                 }
             }
-            Err(_) => {
-                // Skip failed pairs (e.g., singular matrix)
-                continue;
-            }
+            Err(e) if super::fit::is_model_failure(&e) => n_skipped += 1,
+            Err(e) => return Err(e),
         }
     }
 
@@ -127,6 +128,7 @@ pub fn qpwave_pairs(
         outgroups: outgroups.iter().map(|&s| PopulationId::new(s)).collect(),
         pairs,
         n_pairs,
+        n_skipped,
     })
 }
 

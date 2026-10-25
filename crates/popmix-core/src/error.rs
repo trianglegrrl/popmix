@@ -70,6 +70,9 @@ pub enum PopmixError {
     #[error("Optimization failed to converge after {iterations} iterations in {context}")]
     ConvergenceFailure { iterations: usize, context: String },
 
+    #[error("No feasible solution in {context}")]
+    Infeasible { context: String },
+
     #[error("Numerical overflow in {context}")]
     NumericalOverflow { context: String },
 

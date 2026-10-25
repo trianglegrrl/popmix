@@ -43,18 +43,28 @@ fn add_fudge(m: &mut DMatrix<f64>, fudge: f64) {
     }
 }
 
+/// A model that cannot be fit: its system is singular, or no weights meet
+/// the constraints. Model loops skip these and stop on any other error.
+pub(crate) fn is_model_failure(e: &PopmixError) -> bool {
+    matches!(
+        e,
+        PopmixError::SingularMatrix { .. } | PopmixError::Infeasible { .. }
+    )
+}
+
 fn solve(a: DMatrix<f64>, b: &DVector<f64>) -> Result<DVector<f64>> {
-    a.lu()
-        .solve(b)
-        .ok_or_else(|| PopmixError::Numerical("singular system in qpWave/qpAdm fit".to_string()))
+    a.lu().solve(b).ok_or_else(|| PopmixError::SingularMatrix {
+        context: "qpWave/qpAdm fit".to_string(),
+    })
 }
 
 /// Inverse of the f4 covariance after adding `fudge * trace` to its diagonal.
 pub(crate) fn fudged_inverse(cov: &Array2<f64>, fudge: f64) -> Result<DMatrix<f64>> {
     let mut q = to_dmatrix(cov);
     add_fudge(&mut q, fudge);
-    q.try_inverse()
-        .ok_or_else(|| PopmixError::Numerical("f4 covariance matrix is singular".to_string()))
+    q.try_inverse().ok_or_else(|| PopmixError::SingularMatrix {
+        context: "f4 covariance matrix".to_string(),
+    })
 }
 
 /// cpp_opt_A: A minimising the Q-weighted error for fixed B.
@@ -426,8 +436,9 @@ pub(crate) fn simplex_qp(d_mat: &DMatrix<f64>, d_vec: &DVector<f64>) -> Result<D
             best = Some((obj, w));
         }
     }
-    best.map(|(_, w)| w)
-        .ok_or_else(|| PopmixError::Numerical("no feasible constrained qpAdm weights".to_string()))
+    best.map(|(_, w)| w).ok_or_else(|| PopmixError::Infeasible {
+        context: "constrained qpAdm weights".to_string(),
+    })
 }
 
 /// cpp_get_weights_covariance (jackknife): weight standard errors from the

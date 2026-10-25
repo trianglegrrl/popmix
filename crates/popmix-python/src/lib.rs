@@ -1963,6 +1963,10 @@ struct PyQpAdmRotateResult {
     n_combinations: usize,
     #[pyo3(get)]
     n_feasible: usize,
+    /// Combinations not fit: more sources than outgroups, or a singular or
+    /// infeasible system.
+    #[pyo3(get)]
+    n_skipped: usize,
 }
 
 #[pymethods]
@@ -2066,6 +2070,7 @@ fn qpadm_rotate(
         models,
         n_combinations: result.n_combinations,
         n_feasible: result.n_feasible,
+        n_skipped: result.n_skipped,
     })
 }
 
@@ -2166,6 +2171,9 @@ struct PyQpWavePairsResult {
     pairs: Vec<PyQpWavePairResult>,
     #[pyo3(get)]
     n_pairs: usize,
+    /// Pairs whose qpWave system was singular, left out of `pairs`.
+    #[pyo3(get)]
+    n_skipped: usize,
 }
 
 #[pymethods]
@@ -2239,6 +2247,7 @@ fn qpwave_pairs(
         outgroups: result.outgroups.iter().map(|s| s.to_string()).collect(),
         pairs,
         n_pairs: result.n_pairs,
+        n_skipped: result.n_skipped,
     })
 }
 
