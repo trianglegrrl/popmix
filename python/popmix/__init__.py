@@ -30,8 +30,6 @@ from popmix._core import (
     qpwave,
     qpadm,
     qpf4ratio,
-    qpadm_rotate,
-    qpwave_pairs,
     # qpGraph functions
     qpgraph,
     build_tree,
@@ -76,6 +74,15 @@ from popmix.dstats import (
 )
 from popmix.admixture import AdmixtureResult, admixture, admixture_loglik
 from popmix.kinship import king, read_kinship
+from popmix.qpadm_models import (
+    qpadm_models,
+    qpadm_multi,
+    qpadm_p,
+    qpadm_rotate,
+    qpwave_pairs,
+    rotate_models,
+    test_cladality,
+)
 from popmix.pca import PcaResult, smartpca
 from popmix.sfs import Sfs, joint_sfs, sfs
 
@@ -147,6 +154,11 @@ __all__ = [
     "qpf4ratio",
     "qpadm_rotate",
     "qpwave_pairs",
+    "qpadm_p",
+    "qpadm_multi",
+    "qpadm_models",
+    "rotate_models",
+    "test_cladality",
     # qpGraph functions
     "build_tree",
     "qpgraph",

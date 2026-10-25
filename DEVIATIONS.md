@@ -363,6 +363,16 @@ These change no number that both tools compute.
 - **qp3pop on f2 blocks keeps the combination order.** admixtools2 returns
   it sorted by population (a side effect of dplyr `summarize`), but keeps the
   order from genotypes and in qpdstat; popmix keeps it in every case.
+- **qpadm_p at intermediate ranks has no weights.** admixtools2 solves a
+  singular system for the weights of a fit at a rank between 0 and n - 1
+  (armadillo warns and returns an approximate solution) and reports
+  `feasible` from them; popmix returns no weights there and `feasible`
+  true, as admixtools2 does when it has none. The chi-squared, degrees of
+  freedom and p-value at every rank agree.
+- **Tables are data frames, populations are list columns.** `qpwave_pairs`,
+  `qpadm_rotate`, `rotate_models`, `qpadm_multi(full_results = FALSE)`,
+  and `qpadm_models` return pandas data frames with admixtools2's rows and
+  columns; `qpadm_p` returns one row as a dict.
 
 ## EIGENSOFT 7.2.1 (smartpca)
 

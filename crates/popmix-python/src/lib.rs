@@ -9,6 +9,7 @@ mod admixture;
 mod geno_fstats;
 mod kinship;
 mod pca;
+mod qpadm_models;
 mod rcompat;
 mod sfs;
 
@@ -2981,6 +2982,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     kinship::register(m)?;
     sfs::register(m)?;
     admixture::register(m)?;
+    qpadm_models::register(m)?;
     rcompat::register(m)?;
 
     // qpAdm/qpWave functions

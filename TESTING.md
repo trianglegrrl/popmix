@@ -743,6 +743,17 @@ admixtures, 4 with 1 and 2; 2976 graphs):
 Regenerate with `/usr/bin/Rscript tests/golden/admixtools2/generate_all_graphs.R`
 (about 6 minutes).
 
+`tests/golden/test_qpadm_models_admixtools2.py` checks the functions that
+evaluate many qpAdm models at once against `qpadm_models.json` (dg_11pop,
+`generate_qpadm_models.R`): `qpadm_p` (full-rank models with and without
+constraints, a rank-0 model, one without a target), `test_cladality`,
+`qpwave_pairs` (5 populations), `qpadm_rotate` and `rotate_models` (25
+models), `qpadm_multi` (summary rows and full results) and `qpadm_models`
+(15, 16 and 14 models). Models and their order, ranks, degrees of freedom
+and feasibility exact; chi-squared rtol 1e-6, p-values 1e-4, weights 1e-6.
+Actual agreement: chi-squared within 1.2e-10, p-values 2.9e-8, weights
+4.8e-11.
+
 ### f4-, D- and f3-statistic scans vs admixtools2 2.0.10
 
 `tests/golden/test_dstat_admixtools2.py` checks `qpdstat` and `qp3pop` given
@@ -1047,6 +1058,7 @@ The `chr20_22_reference.json` contains:
 | `qpgraph.json` | `qpgraph()` fits (edges, score, f3, multistart table, ppinv) and fits at fixed admixture weights |
 | `all_graphs.json` (dg_6pop) | every `generate_all_graphs()` graph for four cases: `graph_hash()` key, edges, `qpgraph()` score and best weights |
 | `fst.json` | FST block lengths and blocks, `fst()` |
+| `qpadm_models.json` (dg_11pop) | `qpadm_p`, `test_cladality`, `qpwave_pairs`, `qpadm_rotate`, `rotate_models`, `qpadm_multi`, `qpadm_models` |
 
 ### Test Data Requirements by Test Type
 

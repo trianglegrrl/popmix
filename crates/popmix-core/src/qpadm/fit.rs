@@ -165,7 +165,7 @@ pub(crate) fn qpadm_weights(
 }
 
 /// The weights step of cpp_qpadm_weights for an existing rank `rnk` fit.
-fn weights_from_fit(fit: &RankFit, rnk: usize, constrained: bool) -> Result<Vec<f64>> {
+pub(crate) fn weights_from_fit(fit: &RankFit, rnk: usize, constrained: bool) -> Result<Vec<f64>> {
     if rnk == 0 {
         return Ok(vec![1.0]);
     }
