@@ -32,13 +32,13 @@ from the code, not yet shown.
 
 ## A. Wrong results (P0)
 
-- [ ] **A1. VCF genotypes inverted on conversion and merge.** `vcf.rs:113-118`
+- [x] **A1. VCF genotypes inverted on conversion and merge.** *Done in 51c2f98.* `vcf.rs:113-118`
   stores the ALT dosage with column 5 = REF, but an EIGENSTRAT digit counts
   copies of column 5; `merge.rs:86-105` then "flips" on allele letters. A
   REF=A sample `0/0` becomes GG in EIGENSTRAT and PLINK output (plink2 reads
   it back as GG); merging VCF with AADR mirrors the user's samples.
   PG [confirmed]
-- [ ] **A2. Pseudohaploid samples not detected outside packed EIGENSTRAT.**
+- [x] **A2. Pseudohaploid samples not detected outside packed EIGENSTRAT.** *Done in a22fb64.*
   `popmix-python/src/lib.rs:1466-1484` never calls `detect_ploidy` for
   PLINK, text EIGENSTRAT, VCF or PED; nor does `read_genotypes()
   .allele_frequencies()` (README "Method 1"). Same samples: f2(A, Anc) 0.0206
@@ -530,4 +530,8 @@ thread count.
   convertf in section E.
 - [ ] **P5. Checked against convertf on every format pair** (golden), with
   K3.
+- [x] **P6. Packed headers carry AdmixTools' hashes.** *Done in 281226d.* popmix wrote
+  `GENO <n> <m> 0`, so AdmixTools 8 convertf aborts on popmix's packed files
+  ("indiv file has changed since genotype file was created"). Found by
+  K3's test. [confirmed]
 
