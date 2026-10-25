@@ -27,6 +27,19 @@ pub mod streaming;
 pub mod vcf;
 pub mod writers;
 
+/// A genetic map position: a finite number. (convertf reads anything else
+/// as 0, which would put the SNP at the start of its chromosome's map.)
+pub(crate) fn parse_genetic_position(field: &str, path: &str, line: usize) -> Result<f64> {
+    match field.parse::<f64>() {
+        Ok(v) if v.is_finite() => Ok(v),
+        _ => Err(PopmixError::parse(
+            path,
+            line,
+            format!("genetic position {field:?} is not a number"),
+        )),
+    }
+}
+
 /// Check that `range` is a range of SNP indices of a file with `n_snps` SNPs.
 pub(crate) fn check_snp_range(range: &std::ops::Range<usize>, n_snps: usize) -> Result<()> {
     if range.start > range.end || range.end > n_snps {

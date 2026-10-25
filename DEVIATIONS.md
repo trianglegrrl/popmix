@@ -702,3 +702,22 @@ need reconciling and so serves only to show the SNPs PLINK would ask to
   share a position it takes the one with file A's name, and with none, it
   leaves the SNP out and counts it.
 - **Every SNP left out is counted and printed** by reason.
+
+## convertf (AdmixTools 8.0.2): reading .snp and .bim
+
+Checked black-box with AdmixTools 8 convertf.
+
+### Matched, not corrected
+
+- **Six columns.** A `.snp` line needs its two alleles (convertf: "6
+  columns required").
+- **One character per allele.** An allele written with more characters
+  (an indel, `AT`) is read as its first, as convertf reads it; popmix's
+  formats hold single-base alleles. VCF indels are skipped instead (A7).
+
+### Interface differences
+
+- **A genetic position must be a number.** convertf reads `abc` as 0 (C
+  `atof`), which puts the SNP at the start of its chromosome's map; popmix
+  stops with the file and line. A map of all zeros is still read, and f2
+  blocks then fall back to 2 Mb of physical distance, as in admixtools2.

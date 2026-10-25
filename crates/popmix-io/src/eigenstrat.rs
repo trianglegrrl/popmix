@@ -292,7 +292,7 @@ pub fn read_snp_file(path: &str) -> Result<Vec<Snp>> {
         let id = fields[0].to_string();
         let chromosome = Chromosome::parse(fields[1]);
         // SNP files store genetic position in Morgans - keep in Morgans to match DATES
-        let position_morgans = fields[2].parse::<f64>().unwrap_or(0.0);
+        let position_morgans = crate::parse_genetic_position(fields[2], path, line_num + 1)?;
         let position_bp = fields[3].parse::<u32>().map_err(|_| {
             PopmixError::parse(
                 path,
@@ -338,6 +338,19 @@ mod tests {
             Some(Genotype::Missing)
         );
         assert_eq!(Genotype::from_eigenstrat_char(b'X'), None);
+    }
+
+    #[test]
+    fn a_genetic_position_that_is_not_a_number_is_an_error() {
+        let dir = tempfile::tempdir().unwrap();
+        for bad in ["abc", "nan", "inf"] {
+            let path = dir.path().join("t.snp");
+            std::fs::write(&path, format!("rs1 1 0.01 100 A G\nrs2 1 {bad} 200 C T\n")).unwrap();
+            let err = read_snp_file(path.to_str().unwrap())
+                .unwrap_err()
+                .to_string();
+            assert!(err.contains("line 2") && err.contains(bad), "{bad}: {err}");
+        }
     }
 
     #[test]

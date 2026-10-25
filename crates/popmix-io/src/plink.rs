@@ -285,7 +285,7 @@ fn read_bim_file(path: &str) -> Result<Vec<Snp>> {
         let id = fields[1].to_string();
         // Morgans, as EIGENSOFT and admixtools2 write and read it; rescaled
         // below if the file is in centimorgans
-        let position_morgans = fields[2].parse::<f64>().unwrap_or(0.0);
+        let position_morgans = crate::parse_genetic_position(fields[2], path, line_num + 1)?;
         let position_bp = fields[3].parse::<u32>().map_err(|_| {
             PopmixError::parse(
                 path,
@@ -339,6 +339,17 @@ fn decode_snp_genotypes(bytes: &[u8], n_samples: usize) -> impl Iterator<Item = 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_genetic_position_that_is_not_a_number_is_an_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("t.bim");
+        std::fs::write(&path, "1 rs1 0 100 A G\n1 rs2 x1 200 C T\n").unwrap();
+        let err = read_bim_file(path.to_str().unwrap())
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("line 2") && err.contains("x1"), "{err}");
+    }
 
     #[test]
     fn test_decode_plink_byte() {
