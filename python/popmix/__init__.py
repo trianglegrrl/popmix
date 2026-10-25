@@ -12,7 +12,6 @@ from popmix._core import (
     PyF2Blocks,
     PyF4RatioResult,
     PyGenotypeMatrix,
-    PyGraphFitResult,
     PyLdBin,
     PyQpAdmResult,
     PyQpAdmRotateResult,
@@ -36,7 +35,6 @@ from popmix._core import (
     # F-statistics functions
     extract_f2,
     f2_from_frequencies,
-    fit_graph,
     get_threads,
     graph_key,
     # Threading
@@ -142,7 +140,6 @@ QpAdmRotateResult = PyQpAdmRotateResult
 QpWavePairResult = PyQpWavePairResult
 QpWavePairsResult = PyQpWavePairsResult
 AdmixGraph = PyAdmixGraph
-GraphFitResult = PyGraphFitResult
 ScoredGraph = PyScoredGraph
 LdBin = PyLdBin
 DecayFit = PyDecayFit
@@ -231,7 +228,6 @@ __all__ = [
     # qpGraph functions
     "build_tree",
     "qpgraph",
-    "fit_graph",
     "find_graphs",
     "all_graphs",
     "graph_key",
@@ -270,7 +266,6 @@ __all__ = [
     "QpWavePairResult",
     "QpWavePairsResult",
     "AdmixGraph",
-    "GraphFitResult",
     "ScoredGraph",
     "LdBin",
     "DecayFit",

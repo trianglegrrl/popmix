@@ -57,10 +57,9 @@ pub use qpadm::{
     QpWavePairsResult, QpWaveResult, RankTest, RotationModel,
 };
 pub use qpgraph::{
-    all_graphs, find_graphs, fit_graph, graph_key, qpgraph, AdmixGraph, AdmixNode, EdgeType,
-    FitOptions, GraphBuilder, GraphFitResult, GraphSearchMethod, GraphSearchOptions,
-    GraphSearchResult, NodeId, QpGraphEdge, QpGraphF3, QpGraphOptions, QpGraphResult, QpGraphStart,
-    ScoredGraph,
+    all_graphs, find_graphs, graph_key, qpgraph, AdmixGraph, AdmixNode, EdgeType, GraphBuilder,
+    GraphSearchMethod, GraphSearchOptions, GraphSearchResult, NodeId, QpGraphEdge, QpGraphF3,
+    QpGraphOptions, QpGraphResult, QpGraphStart, ScoredGraph,
 };
 pub use rolloff::{fit_rolloff, rolloff, RolloffBins, RolloffFit, RolloffOptions, RolloffResult};
 pub use sfs::{joint_sfs, projected_sfs, JointSfsCompat, JointSfsSnps, SfsSummary, Spectrum};
@@ -71,4 +70,4 @@ pub use dates::{
     compute_ld_decay, compute_weights, dates, fit_exponential, weighted_jackknife, DatesOptions,
     DatesResult, DecayFit, LdBin, LdOptions, WeightResult,
 };
-// Note: FitOptions for dates is available as dates::FitOptions to avoid collision with qpgraph::FitOptions
+// The exponential fit's options are dates::FitOptions

@@ -2419,49 +2419,6 @@ impl PyAdmixGraph {
     }
 }
 
-/// Result of graph fitting.
-#[pyclass]
-struct PyGraphFitResult {
-    #[pyo3(get)]
-    score: f64,
-    #[pyo3(get)]
-    rmse: f64,
-    #[pyo3(get)]
-    n_constraints: usize,
-    #[pyo3(get)]
-    iterations: usize,
-    #[pyo3(get)]
-    converged: bool,
-    graph: popmix_core::AdmixGraph,
-    residuals: HashMap<(String, String), f64>,
-}
-
-#[pymethods]
-impl PyGraphFitResult {
-    /// Get the fitted graph.
-    fn get_graph(&self) -> PyAdmixGraph {
-        PyAdmixGraph {
-            inner: self.graph.clone(),
-        }
-    }
-
-    /// Get residuals as a dictionary.
-    fn get_residuals(&self) -> HashMap<(String, String), f64> {
-        self.residuals.clone()
-    }
-
-    /// Check if the fit is good (score below threshold).
-    #[pyo3(signature = (threshold=0.01))]
-    fn is_good_fit(&self, threshold: f64) -> bool {
-        self.score < threshold
-    }
-
-    /// Get the worst-fitting population pair.
-    fn worst_pair(&self) -> Option<((String, String), f64)> {
-        popmix_core::qpgraph::worst_residual(&self.residuals)
-    }
-}
-
 /// Build a simple tree graph using the builder pattern.
 ///
 /// Args:
@@ -2495,51 +2452,6 @@ fn build_tree(
     let graph = builder.build_unchecked();
 
     Ok(PyAdmixGraph { inner: graph })
-}
-
-/// Fit an admixture graph to observed f-statistics.
-///
-/// Optimizes edge lengths to minimize discrepancy between predicted
-/// and observed f2 values. This is popmix's own f2 least-squares fit; it is
-/// not admixtools2's qpgraph. Use qpgraph() for that.
-///
-/// Args:
-///     graph: The admixture graph to fit (topology is fixed)
-///     f2_blocks: Observed f2 statistics
-///     max_iter: Maximum optimization iterations (default: 1000)
-///     tolerance: Convergence tolerance (default: 1e-8)
-///     weighted: Whether to use weighted residuals (default: True)
-///
-/// Returns:
-///     PyGraphFitResult with fitted graph and fit quality metrics
-#[pyfunction]
-#[pyo3(signature = (graph, f2_blocks, max_iter=None, tolerance=None, weighted=None))]
-fn fit_graph(
-    graph: &PyAdmixGraph,
-    f2_blocks: &PyF2Blocks,
-    max_iter: Option<usize>,
-    tolerance: Option<f64>,
-    weighted: Option<bool>,
-) -> PyResult<PyGraphFitResult> {
-    let opts = popmix_core::FitOptions {
-        max_iter: max_iter.unwrap_or(1000),
-        tolerance: tolerance.unwrap_or(1e-8),
-        weighted: weighted.unwrap_or(true),
-        ..Default::default()
-    };
-
-    let result =
-        popmix_core::fit_graph(&graph.inner, &f2_blocks.inner, Some(opts)).map_err(to_py_err)?;
-
-    Ok(PyGraphFitResult {
-        score: result.score,
-        rmse: result.rmse,
-        n_constraints: result.n_constraints,
-        iterations: result.iterations,
-        converged: result.converged,
-        graph: result.graph,
-        residuals: result.residuals,
-    })
 }
 
 /// One graph found by find_graphs.
@@ -3230,7 +3142,6 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // qpGraph functions
     m.add_function(wrap_pyfunction!(build_tree, m)?)?;
-    m.add_function(wrap_pyfunction!(fit_graph, m)?)?;
     m.add_function(wrap_pyfunction!(qpgraph, m)?)?;
     m.add_function(wrap_pyfunction!(find_graphs, m)?)?;
     m.add_function(wrap_pyfunction!(all_graphs, m)?)?;
@@ -3259,7 +3170,6 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyQpWavePairResult>()?;
     m.add_class::<PyQpWavePairsResult>()?;
     m.add_class::<PyAdmixGraph>()?;
-    m.add_class::<PyGraphFitResult>()?;
     m.add_class::<PyScoredGraph>()?;
     m.add_class::<PyLdBin>()?;
     m.add_class::<PyDecayFit>()?;
