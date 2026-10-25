@@ -1,198 +1,162 @@
-//! Weighted block jackknife, as in admixtools2.
+//! The weighted block jackknife (delete-m jackknife for unequal m).
 //!
-//! admixtools2 turns per-block estimates into leave-one-block-out estimates
-//! (`est_to_loo`), weighting each block by its length in SNPs, and then
-//! computes the jackknife estimate and variance from them
-//! (`cpp_jack_vec_stats`, which without a total falls through to
-//! `cpp_jack_vec_stats2`). The steps are reproduced literally, rather than
-//! simplified algebraically, so results agree with admixtools2 to rounding.
+//! Blocks k = 1..g have lengths m_k (SNPs), n = Σ m_k and h_k = n / m_k. For
+//! a statistic that is a weighted mean of per-block values x_k the full-data
+//! value is θ = Σ m_k x_k / n and the leave-one-block-out value is
+//! θ_(k) = (θ − x_k m_k / n) / (1 − m_k / n). The jackknife estimate is
+//! θ_J = g θ − Σ_k (1 − m_k / n) θ_(k) and its variance, through the
+//! pseudo-values τ_k = h_k θ − (h_k − 1) θ_(k), is
+//! var = (1/g) Σ_k (τ_k − θ_J)² / (h_k − 1).
 //!
-//! [`block_jackknife_cov`] is the same for several statistics at once, giving
-//! their covariance (`est_to_loo_nafix` + `jack_pairarr_stats`, as used by
-//! qpWave and qpAdm). [`leave_one_out`], [`leave_one_out_nafix`] and
-//! [`jackknife_with_total`] are the separate steps, for statistics that are
-//! not block means (f4 ratios, qpAdm weights).
+//! Provenance: written from the clean-room specification
+//! `docs/cleanroom/jackknife.md`, after Busing, Meijer and van der Leeden
+//! 1999 (Statistics and Computing 9:3, "Delete-m jackknife for unequal m",
+//! eqs. 5 and 7) as used for f-statistics by Patterson et al. 2012, and
+//! checked against admixtools2's black-box outputs.
 
 use ndarray::Array2;
 
-/// Weighted block jackknife estimate and standard error.
-///
-/// `values[k]` is the statistic in block k and `lengths[k]` its length in
-/// SNPs. Blocks with a non-finite value are left out, as admixtools2 does
-/// for NA blocks. Returns `None` if no block is left.
-pub fn block_jackknife(values: &[f64], lengths: &[f64]) -> Option<(f64, f64)> {
-    assert_eq!(values.len(), lengths.len());
-    let (x, bl): (Vec<f64>, Vec<f64>) = values
+/// θ = Σ m_k x_k / n over the given blocks, and n.
+fn weighted_mean(values: &[f64], lengths: &[f64]) -> (f64, f64) {
+    let (s, n) = values
         .iter()
         .zip(lengths)
-        .filter(|(v, _)| v.is_finite())
-        .map(|(&v, &l)| (v, l))
-        .unzip();
-    if x.is_empty() {
-        return None;
-    }
-
-    // est_to_loo: tot = weighted.mean(x, bl); loo = (tot - x rel) / (1 - rel)
-    let n: f64 = bl.iter().sum();
-    let tot = x.iter().zip(&bl).map(|(v, l)| v * l).sum::<f64>() / n;
-    let loo: Vec<f64> = x
-        .iter()
-        .zip(&bl)
-        .map(|(v, l)| {
-            let rel = l / n;
-            (tot - v * rel) / (1.0 - rel)
-        })
-        .collect();
-
-    // cpp_jack_vec_stats2
-    let h: Vec<f64> = bl.iter().map(|l| n / l).collect();
-    let w_sum: f64 = h.iter().map(|h| 1.0 - 1.0 / h).sum();
-    let est = loo
-        .iter()
-        .zip(&h)
-        .map(|(l, h)| l * (1.0 - 1.0 / h))
-        .sum::<f64>()
-        / w_sum;
-    let var = loo
-        .iter()
-        .zip(&h)
-        .map(|(l, h)| (est - l).powi(2) * (h - 1.0))
-        .sum::<f64>()
-        / loo.len() as f64;
-    Some((est, var.sqrt()))
+        .fold((0.0, 0.0), |(s, n), (x, m)| (s + x * m, n + m));
+    (s / n, n)
 }
 
-/// admixtools2 `est_to_loo`: leave-one-block-out values of a block mean.
-///
-/// Non-finite blocks stay non-finite and are left out of the total.
-pub fn leave_one_out(values: &[f64], lengths: &[f64]) -> Vec<f64> {
-    let (sum, n) = values
-        .iter()
-        .zip(lengths)
-        .filter(|(v, _)| v.is_finite())
-        .fold((0.0, 0.0), |(s, n), (v, l)| (s + v * l, n + l));
-    let tot = sum / n;
+/// The blocks whose value is finite: their values and lengths.
+fn finite_blocks(values: &[f64], lengths: &[f64]) -> (Vec<f64>, Vec<f64>) {
     values
         .iter()
         .zip(lengths)
-        .map(|(v, l)| {
-            let rel = l / n;
-            (tot - v * rel) / (1.0 - rel)
+        .filter(|(x, _)| x.is_finite())
+        .map(|(&x, &m)| (x, m))
+        .unzip()
+}
+
+/// The scaled deviations u_k = (τ_k − θ_J) / sqrt(h_k − 1) and θ_J, from
+/// leave-one-out values, the full-data value and the lengths of the blocks
+/// in use (all finite). The variance is (1/g) Σ u_k².
+fn deviations(loo: &[f64], lengths: &[f64], tot: f64) -> (Vec<f64>, f64) {
+    let g = loo.len() as f64;
+    let n: f64 = lengths.iter().sum();
+    let est = g * tot
+        - loo
+            .iter()
+            .zip(lengths)
+            .map(|(t, m)| (1.0 - m / n) * t)
+            .sum::<f64>();
+    let u = loo
+        .iter()
+        .zip(lengths)
+        .map(|(t, m)| {
+            let h = n / m;
+            let tau = h * tot - (h - 1.0) * t;
+            (tau - est) / (h - 1.0).sqrt()
         })
+        .collect();
+    (u, est)
+}
+
+/// θ_J and the standard error sqrt((1/g) Σ u_k²).
+fn estimate_and_se(loo: &[f64], lengths: &[f64], tot: f64) -> (f64, f64) {
+    let (u, est) = deviations(loo, lengths, tot);
+    let var = u.iter().map(|x| x * x).sum::<f64>() / u.len() as f64;
+    (est, var.sqrt())
+}
+
+/// Jackknife estimate and standard error of a block mean.
+///
+/// Blocks whose value is not finite are left out entirely; `None` if none
+/// remains.
+pub fn block_jackknife(values: &[f64], lengths: &[f64]) -> Option<(f64, f64)> {
+    let (x, m) = finite_blocks(values, lengths);
+    if x.is_empty() {
+        return None;
+    }
+    let (tot, _) = weighted_mean(&x, &m);
+    Some(estimate_and_se(&leave_one_out(&x, &m), &m, tot))
+}
+
+/// Leave-one-block-out values θ_(k) of a block mean.
+///
+/// θ and n use only the finite blocks; a non-finite block's own value stays
+/// non-finite.
+pub fn leave_one_out(values: &[f64], lengths: &[f64]) -> Vec<f64> {
+    let (x, m) = finite_blocks(values, lengths);
+    let (tot, n) = weighted_mean(&x, &m);
+    values
+        .iter()
+        .zip(lengths)
+        .map(|(x, m)| (tot - x * m / n) / (1.0 - m / n))
         .collect()
 }
 
-/// admixtools2 `est_to_loo_nafix`: as [`leave_one_out`], but missing blocks
-/// count as 0 (the total still leaves them out), so every block gets a value.
+/// Leave-one-block-out values with every block given a value.
+///
+/// θ is the mean over the finite blocks; each θ_(k) then takes a non-finite
+/// block's value as 0, with m_k / n relative to the total length of all
+/// blocks.
 pub fn leave_one_out_nafix(values: &[f64], lengths: &[f64]) -> Vec<f64> {
-    let (sum, n_finite) = values
-        .iter()
-        .zip(lengths)
-        .filter(|(v, _)| v.is_finite())
-        .fold((0.0, 0.0), |(s, n), (v, l)| (s + v * l, n + l));
-    let tot = sum / n_finite;
+    let (x, m) = finite_blocks(values, lengths);
+    let (tot, _) = weighted_mean(&x, &m);
     let n: f64 = lengths.iter().sum();
     values
         .iter()
         .zip(lengths)
-        .map(|(v, l)| {
-            let v = if v.is_finite() { *v } else { 0.0 };
-            let rel = l / n;
-            (tot - v * rel) / (1.0 - rel)
+        .map(|(&x, m)| {
+            let x = if x.is_finite() { x } else { 0.0 };
+            (tot - x * m / n) / (1.0 - m / n)
         })
         .collect()
 }
 
-/// admixtools2 `jack_mat_stats` with a given total, for one statistic:
-/// jackknife estimate and standard error from leave-one-out values `loo`
-/// and the full-data value `tot`. Non-finite blocks are left out.
+/// Jackknife estimate and standard error from given leave-one-out values
+/// and a given full-data value `tot`, for statistics that are not block
+/// means (such as ratios).
+///
+/// Blocks with a non-finite θ_(k) are left out; `None` if none remains.
 pub fn jackknife_with_total(loo: &[f64], lengths: &[f64], tot: f64) -> Option<(f64, f64)> {
-    let (loo, bl): (Vec<f64>, Vec<f64>) = loo
-        .iter()
-        .zip(lengths)
-        .filter(|(v, _)| v.is_finite())
-        .map(|(&v, &l)| (v, l))
-        .unzip();
-    if loo.is_empty() {
+    let (t, m) = finite_blocks(loo, lengths);
+    if t.is_empty() {
         return None;
     }
-    let n: f64 = bl.iter().sum();
-    let numblocks = loo.len() as f64;
-    let est = loo.iter().map(|v| tot - v).sum::<f64>() / numblocks * numblocks
-        + loo.iter().zip(&bl).map(|(v, l)| v * l).sum::<f64>() / n;
-    let var = loo
-        .iter()
-        .zip(&bl)
-        .map(|(v, l)| {
-            let h = n / l;
-            let xtau = (h * tot - (h - 1.0) * v - est) / (h - 1.0).sqrt();
-            xtau * xtau
-        })
-        .sum::<f64>()
-        / numblocks;
-    Some((est, var.sqrt()))
+    Some(estimate_and_se(&t, &m, tot))
 }
 
-/// Weighted block jackknife estimates and covariance of several statistics.
+/// Jackknife estimates and covariance of several block-mean statistics
+/// (`stats[s][k]`).
 ///
-/// `stats[s][k]` is statistic s in block k and `lengths[k]` the block's
-/// length in SNPs. Blocks where any statistic is non-finite are left out, as
-/// admixtools2 `jack_pairarr_stats` does. (admixtools2's `est_to_loo_nafix`
-/// would first set missing block values to 0; popmix drops the block
-/// instead. The two agree whenever no block is missing, which the default
-/// `maxmiss = 0` guarantees.) Returns `None` if fewer than two blocks are left.
+/// Only the blocks where every statistic is finite are used (`None` if
+/// fewer than two). The covariance of statistics s and t is
+/// (1/g) Σ_k u_sk u_tk with u_sk = (τ_sk − θ_J,s) / sqrt(h_k − 1).
 pub fn block_jackknife_cov(stats: &[Vec<f64>], lengths: &[f64]) -> Option<(Vec<f64>, Array2<f64>)> {
     let keep: Vec<usize> = (0..lengths.len())
-        .filter(|&k| stats.iter().all(|x| x[k].is_finite()))
+        .filter(|&k| stats.iter().all(|s| s[k].is_finite()))
         .collect();
     if keep.len() < 2 {
         return None;
     }
-    let bl: Vec<f64> = keep.iter().map(|&k| lengths[k]).collect();
-    let n: f64 = bl.iter().sum();
-    let numblocks = bl.len() as f64;
-    let h: Vec<f64> = bl.iter().map(|l| n / l).collect();
+    let m: Vec<f64> = keep.iter().map(|&k| lengths[k]).collect();
+    let g = keep.len() as f64;
 
-    let mut ests = Vec::with_capacity(stats.len());
-    let mut xtau: Vec<Vec<f64>> = Vec::with_capacity(stats.len());
-    for x in stats {
-        let x: Vec<f64> = keep.iter().map(|&k| x[k]).collect();
-        // est_to_loo_nafix
-        let tot0 = x.iter().zip(&bl).map(|(v, l)| v * l).sum::<f64>() / n;
-        let loo: Vec<f64> = x
-            .iter()
-            .zip(&bl)
-            .map(|(v, l)| {
-                let rel = l / n;
-                (tot0 - v * rel) / (1.0 - rel)
-            })
-            .collect();
-        // jack_pairarr_stats
-        let w: Vec<f64> = bl.iter().map(|l| 1.0 - l / n).collect();
-        let tot = loo.iter().zip(&w).map(|(v, w)| v * w).sum::<f64>() / w.iter().sum::<f64>();
-        let est = loo.iter().map(|v| tot - v).sum::<f64>() / numblocks * numblocks
-            + loo.iter().zip(&bl).map(|(v, l)| v * l).sum::<f64>() / n;
-        xtau.push(
-            loo.iter()
-                .zip(&h)
-                .map(|(v, h)| (est * h - v * (h - 1.0) - tot) / (h - 1.0).sqrt())
-                .collect(),
-        );
-        ests.push(est);
-    }
+    let (u, ests): (Vec<Vec<f64>>, Vec<f64>) = stats
+        .iter()
+        .map(|s| {
+            let x: Vec<f64> = keep.iter().map(|&k| s[k]).collect();
+            let (tot, _) = weighted_mean(&x, &m);
+            deviations(&leave_one_out(&x, &m), &m, tot)
+        })
+        .unzip();
 
-    let m = stats.len();
-    let mut cov = Array2::zeros((m, m));
-    for i in 0..m {
-        for j in i..m {
-            let c = xtau[i]
-                .iter()
-                .zip(&xtau[j])
-                .map(|(a, b)| a * b)
-                .sum::<f64>()
-                / numblocks;
-            cov[[i, j]] = c;
-            cov[[j, i]] = c;
+    let p = stats.len();
+    let mut cov = Array2::zeros((p, p));
+    for a in 0..p {
+        for b in a..p {
+            let c = u[a].iter().zip(&u[b]).map(|(x, y)| x * y).sum::<f64>() / g;
+            cov[[a, b]] = c;
+            cov[[b, a]] = c;
         }
     }
     Some((ests, cov))
