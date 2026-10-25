@@ -16,6 +16,8 @@ rules for adding one.
 | ADMIXTOOLS2-0001 | qpAdm `popdrop` nested path compares siblings, not nested models | A real nested path from the full model | `compat="admixtools2-2.0.10"` |
 | ADMIXTOOLS2-0002 | Constrained qpAdm with ≥ 3 sources stops with an error | Returns the full result | nothing to reproduce |
 | ADMIXTOOLS2-0003 | `joint_sfs()` drops SNPs whose allele count is not exactly an integer in floating point | Counts them | `compat="admixtools2-2.0.10"` (`joint_sfs`) |
+| ADMIXTOOLS2-0004 | `write_dot()` renames nodes on edges (removes "." and "-") but declares them unrenamed | Quoted names, unchanged | `compat="admixtools2-2.0.10"` (`write_dot`) |
+| ADMIXTOOLS2-0005 | `parse_qpgraph_graphfile()` returns node labels instead of population names, and fails by default | Population names | `compat="admixtools2-2.0.10"` (`parse_qpgraph_graphfile`) |
 | EIGENSOFT-0001 | smartpca reports the Tracy-Widom density as the p-value beyond its table | The tail | `compat="eigensoft-7.2.1"` |
 | PLINK2-0001 | `--make-king-table` labels its two het-hom counts the wrong way round | Counts named as they are | nothing to reproduce (labels only) |
 | READV2-0001 | Each jackknife window also counts the last SNP of the window before | Disjoint windows | `compat="readv2-2.01"` |
@@ -265,6 +267,36 @@ qpWave/qpAdm fits by the C++ code path (`cpp = TRUE`, the default).
 - **Also documented, not a bug in the numbers:** `joint_sfs(pref = ...)`
   calls `geno_to_afs()`, which does not exist in 2.0.10; the reference
   generator calls `packedancestrymap_to_afs()` and passes its result.
+
+### ADMIXTOOLS2-0004: write_dot() renames nodes on edges but not where it declares them
+
+- **admixtools2:** `write_dot()` (`R/io.R`) writes each edge with "." and "-"
+  removed from both node names, because DOT does not allow them in an
+  unquoted name, and declares the internal nodes (`[shape = point]`) under
+  their unchanged names.
+- **Effect:** population labels change (Han.DG is drawn as HanDG); two
+  populations that differ only in those characters (A.B and AB) become one
+  node; and an internal node with a "." in its name (n.1) is declared as
+  something else (Graphviz reads `n.1` as two stray nodes, `n` and `.1`)
+  while its edges use `n1`, which is drawn as a labelled ellipse instead of
+  a point.
+- **popmix:** quotes every name and keeps it.
+
+### ADMIXTOOLS2-0005: parse_qpgraph_graphfile() keeps the labels, and fails by default
+
+- **admixtools2:** a qpGraph graph file names each population's node with
+  `label <population> <label>` and uses the labels in its edges.
+  `parse_qpgraph_graphfile()` (`R/wrappers.R`) builds its renaming map the
+  wrong way round (population to label), so it never replaces a label by a
+  population, whatever `uselabels` says (`parse_qpgraph_output_edges()`
+  reads qpGraph's output, which lists label first, correctly). With its
+  default `split_multi = TRUE` it then stops with "names do not match
+  previous names" in 2.0.10, even when nothing is multifurcating.
+- **Effect:** the graph's leaves are the labels (Chimp, not Chimp.REF), so
+  the graph cannot be fitted to f2 statistics of the populations it names;
+  with the defaults, no graph file can be read.
+- **popmix:** returns population names (labels with `uselabels=True`).
+- **Reference:** generated with `split_multi = FALSE`.
 
 ### Matched, not corrected
 

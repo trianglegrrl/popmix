@@ -1,0 +1,16 @@
+root  R
+label        Chimp            Chimp.REF     1
+label        Mbuti             Mbuti.DG    14
+label       Yoruba            Yoruba.DG    24
+label       French            French.DG    28
+label          Han               Han.DG    45
+edge            a            R        Chimp     0.079249
+edge            b            R           n1     0.079249
+edge            c           n1        Mbuti     0.011466
+edge            d           n1           n2     0.012136
+edge            e           n2       Yoruba     0.002735
+edge            f           n2           n3     0.041418
+edge            g           n3           eW     0.007512
+edge            h           n3          Han     0.017438
+edge            i          adm       French     0.009220
+admix          adm          eW         n2      0.902614     0.097386

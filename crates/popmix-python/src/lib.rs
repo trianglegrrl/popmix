@@ -1040,6 +1040,43 @@ impl PyF2Blocks {
         self.inner.n_blocks
     }
 
+    /// These populations only, in this order (admixtools2
+    /// ``extract_f2_subset``); FST blocks are kept.
+    fn subset(&self, populations: Vec<String>) -> PyResult<PyF2Blocks> {
+        let refs: Vec<&str> = populations.iter().map(|s| s.as_str()).collect();
+        Ok(PyF2Blocks {
+            inner: self.inner.subset_populations(&refs).map_err(to_py_err)?,
+        })
+    }
+
+    /// SNPs with data for both populations in each block (the counts
+    /// admixtools2 stores with its f2 blocks), or None for unknown
+    /// populations.
+    fn counts_per_block(&self, pop_a: &str, pop_b: &str) -> Option<Vec<f64>> {
+        self.inner.block_counts(pop_a, pop_b)
+    }
+
+    /// F2 blocks from each pair's per-block f2 mean and SNP count, as
+    /// admixtools2 stores them: ``means[i][j]`` and ``counts[i][j]`` are the
+    /// blocks of populations i and j (only i <= j is read). FST is not
+    /// available from these.
+    #[staticmethod]
+    fn from_block_means(
+        populations: Vec<String>,
+        block_lengths: Vec<usize>,
+        means: Vec<Vec<Vec<f64>>>,
+        counts: Vec<Vec<Vec<f64>>>,
+    ) -> PyResult<PyF2Blocks> {
+        let pops = populations
+            .iter()
+            .map(|p| popmix_core::PopulationId::from(p.as_str()))
+            .collect();
+        Ok(PyF2Blocks {
+            inner: F2Blocks::from_block_means(pops, block_lengths, &means, &counts)
+                .map_err(to_py_err)?,
+        })
+    }
+
     /// These blocks, in this order and with repeats, as admixtools2
     /// ``f2_blocks[, , blocks]`` (0-based). FST blocks are not carried over.
     fn select_blocks(&self, blocks: Vec<usize>) -> PyResult<PyF2Blocks> {

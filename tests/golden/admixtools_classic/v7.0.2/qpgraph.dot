@@ -1,0 +1,29 @@
+digraph G { 
+size = "7.5,10" ;
+labelloc = "t" ; 
+label = "graph.txt ::      Chi        Mbu        Yor        Fre       0.000000     0.001233     0.001233     0.000169     7.296 
+" ; 
+
+           R  [  label = "R"    ]  ; 
+       Chimp  [  label = "Chimp_REF"    ]  ; 
+          n1  [  label = "n1"    ]  ; 
+       Mbuti  [  label = "Mbuti_DG"    ]  ; 
+          n2  [  label = "n2"    ]  ; 
+      Yoruba  [  label = "Yoruba_DG"    ]  ; 
+          n3  [  label = "n3"    ]  ; 
+         adm  [  label = "adm"    ]  ; 
+      French  [  label = "French_DG"    ]  ; 
+         Han  [  label = "Han_DG"    ]  ; 
+          eW  [  label = "eW"    ]  ; 
+R -> Chimp [  label = "79" ] ; 
+R -> n1 [  label = "79" ] ; 
+n1 -> Mbuti [  label = "11" ] ; 
+n1 -> n2 [  label = "12" ] ; 
+n2 -> Yoruba [  label = "3" ] ; 
+n2 -> n3 [  label = "41" ] ; 
+n3 -> eW [  label = "8" ] ; 
+n3 -> Han [  label = "17" ] ; 
+adm -> French [  label = "9" ] ; 
+eW -> adm [ style=dotted,  label = "90%" ] ; 
+n2 -> adm [ style=dotted,  label = "10%" ] ; 
+} 

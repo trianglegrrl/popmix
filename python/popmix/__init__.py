@@ -72,6 +72,18 @@ from popmix.dstats import (
     sample_ploidy,
 )
 from popmix.admixture import AdmixtureResult, admixture, admixture_loglik
+from popmix.classic import (
+    parse_qp3pop_output,
+    parse_qpadm_output,
+    parse_qpdstat_output,
+    parse_qpf4ratio_output,
+    parse_qpfstats_output,
+    parse_qpgraph_graphfile,
+    parse_qpgraph_output,
+    parse_qpgraph_output_edges,
+)
+from popmix.dot import parse_dot, write_dot
+from popmix.f2_dirs import extract_f2_subset, read_admixtools2_f2, write_admixtools2_f2
 from popmix.graph_constraints import (
     satisfies_constraints,
     satisfies_eventorder,
@@ -154,6 +166,9 @@ __all__ = [
     # F-statistics functions
     "extract_f2",
     "f2_from_frequencies",
+    "read_admixtools2_f2",
+    "write_admixtools2_f2",
+    "extract_f2_subset",
     "qpdstat",
     "qp3pop",
     "fstat_combinations",
@@ -206,6 +221,16 @@ __all__ = [
     "find_graphs",
     "all_graphs",
     "graph_key",
+    "write_dot",
+    "parse_dot",
+    "parse_qpdstat_output",
+    "parse_qp3pop_output",
+    "parse_qpadm_output",
+    "parse_qpf4ratio_output",
+    "parse_qpgraph_output",
+    "parse_qpgraph_output_edges",
+    "parse_qpgraph_graphfile",
+    "parse_qpfstats_output",
     "EvolvedGraph",
     "summarize_numadmix",
     "summarize_zerof4",

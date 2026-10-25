@@ -1,0 +1,5 @@
+genotypename: /home/a/.cache/popmix-references/aadr_dg6pop.geno
+snpname: /home/a/.cache/popmix-references/aadr_dg6pop.snp
+indivname: /home/a/.cache/popmix-references/aadr_dg6pop.ind
+poplistname: fstats.pops
+fstatsoutname: qpfstats.fstats

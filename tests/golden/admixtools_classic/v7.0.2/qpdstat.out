@@ -1,0 +1,27 @@
+/home/a/.local/share/popmix-references/admixtools-7.0.2/bin/qpDstat: parameter file: /home/a/popmix/tests/golden/admixtools_classic/v7.0.2/qpdstat.par
+### THE INPUT PARAMETERS
+##PARAMETER NAME: VALUE
+genotypename: /home/a/.cache/popmix-references/aadr_dg6pop.geno
+snpname: /home/a/.cache/popmix-references/aadr_dg6pop.snp
+indivname: /home/a/.cache/popmix-references/aadr_dg6pop.ind
+popfilename: qpdstat.pops
+f4mode: YES
+## qpDstat version: 980
+inbreed set NO
+packed geno read OK
+end of inpack
+number of quadruples 3
+  0            Chimp.REF    1
+  1             Mbuti.DG   14
+  2            Yoruba.DG   24
+  3            French.DG   28
+  4            Papuan.DG   28
+  5               Han.DG   45
+jackknife block size:     0.050
+snps: 1150305  indivs: 140
+number of blocks for block jackknife: 714
+nrows, ncols: 140 1150305
+result:  Chimp.REF   Mbuti.DG  French.DG     Han.DG     -0.000208     -1.507   47844  48074 1101843 
+result:  Chimp.REF   Mbuti.DG  Yoruba.DG  French.DG      0.001171      7.313   56969  55679 1101845 
+result:   Mbuti.DG  Yoruba.DG  Papuan.DG     Han.DG      0.000385      3.278   51525  51082 1149641 
+##end of qpDstat:       22.240 seconds cpu     1222.218 Mbytes in use

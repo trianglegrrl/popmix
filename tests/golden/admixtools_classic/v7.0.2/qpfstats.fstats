@@ -1,0 +1,66 @@
+##fbasis.  basepop: Mbuti.DG ::  f3*1000 covar*1000000
+      Yoruba.DG       Yoruba.DG     81.154255
+      Yoruba.DG       French.DG     72.437669
+      Yoruba.DG          Han.DG     71.628413
+      Yoruba.DG       Chimp.REF     35.779477
+      French.DG       French.DG    223.271981
+      French.DG          Han.DG    186.538808
+      French.DG       Chimp.REF     31.977292
+         Han.DG          Han.DG    252.121361
+         Han.DG       Chimp.REF     32.653084
+      Chimp.REF       Chimp.REF      0.000000
+      Yoruba.DG       Yoruba.DG         Yoruba.DG       Yoruba.DG       0.570964
+      Yoruba.DG       Yoruba.DG         Yoruba.DG       French.DG       0.552783
+      Yoruba.DG       Yoruba.DG         Yoruba.DG          Han.DG       0.554513
+      Yoruba.DG       Yoruba.DG         Yoruba.DG       Chimp.REF       0.308339
+      Yoruba.DG       Yoruba.DG         French.DG       French.DG       0.555933
+      Yoruba.DG       Yoruba.DG         French.DG          Han.DG       0.574308
+      Yoruba.DG       Yoruba.DG         French.DG       Chimp.REF       0.312677
+      Yoruba.DG       Yoruba.DG            Han.DG          Han.DG       0.592199
+      Yoruba.DG       Yoruba.DG            Han.DG       Chimp.REF       0.328965
+      Yoruba.DG       Yoruba.DG         Chimp.REF       Chimp.REF       0.064407
+      Yoruba.DG       French.DG         Yoruba.DG       French.DG       0.702947
+      Yoruba.DG       French.DG         Yoruba.DG          Han.DG       0.668644
+      Yoruba.DG       French.DG         Yoruba.DG       Chimp.REF       0.307593
+      Yoruba.DG       French.DG         French.DG       French.DG       0.783462
+      Yoruba.DG       French.DG         French.DG          Han.DG       0.785793
+      Yoruba.DG       French.DG         French.DG       Chimp.REF       0.358221
+      Yoruba.DG       French.DG            Han.DG          Han.DG       0.790807
+      Yoruba.DG       French.DG            Han.DG       Chimp.REF       0.361764
+      Yoruba.DG       French.DG         Chimp.REF       Chimp.REF       0.054689
+      Yoruba.DG          Han.DG         Yoruba.DG          Han.DG       0.724986
+      Yoruba.DG          Han.DG         Yoruba.DG       Chimp.REF       0.298596
+      Yoruba.DG          Han.DG         French.DG       French.DG       0.751897
+      Yoruba.DG          Han.DG         French.DG          Han.DG       0.830083
+      Yoruba.DG          Han.DG         French.DG       Chimp.REF       0.339379
+      Yoruba.DG          Han.DG            Han.DG          Han.DG       0.874017
+      Yoruba.DG          Han.DG            Han.DG       Chimp.REF       0.378239
+      Yoruba.DG          Han.DG         Chimp.REF       Chimp.REF       0.050153
+      Yoruba.DG       Chimp.REF         Yoruba.DG       Chimp.REF       0.385660
+      Yoruba.DG       Chimp.REF         French.DG       French.DG       0.289874
+      Yoruba.DG       Chimp.REF         French.DG          Han.DG       0.291544
+      Yoruba.DG       Chimp.REF         French.DG       Chimp.REF       0.363177
+      Yoruba.DG       Chimp.REF            Han.DG          Han.DG       0.316938
+      Yoruba.DG       Chimp.REF            Han.DG       Chimp.REF       0.367767
+      Yoruba.DG       Chimp.REF         Chimp.REF       Chimp.REF       0.137154
+      French.DG       French.DG         French.DG       French.DG       2.205430
+      French.DG       French.DG         French.DG          Han.DG       1.975201
+      French.DG       French.DG         French.DG       Chimp.REF       0.378264
+      French.DG       French.DG            Han.DG          Han.DG       1.828619
+      French.DG       French.DG            Han.DG       Chimp.REF       0.383102
+      French.DG       French.DG         Chimp.REF       Chimp.REF       0.086952
+      French.DG          Han.DG         French.DG          Han.DG       2.327455
+      French.DG          Han.DG         French.DG       Chimp.REF       0.371643
+      French.DG          Han.DG            Han.DG          Han.DG       2.362630
+      French.DG          Han.DG            Han.DG       Chimp.REF       0.415036
+      French.DG          Han.DG         Chimp.REF       Chimp.REF       0.093070
+      French.DG       Chimp.REF         French.DG       Chimp.REF       0.612306
+      French.DG       Chimp.REF            Han.DG          Han.DG       0.415058
+      French.DG       Chimp.REF            Han.DG       Chimp.REF       0.553488
+      French.DG       Chimp.REF         Chimp.REF       Chimp.REF       0.159591
+         Han.DG          Han.DG            Han.DG          Han.DG       3.212439
+         Han.DG          Han.DG            Han.DG       Chimp.REF       0.497416
+         Han.DG          Han.DG         Chimp.REF       Chimp.REF       0.126480
+         Han.DG       Chimp.REF            Han.DG       Chimp.REF       0.688229
+         Han.DG       Chimp.REF         Chimp.REF       Chimp.REF       0.153210
+      Chimp.REF       Chimp.REF         Chimp.REF       Chimp.REF   100000000.395671

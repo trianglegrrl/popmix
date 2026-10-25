@@ -796,6 +796,26 @@ admixtools2's `f2_from_geno(inds, pops)` without it, at the tolerances
 above. `tests/python/test_extract_f2_formats.py` checks `extract_f2(inds,
 pops)` itself.
 
+`tests/golden/test_f2_dirs_admixtools2.py` checks admixtools2 f2
+directories: popmix reads admixtools2 `extract_f2()`'s directory of dg_6pop
+(`f2_dir`, `generate_f2_dir.R`) to admixtools2's f2 blocks exactly, which
+match popmix's own (rtol 1e-10, SNP counts exact), and, with `--run-slow`,
+admixtools2's `f2_from_precomp()` reads the directory popmix writes to the
+same values exactly. `tests/python/test_rds.py` checks the R serialization
+underneath.
+
+`tests/golden/test_dot_admixtools2.py` checks `write_dot` against
+admixtools2's text (`dot.json`, `generate_dot.R`) for the dg_6pop qpgraph
+fits and bare graphs: identical with `compat="admixtools2-2.0.10"`; popmix's
+own output, and admixtools2's, parse back to the graph's edges.
+
+`tests/golden/test_classic_parsers.py` checks the parsers of classic
+ADMIXTOOLS output against admixtools2's on the output of ADMIXTOOLS 7.0.2
+qpDstat, qp3Pop, qpAdm, qpF4ratio, qpGraph and qpfstats
+(`tests/golden/admixtools_classic/`: `build_classic.sh`,
+`generate_classic.py`; dg_6pop populations of AADR v62): the same tables,
+values as read exactly and derived columns within 1e-12.
+
 ### f4-, D- and f3-statistic scans vs admixtools2 2.0.10
 
 `tests/golden/test_dstat_admixtools2.py` checks `qpdstat` and `qp3pop` given

@@ -307,6 +307,94 @@ impl F2Blocks {
     }
 
     /// Get the number of populations.
+    /// F2 blocks from each pair's per-block f2 mean and SNP count, as
+    /// admixtools2 stores them (`f2_blocks` and its counts). `means[i][j]`
+    /// and `counts[i][j]` hold the blocks of pair (i, j); only i <= j is
+    /// read. Without the SNPs, there is nothing for FST: its sums are NaN.
+    pub fn from_block_means(
+        populations: Vec<PopulationId>,
+        block_lengths: Vec<usize>,
+        means: &[Vec<Vec<f64>>],
+        counts: &[Vec<Vec<f64>>],
+    ) -> crate::Result<F2Blocks> {
+        let n = populations.len();
+        let nb = block_lengths.len();
+        let shape_ok = |a: &[Vec<Vec<f64>>]| {
+            a.len() == n
+                && a.iter()
+                    .all(|r| r.len() == n && r.iter().all(|b| b.len() == nb))
+        };
+        if !shape_ok(means) || !shape_ok(counts) {
+            return Err(crate::PopmixError::Validation(format!(
+                "from_block_means: means and counts must be {n} x {n} x {nb}"
+            )));
+        }
+        let n_pairs = n * (n + 1) / 2;
+        let mut sums = Array2::zeros((nb, n_pairs));
+        let mut weights = Array2::zeros((nb, n_pairs));
+        let mut pair = 0;
+        for i in 0..n {
+            for j in i..n {
+                for b in 0..nb {
+                    weights[[b, pair]] = counts[i][j][b];
+                    sums[[b, pair]] = means[i][j][b] * counts[i][j][b];
+                }
+                pair += 1;
+            }
+        }
+        Ok(F2Blocks {
+            block_sums: sums,
+            block_raw_sums: Array2::from_elem((nb, n_pairs), f64::NAN),
+            block_weights: weights,
+            block_het_sums: Array2::from_elem((nb, n), f64::NAN),
+            block_het_weights: Array2::zeros((nb, n)),
+            populations,
+            n_blocks: nb,
+            block_lengths,
+            fst: None,
+        })
+    }
+
+    /// These populations only, in this order (admixtools2
+    /// `extract_f2_subset`); everything else, FST included, is kept.
+    pub fn subset_populations(&self, pops: &[&str]) -> crate::Result<F2Blocks> {
+        let idx: Vec<usize> = pops
+            .iter()
+            .map(|p| {
+                self.pop_index(p).ok_or_else(|| {
+                    crate::PopmixError::Validation(format!(
+                        "population {p:?} is not in the f2 blocks"
+                    ))
+                })
+            })
+            .collect::<crate::Result<_>>()?;
+        let pairs: Vec<usize> = (0..idx.len())
+            .flat_map(|a| (a..idx.len()).map(move |b| (a, b)))
+            .map(|(a, b)| self.pair_index(idx[a], idx[b]))
+            .collect();
+        Ok(F2Blocks {
+            block_sums: self.block_sums.select(Axis(1), &pairs),
+            block_raw_sums: self.block_raw_sums.select(Axis(1), &pairs),
+            block_weights: self.block_weights.select(Axis(1), &pairs),
+            block_het_sums: self.block_het_sums.select(Axis(1), &idx),
+            block_het_weights: self.block_het_weights.select(Axis(1), &idx),
+            populations: idx.iter().map(|&i| self.populations[i].clone()).collect(),
+            n_blocks: self.n_blocks,
+            block_lengths: self.block_lengths.clone(),
+            fst: self.fst.as_ref().map(|f| FstBlocks {
+                block_lengths: f.block_lengths.clone(),
+                num: f.num.select(Axis(1), &pairs),
+                den: f.den.select(Axis(1), &pairs),
+            }),
+        })
+    }
+
+    /// SNPs with data for both populations in each block.
+    pub fn block_counts(&self, pop_a: &str, pop_b: &str) -> Option<Vec<f64>> {
+        let (i, j) = (self.pop_index(pop_a)?, self.pop_index(pop_b)?);
+        Some(self.block_weights.column(self.pair_index(i, j)).to_vec())
+    }
+
     /// These blocks in this order, repeats allowed, as admixtools2
     /// `f2_blocks[, , blocks]` (its bootstrap and leave-out resamplings).
     /// FST blocks, on their own SNP set, are not carried over.
@@ -800,6 +888,62 @@ mod tests {
         let (got_est, got_se, _) = f2.f2("PopA", "PopB").unwrap();
         assert_relative_eq!(got_est, est, max_relative = 1e-12);
         assert_relative_eq!(got_se, var.sqrt(), max_relative = 1e-12);
+    }
+
+    #[test]
+    fn test_from_block_means_round_trips_the_block_values() {
+        let af = make_test_data();
+        let f2 = F2Blocks::from_allele_frequencies(&af, &BlockDefinition::new(0.005));
+        let names: Vec<String> = f2.populations.iter().map(|p| p.to_string()).collect();
+        let grid = |f: &dyn Fn(&str, &str) -> Vec<f64>| -> Vec<Vec<Vec<f64>>> {
+            names
+                .iter()
+                .map(|a| names.iter().map(|b| f(a, b)).collect())
+                .collect()
+        };
+        let means = grid(&|a, b| f2.get_block_f2_values(a, b).unwrap().to_vec());
+        let counts = grid(&|a, b| f2.block_counts(a, b).unwrap());
+        let back = F2Blocks::from_block_means(
+            f2.populations.clone(),
+            f2.block_lengths.clone(),
+            &means,
+            &counts,
+        )
+        .unwrap();
+        assert_eq!(back.block_weights, f2.block_weights);
+        for a in &names {
+            for b in &names {
+                let (x, y) = (
+                    back.get_block_f2_values(a, b).unwrap(),
+                    f2.get_block_f2_values(a, b).unwrap(),
+                );
+                for (u, v) in x.iter().zip(y.iter()) {
+                    assert!(
+                        (u - v).abs() <= 1e-15 * v.abs() || (u.is_nan() && v.is_nan()),
+                        "{a} {b}"
+                    );
+                }
+            }
+        }
+        assert_eq!(back.f2("PopA", "PopB"), f2.f2("PopA", "PopB"));
+        assert!(
+            F2Blocks::from_block_means(f2.populations.clone(), vec![1], &means, &counts).is_err()
+        );
+    }
+
+    #[test]
+    fn test_subset_populations_keeps_their_statistics() {
+        let af = make_test_data();
+        let f2 = F2Blocks::from_allele_frequencies(&af, &BlockDefinition::new(0.005));
+        let sub = f2.subset_populations(&["PopC", "PopA"]).unwrap();
+        assert_eq!(sub.n_populations(), 2);
+        assert_eq!(sub.f2("PopA", "PopC"), f2.f2("PopA", "PopC"));
+        assert_eq!(
+            sub.get_block_f2_values("PopC", "PopC"),
+            f2.get_block_f2_values("PopC", "PopC")
+        );
+        assert_eq!(sub.block_het_sums.column(0), f2.block_het_sums.column(2));
+        assert!(f2.subset_populations(&["PopZ"]).is_err());
     }
 
     #[test]
