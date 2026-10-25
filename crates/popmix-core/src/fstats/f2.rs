@@ -62,8 +62,9 @@ pub fn f2_single_snp(
     let diff = pa - pb;
     let raw_f2 = diff * diff;
 
-    // Bias correction for sampling variance
-    // This ensures f2(A,A) = 0
+    // Bias correction for sampling variance (it does not make f2(A, A) zero:
+    // that is -2 p(1 - p)/(n - 1), so callers treat a population with
+    // itself as 0, F2Blocks::block_mean)
     let bias_a = pa * (1.0 - pa) / denom_a;
     let bias_b = pb * (1.0 - pb) / denom_b;
 

@@ -67,22 +67,11 @@ impl F2Blocks {
         let idx_b = self.pop_index(pop_b)?;
         let idx_c = self.pop_index(pop_c)?;
 
-        let pair_ab = self.pair_index(idx_a, idx_b);
-        let pair_ac = self.pair_index(idx_a, idx_c);
-        let pair_bc = self.pair_index(idx_b, idx_c);
-
         // f3 for each block; NA where a pair has no SNPs in the block
         let block_f3: Vec<f64> = (0..self.n_blocks)
-            .map(|block_idx| {
-                let mean = |pair: usize| {
-                    let weight = self.block_weights[[block_idx, pair]];
-                    if weight > 0.0 {
-                        self.block_sums[[block_idx, pair]] / weight
-                    } else {
-                        f64::NAN
-                    }
-                };
-                (mean(pair_ab) + mean(pair_ac) - mean(pair_bc)) / 2.0
+            .map(|block| {
+                let mean = |i, j| self.block_mean(block, i, j);
+                (mean(idx_a, idx_b) + mean(idx_a, idx_c) - mean(idx_b, idx_c)) / 2.0
             })
             .collect();
 
@@ -118,23 +107,12 @@ impl F2Blocks {
         let idx_c = self.pop_index(pop_c)?;
         let idx_d = self.pop_index(pop_d)?;
 
-        let pair_ad = self.pair_index(idx_a, idx_d);
-        let pair_bc = self.pair_index(idx_b, idx_c);
-        let pair_ac = self.pair_index(idx_a, idx_c);
-        let pair_bd = self.pair_index(idx_b, idx_d);
-
         // f4 for each block; NA where a pair has no SNPs in the block
         let block_f4: Vec<f64> = (0..self.n_blocks)
-            .map(|block_idx| {
-                let mean = |pair: usize| {
-                    let weight = self.block_weights[[block_idx, pair]];
-                    if weight > 0.0 {
-                        self.block_sums[[block_idx, pair]] / weight
-                    } else {
-                        f64::NAN
-                    }
-                };
-                (mean(pair_ad) + mean(pair_bc) - mean(pair_ac) - mean(pair_bd)) / 2.0
+            .map(|block| {
+                let mean = |i, j| self.block_mean(block, i, j);
+                (mean(idx_a, idx_d) + mean(idx_b, idx_c) - mean(idx_a, idx_c) - mean(idx_b, idx_d))
+                    / 2.0
             })
             .collect();
 
@@ -446,6 +424,32 @@ mod tests {
 
         let geno = GenotypeMatrix::new(data, samples, snps).unwrap();
         AlleleFrequencies::from_genotypes(&geno)
+    }
+
+    #[test]
+    fn a_population_has_no_f2_with_itself() {
+        // admixtools2 sets the f2 of a population with itself to 0, so
+        // f3(A; A, B) = 0, f3(A; B, B) = f2(A, B), f4(A, B; A, C) = f3(A; B, C)
+        // and f4(A, B; A, B) = f2(A, B)
+        let af = make_test_data_4pops();
+        let f2 = F2Blocks::from_allele_frequencies(&af, &BlockDefinition::default());
+        let close = |a: f64, b: f64| (a - b).abs() <= 1e-12 * b.abs().max(1e-12);
+        assert_eq!(f2.f3("PopA", "PopA", "PopB").unwrap().estimate, 0.0);
+        assert_eq!(f2.f3("PopA", "PopB", "PopA").unwrap().estimate, 0.0);
+        let f2_ab = f2.f2("PopA", "PopB").unwrap().0;
+        assert!(close(
+            f2.f3("PopA", "PopB", "PopB").unwrap().estimate,
+            f2_ab
+        ));
+        let f3 = f2.f3("PopA", "PopB", "PopC").unwrap().estimate;
+        assert!(close(
+            f2.f4("PopA", "PopB", "PopA", "PopC").unwrap().estimate,
+            f3
+        ));
+        assert!(close(
+            f2.f4("PopA", "PopB", "PopA", "PopB").unwrap().estimate,
+            f2_ab
+        ));
     }
 
     #[test]

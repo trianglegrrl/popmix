@@ -450,6 +450,24 @@ impl F2Blocks {
         i * n - i * (i + 1) / 2 + j
     }
 
+    /// The f2 of populations `i` and `j` (indices) in one block: the block's
+    /// mean, NaN where the pair has no SNPs in it, and 0 for a population
+    /// with itself, as admixtools2 sets the diagonal of its f2 blocks. (The
+    /// stored self-pair holds the bias correction alone, not an f2.)
+    #[inline]
+    pub fn block_mean(&self, block: usize, i: usize, j: usize) -> f64 {
+        if i == j {
+            return 0.0;
+        }
+        let pair = self.pair_index(i, j);
+        let weight = self.block_weights[[block, pair]];
+        if weight > 0.0 {
+            self.block_sums[[block, pair]] / weight
+        } else {
+            f64::NAN
+        }
+    }
+
     /// Get f2 estimate between two populations.
     ///
     /// Returns (estimate, std_err, n_snps).

@@ -1,0 +1,89 @@
+{
+  "admixtools_version": "2.0.10",
+  "f3": [
+    {
+      "pop1": "French",
+      "pop2": "French",
+      "pop3": "Yoruba",
+      "est": "0",
+      "se": "0"
+    },
+    {
+      "pop1": "French",
+      "pop2": "Yoruba",
+      "pop3": "French",
+      "est": "0",
+      "se": "0"
+    },
+    {
+      "pop1": "Yoruba",
+      "pop2": "French",
+      "pop3": "French",
+      "est": "0.056756586740829458",
+      "se": "0.0016056476169543845"
+    },
+    {
+      "pop1": "Simulation.1",
+      "pop2": "Simulation.1",
+      "pop3": "French",
+      "est": "0",
+      "se": "0"
+    },
+    {
+      "pop1": "French",
+      "pop2": "Yoruba",
+      "pop3": "Yoruba",
+      "est": "0.056756586740829458",
+      "se": "0.0016056476169543845"
+    },
+    {
+      "pop1": "French",
+      "pop2": "Yoruba",
+      "pop3": "Simulation",
+      "est": "0.043700855875724781",
+      "se": "0.0025481606185709018"
+    }
+  ],
+  "f4": [
+    {
+      "pop1": "French",
+      "pop2": "Yoruba",
+      "pop3": "French",
+      "pop4": "Simulation",
+      "est": "0.043700855875724781",
+      "se": "0.0025481606185709018"
+    },
+    {
+      "pop1": "French",
+      "pop2": "Yoruba",
+      "pop3": "Simulation",
+      "pop4": "French",
+      "est": "-0.043700855875724781",
+      "se": "0.0025481606185709001"
+    },
+    {
+      "pop1": "French",
+      "pop2": "French",
+      "pop3": "Yoruba",
+      "pop4": "Simulation",
+      "est": "-2.8043229487143945e-19",
+      "se": "2.2465276704218952e-17"
+    },
+    {
+      "pop1": "French",
+      "pop2": "Yoruba",
+      "pop3": "French",
+      "pop4": "Yoruba",
+      "est": "0.056756586740829458",
+      "se": "0.0016056476169543845"
+    },
+    {
+      "pop1": "Simulation",
+      "pop2": "French",
+      "pop3": "Yoruba",
+      "pop4": "Simulation.1",
+      "est": "0.0091051984660944166",
+      "se": "0.0012416094012883878"
+    }
+  ]
+}
