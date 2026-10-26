@@ -52,3 +52,21 @@ def test_sample_series_is_one_population(tmp_path, monkeypatch):
     labels = [line.split()[2] for line in written["ind"].splitlines()]
     assert labels.count(scaling.PRESENT_DAY_LABEL) == 3
     assert set(labels) == {scaling.PRESENT_DAY_LABEL, "Ignore"}
+
+
+def test_numpy_agreement_values_are_written_as_json(tmp_path, monkeypatch):
+    """An agreement check may return numpy scalars (KING's pass is np.bool_)."""
+    import json
+
+    import numpy as np
+
+    point = scaling.Point(curve="samples", x=1, analysis="kinship", prepare=lambda: tmp_path, popmix=None,
+                          ref=None, agree=None)
+    monkeypatch.setattr(scaling, "points", lambda: [point])
+    monkeypatch.setattr(scaling, "run_point", lambda p, t, r: {"agreement": {"pass": np.bool_(True), "x": np.float64(1)}})
+    monkeypatch.setattr(scaling, "machine", lambda: {})
+    monkeypatch.setattr(scaling, "versions", lambda: {})
+    out = tmp_path / "out.json"
+    monkeypatch.setattr("sys.argv", ["scaling.py", "--curves", "samples", "--out", str(out)])
+    scaling.main()
+    assert json.loads(out.read_text())["curves"]["samples"][point.key]["agreement"]["pass"] is True

@@ -52,7 +52,7 @@ from cases import (
     subset,
 )
 from harness import machine, measure  # noqa: E402
-from run import versions  # noqa: E402
+from run import _plain, versions  # noqa: E402
 
 SCALING = CACHE / "scaling"
 ANNO = AADR.parent / "v66.p1_1240K.aadr.PUB.anno"
@@ -287,7 +287,7 @@ def main() -> None:
         print(f"{p.curve}: {p.key}", flush=True)
         done[p.key] = run_point(p, args.threads, args.repeats)
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(json.dumps(report, indent=1) + "\n")
+        out.write_text(json.dumps(report, indent=1, default=_plain) + "\n")
     print(f"wrote {out}")
 
 
