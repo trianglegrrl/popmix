@@ -103,7 +103,12 @@ impl GenotypeMatrix {
             .collect()
     }
 
-    /// Get raw genotype row as u8 slice (0, 1, 2, 3=missing).
+    /// Every genotype code (SNPs x samples; 0, 1, 2; 3 missing).
+    pub fn data(&self) -> ndarray::ArrayView2<'_, u8> {
+        self.data.view()
+    }
+
+    /// Get raw genotype codes for a SNP (0, 1, 2; 3 missing).
     pub fn snp_raw(&self, snp_idx: usize) -> ArrayView1<'_, u8> {
         self.data.row(snp_idx)
     }

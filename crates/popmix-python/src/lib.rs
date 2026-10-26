@@ -278,20 +278,8 @@ impl PyGenotypeMatrix {
     ///     - 2 = Homozygous alternate
     ///     - 3 = Missing
     fn to_numpy<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<u8>> {
-        // Get the shape
-        let n_snps = self.inner.n_snps();
-        let n_samples = self.inner.n_samples();
-
-        // Create a contiguous array
-        let mut arr = Vec::with_capacity(n_snps * n_samples);
-        for snp_idx in 0..n_snps {
-            arr.extend(self.inner.snp_raw(snp_idx).iter());
-        }
-
-        // Convert to numpy 2D array
-        let array =
-            ndarray::Array2::from_shape_vec((n_snps, n_samples), arr).expect("shape mismatch");
-        array.into_pyarray_bound(py)
+        // one copy of the contiguous matrix
+        PyArray2::from_array_bound(py, &self.inner.data())
     }
 
     /// Compute allele frequencies per population.
