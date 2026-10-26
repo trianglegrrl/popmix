@@ -302,7 +302,7 @@ def populations(prefix: str, pattern: str | None, output_format: str):
 @click.option("--input", "-i", "input_prefix", required=True, help="Input genotype file prefix")
 @click.option("--output", "-o", "output_dir", required=True, help="Output directory for F2 blocks")
 @click.option("--snp-range", callback=parse_snp_range,
-              help="Only SNPs start:end, by index (computed outside admixtools2's extract_f2 pipeline)")
+              help="Only SNPs start:end, by index (computed outside admixtools2's extract_f2 pipeline; not with --maxmiss or --pseudohaploid)")
 @click.option("--block-size", type=float, default=0.05, help="Block size in Morgans (default: 0.05)")
 @click.option("--populations", callback=parse_population_list,
               help="Comma-separated list of populations to include (default: all)")
@@ -335,10 +335,23 @@ def extract_f2(input_prefix: str, output_dir: str, snp_range: tuple[int, int] | 
             )
             click.echo(f"Computed {f2_blocks.n_blocks} blocks for {f2_blocks.n_populations} populations")
         else:
-            # A SNP index range needs the genotypes in memory
+            # A SNP index range needs the genotypes in memory, a path without
+            # the missingness filter or a choice of ploidy rule
+            for flag, unset in [("--maxmiss", maxmiss == 0), ("--pseudohaploid", _pseudohaploid() == "detect")]:
+                if not unset:
+                    raise click.UsageError(f"{flag} does not apply with --snp-range")
             click.echo(f"Reading genotypes from {input_prefix}...")
             geno = pm.read_genotypes(input_prefix, snp_range=snp_range)
             click.echo(f"Loaded {geno.n_snps} SNPs x {geno.n_samples} samples")
+            if auto_only:
+                other = sum(not (s.chromosome.isdigit() and 1 <= int(s.chromosome) <= 22) for s in geno.snps)
+                if other:
+                    raise click.UsageError(f"the SNP range holds {other} non-autosomal SNPs: narrow it, or "
+                                           "pass --all-chromosomes to use them")
+            if populations:
+                validate_populations(input_prefix, populations)
+            else:
+                populations = geno.populations
 
             click.echo("Computing allele frequencies...")
             af = geno.allele_frequencies(populations=populations)

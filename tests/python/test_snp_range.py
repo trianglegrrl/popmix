@@ -38,3 +38,47 @@ def test_in_range(prefixes, fmt):
     reader, prefix = prefixes[fmt]
     n = reader(prefix).n_snps
     assert reader(prefix, (1, n)).n_snps == n - 1
+
+
+def _write_eigenstrat(prefix, chroms):
+    """Two populations of two samples, one SNP per chromosome given, 1 cM apart."""
+    with open(f"{prefix}.ind", "w") as f:
+        f.writelines(f"S{i} U {pop}\n" for i, pop in enumerate(["PopA", "PopA", "PopB", "PopB"]))
+    with open(f"{prefix}.snp", "w") as f:
+        f.writelines(f"rs{i} {c} {i / 100} {i * 1000 + 1} A G\n" for i, c in enumerate(chroms))
+    rows = ["0122", "2101", "1020", "0211", "2012", "1102"]
+    with open(f"{prefix}.geno", "w") as f:
+        f.writelines(f"{rows[i % len(rows)]}\n" for i in range(len(chroms)))
+
+
+def _extract(prefix, out, *args):
+    return subprocess.run(["popmix", "extract-f2", "-i", prefix, "-o", str(out), *args],
+                          capture_output=True, text=True)
+
+
+def test_extract_f2_snp_range_takes_every_population_by_default(tmp_path):
+    prefix = str(tmp_path / "d")
+    _write_eigenstrat(prefix, ["1"] * 6)
+    r = _extract(prefix, tmp_path / "f2", "--snp-range", "0:6")
+    assert r.returncode == 0, r.stderr
+    assert pm.read_f2(str(tmp_path / "f2")).populations == ["PopA", "PopB"]
+
+
+@pytest.mark.parametrize("args", [["--maxmiss", "0.5"], ["--pseudohaploid", "admixtools2"]])
+def test_extract_f2_snp_range_refuses_options_it_cannot_apply(tmp_path, args):
+    prefix = str(tmp_path / "d")
+    _write_eigenstrat(prefix, ["1"] * 6)
+    r = _extract(prefix, tmp_path / "f2", "--snp-range", "0:6", *args)
+    assert r.returncode != 0
+    assert args[0] in r.stderr
+    assert not (tmp_path / "f2").exists()
+
+
+def test_extract_f2_snp_range_refuses_non_autosomal_snps_unless_asked(tmp_path):
+    prefix = str(tmp_path / "d")
+    _write_eigenstrat(prefix, ["1", "1", "1", "1", "23", "23"])
+    r = _extract(prefix, tmp_path / "f2", "--snp-range", "0:6")
+    assert r.returncode != 0
+    assert "--all-chromosomes" in r.stderr
+    assert _extract(prefix, tmp_path / "f2", "--snp-range", "0:4").returncode == 0
+    assert _extract(prefix, tmp_path / "f2x", "--snp-range", "0:6", "--all-chromosomes").returncode == 0

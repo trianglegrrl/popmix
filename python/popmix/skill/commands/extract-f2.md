@@ -26,7 +26,7 @@ popmix extract-f2 --input PREFIX --output DIR [--populations A,B,...]
 | `--maxmiss` | number (0 to 1) | 0 | Keep SNPs missing in at most this fraction of the populations (admixtools2 `maxmiss`). 0 keeps only SNPs with data in every population; raise it for ancient populations with low coverage. |
 | `--auto-only` / `--all-chromosomes` | flag | `--auto-only` | Use autosomes 1-22 only (default), or every chromosome. |
 | `--pseudohaploid` | `detect`, `admixtools2`, `diploid` | `detect` | Which samples count one allele per SNP. `detect`: samples with no heterozygous call at any SNP; `admixtools2`: none among the first 1,000 SNPs, as admixtools2, which also catches some diploid genomes (ADMIXTOOLS2-0007); `diploid`: none. |
-| `--snp-range` | text (`start:end`) | none (all SNPs) | Only SNPs with index start to end-1 (0-based, half-open), read into memory and computed outside the admixtools2 pipeline: `--maxmiss`, `--auto-only` and `--pseudohaploid` do not apply. For tests and quick looks, not for analyses. |
+| `--snp-range` | text (`start:end`) | none (all SNPs) | Only SNPs with index start to end-1 (0-based, half-open), read into memory and computed outside the admixtools2 pipeline. Refuses `--maxmiss` and `--pseudohaploid`, and a range holding non-autosomal SNPs unless `--all-chromosomes`. For tests and quick looks, not for analyses. |
 
 ## Inputs and outputs
 
@@ -81,8 +81,6 @@ blocks (under about 20) make standard errors unreliable.
   1,000 calls are homozygous.
 - PLINK X, Y, XY and MT chromosomes are read (admixtools2 stops on them,
   [ADMIXTOOLS2-0006](https://github.com/trianglegrrl/popmix/blob/main/DEVIATIONS.md#admixtools2-0006-plink-chromosome-codes-x-and-y-stop-f2_from_geno)).
-- With `--snp-range` and no `--populations`, no population is used and an
-  empty directory is written; give `--populations`.
 - The directory is popmix's format. The Python API reads and writes
   admixtools2 f2 directories (`pm.read_admixtools2_f2`,
   `pm.write_admixtools2_f2`).
