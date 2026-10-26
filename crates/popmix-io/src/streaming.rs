@@ -8,7 +8,9 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 
-use ndarray::Array2;
+use memmap2::Mmap;
+use ndarray::{Array2, Axis};
+use rayon::prelude::*;
 
 use popmix_core::{AlleleFrequencies, Ploidy, PopmixError, PopulationId, Result, Sample, Snp};
 
@@ -54,8 +56,8 @@ fn record_length(geno_path: &str, n_samples: usize, n_snps: usize) -> Result<usi
 
 /// Compute allele frequencies by streaming through a PACKEDANCESTRYMAP file.
 ///
-/// This reads the file SNP by SNP and computes allele frequencies without
-/// ever loading the full genotype matrix. This matches admixtools2's approach.
+/// This maps the file and computes each SNP's allele frequencies, the SNPs in
+/// parallel, without loading the full genotype matrix. This matches admixtools2's approach.
 ///
 /// # Arguments
 /// * `geno_path` - Path to the .geno file
@@ -110,91 +112,49 @@ pub fn compute_allele_frequencies_packedancestrymap(
     }
 
     let bytes_per_snp = record_length(geno_path, n_samples, n_snps_total)?;
-
-    // Open file
-    let mut file = File::open(geno_path).map_err(|e| PopmixError::io_with_path(e, geno_path))?;
-
-    // Verify magic number
-    let mut magic = [0u8; 4];
-    file.read_exact(&mut magic)
-        .map_err(|e| PopmixError::io_with_path(e, geno_path))?;
-    if &magic != b"GENO" {
+    let file = File::open(geno_path).map_err(|e| PopmixError::io_with_path(e, geno_path))?;
+    // SAFETY: the map is only read; like every reader of these files,
+    // popmix assumes no other process truncates the file while it is open.
+    let mmap = unsafe { Mmap::map(&file) }.map_err(|e| PopmixError::io_with_path(e, geno_path))?;
+    if mmap.len() < 4 || &mmap[..4] != b"GENO" {
         return Err(PopmixError::InvalidFileFormat {
             file: geno_path.to_string(),
             details: "Expected PACKEDANCESTRYMAP format".to_string(),
         });
     }
+    // record_length checked that the file holds the header and every SNP
+    let records = &mmap[bytes_per_snp..];
 
-    // Seek past header (first row)
-    file.seek(SeekFrom::Start(bytes_per_snp as u64))
-        .map_err(|e| PopmixError::io_with_path(e, geno_path))?;
-
-    // Initialize output arrays (only for filtered SNPs)
+    // Each SNP's frequencies on their own, the SNPs in parallel
     let mut frequencies = Array2::from_elem((n_snps_filtered, n_pops), f64::NAN);
     let mut counts = Array2::zeros((n_snps_filtered, n_pops));
-
-    // Buffer for one SNP's worth of data
-    let mut snp_buffer = vec![0u8; bytes_per_snp];
-
-    // Track which filtered SNP we're on
-    let mut filtered_idx = 0;
-    let mut next_snp_to_process = if snp_indices.is_empty() {
-        usize::MAX
-    } else {
-        snp_indices[0]
-    };
-
-    // Process SNPs one at a time
-    for file_snp_idx in 0..n_snps_total {
-        // Read this SNP's data
-        file.read_exact(&mut snp_buffer)
-            .map_err(|e| PopmixError::io_with_path(e, geno_path))?;
-
-        // Skip if this SNP is not in our filtered set
-        if file_snp_idx != next_snp_to_process {
-            continue;
-        }
-
-        // Compute allele frequencies for each population
-        for (col_idx, sample_info) in pop_sample_info.iter().enumerate() {
-            if sample_info.is_empty() {
-                continue;
-            }
-
-            let mut alt_alleles: f64 = 0.0;
-            let mut observed_alleles: f64 = 0.0;
-
-            for &(sample_idx, ploidy) in sample_info {
-                let byte_idx = sample_idx / 4;
-                let pos_in_byte = sample_idx % 4;
-                let geno_bits = decode_packed_byte(snp_buffer[byte_idx])[pos_in_byte];
-
-                // geno_bits: 00=HomRef(0), 01=Het(1), 10=HomAlt(2), 11=Missing
-                if geno_bits != 3 {
-                    // Not missing
-                    let geno_val = geno_bits as f64;
-                    // admixtools2 formula: alt_alleles += val / (3.0 - ploidy)
-                    // For diploid (ploidy=2): val / 1.0 = val
-                    // For pseudohaploid (ploidy=1): val / 2.0 (so het=1 becomes 0.5)
-                    alt_alleles += geno_val / (3.0 - ploidy as f64);
-                    observed_alleles += ploidy as f64;
+    frequencies
+        .axis_iter_mut(Axis(0))
+        .into_par_iter()
+        .zip(counts.axis_iter_mut(Axis(0)))
+        .zip(&snp_indices)
+        .for_each(|((mut freq, mut count), &snp)| {
+            let record = &records[snp * bytes_per_snp..(snp + 1) * bytes_per_snp];
+            for (col, sample_info) in pop_sample_info.iter().enumerate() {
+                // admixtools2 adds genotype / (3 - ploidy) alleles over ploidy
+                // observed: a pseudo-haploid het counts half. Twice that is an
+                // integer, and every sum is exact, so counting in integers
+                // gives the same frequencies.
+                let (mut twice_alt, mut observed) = (0u64, 0u64);
+                for &(sample_idx, ploidy) in sample_info {
+                    let g = (record[sample_idx / 4] >> (6 - 2 * (sample_idx % 4))) & 0b11;
+                    // 00=HomRef(0), 01=Het(1), 10=HomAlt(2), 11=Missing;
+                    // without a branch, as missing calls are common
+                    let called = (g != 3) as u64 * ploidy as u64;
+                    twice_alt += g as u64 * called;
+                    observed += called;
+                }
+                if observed > 0 {
+                    freq[col] = twice_alt as f64 / 2.0 / observed as f64;
+                    count[col] = observed as u32;
                 }
             }
-
-            if observed_alleles > 0.0 {
-                frequencies[[filtered_idx, col_idx]] = alt_alleles / observed_alleles;
-                counts[[filtered_idx, col_idx]] = observed_alleles as u32;
-            }
-        }
-
-        // Move to next filtered SNP
-        filtered_idx += 1;
-        next_snp_to_process = if filtered_idx < snp_indices.len() {
-            snp_indices[filtered_idx]
-        } else {
-            usize::MAX
-        };
-    }
+        });
 
     // Create population IDs
     let population_ids: Vec<PopulationId> =
@@ -414,6 +374,38 @@ mod tests {
                     "{pop} SNP {snp}: {a} != {b}"
                 );
             }
+        }
+    }
+
+    #[test]
+    fn frequencies_do_not_depend_on_the_thread_count() {
+        let geno_path = format!("{SMALL}.geno");
+        let mut samples = read_ind_file(&format!("{SMALL}.ind")).unwrap();
+        let snps = read_snp_file(&format!("{SMALL}.snp")).unwrap();
+        detect_ploidy_packedancestrymap(&geno_path, &mut samples, 1000, snps.len()).unwrap();
+        let pops = ["Yoruba", "French", "Han"];
+        let run = |threads: usize| {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap()
+                .install(|| {
+                    compute_allele_frequencies_packedancestrymap(
+                        &geno_path, &samples, &snps, &pops, true,
+                    )
+                    .unwrap()
+                })
+        };
+        let one = run(1);
+        for threads in [2, 7] {
+            let many = run(threads);
+            assert_eq!(one.snps.len(), many.snps.len());
+            assert_eq!(one.counts, many.counts);
+            assert!(one
+                .frequencies
+                .iter()
+                .zip(&many.frequencies)
+                .all(|(a, b)| a.to_bits() == b.to_bits()));
         }
     }
 

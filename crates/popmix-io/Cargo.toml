@@ -10,6 +10,7 @@ description = "File format I/O for population genetics data (PLINK, EIGENSTRAT, 
 popmix-core = { path = "../popmix-core" }
 ndarray = { workspace = true }
 memmap2 = { workspace = true }
+rayon = { workspace = true }
 byteorder = { workspace = true }
 flate2 = { workspace = true }
 thiserror = { workspace = true }
