@@ -8,11 +8,10 @@
 //! - Block weights (number of valid SNPs per block per pair)
 //! - Population names and indices
 
-use ndarray::{Array2, Axis};
+use ndarray::{linalg::general_mat_mul, Array2, Axis, ShapeBuilder};
 use rayon::prelude::*;
 
 use crate::fstats::blocks::BlockDefinition;
-use crate::fstats::f2::f2_single_snp;
 use crate::fstats::jackknife::block_jackknife;
 use crate::genotype_matrix::AlleleFrequencies;
 use crate::genotypes::PopulationId;
@@ -95,36 +94,7 @@ impl FstBlocks {
 
         let blocks: Vec<(Vec<f64>, Vec<f64>)> = (0..assignment.n_blocks)
             .into_par_iter()
-            .map(|b| {
-                let mut num = vec![0.0; n_pairs];
-                let mut den = vec![0.0; n_pairs];
-                let mut cnt = vec![0.0; n_pairs];
-                for &snp in &keep[assignment.block_range(b)] {
-                    let p = af.frequencies.row(snp);
-                    let n = af.counts.row(snp);
-                    let mut pair = 0;
-                    for i in 0..n_pops {
-                        for j in i..n_pops {
-                            let (p1, p2) = (p[i], p[j]);
-                            let (n1, n2) = (n[i] as f64, n[j] as f64);
-                            let (h1, h2) = (p1 * (1.0 - p1), p2 * (1.0 - p2));
-                            let nm = (p1 - p2).powi(2) - h1 / (n1 - 1.0) - h2 / (n2 - 1.0);
-                            let dn = nm + h1 * n1 / (n1 - 1.0) + h2 * n2 / (n2 - 1.0);
-                            // R's na.rm drops NaN (0/0 at one allele); a missing
-                            // population (count 0) never reaches here (maxmiss)
-                            if !nm.is_nan() && !dn.is_nan() {
-                                num[pair] += nm;
-                                den[pair] += dn;
-                                cnt[pair] += 1.0;
-                            }
-                            pair += 1;
-                        }
-                    }
-                }
-                let mean =
-                    |v: Vec<f64>| -> Vec<f64> { v.iter().zip(&cnt).map(|(s, c)| s / c).collect() };
-                (mean(num), mean(den))
-            })
+            .map(|b| fst_block(af, &keep[assignment.block_range(b)]))
             .collect();
 
         let mut num = Array2::zeros((blocks.len(), n_pairs));
@@ -217,19 +187,13 @@ impl F2Blocks {
     ) -> Self {
         let fst = Some(FstBlocks::compute(af, block_def, opts.max_missing));
         let keep = kept_snps(af, opts);
-        let kept = AlleleFrequencies {
-            frequencies: af.frequencies.select(Axis(0), &keep),
-            counts: af.counts.select(Axis(0), &keep),
-            populations: af.populations.clone(),
-            snps: keep.iter().map(|&i| af.snps[i].clone()).collect(),
-        };
-        let af = &kept;
+        let kept_snps: Vec<_> = keep.iter().map(|&i| af.snps[i].clone()).collect();
         let populations = af.populations.clone();
         let n_pops = populations.len();
         let n_pairs = n_pops * (n_pops + 1) / 2; // Including self-pairs for verification
 
         // Assign SNPs to blocks
-        let block_assignment = block_def.assign_blocks(&af.snps);
+        let block_assignment = block_def.assign_blocks(&kept_snps);
         let n_blocks = block_assignment.n_blocks;
 
         if n_blocks == 0 {
@@ -249,10 +213,7 @@ impl F2Blocks {
         // Compute f2 and heterozygosity for each block in parallel
         let block_results: Vec<BlockResult> = (0..n_blocks)
             .into_par_iter()
-            .map(|block_idx| {
-                let range = block_assignment.block_range(block_idx);
-                compute_block_f2_and_het(af, &populations, range)
-            })
+            .map(|block_idx| f2_block(af, &keep[block_assignment.block_range(block_idx)]))
             .collect();
 
         // Assemble into arrays
@@ -575,64 +536,99 @@ struct BlockResult {
     het_weights: Vec<f64>,
 }
 
-/// Compute f2 sums, weights, and heterozygosity for a block of SNPs.
-fn compute_block_f2_and_het(
-    af: &AlleleFrequencies,
-    populations: &[PopulationId],
-    snp_range: std::ops::Range<usize>,
-) -> BlockResult {
-    let n_pops = populations.len();
+/// Per-SNP columns of a block, one per population, for the sums over SNPs
+/// of products of two populations' columns: `aᵀb` is `pops x pops`.
+fn columns(n_snps: usize, n_pops: usize) -> Array2<f64> {
+    Array2::zeros((n_snps, n_pops).f())
+}
+
+/// `aᵀb`, `pops x pops`.
+fn cross(a: &Array2<f64>, b: &Array2<f64>) -> Array2<f64> {
+    let mut out = Array2::zeros((a.ncols(), b.ncols()));
+    general_mat_mul(1.0, &a.t(), b, 0.0, &mut out);
+    out
+}
+
+/// f2 sums, weights and heterozygosity of the SNPs `rows` of `af` (a block).
+///
+/// Per SNP and pair, f2 = (pa - pb)^2 - ca - cb with c = p(1 - p)/max(1,
+/// n - 1), over the SNPs where both have data. With m the indicator of data,
+/// p and q = p^2 and c zero where there is none, the block's sums over SNPs
+/// are matrix products: f2 = Q + Qᵀ - C - Cᵀ - 2 PᵀP with Q = qᵀm and
+/// C = cᵀm, and the weights are mᵀm. The raw sums (pa - pb)^2 are over SNPs
+/// where both have at least two alleles; a population with itself is
+/// computed per SNP, as these products need not cancel exactly.
+fn f2_block(af: &AlleleFrequencies, rows: &[usize]) -> BlockResult {
+    let n_pops = af.populations.len();
     let n_pairs = n_pops * (n_pops + 1) / 2;
+    let (mut p, mut q, mut c, mut m) = (
+        columns(rows.len(), n_pops),
+        columns(rows.len(), n_pops),
+        columns(rows.len(), n_pops),
+        columns(rows.len(), n_pops),
+    );
+    let mut single = false;
+    let mut het_sums = vec![0.0; n_pops];
+    let mut het_weights = vec![0.0; n_pops];
+    let mut self_f2 = vec![0.0; n_pops];
+    let mut self_weight = vec![0.0; n_pops];
+    for (r, &snp) in rows.iter().enumerate() {
+        for a in 0..n_pops {
+            let n = af.counts[[snp, a]];
+            if n == 0 {
+                continue;
+            }
+            let f = af.frequencies[[snp, a]];
+            let h = f * (1.0 - f);
+            let bias = h / (n as f64 - 1.0).max(1.0);
+            p[[r, a]] = f;
+            q[[r, a]] = f * f;
+            c[[r, a]] = bias;
+            m[[r, a]] = 1.0;
+            self_f2[a] += 0.0 - bias - bias;
+            self_weight[a] += 1.0;
+            if n >= 2 {
+                // admixtools2 uses p(1-p), not 2p(1-p)
+                het_sums[a] += h;
+                het_weights[a] += 1.0;
+            } else {
+                single = true;
+            }
+        }
+    }
+    let pp = cross(&p, &p);
+    let qm = cross(&q, &m);
+    let cm = cross(&c, &m);
+    let mm = cross(&m, &m);
+    // raw sums only over populations with at least two alleles
+    let (raw_pp, raw_qm) = if single {
+        let r = Array2::from_shape_fn(m.raw_dim().f(), |(i, a)| {
+            (af.counts[[rows[i], a]] >= 2) as u8 as f64
+        });
+        let (pr, qr) = (&p * &r, &q * &r);
+        (cross(&pr, &pr), cross(&qr, &r))
+    } else {
+        (pp.clone(), qm.clone())
+    };
 
     let mut f2_sums = vec![0.0; n_pairs];
     let mut f2_raw_sums = vec![0.0; n_pairs];
     let mut f2_weights = vec![0.0; n_pairs];
-    let mut het_sums = vec![0.0; n_pops];
-    let mut het_weights = vec![0.0; n_pops];
-
-    for snp_idx in snp_range {
-        // Compute heterozygosity for each population: h = p * (1 - p)
-        // Note: admixtools2 uses p*(1-p), not 2*p*(1-p)
-        for pop_idx in 0..n_pops {
-            let count = af.get_count(snp_idx, pop_idx);
-
-            if let Some(freq) = af.get(snp_idx, pop_idx) {
-                if count >= 2 {
-                    let het = freq * (1.0 - freq);
-                    het_sums[pop_idx] += het;
-                    het_weights[pop_idx] += 1.0;
-                }
+    let mut pair = 0;
+    for a in 0..n_pops {
+        for b in a..n_pops {
+            if a == b {
+                f2_sums[pair] = self_f2[a];
+                f2_weights[pair] = self_weight[a];
+            } else {
+                f2_sums[pair] =
+                    qm[[a, b]] + qm[[b, a]] - cm[[a, b]] - cm[[b, a]] - 2.0 * pp[[a, b]];
+                f2_raw_sums[pair] = raw_qm[[a, b]] + raw_qm[[b, a]] - 2.0 * raw_pp[[a, b]];
+                f2_weights[pair] = mm[[a, b]];
             }
-        }
-
-        // For each population pair
-        let mut pair_idx = 0;
-        for i in 0..n_pops {
-            for j in i..n_pops {
-                let freq_a = af.get(snp_idx, i);
-                let freq_b = af.get(snp_idx, j);
-                let count_a = af.get_count(snp_idx, i);
-                let count_b = af.get_count(snp_idx, j);
-
-                let (f2, weight) = f2_single_snp(freq_a, freq_b, count_a, count_b);
-
-                // Also compute raw squared difference (without bias correction)
-                // for FST denominator
-                if let (Some(pa), Some(pb)) = (freq_a, freq_b) {
-                    if count_a >= 2 && count_b >= 2 {
-                        let raw = (pa - pb).powi(2);
-                        f2_raw_sums[pair_idx] += raw * weight;
-                    }
-                }
-
-                f2_sums[pair_idx] += f2 * weight;
-                f2_weights[pair_idx] += weight;
-
-                pair_idx += 1;
-            }
+            pair += 1;
         }
     }
-
     BlockResult {
         f2_sums,
         f2_raw_sums,
@@ -642,9 +638,132 @@ fn compute_block_f2_and_het(
     }
 }
 
+/// FST numerator and denominator block means of the SNPs `rows` of `af`
+/// (see [`FstBlocks`]), as matrix products as in [`f2_block`]: a SNP counts
+/// for a pair where both populations have at least two alleles (with one,
+/// the terms are 0/0, which admixtools2 drops).
+fn fst_block(af: &AlleleFrequencies, rows: &[usize]) -> (Vec<f64>, Vec<f64>) {
+    let n_pops = af.populations.len();
+    let n_pairs = n_pops * (n_pops + 1) / 2;
+    let (mut p, mut q, mut c, mut d, mut m) = (
+        columns(rows.len(), n_pops),
+        columns(rows.len(), n_pops),
+        columns(rows.len(), n_pops),
+        columns(rows.len(), n_pops),
+        columns(rows.len(), n_pops),
+    );
+    let mut self_num = vec![0.0; n_pops];
+    let mut self_den = vec![0.0; n_pops];
+    for (r, &snp) in rows.iter().enumerate() {
+        for a in 0..n_pops {
+            let n = af.counts[[snp, a]] as f64;
+            if n < 2.0 {
+                continue;
+            }
+            let f = af.frequencies[[snp, a]];
+            let h = f * (1.0 - f);
+            p[[r, a]] = f;
+            q[[r, a]] = f * f;
+            c[[r, a]] = h / (n - 1.0);
+            d[[r, a]] = h * n / (n - 1.0);
+            m[[r, a]] = 1.0;
+            let num = 0.0 - h / (n - 1.0) - h / (n - 1.0);
+            self_num[a] += num;
+            self_den[a] += num + h * n / (n - 1.0) + h * n / (n - 1.0);
+        }
+    }
+    let pp = cross(&p, &p);
+    let qm = cross(&q, &m);
+    let cm = cross(&c, &m);
+    let dm = cross(&d, &m);
+    let mm = cross(&m, &m);
+    let mut num = vec![0.0; n_pairs];
+    let mut den = vec![0.0; n_pairs];
+    let mut pair = 0;
+    for a in 0..n_pops {
+        for b in a..n_pops {
+            let (sn, sd) = if a == b {
+                (self_num[a], self_den[a])
+            } else {
+                let sn = qm[[a, b]] + qm[[b, a]] - cm[[a, b]] - cm[[b, a]] - 2.0 * pp[[a, b]];
+                (sn, sn + dm[[a, b]] + dm[[b, a]])
+            };
+            num[pair] = sn / mm[[a, b]];
+            den[pair] = sd / mm[[a, b]];
+            pair += 1;
+        }
+    }
+    (num, den)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fstats::f2::f2_single_snp;
+
+    /// Compute f2 sums, weights, and heterozygosity for a block of SNPs.
+    fn direct_f2_block(af: &AlleleFrequencies, rows: &[usize]) -> BlockResult {
+        let n_pops = af.populations.len();
+        let n_pairs = n_pops * (n_pops + 1) / 2;
+
+        let mut f2_sums = vec![0.0; n_pairs];
+        let mut f2_raw_sums = vec![0.0; n_pairs];
+        let mut f2_weights = vec![0.0; n_pairs];
+        let mut het_sums = vec![0.0; n_pops];
+        let mut het_weights = vec![0.0; n_pops];
+
+        for &snp_idx in rows {
+            // Compute heterozygosity for each population: h = p * (1 - p)
+            // Note: admixtools2 uses p*(1-p), not 2*p*(1-p)
+            for pop_idx in 0..n_pops {
+                let count = af.get_count(snp_idx, pop_idx);
+
+                if let Some(freq) = af.get(snp_idx, pop_idx) {
+                    if count >= 2 {
+                        let het = freq * (1.0 - freq);
+                        het_sums[pop_idx] += het;
+                        het_weights[pop_idx] += 1.0;
+                    }
+                }
+            }
+
+            // For each population pair
+            let mut pair_idx = 0;
+            for i in 0..n_pops {
+                for j in i..n_pops {
+                    let freq_a = af.get(snp_idx, i);
+                    let freq_b = af.get(snp_idx, j);
+                    let count_a = af.get_count(snp_idx, i);
+                    let count_b = af.get_count(snp_idx, j);
+
+                    let (f2, weight) = f2_single_snp(freq_a, freq_b, count_a, count_b);
+
+                    // Also compute raw squared difference (without bias correction)
+                    // for FST denominator
+                    if let (Some(pa), Some(pb)) = (freq_a, freq_b) {
+                        if count_a >= 2 && count_b >= 2 {
+                            let raw = (pa - pb).powi(2);
+                            f2_raw_sums[pair_idx] += raw * weight;
+                        }
+                    }
+
+                    f2_sums[pair_idx] += f2 * weight;
+                    f2_weights[pair_idx] += weight;
+
+                    pair_idx += 1;
+                }
+            }
+        }
+
+        BlockResult {
+            f2_sums,
+            f2_raw_sums,
+            f2_weights,
+            het_sums,
+            het_weights,
+        }
+    }
+
     use crate::genotype_matrix::GenotypeMatrix;
     use crate::genotypes::{Chromosome, Sample, Snp};
     use approx::assert_relative_eq;
@@ -737,6 +856,134 @@ mod tests {
     fn snp_f2(a: (f64, u32), b: (f64, u32)) -> f64 {
         let corr = |(p, n): (f64, u32)| p * (1.0 - p) / (n as f64 - 1.0).max(1.0);
         (a.0 - b.0).powi(2) - corr(a) - corr(b)
+    }
+
+    /// Per-SNP FST numerator and denominator block means (see [`FstBlocks`]).
+    fn direct_fst_block(af: &AlleleFrequencies, rows: &[usize]) -> (Vec<f64>, Vec<f64>) {
+        let n_pops = af.populations.len();
+        let n_pairs = n_pops * (n_pops + 1) / 2;
+        let (mut num, mut den, mut cnt) =
+            (vec![0.0; n_pairs], vec![0.0; n_pairs], vec![0.0; n_pairs]);
+        for &snp in rows {
+            let (p, n) = (af.frequencies.row(snp), af.counts.row(snp));
+            let mut pair = 0;
+            for i in 0..n_pops {
+                for j in i..n_pops {
+                    let (p1, p2) = (p[i], p[j]);
+                    let (n1, n2) = (n[i] as f64, n[j] as f64);
+                    let (h1, h2) = (p1 * (1.0 - p1), p2 * (1.0 - p2));
+                    let nm = (p1 - p2).powi(2) - h1 / (n1 - 1.0) - h2 / (n2 - 1.0);
+                    let dn = nm + h1 * n1 / (n1 - 1.0) + h2 * n2 / (n2 - 1.0);
+                    if !nm.is_nan() && !dn.is_nan() {
+                        num[pair] += nm;
+                        den[pair] += dn;
+                        cnt[pair] += 1.0;
+                    }
+                    pair += 1;
+                }
+            }
+        }
+        let mean = |v: Vec<f64>| v.iter().zip(&cnt).map(|(s, c)| s / c).collect();
+        (mean(num), mean(den))
+    }
+
+    /// Random frequencies of `n_pops` populations, with missing data and
+    /// populations of one allele (pseudo-haploid samples).
+    fn random_af(n_snps: usize, n_pops: usize) -> AlleleFrequencies {
+        let mut state = 2024u64;
+        let mut next = || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state
+        };
+        let mut frequencies = Array2::from_elem((n_snps, n_pops), f64::NAN);
+        let mut counts = Array2::zeros((n_snps, n_pops));
+        for i in 0..n_snps {
+            for j in 0..n_pops {
+                let n = [0u32, 1, 2, 5, 10, 20, 20, 20][(next() % 8) as usize];
+                if n > 0 {
+                    counts[[i, j]] = n;
+                    frequencies[[i, j]] = (next() % (n as u64 + 1)) as f64 / n as f64;
+                }
+            }
+        }
+        let snps = (0..n_snps)
+            .map(|i| {
+                Snp::new(
+                    format!("rs{i}"),
+                    Chromosome::Autosome(1),
+                    i as u32,
+                    i as f64 * 1e-4,
+                    'A',
+                    'G',
+                )
+            })
+            .collect();
+        AlleleFrequencies {
+            frequencies,
+            counts,
+            populations: (0..n_pops)
+                .map(|j| PopulationId::new(format!("P{j}")))
+                .collect(),
+            snps,
+        }
+    }
+
+    fn assert_close(got: &[f64], want: &[f64], what: &str) {
+        assert_eq!(got.len(), want.len());
+        for (k, (g, w)) in got.iter().zip(want).enumerate() {
+            let ok = (g.is_nan() && w.is_nan()) || (g - w).abs() <= 1e-15 + 1e-12 * w.abs();
+            assert!(ok, "{what} [{k}]: {g} != {w}");
+        }
+    }
+
+    #[test]
+    fn block_products_match_the_per_snp_sums() {
+        let af = random_af(600, 9);
+        let rows: Vec<usize> = (0..600).filter(|i| i % 7 != 3).collect();
+        let (got, want) = (f2_block(&af, &rows), direct_f2_block(&af, &rows));
+        assert_close(&got.f2_sums, &want.f2_sums, "f2");
+        assert_close(&got.f2_raw_sums, &want.f2_raw_sums, "raw");
+        assert_eq!(got.f2_weights, want.f2_weights);
+        assert_close(&got.het_sums, &want.het_sums, "het");
+        assert_eq!(got.het_weights, want.het_weights);
+        let (num, den) = fst_block(&af, &rows);
+        let (want_num, want_den) = direct_fst_block(&af, &rows);
+        assert_close(&num, &want_num, "fst num");
+        assert_close(&den, &want_den, "fst den");
+    }
+
+    #[test]
+    fn blocks_do_not_depend_on_the_thread_count() {
+        let af = random_af(4_000, 6);
+        let opts = F2Options {
+            max_missing: 1.0,
+            poly_only: true,
+        };
+        let run = |threads: usize| {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap()
+                .install(|| {
+                    F2Blocks::from_allele_frequencies_with_options(
+                        &af,
+                        &BlockDefinition::new(0.05),
+                        &opts,
+                    )
+                })
+        };
+        let one = run(1);
+        for threads in [3, 8] {
+            let many = run(threads);
+            assert_eq!(one.block_sums, many.block_sums);
+            assert_eq!(one.block_raw_sums, many.block_raw_sums);
+            assert_eq!(
+                one.fst.as_ref().unwrap().num,
+                many.fst.as_ref().unwrap().num
+            );
+        }
     }
 
     #[test]
