@@ -202,8 +202,9 @@ pub use streaming::{
 };
 pub use vcf::{VcfReader, VcfSkipped};
 pub use writers::{
-    write_ancestrymap, write_eigenstrat, write_packedancestrymap, write_packedped, write_ped,
-    write_plink, write_tgeno,
+    write_ancestrymap, write_ancestrymap_rows, write_eigenstrat, write_eigenstrat_rows,
+    write_packedancestrymap, write_packedancestrymap_rows, write_packedped, write_packedped_rows,
+    write_ped, write_plink, write_tgeno,
 };
 
 /// Genetic positions of PLINK .bim and .map files in Morgans.

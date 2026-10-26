@@ -12,6 +12,7 @@ use std::io::{BufWriter, Write};
 use std::path::Path;
 
 use popmix_core::error::Result;
+use popmix_core::fstats::{GenotypeRows, MatrixRows};
 use popmix_core::genotype_matrix::GenotypeMatrix;
 use popmix_core::genotypes::{Genotype, Sample, Snp};
 
@@ -29,20 +30,30 @@ use popmix_core::genotypes::{Genotype, Sample, Snp};
 /// ANCESTRYMAP format is sparse: each line contains SNP_ID, Sample_ID, and
 /// genotype (0, 1, or 2). Missing genotypes are represented by absence of entry.
 pub fn write_ancestrymap(prefix: impl AsRef<Path>, matrix: &GenotypeMatrix) -> Result<()> {
+    write_ancestrymap_rows(
+        prefix,
+        matrix.samples(),
+        matrix.snps(),
+        &mut all_rows(matrix),
+    )
+}
+
+/// [`write_ancestrymap`] from genotype rows (one per SNP, every sample).
+pub fn write_ancestrymap_rows(
+    prefix: impl AsRef<Path>,
+    samples: &[Sample],
+    snps: &[Snp],
+    rows: &mut dyn GenotypeRows,
+) -> Result<()> {
     let prefix = prefix.as_ref();
-
-    // Write .ancestrymapgeno file
-    let geno_path = format!("{}.ancestrymapgeno", prefix.display());
-    write_ancestrymap_geno(&geno_path, matrix)?;
-
-    // Write .snp file
-    let snp_path = format!("{}.snp", prefix.display());
-    write_snp_file(&snp_path, matrix.snps())?;
-
-    // Write .ind file
-    let ind_path = format!("{}.ind", prefix.display());
-    write_ind_file(&ind_path, matrix.samples())?;
-
+    write_ancestrymap_geno(
+        &format!("{}.ancestrymapgeno", prefix.display()),
+        samples,
+        snps,
+        rows,
+    )?;
+    write_snp_file(&format!("{}.snp", prefix.display()), snps)?;
+    write_ind_file(&format!("{}.ind", prefix.display()), samples)?;
     Ok(())
 }
 
@@ -63,20 +74,31 @@ pub fn write_ancestrymap(prefix: impl AsRef<Path>, matrix: &GenotypeMatrix) -> R
 /// - '2' = two copies of reference allele (HomRef)
 /// - '9' = missing data
 pub fn write_eigenstrat(prefix: impl AsRef<Path>, matrix: &GenotypeMatrix) -> Result<()> {
+    write_eigenstrat_rows(
+        prefix,
+        matrix.samples(),
+        matrix.snps(),
+        &mut all_rows(matrix),
+    )
+}
+
+/// [`write_eigenstrat`] from genotype rows (one per SNP, every sample).
+pub fn write_eigenstrat_rows(
+    prefix: impl AsRef<Path>,
+    samples: &[Sample],
+    snps: &[Snp],
+    rows: &mut dyn GenotypeRows,
+) -> Result<()> {
     let prefix = prefix.as_ref();
-
-    // Write .geno file (using .geno extension for compatibility)
-    let geno_path = format!("{}.geno", prefix.display());
-    write_eigenstrat_geno(&geno_path, matrix)?;
-
-    // Write .snp file
-    let snp_path = format!("{}.snp", prefix.display());
-    write_snp_file(&snp_path, matrix.snps())?;
-
-    // Write .ind file
-    let ind_path = format!("{}.ind", prefix.display());
-    write_ind_file(&ind_path, matrix.samples())?;
-
+    // .geno, for compatibility
+    write_eigenstrat_geno(
+        &format!("{}.geno", prefix.display()),
+        samples.len(),
+        snps.len(),
+        rows,
+    )?;
+    write_snp_file(&format!("{}.snp", prefix.display()), snps)?;
+    write_ind_file(&format!("{}.ind", prefix.display()), samples)?;
     Ok(())
 }
 
@@ -129,20 +151,30 @@ pub fn write_ped(prefix: impl AsRef<Path>, matrix: &GenotypeMatrix) -> Result<()
 ///
 /// Encoding: 00=HomAlt, 01=Missing, 10=Het, 11=HomRef
 pub fn write_packedped(prefix: impl AsRef<Path>, matrix: &GenotypeMatrix) -> Result<()> {
+    write_packedped_rows(
+        prefix,
+        matrix.samples(),
+        matrix.snps(),
+        &mut all_rows(matrix),
+    )
+}
+
+/// [`write_packedped`] from genotype rows (one per SNP, every sample).
+pub fn write_packedped_rows(
+    prefix: impl AsRef<Path>,
+    samples: &[Sample],
+    snps: &[Snp],
+    rows: &mut dyn GenotypeRows,
+) -> Result<()> {
     let prefix = prefix.as_ref();
-
-    // Write .bed file
-    let bed_path = format!("{}.bed", prefix.display());
-    write_plink_bed(&bed_path, matrix)?;
-
-    // Write .bim file
-    let bim_path = format!("{}.bim", prefix.display());
-    write_bim_file(&bim_path, matrix.snps())?;
-
-    // Write .fam file
-    let fam_path = format!("{}.fam", prefix.display());
-    write_fam_file(&fam_path, matrix.samples())?;
-
+    write_plink_bed(
+        &format!("{}.bed", prefix.display()),
+        samples.len(),
+        snps.len(),
+        rows,
+    )?;
+    write_bim_file(&format!("{}.bim", prefix.display()), snps)?;
+    write_fam_file(&format!("{}.fam", prefix.display()), samples)?;
     Ok(())
 }
 
@@ -169,21 +201,45 @@ pub use write_packedped as write_plink;
 /// Encoding: 00=HomRef, 01=Het, 10=HomAlt, 11=Missing
 /// Note: This encoding differs from PACKEDPED/PLINK!
 pub fn write_packedancestrymap(prefix: impl AsRef<Path>, matrix: &GenotypeMatrix) -> Result<()> {
+    write_packedancestrymap_rows(
+        prefix,
+        matrix.samples(),
+        matrix.snps(),
+        &mut all_rows(matrix),
+    )
+}
+
+/// [`write_packedancestrymap`] from genotype rows (one per SNP, every sample).
+pub fn write_packedancestrymap_rows(
+    prefix: impl AsRef<Path>,
+    samples: &[Sample],
+    snps: &[Snp],
+    rows: &mut dyn GenotypeRows,
+) -> Result<()> {
     let prefix = prefix.as_ref();
-
-    // Write .geno file (binary)
-    let geno_path = format!("{}.geno", prefix.display());
-    write_packedancestrymap_geno(&geno_path, matrix)?;
-
-    // Write .snp file
-    let snp_path = format!("{}.snp", prefix.display());
-    write_snp_file(&snp_path, matrix.snps())?;
-
-    // Write .ind file
-    let ind_path = format!("{}.ind", prefix.display());
-    write_ind_file(&ind_path, matrix.samples())?;
-
+    write_packedancestrymap_geno(&format!("{}.geno", prefix.display()), samples, snps, rows)?;
+    write_snp_file(&format!("{}.snp", prefix.display()), snps)?;
+    write_ind_file(&format!("{}.ind", prefix.display()), samples)?;
     Ok(())
+}
+
+/// Every SNP of every sample of `matrix`, as rows.
+fn all_rows(matrix: &GenotypeMatrix) -> MatrixRows<'_> {
+    MatrixRows::new(
+        matrix,
+        (0..matrix.n_snps()).collect(),
+        (0..matrix.n_samples()).collect(),
+    )
+}
+
+/// A genotype code of a row (0, 1, 2; 3 missing) as a genotype.
+fn genotype(code: u8) -> Genotype {
+    match code {
+        0 => Genotype::HomRef,
+        1 => Genotype::Het,
+        2 => Genotype::HomAlt,
+        _ => Genotype::Missing,
+    }
 }
 
 /// Write a GenotypeMatrix as TGENO (.geno, .snp, .ind): the packed format
@@ -231,44 +287,50 @@ fn write_tgeno_geno(path: &str, matrix: &GenotypeMatrix) -> Result<()> {
     Ok(())
 }
 
-fn write_ancestrymap_geno(path: &str, matrix: &GenotypeMatrix) -> Result<()> {
+fn write_ancestrymap_geno(
+    path: &str,
+    samples: &[Sample],
+    snps: &[Snp],
+    rows: &mut dyn GenotypeRows,
+) -> Result<()> {
     let file = File::create(path)?;
     let mut writer = BufWriter::new(file);
-
-    for snp_idx in 0..matrix.n_snps() {
-        let snp = &matrix.snps()[snp_idx];
-        for sample_idx in 0..matrix.n_samples() {
-            let sample = &matrix.samples()[sample_idx];
-            let geno = matrix.get(snp_idx, sample_idx);
-
+    let mut row = vec![0u8; samples.len()];
+    for snp in snps {
+        rows.next_row(&mut row)?;
+        for (sample, &code) in samples.iter().zip(&row) {
             // Only write non-missing genotypes (sparse format)
-            if !geno.is_missing() {
-                let dosage = match geno {
-                    Genotype::HomRef => 2,
-                    Genotype::Het => 1,
-                    Genotype::HomAlt => 0,
-                    Genotype::Missing => continue,
-                };
-                writeln!(writer, "{} {} {}", snp.id, sample.id, dosage)?;
-            }
+            let dosage = match genotype(code) {
+                Genotype::HomRef => 2,
+                Genotype::Het => 1,
+                Genotype::HomAlt => 0,
+                Genotype::Missing => continue,
+            };
+            writeln!(writer, "{} {} {}", snp.id, sample.id, dosage)?;
         }
     }
-
+    writer.flush()?;
     Ok(())
 }
 
-fn write_eigenstrat_geno(path: &str, matrix: &GenotypeMatrix) -> Result<()> {
+fn write_eigenstrat_geno(
+    path: &str,
+    n_samples: usize,
+    n_snps: usize,
+    rows: &mut dyn GenotypeRows,
+) -> Result<()> {
     let file = File::create(path)?;
     let mut writer = BufWriter::new(file);
-
-    for snp_idx in 0..matrix.n_snps() {
-        for sample_idx in 0..matrix.n_samples() {
-            let geno = matrix.get(snp_idx, sample_idx);
-            writer.write_all(&[geno.to_eigenstrat_char()])?;
+    let mut row = vec![0u8; n_samples];
+    let mut line = vec![b'\n'; n_samples + 1];
+    for _ in 0..n_snps {
+        rows.next_row(&mut row)?;
+        for (c, &code) in line.iter_mut().zip(&row) {
+            *c = genotype(code).to_eigenstrat_char();
         }
-        writer.write_all(b"\n")?;
+        writer.write_all(&line)?;
     }
-
+    writer.flush()?;
     Ok(())
 }
 
@@ -311,12 +373,17 @@ fn write_ped_file(path: &str, matrix: &GenotypeMatrix) -> Result<()> {
     Ok(())
 }
 
-fn write_packedancestrymap_geno(path: &str, matrix: &GenotypeMatrix) -> Result<()> {
+fn write_packedancestrymap_geno(
+    path: &str,
+    samples: &[Sample],
+    snps: &[Snp],
+    rows: &mut dyn GenotypeRows,
+) -> Result<()> {
     let file = File::create(path)?;
     let mut writer = BufWriter::new(file);
 
-    let n_samples = matrix.n_samples();
-    let n_snps = matrix.n_snps();
+    let n_samples = samples.len();
+    let n_snps = snps.len();
 
     // Bytes per row (4 samples per byte, rounded up)
     // Minimum record size is 48 bytes per EIGENSTRAT spec
@@ -325,8 +392,8 @@ fn write_packedancestrymap_geno(path: &str, matrix: &GenotypeMatrix) -> Result<(
 
     // Write header: "GENO" magic + metadata, padded to record_size
     // Format: GENO {n_samples} {n_snps} {ind_hash} {snp_hash}
-    let ind_ids: Vec<&str> = matrix.samples().iter().map(|s| s.id.as_str()).collect();
-    let snp_ids: Vec<&str> = matrix.snps().iter().map(|s| s.id.as_str()).collect();
+    let ind_ids: Vec<&str> = samples.iter().map(|s| s.id.as_str()).collect();
+    let snp_ids: Vec<&str> = snps.iter().map(|s| s.id.as_str()).collect();
     let header_text = format!(
         "GENO {} {} {:x} {:x}",
         n_samples,
@@ -339,28 +406,28 @@ fn write_packedancestrymap_geno(path: &str, matrix: &GenotypeMatrix) -> Result<(
     header[..header_bytes.len()].copy_from_slice(header_bytes);
     writer.write_all(&header)?;
 
-    // Write genotype rows
-    for snp_idx in 0..n_snps {
-        let mut row = vec![0u8; record_size];
-
-        for sample_idx in 0..n_samples {
-            let geno = matrix.get(snp_idx, sample_idx);
-            let bits = geno.to_packed_bits();
-
+    let mut codes = vec![0u8; n_samples];
+    let mut record = vec![0u8; record_size];
+    for _ in 0..n_snps {
+        rows.next_row(&mut codes)?;
+        record.fill(0);
+        for (sample_idx, &code) in codes.iter().enumerate() {
             // Sample 0 in HIGH bits (6-7), Sample 3 in LOW bits (0-1)
-            let byte_idx = sample_idx / 4;
             let bit_offset = 6 - (sample_idx % 4) * 2;
-
-            row[byte_idx] |= bits << bit_offset;
+            record[sample_idx / 4] |= genotype(code).to_packed_bits() << bit_offset;
         }
-
-        writer.write_all(&row)?;
+        writer.write_all(&record)?;
     }
-
+    writer.flush()?;
     Ok(())
 }
 
-fn write_plink_bed(path: &str, matrix: &GenotypeMatrix) -> Result<()> {
+fn write_plink_bed(
+    path: &str,
+    n_samples: usize,
+    n_snps: usize,
+    rows: &mut dyn GenotypeRows,
+) -> Result<()> {
     let file = File::create(path)?;
     let mut writer = BufWriter::new(file);
 
@@ -369,26 +436,18 @@ fn write_plink_bed(path: &str, matrix: &GenotypeMatrix) -> Result<()> {
     // 0x01 = SNP-major mode
     writer.write_all(&[0x6c, 0x1b, 0x01])?;
 
-    let n_samples = matrix.n_samples();
-    let bytes_per_snp = n_samples.div_ceil(4);
-
-    for snp_idx in 0..matrix.n_snps() {
-        let mut row = vec![0u8; bytes_per_snp];
-
-        for sample_idx in 0..n_samples {
-            let geno = matrix.get(snp_idx, sample_idx);
-            let bits = geno.to_plink_bits();
-
+    let mut codes = vec![0u8; n_samples];
+    let mut record = vec![0u8; n_samples.div_ceil(4)];
+    for _ in 0..n_snps {
+        rows.next_row(&mut codes)?;
+        record.fill(0);
+        for (sample_idx, &code) in codes.iter().enumerate() {
             // PLINK: Sample 0 in LOW bits (0-1), Sample 3 in HIGH bits (6-7)
-            let byte_idx = sample_idx / 4;
-            let bit_offset = (sample_idx % 4) * 2;
-
-            row[byte_idx] |= bits << bit_offset;
+            record[sample_idx / 4] |= genotype(code).to_plink_bits() << ((sample_idx % 4) * 2);
         }
-
-        writer.write_all(&row)?;
+        writer.write_all(&record)?;
     }
-
+    writer.flush()?;
     Ok(())
 }
 
@@ -536,6 +595,65 @@ mod tests {
     use ndarray::array;
     use popmix_core::genotypes::{Chromosome, Sex};
     use tempfile::TempDir;
+
+    #[test]
+    fn streamed_writes_are_the_matrix_writes() {
+        let family = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/golden/dates/family_chr20_22"
+        );
+        let reader = crate::PackedAncestryMapReader::new(family).unwrap();
+        let geno = reader.read_all().unwrap();
+        let (samples, snps) = (geno.samples().to_vec(), geno.snps().to_vec());
+        let dir = TempDir::new().unwrap();
+        type Whole = fn(&Path, &GenotypeMatrix) -> Result<()>;
+        type Rows = fn(&Path, &[Sample], &[Snp], &mut dyn GenotypeRows) -> Result<()>;
+        let formats: [(&str, Whole, Rows, &[&str]); 4] = [
+            (
+                "eigenstrat",
+                |p, m| write_eigenstrat(p, m),
+                |p, a, b, r| write_eigenstrat_rows(p, a, b, r),
+                &["geno", "snp", "ind"],
+            ),
+            (
+                "ancestrymap",
+                |p, m| write_ancestrymap(p, m),
+                |p, a, b, r| write_ancestrymap_rows(p, a, b, r),
+                &["ancestrymapgeno", "snp", "ind"],
+            ),
+            (
+                "packed",
+                |p, m| write_packedancestrymap(p, m),
+                |p, a, b, r| write_packedancestrymap_rows(p, a, b, r),
+                &["geno", "snp", "ind"],
+            ),
+            (
+                "bed",
+                |p, m| write_packedped(p, m),
+                |p, a, b, r| write_packedped_rows(p, a, b, r),
+                &["bed", "bim", "fam"],
+            ),
+        ];
+        for (name, whole, rows, exts) in formats {
+            let (a, b) = (
+                dir.path().join(format!("{name}_whole")),
+                dir.path().join(format!("{name}_rows")),
+            );
+            whole(&a, &geno).unwrap();
+            let mut source = crate::SnpMajorRows::open(
+                &format!("{family}.geno"),
+                samples.len(),
+                vec![true; snps.len()],
+                (0..samples.len()).collect(),
+            )
+            .unwrap();
+            rows(&b, &samples, &snps, &mut source).unwrap();
+            for ext in exts {
+                let read = |p: &Path| std::fs::read(format!("{}.{ext}", p.display())).unwrap();
+                assert!(read(&a) == read(&b), "{name}: .{ext} differs");
+            }
+        }
+    }
 
     fn make_test_samples() -> Vec<Sample> {
         vec![

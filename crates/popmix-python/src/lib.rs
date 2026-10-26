@@ -654,6 +654,64 @@ fn convertf(
     Ok(result)
 }
 
+/// `convertf` one SNP at a time, when the input is read in place and the
+/// output written SNP by SNP: the sample and SNP counts, or None.
+fn convertf_streamed(
+    input_prefix: &str,
+    output_prefix: &str,
+    in_format: GenoFormat,
+    out_format: GenoFormat,
+) -> PyResult<Option<(usize, usize)>> {
+    use popmix_io::{
+        write_ancestrymap_rows, write_eigenstrat_rows, write_packedancestrymap_rows,
+        write_packedped_rows, SnpMajor, SnpMajorRows,
+    };
+    if !matches!(
+        out_format,
+        GenoFormat::Eigenstrat
+            | GenoFormat::Ancestrymap
+            | GenoFormat::PackedAncestrymap
+            | GenoFormat::PackedPed
+    ) {
+        return Ok(None);
+    }
+    let (file, samples, snps) = match in_format {
+        GenoFormat::PackedAncestrymap => {
+            let samples = popmix_io::eigenstrat::read_ind_file(&format!("{input_prefix}.ind"))
+                .map_err(to_py_err)?;
+            let snps = popmix_io::eigenstrat::read_snp_file(&format!("{input_prefix}.snp"))
+                .map_err(to_py_err)?;
+            let file =
+                SnpMajor::open_packed(&format!("{input_prefix}.geno"), samples.len(), snps.len())
+                    .map_err(to_py_err)?;
+            (file, samples, snps)
+        }
+        GenoFormat::PackedPed => {
+            let reader = PlinkReader::new(input_prefix).map_err(to_py_err)?;
+            let (samples, snps) = (reader.samples().to_vec(), reader.snps().to_vec());
+            let file =
+                SnpMajor::open_bed(&format!("{input_prefix}.bed"), samples.len(), snps.len())
+                    .map_err(to_py_err)?;
+            (file, samples, snps)
+        }
+        _ => return Ok(None),
+    };
+    let mut rows =
+        SnpMajorRows::from_file(file, vec![true; snps.len()], (0..samples.len()).collect())
+            .map_err(to_py_err)?;
+    let out = std::path::Path::new(output_prefix);
+    match out_format {
+        GenoFormat::Eigenstrat => write_eigenstrat_rows(out, &samples, &snps, &mut rows),
+        GenoFormat::Ancestrymap => write_ancestrymap_rows(out, &samples, &snps, &mut rows),
+        GenoFormat::PackedAncestrymap => {
+            write_packedancestrymap_rows(out, &samples, &snps, &mut rows)
+        }
+        _ => write_packedped_rows(out, &samples, &snps, &mut rows),
+    }
+    .map_err(to_py_err)?;
+    Ok(Some((samples.len(), snps.len())))
+}
+
 /// `convertf`'s work: the sample and SNP counts and both formats.
 fn convertf_files(
     input_prefix: &str,
@@ -671,6 +729,12 @@ fn convertf_files(
 
     // Parse output format
     let out_format = GenoFormat::from_str(output_format).map_err(to_py_err)?;
+
+    // From a packed .geno or a PLINK .bed to a format written SNP by SNP:
+    // stream, without holding the genotypes in memory
+    if let Some(done) = convertf_streamed(input_prefix, output_prefix, in_format, out_format)? {
+        return Ok((done.0, done.1, in_format, out_format));
+    }
 
     // Read the input data
     let geno = match in_format {
