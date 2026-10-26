@@ -517,12 +517,22 @@ fn read_vcf(py: Python<'_>, path: &str) -> PyResult<PyGenotypeMatrix> {
 ///     PyGenotypeMatrix containing the genotype data and metadata; samples
 ///     with no heterozygous call among the SNPs read are pseudohaploid
 #[pyfunction]
-#[pyo3(signature = (prefix, snp_range=None))]
+#[pyo3(signature = (prefix, snp_range=None, populations=None))]
 fn read_genotypes(
     py: Python<'_>,
     prefix: &str,
     snp_range: Option<(usize, usize)>,
+    populations: Option<Vec<String>>,
 ) -> PyResult<PyGenotypeMatrix> {
+    if let Some(pops) = populations {
+        if snp_range.is_some() {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "give snp_range or populations, not both",
+            ));
+        }
+        let inner = compute(py, || read_populations(prefix, &pops))?;
+        return Ok(PyGenotypeMatrix { inner });
+    }
     let Some(range) = snp_range else {
         return Ok(PyGenotypeMatrix {
             inner: compute(py, || read_genotypes_internal(prefix))?,
@@ -2970,6 +2980,20 @@ fn qpgraph(
 
 /// Every genotype of a dataset in any format, each sample pseudohaploid
 /// when it has no heterozygous call (the default `pseudohaploid` rule).
+/// Every SNP of the samples of `populations`, in file order: packed .geno
+/// and PLINK .bed are read in place, other formats whole and then subset.
+fn read_populations(prefix: &str, populations: &[String]) -> PyResult<GenotypeMatrix> {
+    let (mut source, snps, _, samples) = geno_fstats::open_source(prefix, populations, false)?;
+    let mut data = ndarray::Array2::<u8>::zeros((snps.len(), samples.len()));
+    let mut rows = geno_fstats::rows_of(&mut source);
+    for mut row in data.rows_mut() {
+        rows.next_row(row.as_slice_mut().expect("row-major"))
+            .map_err(to_py_err)?;
+    }
+    drop(rows);
+    GenotypeMatrix::new(data, samples, snps).map_err(to_py_err)
+}
+
 fn read_genotypes_internal(prefix: &str) -> PyResult<GenotypeMatrix> {
     let mut geno = read_genotypes_any_format(prefix)?;
     ploidy::PloidyRule::Genome.apply(&mut geno);

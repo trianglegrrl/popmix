@@ -1225,7 +1225,8 @@ def dates(input_prefix: str, test_pop: str, source1: str, source2: str,
 
     try:
         click.echo(f"Loading genotypes from {input_prefix}...", err=True)
-        geno = pm.read_genotypes(input_prefix)
+        # only the three populations' samples
+        geno = pm.read_genotypes(input_prefix, populations=list(dict.fromkeys([test_pop, source1, source2])))
         click.echo(f"Loaded {geno.n_snps} SNPs x {geno.n_samples} samples", err=True)
 
         click.echo(f"Running DATES: {test_pop} = mix of {source1} and {source2}...", err=True)
