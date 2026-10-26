@@ -127,17 +127,23 @@ fn require_sample_populations(samples: &[popmix_core::Sample], pops: &[String]) 
 // Thread pool functions
 // ============================================================================
 
-/// Initialize the popmix thread pool.
+/// Set the number of threads popmix computes with (4 until set); it can be
+/// changed at any time.
 ///
 /// Args:
 ///     threads: Number of threads to use. Defaults to 4 if not specified.
 ///
 /// Returns:
-///     True if the pool was initialized, False if it was already initialized.
+///     True.
 #[pyfunction]
 #[pyo3(signature = (threads=None))]
 fn init_threads(threads: Option<usize>) -> PyResult<bool> {
     popmix_core::init_thread_pool(threads).map_err(to_py_err)
+}
+
+/// Run `f` without the GIL on popmix's thread pool (`init_threads`).
+pub(crate) fn compute<T: Send>(py: Python<'_>, f: impl FnOnce() -> T + Send) -> T {
+    py.allow_threads(|| popmix_core::threading::install(f))
 }
 
 /// Get the current number of threads.
@@ -405,15 +411,21 @@ impl PyAlleleFrequencies {
 ///     PyGenotypeMatrix containing the genotype data and metadata
 #[pyfunction]
 #[pyo3(signature = (prefix, snp_range=None))]
-fn read_plink(prefix: &str, snp_range: Option<(usize, usize)>) -> PyResult<PyGenotypeMatrix> {
-    let mut reader = PlinkReader::new(prefix).map_err(to_py_err)?;
+fn read_plink(
+    py: Python<'_>,
+    prefix: &str,
+    snp_range: Option<(usize, usize)>,
+) -> PyResult<PyGenotypeMatrix> {
+    compute(py, move || {
+        let mut reader = PlinkReader::new(prefix).map_err(to_py_err)?;
 
-    let geno = match snp_range {
-        Some((start, end)) => reader.read_snp_range(start..end).map_err(to_py_err)?,
-        None => reader.read_all().map_err(to_py_err)?,
-    };
+        let geno = match snp_range {
+            Some((start, end)) => reader.read_snp_range(start..end).map_err(to_py_err)?,
+            None => reader.read_all().map_err(to_py_err)?,
+        };
 
-    Ok(PyGenotypeMatrix { inner: geno })
+        Ok(PyGenotypeMatrix { inner: geno })
+    })
 }
 
 /// Read genotypes from EIGENSTRAT text format files.
@@ -426,15 +438,21 @@ fn read_plink(prefix: &str, snp_range: Option<(usize, usize)>) -> PyResult<PyGen
 ///     PyGenotypeMatrix containing the genotype data and metadata
 #[pyfunction]
 #[pyo3(signature = (prefix, snp_range=None))]
-fn read_eigenstrat(prefix: &str, snp_range: Option<(usize, usize)>) -> PyResult<PyGenotypeMatrix> {
-    let reader = EigenstratReader::new(prefix).map_err(to_py_err)?;
+fn read_eigenstrat(
+    py: Python<'_>,
+    prefix: &str,
+    snp_range: Option<(usize, usize)>,
+) -> PyResult<PyGenotypeMatrix> {
+    compute(py, move || {
+        let reader = EigenstratReader::new(prefix).map_err(to_py_err)?;
 
-    let geno = match snp_range {
-        Some((start, end)) => reader.read_snp_range(start..end).map_err(to_py_err)?,
-        None => reader.read_all().map_err(to_py_err)?,
-    };
+        let geno = match snp_range {
+            Some((start, end)) => reader.read_snp_range(start..end).map_err(to_py_err)?,
+            None => reader.read_all().map_err(to_py_err)?,
+        };
 
-    Ok(PyGenotypeMatrix { inner: geno })
+        Ok(PyGenotypeMatrix { inner: geno })
+    })
 }
 
 /// Read genotypes from PACKEDANCESTRYMAP binary format files.
@@ -448,17 +466,20 @@ fn read_eigenstrat(prefix: &str, snp_range: Option<(usize, usize)>) -> PyResult<
 #[pyfunction]
 #[pyo3(signature = (prefix, snp_range=None))]
 fn read_packedancestrymap(
+    py: Python<'_>,
     prefix: &str,
     snp_range: Option<(usize, usize)>,
 ) -> PyResult<PyGenotypeMatrix> {
-    let mut reader = PackedAncestryMapReader::new(prefix).map_err(to_py_err)?;
+    compute(py, move || {
+        let mut reader = PackedAncestryMapReader::new(prefix).map_err(to_py_err)?;
 
-    let geno = match snp_range {
-        Some((start, end)) => reader.read_snp_range(start..end).map_err(to_py_err)?,
-        None => reader.read_all().map_err(to_py_err)?,
-    };
+        let geno = match snp_range {
+            Some((start, end)) => reader.read_snp_range(start..end).map_err(to_py_err)?,
+            None => reader.read_all().map_err(to_py_err)?,
+        };
 
-    Ok(PyGenotypeMatrix { inner: geno })
+        Ok(PyGenotypeMatrix { inner: geno })
+    })
 }
 
 /// Read genotypes from VCF (Variant Call Format) files.
@@ -475,10 +496,12 @@ fn read_packedancestrymap(
 ///     VCF files don't include population information. Each sample's
 ///     population is set to its sample ID by default.
 #[pyfunction]
-fn read_vcf(path: &str) -> PyResult<PyGenotypeMatrix> {
-    let reader = open_vcf(path)?;
-    let geno = reader.read_all().map_err(to_py_err)?;
-    Ok(PyGenotypeMatrix { inner: geno })
+fn read_vcf(py: Python<'_>, path: &str) -> PyResult<PyGenotypeMatrix> {
+    compute(py, move || {
+        let reader = open_vcf(path)?;
+        let geno = reader.read_all().map_err(to_py_err)?;
+        Ok(PyGenotypeMatrix { inner: geno })
+    })
 }
 
 /// Auto-detect file format and read genotypes.
@@ -495,42 +518,50 @@ fn read_vcf(path: &str) -> PyResult<PyGenotypeMatrix> {
 ///     with no heterozygous call among the SNPs read are pseudohaploid
 #[pyfunction]
 #[pyo3(signature = (prefix, snp_range=None))]
-fn read_genotypes(prefix: &str, snp_range: Option<(usize, usize)>) -> PyResult<PyGenotypeMatrix> {
+fn read_genotypes(
+    py: Python<'_>,
+    prefix: &str,
+    snp_range: Option<(usize, usize)>,
+) -> PyResult<PyGenotypeMatrix> {
     let Some(range) = snp_range else {
         return Ok(PyGenotypeMatrix {
-            inner: read_genotypes_internal(prefix)?,
+            inner: compute(py, || read_genotypes_internal(prefix))?,
         });
     };
-    let mut geno = read_genotypes_range(prefix, range)?;
+    let mut geno = read_genotypes_range(py, prefix, range)?;
     ploidy::PloidyRule::Genome.apply(&mut geno.inner);
     Ok(geno)
 }
 
 /// A range of SNPs from a PLINK or (packed) EIGENSTRAT dataset; the whole
 /// file for a VCF, which has no range reader.
-fn read_genotypes_range(prefix: &str, range: (usize, usize)) -> PyResult<PyGenotypeMatrix> {
+fn read_genotypes_range(
+    py: Python<'_>,
+    prefix: &str,
+    range: (usize, usize),
+) -> PyResult<PyGenotypeMatrix> {
     use std::path::Path;
     let snp_range = Some(range);
 
     // Check for VCF format (full path with extension)
     if (prefix.ends_with(".vcf") || prefix.ends_with(".vcf.gz")) && Path::new(prefix).exists() {
         // VCF doesn't support snp_range, ignore it
-        return read_vcf(prefix);
+        return read_vcf(py, prefix);
     }
 
     // Check for VCF format with prefix
     let vcf_gz_path = format!("{}.vcf.gz", prefix);
     if Path::new(&vcf_gz_path).exists() {
-        return read_vcf(&vcf_gz_path);
+        return read_vcf(py, &vcf_gz_path);
     }
     let vcf_path = format!("{}.vcf", prefix);
     if Path::new(&vcf_path).exists() {
-        return read_vcf(&vcf_path);
+        return read_vcf(py, &vcf_path);
     }
 
     // Check for PLINK format (.bed file)
     if Path::new(&format!("{}.bed", prefix)).exists() {
-        return read_plink(prefix, snp_range);
+        return read_plink(py, prefix, snp_range);
     }
 
     // Check for EIGENSTRAT/PACKEDANCESTRYMAP format (.geno file)
@@ -545,9 +576,9 @@ fn read_genotypes_range(prefix: &str, range: (usize, usize)) -> PyResult<PyGenot
             });
         }
         if is_packed_format(&geno_path).map_err(to_py_err)? {
-            return read_packedancestrymap(prefix, snp_range);
+            return read_packedancestrymap(py, prefix, snp_range);
         } else {
-            return read_eigenstrat(prefix, snp_range);
+            return read_eigenstrat(py, prefix, snp_range);
         }
     }
 
@@ -569,9 +600,11 @@ fn read_genotypes_range(prefix: &str, range: (usize, usize)) -> PyResult<PyGenot
 /// Returns:
 ///     F2Blocks object ready for computing f-statistics
 #[pyfunction]
-fn read_f2(path: &str) -> PyResult<PyF2Blocks> {
-    let inner = read_f2_blocks(std::path::Path::new(path)).map_err(to_py_err)?;
-    Ok(PyF2Blocks { inner })
+fn read_f2(py: Python<'_>, path: &str) -> PyResult<PyF2Blocks> {
+    compute(py, move || {
+        let inner = read_f2_blocks(std::path::Path::new(path)).map_err(to_py_err)?;
+        Ok(PyF2Blocks { inner })
+    })
 }
 
 /// Convert genotype data between file formats.
@@ -594,11 +627,30 @@ fn read_f2(path: &str) -> PyResult<PyF2Blocks> {
 #[pyfunction]
 #[pyo3(signature = (input_prefix, output_prefix, output_format, input_format=None))]
 fn convertf(
+    py: Python<'_>,
     input_prefix: &str,
     output_prefix: &str,
     output_format: &str,
     input_format: Option<&str>,
 ) -> PyResult<HashMap<String, PyObject>> {
+    let (n_samples, n_snps, in_format, out_format) = compute(py, || {
+        convertf_files(input_prefix, output_prefix, output_format, input_format)
+    })?;
+    let mut result: HashMap<String, PyObject> = HashMap::new();
+    result.insert("n_samples".to_string(), n_samples.to_object(py));
+    result.insert("n_snps".to_string(), n_snps.to_object(py));
+    result.insert("input_format".to_string(), in_format.name().to_object(py));
+    result.insert("output_format".to_string(), out_format.name().to_object(py));
+    Ok(result)
+}
+
+/// `convertf`'s work: the sample and SNP counts and both formats.
+fn convertf_files(
+    input_prefix: &str,
+    output_prefix: &str,
+    output_format: &str,
+    input_format: Option<&str>,
+) -> PyResult<(usize, usize, GenoFormat, GenoFormat)> {
     use std::path::Path;
 
     // Detect or parse input format
@@ -672,14 +724,7 @@ fn convertf(
         }
     }
 
-    Python::with_gil(|py| {
-        let mut result: HashMap<String, PyObject> = HashMap::new();
-        result.insert("n_samples".to_string(), n_samples.to_object(py));
-        result.insert("n_snps".to_string(), n_snps.to_object(py));
-        result.insert("input_format".to_string(), in_format.name().to_object(py));
-        result.insert("output_format".to_string(), out_format.name().to_object(py));
-        Ok(result)
-    })
+    Ok((n_samples, n_snps, in_format, out_format))
 }
 
 /// Merge two genotype datasets.
@@ -712,6 +757,7 @@ fn convertf(
 #[pyfunction]
 #[pyo3(signature = (file_a, file_b, output, output_format, input_format_a=None, input_format_b=None))]
 fn merge(
+    py: Python<'_>,
     file_a: &str,
     file_b: &str,
     output: &str,
@@ -720,90 +766,103 @@ fn merge(
     input_format_b: Option<&str>,
 ) -> PyResult<HashMap<String, PyObject>> {
     use std::path::Path;
+    let work = || -> PyResult<_> {
+        // Helper to read genotypes from a prefix
+        fn read_geno(prefix: &str, format: Option<&str>) -> PyResult<GenotypeMatrix> {
+            let fmt = match format {
+                Some(f) => GenoFormat::from_str(f).map_err(to_py_err)?,
+                None => GenoFormat::detect(prefix).map_err(to_py_err)?,
+            };
 
-    // Helper to read genotypes from a prefix
-    fn read_geno(prefix: &str, format: Option<&str>) -> PyResult<GenotypeMatrix> {
-        let fmt = match format {
-            Some(f) => GenoFormat::from_str(f).map_err(to_py_err)?,
-            None => GenoFormat::detect(prefix).map_err(to_py_err)?,
-        };
-
-        match fmt {
-            GenoFormat::PackedPed => {
-                let mut reader = PlinkReader::new(prefix).map_err(to_py_err)?;
-                reader.read_all().map_err(to_py_err)
+            match fmt {
+                GenoFormat::PackedPed => {
+                    let mut reader = PlinkReader::new(prefix).map_err(to_py_err)?;
+                    reader.read_all().map_err(to_py_err)
+                }
+                GenoFormat::PackedAncestrymap => {
+                    let mut reader = PackedAncestryMapReader::new(prefix).map_err(to_py_err)?;
+                    reader.read_all().map_err(to_py_err)
+                }
+                GenoFormat::Eigenstrat => {
+                    let reader = EigenstratReader::new(prefix).map_err(to_py_err)?;
+                    reader.read_all().map_err(to_py_err)
+                }
+                GenoFormat::Ped => {
+                    let reader = PedReader::new(prefix).map_err(to_py_err)?;
+                    reader.read_all().map_err(to_py_err)
+                }
+                GenoFormat::Ancestrymap => {
+                    let reader = AncestryMapReader::new(prefix).map_err(to_py_err)?;
+                    reader.read_all().map_err(to_py_err)
+                }
+                GenoFormat::Vcf => {
+                    let reader = open_vcf(prefix)?;
+                    reader.read_all().map_err(to_py_err)
+                }
+                GenoFormat::Tgeno => TgenoReader::new(prefix)
+                    .and_then(|r| r.read_all())
+                    .map_err(to_py_err),
             }
-            GenoFormat::PackedAncestrymap => {
-                let mut reader = PackedAncestryMapReader::new(prefix).map_err(to_py_err)?;
-                reader.read_all().map_err(to_py_err)
+        }
+
+        // Read both input files
+        let geno_a = read_geno(file_a, input_format_a)?;
+        let geno_b = read_geno(file_b, input_format_b)?;
+
+        // Capture input stats before merging
+        let snps_a = geno_a.n_snps();
+        let snps_b = geno_b.n_snps();
+        let samples_a = geno_a.n_samples();
+        let samples_b = geno_b.n_samples();
+
+        // Merge
+        let (merged, stats) = merge_genotypes(&geno_a, &geno_b).map_err(to_py_err)?;
+
+        // Write output
+        let out_format = GenoFormat::from_str(output_format).map_err(to_py_err)?;
+        let out_path = Path::new(output);
+
+        match out_format {
+            GenoFormat::Ancestrymap => {
+                write_ancestrymap(out_path, &merged).map_err(to_py_err)?;
             }
             GenoFormat::Eigenstrat => {
-                let reader = EigenstratReader::new(prefix).map_err(to_py_err)?;
-                reader.read_all().map_err(to_py_err)
+                write_eigenstrat(out_path, &merged).map_err(to_py_err)?;
+            }
+            GenoFormat::PackedAncestrymap => {
+                write_packedancestrymap(out_path, &merged).map_err(to_py_err)?;
+            }
+            GenoFormat::PackedPed => {
+                write_packedped(out_path, &merged).map_err(to_py_err)?;
             }
             GenoFormat::Ped => {
-                let reader = PedReader::new(prefix).map_err(to_py_err)?;
-                reader.read_all().map_err(to_py_err)
+                write_ped(out_path, &merged).map_err(to_py_err)?;
             }
-            GenoFormat::Ancestrymap => {
-                let reader = AncestryMapReader::new(prefix).map_err(to_py_err)?;
-                reader.read_all().map_err(to_py_err)
+            GenoFormat::Tgeno => {
+                write_tgeno(out_path, &merged).map_err(to_py_err)?;
             }
             GenoFormat::Vcf => {
-                let reader = open_vcf(prefix)?;
-                reader.read_all().map_err(to_py_err)
-            }
-            GenoFormat::Tgeno => TgenoReader::new(prefix)
-                .and_then(|r| r.read_all())
-                .map_err(to_py_err),
-        }
-    }
-
-    // Read both input files
-    let geno_a = read_geno(file_a, input_format_a)?;
-    let geno_b = read_geno(file_b, input_format_b)?;
-
-    // Capture input stats before merging
-    let snps_a = geno_a.n_snps();
-    let snps_b = geno_b.n_snps();
-    let samples_a = geno_a.n_samples();
-    let samples_b = geno_b.n_samples();
-
-    // Merge
-    let (merged, stats) = merge_genotypes(&geno_a, &geno_b).map_err(to_py_err)?;
-
-    // Write output
-    let out_format = GenoFormat::from_str(output_format).map_err(to_py_err)?;
-    let out_path = Path::new(output);
-
-    match out_format {
-        GenoFormat::Ancestrymap => {
-            write_ancestrymap(out_path, &merged).map_err(to_py_err)?;
-        }
-        GenoFormat::Eigenstrat => {
-            write_eigenstrat(out_path, &merged).map_err(to_py_err)?;
-        }
-        GenoFormat::PackedAncestrymap => {
-            write_packedancestrymap(out_path, &merged).map_err(to_py_err)?;
-        }
-        GenoFormat::PackedPed => {
-            write_packedped(out_path, &merged).map_err(to_py_err)?;
-        }
-        GenoFormat::Ped => {
-            write_ped(out_path, &merged).map_err(to_py_err)?;
-        }
-        GenoFormat::Tgeno => {
-            write_tgeno(out_path, &merged).map_err(to_py_err)?;
-        }
-        GenoFormat::Vcf => {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
                 "VCF output format is not supported. Use plink, eigenstrat, or packedancestrymap.",
             ));
+            }
         }
-    }
+
+        Ok((
+            snps_a,
+            snps_b,
+            samples_a,
+            samples_b,
+            merged.n_snps(),
+            merged.n_samples(),
+            stats,
+        ))
+    };
+    let (snps_a, snps_b, samples_a, samples_b, snps_merged, samples_merged, stats) =
+        compute(py, work)?;
 
     // Return stats
-    Python::with_gil(|py| {
+    {
         let mut result: HashMap<String, PyObject> = HashMap::new();
         // Input file stats
         result.insert("snps_a".to_string(), snps_a.to_object(py));
@@ -811,11 +870,8 @@ fn merge(
         result.insert("samples_a".to_string(), samples_a.to_object(py));
         result.insert("samples_b".to_string(), samples_b.to_object(py));
         // Merge stats
-        result.insert("snps_merged".to_string(), merged.n_snps().to_object(py));
-        result.insert(
-            "samples_merged".to_string(),
-            merged.n_samples().to_object(py),
-        );
+        result.insert("snps_merged".to_string(), snps_merged.to_object(py));
+        result.insert("samples_merged".to_string(), samples_merged.to_object(py));
         result.insert(
             "snps_identical".to_string(),
             stats.snps_identical.to_object(py),
@@ -838,7 +894,7 @@ fn merge(
             stats.snps_duplicate_position.to_object(py),
         );
         Ok(result)
-    })
+    }
 }
 
 /// Detect the genotype file format at a given prefix.
@@ -1007,64 +1063,66 @@ fn dataset_info(prefix: &str) -> PyResult<HashMap<String, PyObject>> {
 /// Returns:
 ///     List of (population_name, sample_count) tuples, sorted by count descending
 #[pyfunction]
-fn list_populations(prefix: &str) -> PyResult<Vec<(String, usize)>> {
-    use std::collections::HashMap;
-    use std::path::Path;
+fn list_populations(py: Python<'_>, prefix: &str) -> PyResult<Vec<(String, usize)>> {
+    compute(py, move || {
+        use std::collections::HashMap;
+        use std::path::Path;
 
-    // Helper to count populations from samples
-    fn count_populations(samples: &[Sample]) -> Vec<(String, usize)> {
-        let mut counts: HashMap<String, usize> = HashMap::new();
-        for sample in samples {
-            *counts.entry(sample.population.to_string()).or_insert(0) += 1;
+        // Helper to count populations from samples
+        fn count_populations(samples: &[Sample]) -> Vec<(String, usize)> {
+            let mut counts: HashMap<String, usize> = HashMap::new();
+            for sample in samples {
+                *counts.entry(sample.population.to_string()).or_insert(0) += 1;
+            }
+            let mut pop_counts: Vec<(String, usize)> = counts.into_iter().collect();
+            pop_counts.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+            pop_counts
         }
-        let mut pop_counts: Vec<(String, usize)> = counts.into_iter().collect();
-        pop_counts.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
-        pop_counts
-    }
 
-    // Check for VCF format (full path with extension)
-    if (prefix.ends_with(".vcf") || prefix.ends_with(".vcf.gz")) && Path::new(prefix).exists() {
-        let reader = open_vcf(prefix)?;
-        return Ok(count_populations(reader.samples()));
-    }
-
-    // Check for VCF format with prefix
-    let vcf_gz_path = format!("{}.vcf.gz", prefix);
-    if Path::new(&vcf_gz_path).exists() {
-        let reader = open_vcf(&vcf_gz_path)?;
-        return Ok(count_populations(reader.samples()));
-    }
-    let vcf_path = format!("{}.vcf", prefix);
-    if Path::new(&vcf_path).exists() {
-        let reader = open_vcf(&vcf_path)?;
-        return Ok(count_populations(reader.samples()));
-    }
-
-    // Check for PLINK format
-    if Path::new(&format!("{}.bed", prefix)).exists() {
-        let reader = PlinkReader::new(prefix).map_err(to_py_err)?;
-        return Ok(count_populations(reader.samples()));
-    }
-
-    // Check for EIGENSTRAT/PACKEDANCESTRYMAP format
-    let geno_path = format!("{}.geno", prefix);
-    if Path::new(&geno_path).exists() {
-        if is_tgeno_format(&geno_path).map_err(to_py_err)? {
-            let reader = TgenoReader::new(prefix).map_err(to_py_err)?;
+        // Check for VCF format (full path with extension)
+        if (prefix.ends_with(".vcf") || prefix.ends_with(".vcf.gz")) && Path::new(prefix).exists() {
+            let reader = open_vcf(prefix)?;
             return Ok(count_populations(reader.samples()));
         }
-        if is_packed_format(&geno_path).map_err(to_py_err)? {
-            let reader = PackedAncestryMapReader::new(prefix).map_err(to_py_err)?;
-            return Ok(count_populations(reader.samples()));
-        } else {
-            let reader = EigenstratReader::new(prefix).map_err(to_py_err)?;
+
+        // Check for VCF format with prefix
+        let vcf_gz_path = format!("{}.vcf.gz", prefix);
+        if Path::new(&vcf_gz_path).exists() {
+            let reader = open_vcf(&vcf_gz_path)?;
             return Ok(count_populations(reader.samples()));
         }
-    }
+        let vcf_path = format!("{}.vcf", prefix);
+        if Path::new(&vcf_path).exists() {
+            let reader = open_vcf(&vcf_path)?;
+            return Ok(count_populations(reader.samples()));
+        }
 
-    Err(PyErr::new::<pyo3::exceptions::PyFileNotFoundError, _>(
-        format!("No genotype files found for prefix: {}", prefix),
-    ))
+        // Check for PLINK format
+        if Path::new(&format!("{}.bed", prefix)).exists() {
+            let reader = PlinkReader::new(prefix).map_err(to_py_err)?;
+            return Ok(count_populations(reader.samples()));
+        }
+
+        // Check for EIGENSTRAT/PACKEDANCESTRYMAP format
+        let geno_path = format!("{}.geno", prefix);
+        if Path::new(&geno_path).exists() {
+            if is_tgeno_format(&geno_path).map_err(to_py_err)? {
+                let reader = TgenoReader::new(prefix).map_err(to_py_err)?;
+                return Ok(count_populations(reader.samples()));
+            }
+            if is_packed_format(&geno_path).map_err(to_py_err)? {
+                let reader = PackedAncestryMapReader::new(prefix).map_err(to_py_err)?;
+                return Ok(count_populations(reader.samples()));
+            } else {
+                let reader = EigenstratReader::new(prefix).map_err(to_py_err)?;
+                return Ok(count_populations(reader.samples()));
+            }
+        }
+
+        Err(PyErr::new::<pyo3::exceptions::PyFileNotFoundError, _>(
+            format!("No genotype files found for prefix: {}", prefix),
+        ))
+    })
 }
 
 /// Suggest similar population names for typos/errors.
@@ -1083,8 +1141,13 @@ fn list_populations(prefix: &str) -> PyResult<Vec<(String, usize)>> {
 ///     List of (population_name, sample_count) tuples, most similar first
 #[pyfunction]
 #[pyo3(signature = (prefix, query, limit=5))]
-fn suggest_populations(prefix: &str, query: &str, limit: usize) -> PyResult<Vec<(String, usize)>> {
-    let all_pops = list_populations(prefix)?;
+fn suggest_populations(
+    py: Python<'_>,
+    prefix: &str,
+    query: &str,
+    limit: usize,
+) -> PyResult<Vec<(String, usize)>> {
+    let all_pops = list_populations(py, prefix)?;
 
     if all_pops.is_empty() {
         return Ok(vec![]);
@@ -1569,6 +1632,7 @@ impl PyF2Blocks {
 #[pyo3(signature = (prefix, populations, auto_only=true, block_size=None, maxmiss=0.0, poly_only=true, inds=None, pops=None, pseudohaploid="detect"))]
 #[allow(clippy::too_many_arguments)]
 fn extract_f2(
+    py: Python<'_>,
     prefix: &str,
     populations: Vec<String>,
     auto_only: bool,
@@ -1579,108 +1643,111 @@ fn extract_f2(
     pops: Option<Vec<String>>,
     pseudohaploid: &str,
 ) -> PyResult<PyF2Blocks> {
-    use std::path::Path;
+    compute(py, move || {
+        use std::path::Path;
 
-    let relabel = sample_labels(inds, pops)?;
-    let rule = ploidy::ploidy_rule(pseudohaploid)?;
+        let relabel = sample_labels(inds, pops)?;
+        let rule = ploidy::ploidy_rule(pseudohaploid)?;
 
-    if !(0.0..=1.0).contains(&maxmiss) {
-        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-            "maxmiss must be between 0 and 1, got {maxmiss}"
-        )));
-    }
-    let f2_options = popmix_core::F2Options {
-        max_missing: maxmiss,
-        poly_only,
-    };
-
-    // Create block definition
-    let block_def = match block_size {
-        Some(size) => BlockDefinition::new(size),
-        None => BlockDefinition::default(),
-    };
-
-    // Use streaming approach for PACKEDANCESTRYMAP (the main use case)
-    let geno_path = format!("{}.geno", prefix);
-    if Path::new(&geno_path).exists() && is_packed_format(&geno_path).map_err(to_py_err)? {
-        // Read sample and SNP metadata only (no genotypes)
-        let ind_path = format!("{}.ind", prefix);
-        let snp_path = format!("{}.snp", prefix);
-
-        let mut samples = popmix_io::eigenstrat::read_ind_file(&ind_path).map_err(to_py_err)?;
-        let snps = popmix_io::eigenstrat::read_snp_file(&snp_path).map_err(to_py_err)?;
-        popmix_core::genotypes::check_sorted(&snps).map_err(to_py_err)?;
-        if let Some(labels) = &relabel {
-            apply_sample_labels(&mut samples, labels)?;
+        if !(0.0..=1.0).contains(&maxmiss) {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "maxmiss must be between 0 and 1, got {maxmiss}"
+            )));
         }
-        require_sample_populations(&samples, &populations)?;
+        let f2_options = popmix_core::F2Options {
+            max_missing: maxmiss,
+            poly_only,
+        };
 
-        // Ploidy of the requested populations' samples
+        // Create block definition
+        let block_def = match block_size {
+            Some(size) => BlockDefinition::new(size),
+            None => BlockDefinition::default(),
+        };
+
+        // Use streaming approach for PACKEDANCESTRYMAP (the main use case)
+        let geno_path = format!("{}.geno", prefix);
+        if Path::new(&geno_path).exists() && is_packed_format(&geno_path).map_err(to_py_err)? {
+            // Read sample and SNP metadata only (no genotypes)
+            let ind_path = format!("{}.ind", prefix);
+            let snp_path = format!("{}.snp", prefix);
+
+            let mut samples = popmix_io::eigenstrat::read_ind_file(&ind_path).map_err(to_py_err)?;
+            let snps = popmix_io::eigenstrat::read_snp_file(&snp_path).map_err(to_py_err)?;
+            popmix_core::genotypes::check_sorted(&snps).map_err(to_py_err)?;
+            if let Some(labels) = &relabel {
+                apply_sample_labels(&mut samples, labels)?;
+            }
+            require_sample_populations(&samples, &populations)?;
+
+            // Ploidy of the requested populations' samples
+            let pop_refs: Vec<&str> = populations.iter().map(|s| s.as_str()).collect();
+            rule.apply_packed(&geno_path, &mut samples, &pop_refs, snps.len())?;
+
+            // Compute allele frequencies by streaming through file (SNP by SNP)
+            let af = compute_allele_frequencies_packedancestrymap(
+                &geno_path, &samples, &snps, &pop_refs, auto_only,
+            )
+            .map_err(to_py_err)?;
+
+            // Compute F2 blocks
+            let f2_blocks =
+                F2Blocks::from_allele_frequencies_with_options(&af, &block_def, &f2_options);
+
+            return Ok(PyF2Blocks { inner: f2_blocks });
+        }
+
+        let mut geno =
+            if Path::new(&geno_path).exists() && is_tgeno_format(&geno_path).map_err(to_py_err)? {
+                // TGENO stores each sample's genotypes together: read only the
+                // records of the requested populations' samples
+                let reader = TgenoReader::new(prefix).map_err(to_py_err)?;
+                let mut samples = reader.samples().to_vec();
+                if let Some(labels) = &relabel {
+                    apply_sample_labels(&mut samples, labels)?;
+                }
+                require_sample_populations(&samples, &populations)?;
+                let selected: Vec<usize> = (0..samples.len())
+                    .filter(|&i| {
+                        populations
+                            .iter()
+                            .any(|p| p == samples[i].population.as_str())
+                    })
+                    .collect();
+                let mut geno = reader.read_samples(&selected).map_err(to_py_err)?;
+                for (sample, &i) in geno.samples_mut().iter_mut().zip(&selected) {
+                    *sample = samples[i].clone();
+                }
+                geno
+            } else {
+                // Fallback: load all genotypes for other formats (PLINK, text EIGENSTRAT)
+                let mut geno = read_genotypes_internal(prefix)?;
+                if let Some(labels) = &relabel {
+                    apply_sample_labels(geno.samples_mut(), labels)?;
+                }
+                require_sample_populations(geno.samples(), &populations)?;
+                geno
+            };
+        popmix_core::genotypes::check_sorted(geno.snps()).map_err(to_py_err)?;
+        rule.apply(&mut geno);
+
+        // Filter to autosomal if requested
+        let geno = if auto_only {
+            geno.filter_autosomal().map_err(to_py_err)?
+        } else {
+            geno
+        };
+
+        // Compute allele frequencies for specified populations
         let pop_refs: Vec<&str> = populations.iter().map(|s| s.as_str()).collect();
-        rule.apply_packed(&geno_path, &mut samples, &pop_refs, snps.len())?;
-
-        // Compute allele frequencies by streaming through file (SNP by SNP)
-        let af = compute_allele_frequencies_packedancestrymap(
-            &geno_path, &samples, &snps, &pop_refs, auto_only,
-        )
-        .map_err(to_py_err)?;
+        let af = AlleleFrequencies::from_genotypes_for_populations(&geno, Some(&pop_refs));
 
         // Compute F2 blocks
         let f2_blocks =
             F2Blocks::from_allele_frequencies_with_options(&af, &block_def, &f2_options);
 
-        return Ok(PyF2Blocks { inner: f2_blocks });
-    }
-
-    let mut geno =
-        if Path::new(&geno_path).exists() && is_tgeno_format(&geno_path).map_err(to_py_err)? {
-            // TGENO stores each sample's genotypes together: read only the
-            // records of the requested populations' samples
-            let reader = TgenoReader::new(prefix).map_err(to_py_err)?;
-            let mut samples = reader.samples().to_vec();
-            if let Some(labels) = &relabel {
-                apply_sample_labels(&mut samples, labels)?;
-            }
-            require_sample_populations(&samples, &populations)?;
-            let selected: Vec<usize> = (0..samples.len())
-                .filter(|&i| {
-                    populations
-                        .iter()
-                        .any(|p| p == samples[i].population.as_str())
-                })
-                .collect();
-            let mut geno = reader.read_samples(&selected).map_err(to_py_err)?;
-            for (sample, &i) in geno.samples_mut().iter_mut().zip(&selected) {
-                *sample = samples[i].clone();
-            }
-            geno
-        } else {
-            // Fallback: load all genotypes for other formats (PLINK, text EIGENSTRAT)
-            let mut geno = read_genotypes_internal(prefix)?;
-            if let Some(labels) = &relabel {
-                apply_sample_labels(geno.samples_mut(), labels)?;
-            }
-            require_sample_populations(geno.samples(), &populations)?;
-            geno
-        };
-    popmix_core::genotypes::check_sorted(geno.snps()).map_err(to_py_err)?;
-    rule.apply(&mut geno);
-
-    // Filter to autosomal if requested
-    let geno = if auto_only {
-        geno.filter_autosomal().map_err(to_py_err)?
-    } else {
-        geno
-    };
-
-    // Compute allele frequencies for specified populations
-    let pop_refs: Vec<&str> = populations.iter().map(|s| s.as_str()).collect();
-    let af = AlleleFrequencies::from_genotypes_for_populations(&geno, Some(&pop_refs));
-
-    // Compute F2 blocks
-    let f2_blocks = F2Blocks::from_allele_frequencies_with_options(&af, &block_def, &f2_options);
-
-    Ok(PyF2Blocks { inner: f2_blocks })
+        Ok(PyF2Blocks { inner: f2_blocks })
+    })
 }
 
 /// The population label of an excluded sample: no population is called this.
@@ -1730,15 +1797,21 @@ fn apply_sample_labels(samples: &mut [Sample], labels: &HashMap<String, String>)
 /// Compute F2 blocks from allele frequencies.
 #[pyfunction]
 #[pyo3(signature = (af, block_size=None))]
-fn f2_from_frequencies(af: &PyAlleleFrequencies, block_size: Option<f64>) -> PyResult<PyF2Blocks> {
-    let block_def = match block_size {
-        Some(size) => BlockDefinition::new(size),
-        None => BlockDefinition::default(),
-    };
+fn f2_from_frequencies(
+    py: Python<'_>,
+    af: &PyAlleleFrequencies,
+    block_size: Option<f64>,
+) -> PyResult<PyF2Blocks> {
+    compute(py, move || {
+        let block_def = match block_size {
+            Some(size) => BlockDefinition::new(size),
+            None => BlockDefinition::default(),
+        };
 
-    let f2_blocks = F2Blocks::from_allele_frequencies(&af.inner, &block_def);
+        let f2_blocks = F2Blocks::from_allele_frequencies(&af.inner, &block_def);
 
-    Ok(PyF2Blocks { inner: f2_blocks })
+        Ok(PyF2Blocks { inner: f2_blocks })
+    })
 }
 
 // ============================================================================
@@ -1854,6 +1927,7 @@ impl PyF4RatioResult {
 #[pyfunction]
 #[pyo3(signature = (f2_blocks, test, source_a, source_b, outgroup, reference))]
 fn qpf4ratio(
+    py: Python<'_>,
     f2_blocks: &PyF2Blocks,
     test: String,
     source_a: String,
@@ -1861,29 +1935,31 @@ fn qpf4ratio(
     outgroup: String,
     reference: String,
 ) -> PyResult<PyF4RatioResult> {
-    let result = popmix_core::f4ratio(
-        &f2_blocks.inner,
-        &test,
-        &source_a,
-        &source_b,
-        &outgroup,
-        &reference,
-        None,
-    )
-    .map_err(to_py_err)?;
+    compute(py, move || {
+        let result = popmix_core::f4ratio(
+            &f2_blocks.inner,
+            &test,
+            &source_a,
+            &source_b,
+            &outgroup,
+            &reference,
+            None,
+        )
+        .map_err(to_py_err)?;
 
-    Ok(PyF4RatioResult {
-        test: result.test.to_string(),
-        source_a: result.source_a.to_string(),
-        source_b: result.source_b.to_string(),
-        outgroup: result.outgroup.to_string(),
-        reference: result.reference.to_string(),
-        alpha: result.alpha,
-        std_err: result.std_err,
-        z_score: result.z_score,
-        n_blocks: result.n_blocks,
-        f4_numerator: result.f4_numerator,
-        f4_denominator: result.f4_denominator,
+        Ok(PyF4RatioResult {
+            test: result.test.to_string(),
+            source_a: result.source_a.to_string(),
+            source_b: result.source_b.to_string(),
+            outgroup: result.outgroup.to_string(),
+            reference: result.reference.to_string(),
+            alpha: result.alpha,
+            std_err: result.std_err,
+            z_score: result.z_score,
+            n_blocks: result.n_blocks,
+            f4_numerator: result.f4_numerator,
+            f4_denominator: result.f4_denominator,
+        })
     })
 }
 
@@ -2112,6 +2188,7 @@ impl PyQpAdmRotateResult {
 #[pyo3(signature = (f2_blocks, target, candidates, outgroups, min_sources=None, max_sources=None, feasible_only=None, fudge=None))]
 #[allow(clippy::too_many_arguments)]
 fn qpadm_rotate(
+    py: Python<'_>,
     f2_blocks: &PyF2Blocks,
     target: String,
     candidates: Vec<String>,
@@ -2121,51 +2198,53 @@ fn qpadm_rotate(
     feasible_only: Option<bool>,
     fudge: Option<f64>,
 ) -> PyResult<PyQpAdmRotateResult> {
-    let candidates_refs: Vec<&str> = candidates.iter().map(|s| s.as_str()).collect();
-    let outgroups_refs: Vec<&str> = outgroups.iter().map(|s| s.as_str()).collect();
+    compute(py, move || {
+        let candidates_refs: Vec<&str> = candidates.iter().map(|s| s.as_str()).collect();
+        let outgroups_refs: Vec<&str> = outgroups.iter().map(|s| s.as_str()).collect();
 
-    let opts = popmix_core::QpAdmRotateOptions {
-        min_sources: min_sources.unwrap_or(1),
-        max_sources,
-        p_threshold: 0.05,
-        feasible_only: feasible_only.unwrap_or(false),
-        qpadm_opts: popmix_core::QpAdmOptions {
-            fudge: fudge.unwrap_or(1e-4),
-            ..Default::default()
-        },
-    };
+        let opts = popmix_core::QpAdmRotateOptions {
+            min_sources: min_sources.unwrap_or(1),
+            max_sources,
+            p_threshold: 0.05,
+            feasible_only: feasible_only.unwrap_or(false),
+            qpadm_opts: popmix_core::QpAdmOptions {
+                fudge: fudge.unwrap_or(1e-4),
+                ..Default::default()
+            },
+        };
 
-    let result = popmix_core::qpadm_rotate(
-        &f2_blocks.inner,
-        &target,
-        &candidates_refs,
-        &outgroups_refs,
-        Some(opts),
-    )
-    .map_err(to_py_err)?;
+        let result = popmix_core::qpadm_rotate(
+            &f2_blocks.inner,
+            &target,
+            &candidates_refs,
+            &outgroups_refs,
+            Some(opts),
+        )
+        .map_err(to_py_err)?;
 
-    let models = result
-        .models
-        .into_iter()
-        .map(|m| PyRotationModel {
-            sources: m.sources.iter().map(|s| s.to_string()).collect(),
-            weights: m.weights,
-            weight_std_errors: m.weight_std_errors,
-            p_value: m.p_value,
-            chi_sq: m.chi_sq,
-            df: m.df,
-            is_feasible: m.is_feasible,
+        let models = result
+            .models
+            .into_iter()
+            .map(|m| PyRotationModel {
+                sources: m.sources.iter().map(|s| s.to_string()).collect(),
+                weights: m.weights,
+                weight_std_errors: m.weight_std_errors,
+                p_value: m.p_value,
+                chi_sq: m.chi_sq,
+                df: m.df,
+                is_feasible: m.is_feasible,
+            })
+            .collect();
+
+        Ok(PyQpAdmRotateResult {
+            target: result.target.to_string(),
+            candidates: result.candidates.iter().map(|s| s.to_string()).collect(),
+            outgroups: result.outgroups.iter().map(|s| s.to_string()).collect(),
+            models,
+            n_combinations: result.n_combinations,
+            n_feasible: result.n_feasible,
+            n_skipped: result.n_skipped,
         })
-        .collect();
-
-    Ok(PyQpAdmRotateResult {
-        target: result.target.to_string(),
-        candidates: result.candidates.iter().map(|s| s.to_string()).collect(),
-        outgroups: result.outgroups.iter().map(|s| s.to_string()).collect(),
-        models,
-        n_combinations: result.n_combinations,
-        n_feasible: result.n_feasible,
-        n_skipped: result.n_skipped,
     })
 }
 
@@ -2185,41 +2264,44 @@ fn qpadm_rotate(
 #[pyfunction]
 #[pyo3(signature = (f2_blocks, left, right, fudge=None))]
 fn qpwave(
+    py: Python<'_>,
     f2_blocks: &PyF2Blocks,
     left: Vec<String>,
     right: Vec<String>,
     fudge: Option<f64>,
 ) -> PyResult<PyQpWaveResult> {
-    let left_refs: Vec<&str> = left.iter().map(|s| s.as_str()).collect();
-    let right_refs: Vec<&str> = right.iter().map(|s| s.as_str()).collect();
+    compute(py, move || {
+        let left_refs: Vec<&str> = left.iter().map(|s| s.as_str()).collect();
+        let right_refs: Vec<&str> = right.iter().map(|s| s.as_str()).collect();
 
-    let opts = popmix_core::QpWaveOptions {
-        fudge: fudge.unwrap_or(1e-4),
-        max_rank: None,
-    };
+        let opts = popmix_core::QpWaveOptions {
+            fudge: fudge.unwrap_or(1e-4),
+            max_rank: None,
+        };
 
-    let result = popmix_core::qpwave(&f2_blocks.inner, &left_refs, &right_refs, Some(opts))
-        .map_err(to_py_err)?;
+        let result = popmix_core::qpwave(&f2_blocks.inner, &left_refs, &right_refs, Some(opts))
+            .map_err(to_py_err)?;
 
-    let rank_tests = result
-        .rank_tests
-        .iter()
-        .map(|r| PyRankTest {
-            rank: r.rank,
-            chi_sq: r.chi_sq,
-            df: r.df,
-            p_value: r.p_value,
+        let rank_tests = result
+            .rank_tests
+            .iter()
+            .map(|r| PyRankTest {
+                rank: r.rank,
+                chi_sq: r.chi_sq,
+                df: r.df,
+                p_value: r.p_value,
+            })
+            .collect();
+
+        let rows = |m: &ndarray::Array2<f64>| m.outer_iter().map(|r| r.to_vec()).collect();
+        Ok(PyQpWaveResult {
+            rank_tests,
+            estimated_rank: result.estimated_rank,
+            left_pops: left,
+            right_pops: right,
+            f4_matrix: rows(&result.f4_matrix.values),
+            f4_covariance: rows(&result.f4_matrix.covariance),
         })
-        .collect();
-
-    let rows = |m: &ndarray::Array2<f64>| m.outer_iter().map(|r| r.to_vec()).collect();
-    Ok(PyQpWaveResult {
-        rank_tests,
-        estimated_rank: result.estimated_rank,
-        left_pops: left,
-        right_pops: right,
-        f4_matrix: rows(&result.f4_matrix.values),
-        f4_covariance: rows(&result.f4_matrix.covariance),
     })
 }
 
@@ -2309,40 +2391,44 @@ impl PyQpWavePairsResult {
 #[pyfunction]
 #[pyo3(signature = (f2_blocks, populations, outgroups, fudge=None))]
 fn qpwave_pairs(
+    py: Python<'_>,
     f2_blocks: &PyF2Blocks,
     populations: Vec<String>,
     outgroups: Vec<String>,
     fudge: Option<f64>,
 ) -> PyResult<PyQpWavePairsResult> {
-    let pop_refs: Vec<&str> = populations.iter().map(|s| s.as_str()).collect();
-    let outgroup_refs: Vec<&str> = outgroups.iter().map(|s| s.as_str()).collect();
+    compute(py, move || {
+        let pop_refs: Vec<&str> = populations.iter().map(|s| s.as_str()).collect();
+        let outgroup_refs: Vec<&str> = outgroups.iter().map(|s| s.as_str()).collect();
 
-    let opts = popmix_core::QpWaveOptions {
-        fudge: fudge.unwrap_or(1e-4),
-        max_rank: None,
-    };
+        let opts = popmix_core::QpWaveOptions {
+            fudge: fudge.unwrap_or(1e-4),
+            max_rank: None,
+        };
 
-    let result = popmix_core::qpwave_pairs(&f2_blocks.inner, &pop_refs, &outgroup_refs, Some(opts))
-        .map_err(to_py_err)?;
+        let result =
+            popmix_core::qpwave_pairs(&f2_blocks.inner, &pop_refs, &outgroup_refs, Some(opts))
+                .map_err(to_py_err)?;
 
-    let pairs = result
-        .pairs
-        .into_iter()
-        .map(|p| PyQpWavePairResult {
-            pop_a: p.pop_a.to_string(),
-            pop_b: p.pop_b.to_string(),
-            p_value: p.p_value,
-            chi_sq: p.chi_sq,
-            df: p.df,
+        let pairs = result
+            .pairs
+            .into_iter()
+            .map(|p| PyQpWavePairResult {
+                pop_a: p.pop_a.to_string(),
+                pop_b: p.pop_b.to_string(),
+                p_value: p.p_value,
+                chi_sq: p.chi_sq,
+                df: p.df,
+            })
+            .collect();
+
+        Ok(PyQpWavePairsResult {
+            populations: result.populations.iter().map(|s| s.to_string()).collect(),
+            outgroups: result.outgroups.iter().map(|s| s.to_string()).collect(),
+            pairs,
+            n_pairs: result.n_pairs,
+            n_skipped: result.n_skipped,
         })
-        .collect();
-
-    Ok(PyQpWavePairsResult {
-        populations: result.populations.iter().map(|s| s.to_string()).collect(),
-        outgroups: result.outgroups.iter().map(|s| s.to_string()).collect(),
-        pairs,
-        n_pairs: result.n_pairs,
-        n_skipped: result.n_skipped,
     })
 }
 
@@ -2377,7 +2463,9 @@ fn admixtools2_compat(compat: Option<&str>) -> PyResult<popmix_core::Admixtools2
 ///     PyQpAdmResult with estimated weights and model fit statistics
 #[pyfunction]
 #[pyo3(signature = (f2_blocks, target, sources, right, constrained=None, fudge=None, compat=None))]
+#[allow(clippy::too_many_arguments)]
 fn qpadm(
+    py: Python<'_>,
     f2_blocks: &PyF2Blocks,
     target: String,
     sources: Vec<String>,
@@ -2386,25 +2474,27 @@ fn qpadm(
     fudge: Option<f64>,
     compat: Option<&str>,
 ) -> PyResult<PyQpAdmResult> {
-    let sources_refs: Vec<&str> = sources.iter().map(|s| s.as_str()).collect();
-    let right_refs: Vec<&str> = right.iter().map(|s| s.as_str()).collect();
+    compute(py, move || {
+        let sources_refs: Vec<&str> = sources.iter().map(|s| s.as_str()).collect();
+        let right_refs: Vec<&str> = right.iter().map(|s| s.as_str()).collect();
 
-    let opts = popmix_core::QpAdmOptions {
-        fudge: fudge.unwrap_or(1e-4),
-        constrained: constrained.unwrap_or(false),
-        compat: admixtools2_compat(compat)?,
-    };
+        let opts = popmix_core::QpAdmOptions {
+            fudge: fudge.unwrap_or(1e-4),
+            constrained: constrained.unwrap_or(false),
+            compat: admixtools2_compat(compat)?,
+        };
 
-    let result = popmix_core::qpadm(
-        &f2_blocks.inner,
-        &target,
-        &sources_refs,
-        &right_refs,
-        Some(opts),
-    )
-    .map_err(to_py_err)?;
+        let result = popmix_core::qpadm(
+            &f2_blocks.inner,
+            &target,
+            &sources_refs,
+            &right_refs,
+            Some(opts),
+        )
+        .map_err(to_py_err)?;
 
-    Ok(PyQpAdmResult::from(result))
+        Ok(PyQpAdmResult::from(result))
+    })
 }
 
 /// Run qpAdm for multiple targets with the same sources and outgroups.
@@ -2426,7 +2516,9 @@ fn qpadm(
 ///     List of qpAdm results for each target
 #[pyfunction]
 #[pyo3(signature = (f2_blocks, targets, sources, right, constrained=None, fudge=None, compat=None))]
+#[allow(clippy::too_many_arguments)]
 fn qpadm_multi(
+    py: Python<'_>,
     f2_blocks: &PyF2Blocks,
     targets: Vec<String>,
     sources: Vec<String>,
@@ -2435,35 +2527,37 @@ fn qpadm_multi(
     fudge: Option<f64>,
     compat: Option<&str>,
 ) -> PyResult<Vec<PyQpAdmResult>> {
-    let sources_refs: Vec<&str> = sources.iter().map(|s| s.as_str()).collect();
-    let right_refs: Vec<&str> = right.iter().map(|s| s.as_str()).collect();
+    compute(py, move || {
+        let sources_refs: Vec<&str> = sources.iter().map(|s| s.as_str()).collect();
+        let right_refs: Vec<&str> = right.iter().map(|s| s.as_str()).collect();
 
-    let opts = popmix_core::QpAdmOptions {
-        fudge: fudge.unwrap_or(1e-4),
-        constrained: constrained.unwrap_or(false),
-        compat: admixtools2_compat(compat)?,
-    };
+        let opts = popmix_core::QpAdmOptions {
+            fudge: fudge.unwrap_or(1e-4),
+            constrained: constrained.unwrap_or(false),
+            compat: admixtools2_compat(compat)?,
+        };
 
-    let mut results = Vec::with_capacity(targets.len());
+        let mut results = Vec::with_capacity(targets.len());
 
-    for target in &targets {
-        match popmix_core::qpadm(
-            &f2_blocks.inner,
-            target,
-            &sources_refs,
-            &right_refs,
-            Some(opts.clone()),
-        ) {
-            Ok(result) => {
-                results.push(PyQpAdmResult::from(result));
-            }
-            Err(e) => {
-                return Err(to_py_err(e));
+        for target in &targets {
+            match popmix_core::qpadm(
+                &f2_blocks.inner,
+                target,
+                &sources_refs,
+                &right_refs,
+                Some(opts.clone()),
+            ) {
+                Ok(result) => {
+                    results.push(PyQpAdmResult::from(result));
+                }
+                Err(e) => {
+                    return Err(to_py_err(e));
+                }
             }
         }
-    }
 
-    Ok(results)
+        Ok(results)
+    })
 }
 
 // ============================================================================
@@ -2526,27 +2620,30 @@ impl PyAdmixGraph {
 #[pyfunction]
 #[pyo3(signature = (root_name, leaves, internals=None))]
 fn build_tree(
+    py: Python<'_>,
     root_name: &str,
     leaves: Vec<(String, String, f64)>,
     internals: Option<Vec<(String, String, f64)>>,
 ) -> PyResult<PyAdmixGraph> {
-    let mut builder = popmix_core::GraphBuilder::new().root(root_name);
+    compute(py, move || {
+        let mut builder = popmix_core::GraphBuilder::new().root(root_name);
 
-    // Add internal nodes first
-    if let Some(ints) = internals {
-        for (name, parent, drift) in ints {
-            builder = builder.internal(&name, &parent, drift);
+        // Add internal nodes first
+        if let Some(ints) = internals {
+            for (name, parent, drift) in ints {
+                builder = builder.internal(&name, &parent, drift);
+            }
         }
-    }
 
-    // Add leaves
-    for (name, parent, drift) in leaves {
-        builder = builder.leaf(&name, &parent, drift);
-    }
+        // Add leaves
+        for (name, parent, drift) in leaves {
+            builder = builder.leaf(&name, &parent, drift);
+        }
 
-    let graph = builder.build_unchecked();
+        let graph = builder.build_unchecked();
 
-    Ok(PyAdmixGraph { inner: graph })
+        Ok(PyAdmixGraph { inner: graph })
+    })
 }
 
 /// One graph found by find_graphs.
@@ -2599,6 +2696,7 @@ impl PyScoredGraph {
 #[pyo3(signature = (f2_blocks, populations, nadmix=0, outgroup=None, method="stepwise", beam_width=20, numstart=10, seed=1, diag=1e-4, diag_f3=1e-5, constrained=true))]
 #[allow(clippy::too_many_arguments)]
 fn find_graphs(
+    py: Python<'_>,
     f2_blocks: &PyF2Blocks,
     populations: Vec<String>,
     nadmix: usize,
@@ -2611,41 +2709,43 @@ fn find_graphs(
     diag_f3: f64,
     constrained: bool,
 ) -> PyResult<(Vec<PyScoredGraph>, usize)> {
-    let method = match method {
-        "stepwise" => popmix_core::GraphSearchMethod::Stepwise { beam_width },
-        "exhaustive" => popmix_core::GraphSearchMethod::Exhaustive,
-        other => {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                "method must be \"stepwise\" or \"exhaustive\", got {other:?}"
-            )))
-        }
-    };
-    let opts = popmix_core::GraphSearchOptions {
-        nadmix,
-        outgroup,
-        method,
-        qpgraph: popmix_core::QpGraphOptions {
-            diag,
-            diag_f3,
-            constrained,
-            numstart,
-            seed,
-            admix_weights: None,
-            f2_blocks_test: None,
-        },
-    };
-    let pop_refs: Vec<&str> = populations.iter().map(|s| s.as_str()).collect();
-    let result =
-        popmix_core::find_graphs(&f2_blocks.inner, &pop_refs, Some(opts)).map_err(to_py_err)?;
-    let graphs = result
-        .graphs
-        .into_iter()
-        .map(|g| PyScoredGraph {
-            edges: g.edges,
-            score: g.score,
-        })
-        .collect();
-    Ok((graphs, result.n_evaluated))
+    compute(py, move || {
+        let method = match method {
+            "stepwise" => popmix_core::GraphSearchMethod::Stepwise { beam_width },
+            "exhaustive" => popmix_core::GraphSearchMethod::Exhaustive,
+            other => {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "method must be \"stepwise\" or \"exhaustive\", got {other:?}"
+                )))
+            }
+        };
+        let opts = popmix_core::GraphSearchOptions {
+            nadmix,
+            outgroup,
+            method,
+            qpgraph: popmix_core::QpGraphOptions {
+                diag,
+                diag_f3,
+                constrained,
+                numstart,
+                seed,
+                admix_weights: None,
+                f2_blocks_test: None,
+            },
+        };
+        let pop_refs: Vec<&str> = populations.iter().map(|s| s.as_str()).collect();
+        let result =
+            popmix_core::find_graphs(&f2_blocks.inner, &pop_refs, Some(opts)).map_err(to_py_err)?;
+        let graphs = result
+            .graphs
+            .into_iter()
+            .map(|g| PyScoredGraph {
+                edges: g.edges,
+                score: g.score,
+            })
+            .collect();
+        Ok((graphs, result.n_evaluated))
+    })
 }
 
 /// Every admixture graph with these leaves and ``nadmix`` admixture nodes,
@@ -2655,9 +2755,15 @@ fn find_graphs(
 /// ``leaves[0]`` comes first.
 #[pyfunction]
 #[pyo3(signature = (leaves, nadmix=0))]
-fn all_graphs(leaves: Vec<String>, nadmix: usize) -> PyResult<Vec<Vec<(String, String)>>> {
-    let refs: Vec<&str> = leaves.iter().map(|s| s.as_str()).collect();
-    popmix_core::all_graphs(&refs, nadmix).map_err(to_py_err)
+fn all_graphs(
+    py: Python<'_>,
+    leaves: Vec<String>,
+    nadmix: usize,
+) -> PyResult<Vec<Vec<(String, String)>>> {
+    compute(py, move || {
+        let refs: Vec<&str> = leaves.iter().map(|s| s.as_str()).collect();
+        popmix_core::all_graphs(&refs, nadmix).map_err(to_py_err)
+    })
 }
 
 /// The value admixtools2 graph_hash() digests for a simplified graph: two
@@ -2804,6 +2910,7 @@ impl PyQpGraphResult {
 #[pyo3(signature = (f2_blocks, edges, admix_weights=None, numstart=10, seed=1, diag=1e-4, diag_f3=1e-5, constrained=true, f2_blocks_test=None))]
 #[allow(clippy::too_many_arguments)]
 fn qpgraph(
+    py: Python<'_>,
     f2_blocks: &PyF2Blocks,
     edges: Vec<(String, String)>,
     admix_weights: Option<Vec<f64>>,
@@ -2814,59 +2921,61 @@ fn qpgraph(
     constrained: bool,
     f2_blocks_test: Option<&PyF2Blocks>,
 ) -> PyResult<PyQpGraphResult> {
-    let opts = popmix_core::QpGraphOptions {
-        diag,
-        diag_f3,
-        constrained,
-        numstart,
-        seed,
-        admix_weights,
-        f2_blocks_test: f2_blocks_test.map(|b| b.inner.clone()),
-    };
-    let r = popmix_core::qpgraph(&f2_blocks.inner, &edges, Some(opts)).map_err(to_py_err)?;
-    Ok(PyQpGraphResult {
-        pops: r.pops,
-        score: r.score,
-        edges: r
-            .edges
-            .into_iter()
-            .map(|e| PyQpGraphEdge {
-                from_node: e.from,
-                to_node: e.to,
-                kind: if e.admix { "admix" } else { "edge" }.to_string(),
-                weight: e.weight,
-                low: e.low,
-                high: e.high,
-            })
-            .collect(),
-        f3: r
-            .f3
-            .into_iter()
-            .map(|f| PyQpGraphF3 {
-                pop1: f.pop1,
-                pop2: f.pop2,
-                pop3: f.pop3,
-                est: f.est,
-                se: f.se,
-                fit: f.fit,
-                diff: f.diff,
-                z: f.z,
-                p: f.p,
-            })
-            .collect(),
-        opt: r
-            .opt
-            .into_iter()
-            .map(|o| PyQpGraphStart {
-                start: o.start,
-                weights: o.weights,
-                score: o.score,
-                evaluations: o.evaluations,
-                convergence: o.convergence,
-            })
-            .collect(),
-        ppinv: r.ppinv.outer_iter().map(|row| row.to_vec()).collect(),
-        score_test: r.score_test,
+    compute(py, move || {
+        let opts = popmix_core::QpGraphOptions {
+            diag,
+            diag_f3,
+            constrained,
+            numstart,
+            seed,
+            admix_weights,
+            f2_blocks_test: f2_blocks_test.map(|b| b.inner.clone()),
+        };
+        let r = popmix_core::qpgraph(&f2_blocks.inner, &edges, Some(opts)).map_err(to_py_err)?;
+        Ok(PyQpGraphResult {
+            pops: r.pops,
+            score: r.score,
+            edges: r
+                .edges
+                .into_iter()
+                .map(|e| PyQpGraphEdge {
+                    from_node: e.from,
+                    to_node: e.to,
+                    kind: if e.admix { "admix" } else { "edge" }.to_string(),
+                    weight: e.weight,
+                    low: e.low,
+                    high: e.high,
+                })
+                .collect(),
+            f3: r
+                .f3
+                .into_iter()
+                .map(|f| PyQpGraphF3 {
+                    pop1: f.pop1,
+                    pop2: f.pop2,
+                    pop3: f.pop3,
+                    est: f.est,
+                    se: f.se,
+                    fit: f.fit,
+                    diff: f.diff,
+                    z: f.z,
+                    p: f.p,
+                })
+                .collect(),
+            opt: r
+                .opt
+                .into_iter()
+                .map(|o| PyQpGraphStart {
+                    start: o.start,
+                    weights: o.weights,
+                    score: o.score,
+                    evaluations: o.evaluations,
+                    convergence: o.convergence,
+                })
+                .collect(),
+            ppinv: r.ppinv.outer_iter().map(|row| row.to_vec()).collect(),
+            score_test: r.score_test,
+        })
     })
 }
 
@@ -3140,6 +3249,7 @@ impl PyDatesResult {
 #[pyo3(signature = (geno, test_pop, source1, source2, generation_time=None, min_distance_cm=None, max_distance_cm=None, bin_width_cm=None, run_jackknife=None, qbin=None, compat=None))]
 #[allow(clippy::too_many_arguments)]
 fn dates(
+    py: Python<'_>,
     geno: &PyGenotypeMatrix,
     test_pop: &str,
     source1: &str,
@@ -3152,62 +3262,64 @@ fn dates(
     qbin: Option<usize>,
     compat: Option<&str>,
 ) -> PyResult<PyDatesResult> {
-    let compat = match compat {
-        None => popmix_core::dates::DatesCompat::CORRECTED,
-        Some("dates-v753") => popmix_core::dates::DatesCompat::V753,
-        Some(other) => {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                "unknown compat {other:?} for dates; expected None or \"dates-v753\""
-            )))
+    compute(py, move || {
+        let compat = match compat {
+            None => popmix_core::dates::DatesCompat::CORRECTED,
+            Some("dates-v753") => popmix_core::dates::DatesCompat::V753,
+            Some(other) => {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "unknown compat {other:?} for dates; expected None or \"dates-v753\""
+                )))
+            }
+        };
+        let mut ld_options = popmix_core::LdOptions::default();
+        if let Some(q) = qbin {
+            ld_options.qbin = q;
         }
-    };
-    let mut ld_options = popmix_core::LdOptions::default();
-    if let Some(q) = qbin {
-        ld_options.qbin = q;
-    }
-    if let Some(bw) = bin_width_cm {
-        ld_options.bin_width_cm = bw;
-    }
-    if let Some(max_d) = max_distance_cm {
-        ld_options.max_distance_cm = max_d;
-    }
+        if let Some(bw) = bin_width_cm {
+            ld_options.bin_width_cm = bw;
+        }
+        if let Some(max_d) = max_distance_cm {
+            ld_options.max_distance_cm = max_d;
+        }
 
-    let mut fit_options = popmix_core::dates::FitOptions::default();
-    if let Some(bw) = bin_width_cm {
-        fit_options.bin_size_cm = bw;
-    }
-    if let Some(min_d) = min_distance_cm {
-        fit_options.min_distance_cm = min_d;
-    }
-    if let Some(max_d) = max_distance_cm {
-        fit_options.max_distance_cm = max_d;
-    }
+        let mut fit_options = popmix_core::dates::FitOptions::default();
+        if let Some(bw) = bin_width_cm {
+            fit_options.bin_size_cm = bw;
+        }
+        if let Some(min_d) = min_distance_cm {
+            fit_options.min_distance_cm = min_d;
+        }
+        if let Some(max_d) = max_distance_cm {
+            fit_options.max_distance_cm = max_d;
+        }
 
-    let opts = popmix_core::DatesOptions {
-        ld_options,
-        fit_options,
-        generation_time: generation_time.unwrap_or(29.0),
-        run_jackknife: run_jackknife.unwrap_or(true),
-        compat,
-        ..Default::default()
-    };
+        let opts = popmix_core::DatesOptions {
+            ld_options,
+            fit_options,
+            generation_time: generation_time.unwrap_or(29.0),
+            run_jackknife: run_jackknife.unwrap_or(true),
+            compat,
+            ..Default::default()
+        };
 
-    let result = popmix_core::dates(&geno.inner, None, test_pop, source1, source2, Some(opts))
-        .map_err(to_py_err)?;
+        let result = popmix_core::dates(&geno.inner, None, test_pop, source1, source2, Some(opts))
+            .map_err(to_py_err)?;
 
-    Ok(PyDatesResult {
-        test_pop: result.test_pop.to_string(),
-        source1: result.source1.to_string(),
-        source2: result.source2.to_string(),
-        generations: result.generations,
-        generations_se: result.generations_se,
-        years_bp: result.years_bp,
-        years_bp_se: result.years_bp_se,
-        n_snps: result.n_snps,
-        n_chromosomes: result.n_chromosomes,
-        ld_bins: result.ld_bins,
-        fit: result.fit,
-        jackknife: result.jackknife_by_chromosome,
+        Ok(PyDatesResult {
+            test_pop: result.test_pop.to_string(),
+            source1: result.source1.to_string(),
+            source2: result.source2.to_string(),
+            generations: result.generations,
+            generations_se: result.generations_se,
+            years_bp: result.years_bp,
+            years_bp_se: result.years_bp_se,
+            n_snps: result.n_snps,
+            n_chromosomes: result.n_chromosomes,
+            ld_bins: result.ld_bins,
+            fit: result.fit,
+            jackknife: result.jackknife_by_chromosome,
+        })
     })
 }
 

@@ -129,13 +129,12 @@ pub fn smartpca_py(
         compat,
     };
     let n_samples = samples.len();
-    let out = py
-        .allow_threads(|| {
-            let mut rows = rows_of(&mut source);
-            let geno = PackedGenotypes::read(rows.as_mut(), n_samples, snps.len())?;
-            smartpca(&geno, &roles, &options)
-        })
-        .map_err(to_py_err)?;
+    let out = crate::compute(py, || {
+        let mut rows = rows_of(&mut source);
+        let geno = PackedGenotypes::read(rows.as_mut(), n_samples, snps.len())?;
+        smartpca(&geno, &roles, &options)
+    })
+    .map_err(to_py_err)?;
 
     let id = |s: usize| samples[s].id.clone();
     let pop = |s: usize| samples[s].population.as_str().to_string();

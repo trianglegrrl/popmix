@@ -98,7 +98,7 @@ pub fn joint_sfs_py(
             )))
         }
     };
-    let af = py.allow_threads(|| {
+    let af = crate::compute(py, || {
         allele_frequencies(prefix, &populations, auto_only, PloidyRule::First1000)
     })?;
     let (sfs, snps) = joint_sfs(&af, compat);
@@ -127,7 +127,9 @@ pub fn projected_sfs_py(
     pseudohaploid: &str,
 ) -> PyResult<PyObject> {
     let rule = ploidy_rule(pseudohaploid)?;
-    let af = py.allow_threads(|| allele_frequencies(prefix, &populations, auto_only, rule))?;
+    let af = crate::compute(py, || {
+        allele_frequencies(prefix, &populations, auto_only, rule)
+    })?;
     let max: Vec<usize> = (0..af.counts.ncols())
         .map(|p| af.counts.column(p).iter().copied().max().unwrap_or(0) as usize)
         .collect();

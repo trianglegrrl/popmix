@@ -33,12 +33,11 @@ fn load(
     };
     let (mut source, snps, _, samples) = open_source_filtered(prefix, populations, &keep)?;
     let n = samples.len();
-    let geno = py
-        .allow_threads(|| {
-            let mut rows = rows_of(&mut source);
-            PackedGenotypes::read(rows.as_mut(), n, snps.len())
-        })
-        .map_err(to_py_err)?;
+    let geno = crate::compute(py, || {
+        let mut rows = rows_of(&mut source);
+        PackedGenotypes::read(rows.as_mut(), n, snps.len())
+    })
+    .map_err(to_py_err)?;
     if let Some(w) = &wanted {
         if snps.len() != w.len() {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
@@ -125,39 +124,38 @@ pub fn admixture_py(
         seed,
     };
     let p_fixed: Option<Vec<f64>> = fixed_p.map(|p| p.as_array().iter().copied().collect());
-    let (fit, cv_error) = py
-        .allow_threads(|| -> popmix_core::Result<_> {
-            let fit = if let Some(p) = &p_fixed {
-                popmix_core::admixture_projection(&geno, p, k, &options)?
-            } else if let Some(refs) = &supervised {
-                let mut order: Vec<&str> = Vec::new();
-                for s in &samples {
-                    let pop = s.population.as_str();
-                    if refs.iter().any(|r| r == pop) && !order.contains(&pop) {
-                        order.push(pop);
-                    }
+    let (fit, cv_error) = crate::compute(py, || -> popmix_core::Result<_> {
+        let fit = if let Some(p) = &p_fixed {
+            popmix_core::admixture_projection(&geno, p, k, &options)?
+        } else if let Some(refs) = &supervised {
+            let mut order: Vec<&str> = Vec::new();
+            for s in &samples {
+                let pop = s.population.as_str();
+                if refs.iter().any(|r| r == pop) && !order.contains(&pop) {
+                    order.push(pop);
                 }
-                if order.len() != k {
-                    return Err(popmix_core::PopmixError::Validation(format!(
-                        "{} reference populations found for K = {k}",
-                        order.len()
-                    )));
-                }
-                let labels: Vec<Option<usize>> = samples
-                    .iter()
-                    .map(|s| order.iter().position(|o| *o == s.population.as_str()))
-                    .collect();
-                popmix_core::admixture_supervised(&geno, k, &labels, &options)?
-            } else {
-                popmix_core::admixture(&geno, k, &options)?
-            };
-            let cv_error = match cv {
-                Some(f) => Some(popmix_core::admixture_cv(&geno, &fit, f, &options)?),
-                None => None,
-            };
-            Ok((fit, cv_error))
-        })
-        .map_err(to_py_err)?;
+            }
+            if order.len() != k {
+                return Err(popmix_core::PopmixError::Validation(format!(
+                    "{} reference populations found for K = {k}",
+                    order.len()
+                )));
+            }
+            let labels: Vec<Option<usize>> = samples
+                .iter()
+                .map(|s| order.iter().position(|o| *o == s.population.as_str()))
+                .collect();
+            popmix_core::admixture_supervised(&geno, k, &labels, &options)?
+        } else {
+            popmix_core::admixture(&geno, k, &options)?
+        };
+        let cv_error = match cv {
+            Some(f) => Some(popmix_core::admixture_cv(&geno, &fit, f, &options)?),
+            None => None,
+        };
+        Ok((fit, cv_error))
+    })
+    .map_err(to_py_err)?;
     result(py, fit, &snps, &samples, cv_error)
 }
 

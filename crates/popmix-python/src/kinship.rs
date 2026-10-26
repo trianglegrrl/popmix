@@ -25,13 +25,12 @@ pub fn king(
 ) -> PyResult<PyObject> {
     let (mut source, snps, _, samples) = open_source(prefix, &populations, auto_only)?;
     let n = samples.len();
-    let pairs = py
-        .allow_threads(|| {
-            let mut rows = rows_of(&mut source);
-            let g = BitGenotypes::read(rows.as_mut(), n, snps.len())?;
-            Ok::<_, popmix_core::PopmixError>(king_robust(&g))
-        })
-        .map_err(to_py_err)?;
+    let pairs = crate::compute(py, || {
+        let mut rows = rows_of(&mut source);
+        let g = BitGenotypes::read(rows.as_mut(), n, snps.len())?;
+        Ok::<_, popmix_core::PopmixError>(king_robust(&g))
+    })
+    .map_err(to_py_err)?;
     let d = PyDict::new_bound(py);
     let id = |k: usize| samples[k].id.clone();
     d.set_item("id1", pairs.iter().map(|p| id(p.i)).collect::<Vec<_>>())?;
@@ -126,13 +125,12 @@ pub fn read_kinship_py(
         chroms.push(run);
     }
     let n = samples.len();
-    let out = py
-        .allow_threads(|| {
-            let mut rows = rows_of(&mut source);
-            let g = BitGenotypes::read(rows.as_mut(), n, snps.len())?;
-            read_kinship(&g, &positions, &chroms, &options)
-        })
-        .map_err(to_py_err)?;
+    let out = crate::compute(py, || {
+        let mut rows = rows_of(&mut source);
+        let g = BitGenotypes::read(rows.as_mut(), n, snps.len())?;
+        read_kinship(&g, &positions, &chroms, &options)
+    })
+    .map_err(to_py_err)?;
     let d = PyDict::new_bound(py);
     let p = &out.pairs;
     let id = |k: usize| samples[k].id.clone();

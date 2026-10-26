@@ -222,7 +222,7 @@ pub fn f4_from_geno(
     let rule = ploidy_rule(pseudohaploid)?;
     let (source, snps, pops, _) = open_source_with(prefix, &populations, auto_only, rule)?;
     let mode = if f4mode { F4Mode::F4 } else { F4Mode::D };
-    let out = py.allow_threads(|| {
+    let out = crate::compute(py, || {
         run(source, |rows| {
             popmix_core::f4_from_genotypes(rows, &snps, &pops, &quads, mode, block_size)
         })
@@ -265,7 +265,7 @@ pub fn f3_from_geno(
         apply_corr,
         outgroup_mode: outgroupmode,
     };
-    let out = py.allow_threads(|| {
+    let out = crate::compute(py, || {
         run(source, |rows| {
             popmix_core::f3_from_genotypes(rows, &snps, &pops, &triples, options, block_size)
         })

@@ -79,21 +79,19 @@ pub fn rolloff_py(
         minparentcount,
     };
     let n = samples.len();
-    let out = py
-        .allow_threads(|| {
-            let mut rows = rows_of(&mut source);
-            let all = PackedGenotypes::read(rows.as_mut(), n, snps.len())?;
-            let of =
-                |p: usize| -> Vec<usize> { (0..n).filter(|&s| pops.sample_pop[s] == p).collect() };
-            popmix_core::rolloff(
-                &all.select_samples(&of(0)),
-                &all.select_samples(&of(1)),
-                &all.select_samples(&of(2)),
-                &snps,
-                &options,
-            )
-        })
-        .map_err(to_py_err)?;
+    let out = crate::compute(py, || {
+        let mut rows = rows_of(&mut source);
+        let all = PackedGenotypes::read(rows.as_mut(), n, snps.len())?;
+        let of = |p: usize| -> Vec<usize> { (0..n).filter(|&s| pops.sample_pop[s] == p).collect() };
+        popmix_core::rolloff(
+            &all.select_samples(&of(0)),
+            &all.select_samples(&of(1)),
+            &all.select_samples(&of(2)),
+            &snps,
+            &options,
+        )
+    })
+    .map_err(to_py_err)?;
     let d_cm = |b: &RolloffBins| b.d.iter().map(|x| 100.0 * x).collect::<Vec<f64>>();
     let fit = popmix_core::fit_rolloff(&d_cm(&out.bins), &out.bins.corr, lval, hval);
     let jfits: Vec<popmix_core::RolloffFit> = out
