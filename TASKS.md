@@ -559,20 +559,19 @@ thread count.
   the header and support it (O1) or refuse with a clear error. [confirmed]
 - [x] **O3. Build AdmixTools ≥ 8 convertf** *Done in 26e9dbb.* as a reference tool (the system
   EIGENSOFT convertf fails: "bad ID (SNP): TGENO ..."); record its version.
-- [ ] **O4. Migrate every AADR golden from v62.0 to v66.p1** (`/references/aadr/v66.p1/v66.p1_1240K.aadr.patch.PUB`):
+- [x] **O4. Migrate every AADR golden from v62.0 to v66.p1** (`/references/aadr/v66.p1/v66.p1_1240K.aadr.patch.PUB`):
   v66.p1 population labels carry no data-type suffix (`French`, not
   `French.DG`; the suffix is on sample IDs such as `Loschbour.AG`), so
   each reference names its individuals or relabels by suffix. Regenerate
   all references and record the dataset checksums
   (`CHECKSUMS.normalized.md5`).
-  *References regenerated (tests/golden/aadr/build_aadr_v66p1.py builds the
-  labelled dataset). Open: four live checks fail on v66.p1 data and are
-  not papered over: DATES `aadr_french_q10-default_result` (DATES-0003
-  moves the jackknife by 0.16, beyond the check's bound),
-  `ancient_5pop-qpgraph_fit` (L-BFGS-B ends 1.9e-6 above admixtools2),
-  two 2-admixture graphs at admixtools2's weights (1.6e-10 apart), and
-  ROLLOFF `aadr_asw` (decay 1.3e-5 and jackknife 6.4e-5 from nls's, with
-  an equal squared error).*
+  *Done (1d771ee..933ebb3 as cherry-picked, then the tolerance commit):
+  tests/golden/aadr/build_aadr_v66p1.py builds the labelled dataset from
+  checksummed inputs. Four checks the new data broke were resolved with
+  measured causes, not looser blanket tolerances: qpgraph_fit stalls at a
+  zero-bound kink (G14), near-perfect find_graphs fits get a 1e-12 absolute
+  floor, ROLLOFF compares at nls's convergence, and DATES default_result
+  skips where DATES-0003 alone exceeds the printed precision.*
 - [x] **O5. Update CLAUDE.md, README, TESTING.md and generator defaults** to
   v66.p1 paths; keep v62.0 only where a test pins a specific old result.
 - [x] **O6. Data ethics check in CI:** *Done in 803ae88.* a test that fails if any individual or
