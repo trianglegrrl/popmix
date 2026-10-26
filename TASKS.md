@@ -314,11 +314,14 @@ thread count.
   straight into allele frequencies, as packed `.geno` does; today
   `extract_f2` fallback (`lib.rs:1464`), `geno_fstats.rs:53`, `sfs.rs:78` call
   `read_all()` into `Array2<u8>` (21.7 GB for AADR). PD [reviewer-verified]
-- [ ] **F2. DATES/ALDER/ROLLOFF read only the samples they need** from a
+  Progress: PLINK .bed is read in place like packed .geno (memory-mapped SNP-major reader: rows, ploidy, parallel frequencies) by extract_f2, the SFS, KING/READ, PCA, ADMIXTURE and the genotype f-statistics (5ef0734): KING at 1,000 samples 17.7 s / 2.1 GB to 13.3 s / 1.0 GB. Left: VCF and text EIGENSTRAT still load the matrix.
+- [x] **F2. DATES/ALDER/ROLLOFF read only the samples they need** from a
   prefix (`popmix dates` loads the whole matrix, `cli/__init__.py:1198`). PD
+  Done: `read_genotypes(prefix, populations=[...])` reads only those samples; `popmix dates` uses it; ROLLOFF already streamed (9f0a1ac).
 - [ ] **F3. Streaming `merge` and `convertf`** (row iterators; today both
   inputs plus output are in memory, ~65 GB for two AADR-sized files).
   PD, PG
+  Progress: convertf from packed .geno or .bed to EIGENSTRAT, ANCESTRYMAP, PACKEDANCESTRYMAP or PLINK streams one SNP at a time (0bcf74c): 3,970 samples 15 s, 1.3 GB resident (mostly the mapped input) instead of the 4.9 GB matrix. Left: merge, and PED/TGENO output (stored sample by sample).
 - [ ] **F4. f2 extraction:** no copy of the frequency table (index through
   `keep`, `f2_blocks.rs:216-222`); one pass for f2 and FST; write block
   results in place; GEMM formulation (Σp² + Σq² − 2pq plus bias terms) for
@@ -347,22 +350,28 @@ thread count.
   Done: popmix owns its pool (4 threads until `init_threads(n)`, which works at any time), d7be64f.
 - [ ] **F8. Fixed-order reductions everywhere,** with a thread-count
   determinism test for every parallel sum (A9 first).
+  Progress: thread-count determinism tests for PCA, KING, f2 blocks, the frequency pass and the genotype f-statistics (all byte-identical in the benchmarks).
 - [ ] **F9. Graph search:** compute `precompute_f3` once per population set,
   not per candidate (`graph_search.rs:483-495`); `HashMap` population index
   instead of linear `pop_index` scans; port the Python evolutionary search
   (`python/popmix/graph_search.py`, 750 lines) to Rust. PD, RS, AI
+  Progress: measured: caching precompute_f3 across the 1,965 graphs of the find_graphs benchmark changed nothing (1.3-1.5 s with or without), so it was not kept; the fits' optimization is the cost. The evolutionary search is out of 1.0 (C2).
 - [ ] **F10. Zero-copy and fewer copies across the Python boundary:**
   `to_numpy` copies row by row (`lib.rs:188`); `#[pyo3(get)]` on `Vec` fields
   (129) clones on every access. RS
+  Progress: `GenotypeMatrix.to_numpy` is one copy (f14f44e; 1.2M x 473 in 0.13 s). The Vec getters are on small result objects that the Python wrappers read once, so their clones were left.
 - [ ] **F11. Kernels:** check the genotype and LD kernels auto-vectorize
   (packed popcount, f2 inner loops); use safe SIMD (`pulp`/`wide`) or
   runtime-dispatched variants where it pays; avoid dense Kronecker
   temporaries (`qpadm/fit.rs:68,85`). RS, PD
-- [ ] **F12. Benchmarks in-repo** with criterion (already a dev-dependency,
+  Progress: KING's pair kernel has an AVX2/POPCNT build chosen at run time (2.6x; wheels target baseline x86-64); f2 blocks, PCA and the projections are matrix products; ADMIXTURE skips noise-level steps; .snp/.bim parse in parallel and the genotype f-statistics sum blocks in parallel (0454e55).
+- [x] **F12. Benchmarks in-repo** with criterion (already a dev-dependency,
   unused) for the hot kernels, and profiling (flamegraphs) to choose work.
-- [ ] **F13. Readers usable across threads:** map in `new()`, read via
+  Done: `crates/popmix-core/benches/kernels.rs` (criterion): PCA, KING, f2 blocks, ADMIXTURE on synthetic data; CI builds them (5531289).
+- [x] **F13. Readers usable across threads:** map in `new()`, read via
   `&self` (`plink.rs:128`, `packedancestrymap.rs:143`), with `// SAFETY:`
   comments on the two `Mmap::map` calls. RS
+  Done: the PLINK and packed readers map once (OnceLock) and read through `&self`, with SAFETY comments (9194e5e).
 - [ ] **F14. KING kinship speed:** popmix 3.9 s against PLINK 2's 1.2 s (16
   threads) for 220 samples x 1.2M SNPs in the E benchmark; packed popcount
   kernels as plink2 uses (F11). At 3,970 samples 547 s and 7.4 GB against
