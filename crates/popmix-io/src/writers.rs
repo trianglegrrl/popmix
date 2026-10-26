@@ -282,12 +282,14 @@ fn write_ped_file(path: &str, matrix: &GenotypeMatrix) -> Result<()> {
         // First 7 columns: FID IID PID MID SEX PHENO 1
         // Using population as FID, sample ID as IID
         // PID/MID = 0 (unknown parents)
-        // SEX = 0 (unknown)
         // PHENO = population label (for outputgroup=YES compatibility)
         write!(
             writer,
-            "{}\t{}\t0\t0\t0\t{}\t1",
-            sample.population, sample.id, sample.population
+            "{}\t{}\t0\t0\t{}\t{}\t1",
+            sample.population,
+            sample.id,
+            sample.sex.fam_code(),
+            sample.population
         )?;
 
         // Two allele columns per SNP
@@ -425,8 +427,13 @@ fn write_ind_file(path: &str, samples: &[Sample]) -> Result<()> {
     let mut writer = BufWriter::new(file);
 
     for sample in samples {
-        // Sex is U (unknown) by default since we don't track it
-        writeln!(writer, "{} U {}", sample.id, sample.population)?;
+        writeln!(
+            writer,
+            "{} {} {}",
+            sample.id,
+            sample.sex.ind_code(),
+            sample.population
+        )?;
     }
 
     Ok(())
@@ -490,8 +497,11 @@ fn write_pedind_file(path: &str, samples: &[Sample]) -> Result<()> {
         // Same as first 7 columns of .ped file
         writeln!(
             writer,
-            "{}\t{}\t0\t0\t0\t{}\t1",
-            sample.population, sample.id, sample.population
+            "{}\t{}\t0\t0\t{}\t{}\t1",
+            sample.population,
+            sample.id,
+            sample.sex.fam_code(),
+            sample.population
         )?;
     }
 
@@ -507,9 +517,14 @@ fn write_fam_file(path: &str, samples: &[Sample]) -> Result<()> {
     for sample in samples {
         // Using population as FID, sample ID as IID
         // PID/MID = 0 (unknown parents)
-        // SEX = 0 (unknown)
         // PHENO = -9 (missing)
-        writeln!(writer, "{}\t{}\t0\t0\t0\t-9", sample.population, sample.id)?;
+        writeln!(
+            writer,
+            "{}\t{}\t0\t0\t{}\t-9",
+            sample.population,
+            sample.id,
+            sample.sex.fam_code()
+        )?;
     }
 
     Ok(())
@@ -519,7 +534,7 @@ fn write_fam_file(path: &str, samples: &[Sample]) -> Result<()> {
 mod tests {
     use super::*;
     use ndarray::array;
-    use popmix_core::genotypes::Chromosome;
+    use popmix_core::genotypes::{Chromosome, Sex};
     use tempfile::TempDir;
 
     fn make_test_samples() -> Vec<Sample> {
@@ -641,6 +656,52 @@ mod tests {
                 );
             }
         }
+    }
+
+    fn sexed_matrix() -> GenotypeMatrix {
+        let samples = vec![
+            Sample::new("IND1", "PopA").with_sex(Sex::Male),
+            Sample::new("IND2", "PopA").with_sex(Sex::Female),
+            Sample::new("IND3", "PopB"),
+        ];
+        let data = array![[0, 1, 2], [1, 2, 0], [2, 0, 1]];
+        GenotypeMatrix::new(data, samples, make_test_snps()).unwrap()
+    }
+
+    fn sexes(matrix: &GenotypeMatrix) -> Vec<Sex> {
+        matrix.samples().iter().map(|s| s.sex).collect()
+    }
+
+    #[test]
+    fn test_sex_survives_ind_fam_and_ped() {
+        use crate::eigenstrat::EigenstratReader;
+        use crate::plink::PlinkReader;
+
+        let tmp = TempDir::new().unwrap();
+        let want = vec![Sex::Male, Sex::Female, Sex::Unknown];
+
+        let eigen = tmp.path().join("eigen");
+        write_eigenstrat(&eigen, &sexed_matrix()).unwrap();
+        let ind = std::fs::read_to_string(eigen.with_extension("ind")).unwrap();
+        assert_eq!(ind, "IND1 M PopA\nIND2 F PopA\nIND3 U PopB\n");
+        let from_ind = EigenstratReader::new(&eigen).unwrap().read_all().unwrap();
+        assert_eq!(sexes(&from_ind), want);
+
+        let plink = tmp.path().join("plink");
+        write_packedped(&plink, &from_ind).unwrap();
+        let fam = std::fs::read_to_string(plink.with_extension("fam")).unwrap();
+        let fam_sex: Vec<&str> = fam.lines().map(|l| l.split('\t').nth(4).unwrap()).collect();
+        assert_eq!(fam_sex, ["1", "2", "0"]);
+        let from_fam = PlinkReader::new(&plink).unwrap().read_all().unwrap();
+        assert_eq!(sexes(&from_fam), want);
+
+        let ped = tmp.path().join("ped");
+        write_ped(&ped, &from_fam).unwrap();
+        let from_ped = crate::ped::PedReader::new(&ped)
+            .unwrap()
+            .read_all()
+            .unwrap();
+        assert_eq!(sexes(&from_ped), want);
     }
 
     #[test]

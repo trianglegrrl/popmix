@@ -12,7 +12,8 @@ use std::path::Path;
 use ndarray::Array2;
 
 use popmix_core::{
-    Chromosome, Genotype, GenotypeMatrix, Ploidy, PopmixError, PopulationId, Result, Sample, Snp,
+    Chromosome, Genotype, GenotypeMatrix, Ploidy, PopmixError, PopulationId, Result, Sample, Sex,
+    Snp,
 };
 
 /// Reader for EIGENSTRAT text format files.
@@ -256,10 +257,11 @@ pub fn read_ind_file(path: &str) -> Result<Vec<Sample>> {
         }
 
         let id = fields[0].to_string();
-        // fields[1] is sex (M/F/U), we ignore it for now
         let population = PopulationId::new(fields[2]);
 
-        samples.push(Sample::with_ploidy(id, population, Ploidy::Diploid));
+        samples.push(
+            Sample::with_ploidy(id, population, Ploidy::Diploid).with_sex(Sex::from_ind(fields[1])),
+        );
     }
 
     Ok(samples)

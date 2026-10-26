@@ -73,8 +73,7 @@ with file A's name.
 - Dropping A/T and C/G SNPs is mergeit's `strandcheck`.
 - A sample ID present in both files is an error (`Duplicate sample IDs found
   in both files`); rename or remove it in one file first.
-- The sex column is not carried over: every merged sample is written with
-  sex `U`.
+- Each sample keeps the sex its input file gives.
 - Genetic positions are written with six decimals.
 
 ## Reference

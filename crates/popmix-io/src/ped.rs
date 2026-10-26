@@ -11,7 +11,7 @@ use std::path::Path;
 
 use popmix_core::error::{PopmixError, Result};
 use popmix_core::genotype_matrix::GenotypeMatrix;
-use popmix_core::genotypes::{Chromosome, Genotype, Sample, Snp};
+use popmix_core::genotypes::{Chromosome, Genotype, Sample, Sex, Snp};
 
 /// Reader for PED format files.
 pub struct PedReader {
@@ -302,7 +302,7 @@ fn read_pedind_file(path: &str) -> Result<Vec<Sample>> {
         let population = fields[0].to_string();
         let id = fields[1].to_string();
 
-        samples.push(Sample::new(id, population));
+        samples.push(Sample::new(id, population).with_sex(Sex::from_fam(fields[4])));
     }
 
     Ok(samples)
@@ -334,7 +334,7 @@ fn read_samples_from_ped(path: &str) -> Result<Vec<Sample>> {
         let population = fields[0].to_string();
         let id = fields[1].to_string();
 
-        samples.push(Sample::new(id, population));
+        samples.push(Sample::new(id, population).with_sex(Sex::from_fam(fields[4])));
     }
 
     Ok(samples)

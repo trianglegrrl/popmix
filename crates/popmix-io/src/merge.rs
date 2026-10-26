@@ -342,6 +342,7 @@ mod tests {
             id: id.to_string(),
             population: PopulationId(pop.to_string()),
             ploidy: Ploidy::Diploid,
+            sex: Default::default(),
         }
     }
 

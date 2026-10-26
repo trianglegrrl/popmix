@@ -67,7 +67,8 @@ skipped, so N can be smaller than the number of records.
 - PLINK chromosome codes X, Y, XY and MT are read; they are not autosomes.
 - PACKEDANCESTRYMAP is the format to keep large data in: `extract-f2` and
   the f-statistic commands stream it, and read other formats into memory.
-- Sex in the `.ind` is not carried into a PLINK `.fam` (written as 0).
+- Sex is carried between formats: M/F/U in `.ind`, 1/2/0 in `.fam` and `.ped`;
+  a VCF has none, so its samples are U.
 
 ## Reference
 

@@ -206,6 +206,54 @@ impl From<String> for PopulationId {
     }
 }
 
+/// Sex of a sample, as `.ind` (M, F, U) and `.fam` / `.ped` (1, 2, 0) files
+/// record it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Sex {
+    Male,
+    Female,
+    #[default]
+    Unknown,
+}
+
+impl Sex {
+    /// From an `.ind` sex column; anything but M or F is unknown.
+    pub fn from_ind(code: &str) -> Self {
+        match code {
+            "M" => Sex::Male,
+            "F" => Sex::Female,
+            _ => Sex::Unknown,
+        }
+    }
+
+    /// From a `.fam` / `.ped` sex column; anything but 1 or 2 is unknown.
+    pub fn from_fam(code: &str) -> Self {
+        match code {
+            "1" => Sex::Male,
+            "2" => Sex::Female,
+            _ => Sex::Unknown,
+        }
+    }
+
+    /// The `.ind` code.
+    pub fn ind_code(self) -> char {
+        match self {
+            Sex::Male => 'M',
+            Sex::Female => 'F',
+            Sex::Unknown => 'U',
+        }
+    }
+
+    /// The `.fam` / `.ped` code.
+    pub fn fam_code(self) -> char {
+        match self {
+            Sex::Male => '1',
+            Sex::Female => '2',
+            Sex::Unknown => '0',
+        }
+    }
+}
+
 /// Sample (individual) metadata.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Sample {
@@ -215,6 +263,8 @@ pub struct Sample {
     pub population: PopulationId,
     /// Ploidy of this sample.
     pub ploidy: Ploidy,
+    /// Sex of this sample, carried from input to output files.
+    pub sex: Sex,
 }
 
 impl Sample {
@@ -224,6 +274,7 @@ impl Sample {
             id: id.into(),
             population: population.into(),
             ploidy: Ploidy::Diploid,
+            sex: Sex::Unknown,
         }
     }
 
@@ -237,7 +288,14 @@ impl Sample {
             id: id.into(),
             population: population.into(),
             ploidy,
+            sex: Sex::Unknown,
         }
+    }
+
+    /// This sample with the given sex.
+    pub fn with_sex(mut self, sex: Sex) -> Self {
+        self.sex = sex;
+        self
     }
 }
 

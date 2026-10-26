@@ -16,7 +16,8 @@ use memmap2::Mmap;
 use ndarray::Array2;
 
 use popmix_core::{
-    Chromosome, Genotype, GenotypeMatrix, Ploidy, PopmixError, PopulationId, Result, Sample, Snp,
+    Chromosome, Genotype, GenotypeMatrix, Ploidy, PopmixError, PopulationId, Result, Sample, Sex,
+    Snp,
 };
 
 /// PLINK .bed file magic number (first 3 bytes).
@@ -249,8 +250,9 @@ fn read_fam_file(path: &str) -> Result<Vec<Sample>> {
 
         let population = PopulationId::new(fields[0]);
         let id = fields[1].to_string();
+        let sex = fields.get(4).map_or(Sex::Unknown, |c| Sex::from_fam(c));
 
-        samples.push(Sample::new(id, population));
+        samples.push(Sample::new(id, population).with_sex(sex));
     }
 
     Ok(samples)

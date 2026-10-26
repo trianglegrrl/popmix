@@ -39,7 +39,7 @@ pub use fstats::{
     GenoPopulations, GenoStat, GenoStatBlocks, GenoStats, GenotypeRows, MatrixRows,
 };
 pub use genotype_matrix::{AlleleFrequencies, GenotypeMatrix};
-pub use genotypes::{Chromosome, Genotype, Ploidy, PopulationId, Sample, Snp};
+pub use genotypes::{Chromosome, Genotype, Ploidy, PopulationId, Sample, Sex, Snp};
 pub use kinship::{
     king_robust, read_kinship, BitGenotypes, KingPair, ReadCompat, ReadNorm, ReadOptions,
     ReadResult,
