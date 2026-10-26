@@ -159,7 +159,9 @@ impl BlockTable {
         snp * self.n_pops + pop
     }
 
-    fn read(rows: &mut dyn GenotypeRows, pops: &GenoPopulations, n_snps: usize) -> Result<Self> {
+    /// The table of `n_snps` rows of genotype codes (`raw`, one row of the
+    /// selected samples per SNP).
+    fn from_rows(raw: &[u8], pops: &GenoPopulations, n_snps: usize) -> Self {
         let n_pops = pops.names.len();
         let mut table = BlockTable {
             n_pops,
@@ -167,11 +169,11 @@ impl BlockTable {
             ref_count: vec![0.0; n_snps * n_pops],
             alt_count: vec![0.0; n_snps * n_pops],
         };
-        let mut row = vec![0u8; pops.sample_pop.len()];
+        let n_samples = pops.sample_pop.len();
         let mut sum = vec![0.0f64; n_pops];
         let mut count = vec![0.0f64; n_pops];
         for snp in 0..n_snps {
-            rows.next_row(&mut row)?;
+            let row = &raw[snp * n_samples..(snp + 1) * n_samples];
             sum.iter_mut().for_each(|x| *x = 0.0);
             count.iter_mut().for_each(|x| *x = 0.0);
             for ((&g, &p), &ploidy) in row.iter().zip(&pops.sample_pop).zip(&pops.ploidy) {
@@ -194,7 +196,7 @@ impl BlockTable {
                 table.af[snp * n_pops + p] = sum[p] / count[p] / 2.0;
             }
         }
-        Ok(table)
+        table
     }
 
     fn n_snps(&self) -> usize {
@@ -245,19 +247,38 @@ fn accumulate<F>(
 where
     F: Fn(&BlockTable, usize) -> (f64, f64, u64) + Sync,
 {
+    let n_samples = pops.sample_pop.len();
     let mut out = vec![Vec::with_capacity(block_lengths.len()); n_stats];
-    for &len in block_lengths {
-        let table = BlockTable::read(rows, pops, len)?;
-        let sums: Vec<(f64, f64, u64)> = (0..n_stats)
-            .into_par_iter()
-            .map(|j| per_block(&table, j))
+    // the rows of a batch of blocks are read in order, then each block is
+    // summed on its own, the blocks in parallel
+    for batch in block_lengths.chunks(BATCH_BLOCKS) {
+        let mut raw: Vec<Vec<u8>> = Vec::with_capacity(batch.len());
+        for &len in batch {
+            let mut block = vec![0u8; len * n_samples];
+            for row in block.chunks_exact_mut(n_samples.max(1)).take(len) {
+                rows.next_row(row)?;
+            }
+            raw.push(block);
+        }
+        let sums: Vec<Vec<(f64, f64, u64)>> = raw
+            .par_iter()
+            .zip(batch)
+            .map(|(block, &len)| {
+                let table = BlockTable::from_rows(block, pops, len);
+                (0..n_stats).map(|j| per_block(&table, j)).collect()
+            })
             .collect();
-        for (o, s) in out.iter_mut().zip(sums) {
-            o.push(s);
+        for block in sums {
+            for (o, s) in out.iter_mut().zip(block) {
+                o.push(s);
+            }
         }
     }
     Ok(out)
 }
+
+/// Jackknife blocks read at a time by [`accumulate`].
+const BATCH_BLOCKS: usize = 32;
 
 /// f4- or D-statistics `(pop1, pop2; pop3, pop4)` from genotypes.
 ///
@@ -478,6 +499,53 @@ mod tests {
 
     fn rows(m: &GenotypeMatrix) -> MatrixRows<'_> {
         MatrixRows::new(m, (0..m.n_snps()).collect(), (0..m.n_samples()).collect())
+    }
+
+    #[test]
+    fn statistics_do_not_depend_on_the_thread_count() {
+        // more blocks than one batch, with missing calls
+        let names = ["A", "B", "C", "D"];
+        let m = matrix(3_000, &names, |s, k| {
+            if (s + k) % 11 == 0 {
+                3
+            } else {
+                pseudo_random(s, k)
+            }
+        });
+        let pops = populations(&m, &names, 2);
+        let run = |threads: usize| {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap()
+                .install(|| {
+                    let f4 = f4_from_genotypes(
+                        &mut rows(&m),
+                        m.snps(),
+                        &pops,
+                        &[[0, 1, 2, 3], [0, 2, 1, 3]],
+                        F4Mode::D,
+                        BLOCK,
+                    )
+                    .unwrap();
+                    let f3 = f3_from_genotypes(
+                        &mut rows(&m),
+                        m.snps(),
+                        &pops,
+                        &[[0, 1, 2]],
+                        F3GenoOptions::default(),
+                        BLOCK,
+                    )
+                    .unwrap();
+                    let est =
+                        |g: &GenoStats| g.stats.iter().map(|s| (s.est, s.se)).collect::<Vec<_>>();
+                    (est(&f4), est(&f3))
+                })
+        };
+        let one = run(1);
+        for threads in [3, 8] {
+            assert_eq!(run(threads), one, "{threads} threads");
+        }
     }
 
     #[test]

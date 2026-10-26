@@ -237,7 +237,7 @@ impl PlinkReader {
 ///
 /// Format: FID IID PID MID SEX PHENO (space-separated)
 /// We use FID as population and IID as sample ID.
-fn read_fam_file(path: &str) -> Result<Vec<Sample>> {
+pub fn read_fam_file(path: &str) -> Result<Vec<Sample>> {
     let content = std::fs::read_to_string(path).map_err(|e| PopmixError::io_with_path(e, path))?;
 
     let mut samples = Vec::new();
@@ -273,53 +273,60 @@ fn read_fam_file(path: &str) -> Result<Vec<Sample>> {
 /// position is in Morgans, or in centimorgans if any exceeds 10 (see
 /// [`crate::to_morgans`]).
 fn read_bim_file(path: &str) -> Result<Vec<Snp>> {
+    use rayon::prelude::*;
     let content = std::fs::read_to_string(path).map_err(|e| PopmixError::io_with_path(e, path))?;
+    // the non-empty lines parsed in parallel; the first bad line in file
+    // order is the error
+    let lines: Vec<(usize, &str)> = content
+        .lines()
+        .enumerate()
+        .map(|(n, l)| (n, l.trim()))
+        .filter(|(_, l)| !l.is_empty())
+        .collect();
+    let parsed: Vec<Result<Snp>> = lines
+        .par_iter()
+        .map(|&(line_num, line)| parse_bim_line(path, line_num, line))
+        .collect();
+    let mut snps = parsed.into_iter().collect::<Result<Vec<Snp>>>()?;
+    crate::to_morgans(&mut snps);
+    Ok(snps)
+}
 
-    let mut snps = Vec::new();
-
-    for (line_num, line) in content.lines().enumerate() {
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
-        }
-
-        let fields: Vec<&str> = line.split_whitespace().collect();
-        if fields.len() < 6 {
-            return Err(PopmixError::parse(
-                path,
-                line_num + 1,
-                format!("Expected 6 fields, got {}", fields.len()),
-            ));
-        }
-
-        let chromosome = Chromosome::parse(fields[0]);
-        let id = fields[1].to_string();
-        // Morgans, as EIGENSOFT and admixtools2 write and read it; rescaled
-        // below if the file is in centimorgans
-        let position_morgans = crate::parse_genetic_position(fields[2], path, line_num + 1)?;
-        let position_bp = fields[3].parse::<u32>().map_err(|_| {
-            PopmixError::parse(
-                path,
-                line_num + 1,
-                format!("Invalid BP position: {}", fields[3]),
-            )
-        })?;
-
-        let allele_ref = fields[4].chars().next().unwrap_or('N');
-        let allele_alt = fields[5].chars().next().unwrap_or('N');
-
-        snps.push(Snp::new(
-            id,
-            chromosome,
-            position_bp,
-            position_morgans,
-            allele_ref,
-            allele_alt,
+/// One line of a .bim file (`line_num` from 0).
+fn parse_bim_line(path: &str, line_num: usize, line: &str) -> Result<Snp> {
+    let fields: Vec<&str> = line.split_whitespace().collect();
+    if fields.len() < 6 {
+        return Err(PopmixError::parse(
+            path,
+            line_num + 1,
+            format!("Expected 6 fields, got {}", fields.len()),
         ));
     }
 
-    crate::to_morgans(&mut snps);
-    Ok(snps)
+    let chromosome = Chromosome::parse(fields[0]);
+    let id = fields[1].to_string();
+    // Morgans, as EIGENSOFT and admixtools2 write and read it; rescaled
+    // by read_bim_file if the file is in centimorgans
+    let position_morgans = crate::parse_genetic_position(fields[2], path, line_num + 1)?;
+    let position_bp = fields[3].parse::<u32>().map_err(|_| {
+        PopmixError::parse(
+            path,
+            line_num + 1,
+            format!("Invalid BP position: {}", fields[3]),
+        )
+    })?;
+
+    let allele_ref = fields[4].chars().next().unwrap_or('N');
+    let allele_alt = fields[5].chars().next().unwrap_or('N');
+
+    Ok(Snp::new(
+        id,
+        chromosome,
+        position_bp,
+        position_morgans,
+        allele_ref,
+        allele_alt,
+    ))
 }
 
 /// Decode 4 genotypes from a single byte using PLINK encoding.

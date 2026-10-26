@@ -272,51 +272,57 @@ pub fn read_ind_file(path: &str) -> Result<Vec<Sample>> {
 /// Format: SNP_ID CHR CM BP A1 A2 (whitespace-separated)
 /// Note: Column order differs from PLINK .bim (SNP_ID is first, CHR is second)
 pub fn read_snp_file(path: &str) -> Result<Vec<Snp>> {
+    use rayon::prelude::*;
     let content = std::fs::read_to_string(path).map_err(|e| PopmixError::io_with_path(e, path))?;
+    // (line number, line) of the non-empty lines, parsed in parallel; the
+    // first bad line in file order is the error
+    let lines: Vec<(usize, &str)> = content
+        .lines()
+        .enumerate()
+        .map(|(n, l)| (n, l.trim()))
+        .filter(|(_, l)| !l.is_empty())
+        .collect();
+    let parsed: Vec<Result<Snp>> = lines
+        .par_iter()
+        .map(|&(line_num, line)| parse_snp_line(path, line_num, line))
+        .collect();
+    parsed.into_iter().collect()
+}
 
-    let mut snps = Vec::new();
-
-    for (line_num, line) in content.lines().enumerate() {
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
-        }
-
-        let fields: Vec<&str> = line.split_whitespace().collect();
-        if fields.len() < 6 {
-            return Err(PopmixError::parse(
-                path,
-                line_num + 1,
-                format!("Expected 6 fields, got {}", fields.len()),
-            ));
-        }
-
-        let id = fields[0].to_string();
-        let chromosome = Chromosome::parse(fields[1]);
-        // SNP files store genetic position in Morgans - keep in Morgans to match DATES
-        let position_morgans = crate::parse_genetic_position(fields[2], path, line_num + 1)?;
-        let position_bp = fields[3].parse::<u32>().map_err(|_| {
-            PopmixError::parse(
-                path,
-                line_num + 1,
-                format!("Invalid BP position: {}", fields[3]),
-            )
-        })?;
-
-        let allele_ref = fields[4].chars().next().unwrap_or('N');
-        let allele_alt = fields[5].chars().next().unwrap_or('N');
-
-        snps.push(Snp::new(
-            id,
-            chromosome,
-            position_bp,
-            position_morgans,
-            allele_ref,
-            allele_alt,
+/// One line of a .snp file (`line_num` from 0).
+fn parse_snp_line(path: &str, line_num: usize, line: &str) -> Result<Snp> {
+    let fields: Vec<&str> = line.split_whitespace().collect();
+    if fields.len() < 6 {
+        return Err(PopmixError::parse(
+            path,
+            line_num + 1,
+            format!("Expected 6 fields, got {}", fields.len()),
         ));
     }
 
-    Ok(snps)
+    let id = fields[0].to_string();
+    let chromosome = Chromosome::parse(fields[1]);
+    // SNP files store genetic position in Morgans - keep in Morgans to match DATES
+    let position_morgans = crate::parse_genetic_position(fields[2], path, line_num + 1)?;
+    let position_bp = fields[3].parse::<u32>().map_err(|_| {
+        PopmixError::parse(
+            path,
+            line_num + 1,
+            format!("Invalid BP position: {}", fields[3]),
+        )
+    })?;
+
+    let allele_ref = fields[4].chars().next().unwrap_or('N');
+    let allele_alt = fields[5].chars().next().unwrap_or('N');
+
+    Ok(Snp::new(
+        id,
+        chromosome,
+        position_bp,
+        position_morgans,
+        allele_ref,
+        allele_alt,
+    ))
 }
 
 #[cfg(test)]

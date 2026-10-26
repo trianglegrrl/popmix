@@ -1172,9 +1172,11 @@ fn list_populations(py: Python<'_>, prefix: &str) -> PyResult<Vec<(String, usize
         }
 
         // Check for PLINK format
+        // only the sample files: the SNP files are not needed
         if Path::new(&format!("{}.bed", prefix)).exists() {
-            let reader = PlinkReader::new(prefix).map_err(to_py_err)?;
-            return Ok(count_populations(reader.samples()));
+            let samples =
+                popmix_io::plink::read_fam_file(&format!("{prefix}.fam")).map_err(to_py_err)?;
+            return Ok(count_populations(&samples));
         }
 
         // Check for EIGENSTRAT/PACKEDANCESTRYMAP format
@@ -1184,13 +1186,9 @@ fn list_populations(py: Python<'_>, prefix: &str) -> PyResult<Vec<(String, usize
                 let reader = TgenoReader::new(prefix).map_err(to_py_err)?;
                 return Ok(count_populations(reader.samples()));
             }
-            if is_packed_format(&geno_path).map_err(to_py_err)? {
-                let reader = PackedAncestryMapReader::new(prefix).map_err(to_py_err)?;
-                return Ok(count_populations(reader.samples()));
-            } else {
-                let reader = EigenstratReader::new(prefix).map_err(to_py_err)?;
-                return Ok(count_populations(reader.samples()));
-            }
+            let samples = popmix_io::eigenstrat::read_ind_file(&format!("{prefix}.ind"))
+                .map_err(to_py_err)?;
+            return Ok(count_populations(&samples));
         }
 
         Err(PyErr::new::<pyo3::exceptions::PyFileNotFoundError, _>(
