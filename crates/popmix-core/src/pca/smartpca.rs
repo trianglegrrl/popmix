@@ -19,14 +19,13 @@
 //! Genotypes are counted as smartpca reads them: pseudo-haploid samples
 //! (coded 0 or 2) are not treated differently.
 
-use nalgebra::{DMatrix, DVector, SymmetricEigen};
-use ndarray::{linalg::general_mat_mul, Array2};
+use nalgebra::{DMatrix, DVector};
+use ndarray::{linalg::general_mat_mul, s, Array2, Axis, ShapeBuilder};
 use rayon::prelude::*;
 
 use super::tracy_widom::{tracy_widom_table, EigensoftCompat, TracyWidomRow};
 use crate::error::{PopmixError, Result};
 use crate::fstats::GenotypeRows;
-use crate::threading::ordered_sum;
 
 /// Genotypes of a set of samples, two bits each (0, 1, 2; 3 missing), SNP by SNP.
 #[derive(Debug, Clone)]
@@ -236,13 +235,26 @@ fn row_value(g: u8, norm: &ColumnNorm) -> f64 {
     }
 }
 
-const BLOCK: usize = 512;
+/// Samples per side of a tile of X X': small enough to give every thread
+/// several tiles, chosen from the number of samples alone.
+fn tile_size(n: usize) -> usize {
+    if n < 2048 {
+        128
+    } else {
+        256
+    }
+}
 
-/// SNPs per group in the parallel sums. Groups are fixed, and their partial
-/// sums are added in group order, so results do not depend on the thread count.
-const GROUP: usize = 16 * BLOCK;
+/// Normalized genotypes held at once by `cross_product`, in values.
+const PANEL_VALUES: usize = 1 << 22;
 
 /// X X' over the given SNPs, X the normalized genotypes of `used`.
+///
+/// The live SNPs are taken a panel at a time; each panel is decoded into a
+/// samples x SNPs matrix and added to the upper triangle of X X' tile by
+/// tile, the tiles in parallel. Each tile adds its panels in SNP order, and
+/// the panel and tile sizes depend only on the number of samples, so the
+/// result does not depend on the thread count.
 fn cross_product(
     geno: &PackedGenotypes,
     snps: &[usize],
@@ -250,45 +262,87 @@ fn cross_product(
     used: &[usize],
 ) -> Array2<f64> {
     let n = used.len();
-    let part = |group: usize| {
-        let lo = group * GROUP;
-        let hi = (lo + GROUP).min(snps.len());
-        let mut acc = Array2::<f64>::zeros((n, n));
-        for (chunk, chunk_norms) in snps[lo..hi].chunks(BLOCK).zip(norms[lo..hi].chunks(BLOCK)) {
-            let live: Vec<(usize, &ColumnNorm)> = chunk
-                .iter()
-                .zip(chunk_norms)
-                .filter(|(_, c)| c.alive)
-                .map(|(&s, c)| (s, c))
-                .collect();
-            let mut x = Array2::<f64>::zeros((n, live.len()));
-            for (col, (snp, norm)) in live.iter().enumerate() {
-                for (row, &s) in used.iter().enumerate() {
+    let live: Vec<(usize, &ColumnNorm)> = snps
+        .iter()
+        .zip(norms)
+        .filter(|(_, c)| c.alive)
+        .map(|(&s, c)| (s, c))
+        .collect();
+    let panel = (PANEL_VALUES / n.max(1)).clamp(256, 4096);
+    let tile = tile_size(n);
+    let starts: Vec<usize> = (0..n).step_by(tile).collect();
+    let mut tiles: Vec<((usize, usize), Array2<f64>)> = starts
+        .iter()
+        .enumerate()
+        .flat_map(|(i, &a)| starts[i..].iter().map(move |&b| (a, b)))
+        .map(|(a, b)| {
+            let shape = ((a + tile).min(n) - a, (b + tile).min(n) - b);
+            ((a, b), Array2::<f64>::zeros(shape))
+        })
+        .collect();
+    // samples x SNPs, column-major so that each SNP decodes contiguously
+    let mut x = Array2::<f64>::zeros((n, panel).f());
+    for chunk in live.chunks(panel) {
+        let width = chunk.len();
+        x.slice_mut(s![.., ..width])
+            .axis_iter_mut(Axis(1))
+            .into_par_iter()
+            .zip(chunk)
+            .for_each(|(mut col, (snp, norm))| {
+                for (v, &s) in col.iter_mut().zip(used) {
                     let g = geno.get(*snp, s);
-                    x[[row, col]] = if g > 2 { 0.0 } else { norm.values[g as usize] };
+                    *v = if g > 2 { 0.0 } else { norm.values[g as usize] };
                 }
-            }
-            general_mat_mul(1.0, &x, &x.t(), 1.0, &mut acc);
+            });
+        let x = x.slice(s![.., ..width]);
+        tiles.par_iter_mut().for_each(|((a, b), acc)| {
+            let rows = x.slice(s![*a..*a + acc.nrows(), ..]);
+            let cols = x.slice(s![*b..*b + acc.ncols(), ..]);
+            general_mat_mul(1.0, &rows, &cols.t(), 1.0, acc);
+        });
+    }
+    let mut out = Array2::<f64>::zeros((n, n));
+    for ((a, b), acc) in &tiles {
+        for ((i, j), &v) in acc.indexed_iter() {
+            out[[a + i, b + j]] = v;
+            out[[b + j, a + i]] = v;
         }
-        acc
-    };
-    ordered_sum(
-        snps.len().div_ceil(GROUP),
-        || Array2::<f64>::zeros((n, n)),
-        part,
-        |a, b| *a += &b,
-    )
+    }
+    // a diagonal tile is computed whole: keep its upper triangle
+    for i in 0..n {
+        for j in i + 1..n {
+            out[[j, i]] = out[[i, j]];
+        }
+    }
+    out
 }
 
 /// Eigenvalues (decreasing) and unit eigenvectors (columns, same order).
+///
+/// faer's solver runs sequentially, so the result does not depend on the
+/// thread count.
 fn eigen(m: &Array2<f64>) -> (Vec<f64>, DMatrix<f64>) {
+    use faer::linalg::evd::{self_adjoint_evd, self_adjoint_evd_scratch, ComputeEigenvectors};
+    use faer::{diag::Diag, dyn_stack::MemBuffer, dyn_stack::MemStack, Mat, Par};
     let n = m.nrows();
-    let dm = DMatrix::from_fn(n, n, |i, j| m[[i, j]]);
-    let eig = SymmetricEigen::new(dm);
+    let a = Mat::<f64>::from_fn(n, n, |i, j| m[[i, j]]);
+    let mut s = Diag::<f64>::zeros(n);
+    let mut u = Mat::<f64>::zeros(n, n);
+    let scratch =
+        self_adjoint_evd_scratch::<f64>(n, ComputeEigenvectors::Yes, Par::Seq, Default::default());
+    self_adjoint_evd(
+        a.as_ref(),
+        s.as_mut(),
+        Some(u.as_mut()),
+        Par::Seq,
+        MemStack::new(&mut MemBuffer::new(scratch)),
+        Default::default(),
+    )
+    .expect("eigendecomposition of a finite symmetric matrix");
     let mut order: Vec<usize> = (0..n).collect();
-    order.sort_by(|&a, &b| eig.eigenvalues[b].total_cmp(&eig.eigenvalues[a]));
-    let values = order.iter().map(|&k| eig.eigenvalues[k]).collect();
-    let vectors = DMatrix::from_fn(n, n, |i, j| eig.eigenvectors[(i, order[j])]);
+    order.sort_by(|&a, &b| s[b].total_cmp(&s[a]));
+    let values = order.iter().map(|&k| s[k]).collect();
+    let vectors = DMatrix::from_fn(n, n, |i, j| u[(i, order[j])]);
     (values, vectors)
 }
 
@@ -415,36 +469,19 @@ pub fn smartpca(
 
     let n_used = used.len();
     let k = options.n_components.min(n_used).min(snps.len());
-    // SNP loadings: ffvecs[j][col] = sum over PCA samples of 10 v_j * x
-    let v: Vec<Vec<f64>> = (0..n_used)
-        .map(|row| (0..k).map(|j| 10.0 * evecs[(row, j)]).collect())
-        .collect();
-    let by_snp: Vec<Vec<f64>> = snps
-        .par_iter()
-        .zip(&norms)
-        .map(|(&snp, norm)| {
-            let mut acc = vec![0.0; k];
-            if norm.alive {
-                for (row, &s) in used.iter().enumerate() {
-                    let g = geno.get(snp, s);
-                    if g <= 2 {
-                        let x = norm.values[g as usize];
-                        for (a, vj) in acc.iter_mut().zip(&v[row]) {
-                            *a += vj * x;
-                        }
-                    }
-                }
-            }
-            acc
-        })
-        .collect();
-    let flat: Vec<f64> = by_snp.into_iter().flatten().collect();
-
-    // One pass over the SNPs for every sample left: the dot product of its
-    // normalized genotypes with the loadings and, for least squares, the
+    // SNP loadings, ffvecs[j][col] = sum over PCA samples of 10 v_j * x,
+    // then one pass over the SNPs for every sample left: the dot product of
+    // its normalized genotypes with the loadings and, for least squares, the
     // right-hand side and the normal matrix over its missing SNPs.
     let mut kept: Vec<usize> = (0..n_samples).filter(|&s| !ignored[s]).collect();
-    let sums = sample_sums(geno, &kept, &snps, &norms, &flat, k, options.lsq_project);
+    let mut v = Array2::<f64>::zeros((kept.len(), k));
+    for (row, s) in used.iter().enumerate() {
+        let r = kept.binary_search(s).expect("PCA sample kept");
+        for j in 0..k {
+            v[[r, j]] = 10.0 * evecs[(row, j)];
+        }
+    }
+    let (flat, sums) = project(geno, &kept, &snps, &norms, &v, options.lsq_project);
     let row_of_used: Vec<usize> = used
         .iter()
         .map(|s| kept.binary_search(s).expect("PCA sample kept"))
@@ -548,73 +585,104 @@ pub fn smartpca(
 /// the dot product of the normalized genotypes with the loadings (missing
 /// genotypes are 0, so this is also the least-squares right-hand side), the
 /// upper triangle of l l' summed over missing SNPs (for least squares), and
-/// the number of missing SNPs. `flat` holds the loadings SNP by SNP.
+/// the number of missing SNPs.
 struct SampleSums {
     dot: Vec<f64>,
     missing: Vec<f64>,
     n_missing: Vec<usize>,
 }
 
-fn sample_sums(
+/// SNPs per piece of a panel in `project`, and samples per piece of its rows.
+const PIECE: usize = 256;
+
+/// The SNP loadings (SNP by SNP, `k` each; `v` holds 10 times the
+/// eigenvectors on the rows of the PCA samples and 0 elsewhere) and the
+/// per-sample sums over `samples`.
+///
+/// The live SNPs are taken a panel at a time and decoded once; the loadings
+/// of a panel are its genotypes' product with `v`, and the dot products
+/// gain the genotypes' product with those loadings. Pieces of SNPs and of
+/// samples run in parallel, each adding its panels in SNP order, so the
+/// result does not depend on the thread count.
+fn project(
     geno: &PackedGenotypes,
     samples: &[usize],
     snps: &[usize],
     norms: &[ColumnNorm],
-    flat: &[f64],
-    k: usize,
+    v: &Array2<f64>,
     lsq: bool,
-) -> SampleSums {
-    let n = samples.len();
-    let zero = || SampleSums {
-        dot: vec![0.0; n * k],
-        missing: if lsq {
-            vec![0.0; n * k * k]
-        } else {
-            Vec::new()
-        },
-        n_missing: vec![0; n],
-    };
-    let part = |group: usize| {
-        let cols = group * GROUP..((group + 1) * GROUP).min(snps.len());
-        let mut acc = zero();
-        for col in cols {
-            let (snp, norm) = (snps[col], &norms[col]);
-            let l = &flat[col * k..(col + 1) * k];
-            for (r, &s) in samples.iter().enumerate() {
-                let g = geno.get(snp, s);
-                if g > 2 {
-                    acc.n_missing[r] += 1;
-                    if lsq {
-                        let m = &mut acc.missing[r * k * k..(r + 1) * k * k];
+) -> (Vec<f64>, SampleSums) {
+    let (n, k) = (samples.len(), v.ncols());
+    let live: Vec<usize> = (0..snps.len()).filter(|&c| norms[c].alive).collect();
+    let panel = (PANEL_VALUES / n.max(1)).clamp(PIECE, 16 * PIECE) / PIECE * PIECE;
+    let mut flat = vec![0.0; snps.len() * k];
+    let mut dot = Array2::<f64>::zeros((n, k));
+    let mut x = Array2::<f64>::zeros((n, panel).f());
+    let mut loads = Array2::<f64>::zeros((panel, k));
+    for chunk in live.chunks(panel) {
+        let width = chunk.len();
+        x.slice_mut(s![.., ..width])
+            .axis_iter_mut(Axis(1))
+            .into_par_iter()
+            .zip(chunk)
+            .for_each(|(mut col, &c)| {
+                for (val, &s) in col.iter_mut().zip(samples) {
+                    *val = row_value(geno.get(snps[c], s), &norms[c]);
+                }
+            });
+        let x = x.slice(s![.., ..width]);
+        loads
+            .slice_mut(s![..width, ..])
+            .axis_chunks_iter_mut(Axis(0), PIECE)
+            .into_par_iter()
+            .enumerate()
+            .for_each(|(p, mut out)| {
+                let cols = x.slice(s![.., p * PIECE..p * PIECE + out.nrows()]);
+                general_mat_mul(1.0, &cols.t(), v, 0.0, &mut out);
+            });
+        let loads = loads.slice(s![..width, ..]);
+        for (row, &c) in loads.outer_iter().zip(chunk) {
+            flat[c * k..(c + 1) * k].copy_from_slice(row.as_slice().expect("row-major"));
+        }
+        dot.axis_chunks_iter_mut(Axis(0), PIECE)
+            .into_par_iter()
+            .enumerate()
+            .for_each(|(p, mut out)| {
+                let rows = x.slice(s![p * PIECE..p * PIECE + out.nrows(), ..]);
+                general_mat_mul(1.0, &rows, &loads, 1.0, &mut out);
+            });
+    }
+    let (missing, n_missing) = if lsq {
+        let per_sample: Vec<(Vec<f64>, usize)> = samples
+            .par_iter()
+            .map(|&s| {
+                let mut m = vec![0.0; k * k];
+                let mut count = 0;
+                for (col, &snp) in snps.iter().enumerate() {
+                    if geno.get(snp, s) > 2 {
+                        count += 1;
+                        let l = &flat[col * k..(col + 1) * k];
                         for a in 0..k {
                             for b in a..k {
                                 m[a * k + b] += l[a] * l[b];
                             }
                         }
                     }
-                    continue;
                 }
-                let x = row_value(g, norm);
-                if x != 0.0 {
-                    for (d, lj) in acc.dot[r * k..(r + 1) * k].iter_mut().zip(l) {
-                        *d += x * lj;
-                    }
-                }
-            }
-        }
-        acc
+                (m, count)
+            })
+            .collect();
+        let count = per_sample.iter().map(|p| p.1).collect();
+        (per_sample.into_iter().flat_map(|p| p.0).collect(), count)
+    } else {
+        (Vec::new(), vec![0; n])
     };
-    ordered_sum(snps.len().div_ceil(GROUP), zero, part, |a, b| {
-        a.dot.iter_mut().zip(&b.dot).for_each(|(x, y)| *x += y);
-        a.missing
-            .iter_mut()
-            .zip(&b.missing)
-            .for_each(|(x, y)| *x += y);
-        a.n_missing
-            .iter_mut()
-            .zip(&b.n_missing)
-            .for_each(|(x, y)| *x += y);
-    })
+    let sums = SampleSums {
+        dot: dot.iter().copied().collect(),
+        missing,
+        n_missing,
+    };
+    (flat, sums)
 }
 
 /// Sum of l l' over the given SNP columns, upper triangle (`flat` holds the
@@ -727,6 +795,68 @@ mod tests {
         };
         let one = run(1);
         for threads in [2, 3, 8] {
+            let many = run(threads);
+            assert_eq!(one.eigenvalues, many.eigenvalues, "{threads} threads");
+            assert_eq!(one.coords, many.coords, "{threads} threads");
+        }
+    }
+
+    #[test]
+    fn the_cross_product_is_the_sum_over_snps() {
+        // several tiles of samples and several panels of SNPs
+        let (n, n_snps) = (2 * 150, 5_000);
+        let g = two_groups(150, n_snps);
+        let used: Vec<usize> = (0..n).filter(|s| s % 7 != 3).collect();
+        let snps: Vec<usize> = (0..n_snps).collect();
+        let norms: Vec<ColumnNorm> = snps.iter().map(|&j| column_norm(&g, j, &used)).collect();
+        let got = cross_product(&g, &snps, &norms, &used);
+        let x = |j: usize, s: usize| match g.get(j, s) {
+            v if v > 2 || !norms[j].alive => 0.0,
+            v => norms[j].values[v as usize],
+        };
+        for (a, &sa) in used.iter().enumerate().step_by(13) {
+            for (b, &sb) in used.iter().enumerate() {
+                let want: f64 = snps.iter().map(|&j| x(j, sa) * x(j, sb)).sum();
+                assert!(
+                    (got[[a, b]] - want).abs() <= 1e-9 * want.abs().max(1.0),
+                    "{a},{b}"
+                );
+                assert_eq!(got[[a, b]], got[[b, a]]);
+            }
+        }
+    }
+
+    #[test]
+    fn eigen_returns_decreasing_unit_eigenvectors() {
+        let n = 40;
+        let m = Array2::from_shape_fn((n, n), |(i, j)| {
+            1.0 / (1.0 + i.abs_diff(j) as f64) + if i == j { (i % 5) as f64 } else { 0.0 }
+        });
+        let (values, vectors) = eigen(&m);
+        assert!(values.windows(2).all(|w| w[0] >= w[1]));
+        for (k, &l) in values.iter().enumerate() {
+            let v: Vec<f64> = (0..n).map(|i| vectors[(i, k)]).collect();
+            assert!((v.iter().map(|x| x * x).sum::<f64>() - 1.0).abs() < 1e-12);
+            for i in 0..n {
+                let mv: f64 = (0..n).map(|j| m[[i, j]] * v[j]).sum();
+                assert!((mv - l * v[i]).abs() < 1e-10, "eigenpair {k}");
+            }
+        }
+    }
+
+    #[test]
+    fn many_samples_give_the_same_results_at_every_thread_count() {
+        let g = two_groups(150, 5_000);
+        let roles = vec![SampleRole::Pca; 300];
+        let run = |threads: usize| {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap()
+                .install(|| smartpca(&g, &roles, &PcaOptions::default()).unwrap())
+        };
+        let one = run(1);
+        for threads in [2, 5, 16] {
             let many = run(threads);
             assert_eq!(one.eigenvalues, many.eigenvalues, "{threads} threads");
             assert_eq!(one.coords, many.coords, "{threads} threads");

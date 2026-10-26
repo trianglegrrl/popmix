@@ -16,6 +16,7 @@ itertools = { workspace = true }
 ordered-float = { workspace = true }
 rustfft = "6.2"  # FFT for O(N log N) LD computation in DATES
 nalgebra = "0.33"
+faer = "0.24"
 statrs = "0.18"
 
 [dev-dependencies]
