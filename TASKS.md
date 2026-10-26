@@ -90,6 +90,15 @@ from the code, not yet shown.
   allele treated as mismatch, so a single new pseudohaploid sample gives
   "No overlapping SNPs"; duplicate (chr, pos) in file B overwrite each other
   (`merge.rs:125-128`). PG [reviewer-verified; duplicates suspected]
+- [ ] **A11. qpWave rank when every test is rejected:** `qpwave.rs:113`
+  falls back to the highest rank tested (`unwrap_or(max_rank)`), so with
+  every rank rejected it reports one rank too few: `--left French_1,French_2`
+  says rank 0 though rank 0 has p = 0.039. All rejected means rank above
+  `max_rank`; report `max_rank + 1`. Check qpAdm's feasibility uses the same.
+- [ ] **A12. `extract-f2 --snp-range` without `--populations`** finds 0
+  populations, writes an empty f2 directory and exits 0; with
+  `--snp-range`, `--maxmiss`, `--auto-only` and `--pseudohaploid` are
+  ignored. Error out, or honour them.
 
 ## B. Crashes and input validation (P0)
 
@@ -139,6 +148,14 @@ from the code, not yet shown.
   and `except Exception: pass` at `cli/__init__.py:73`. AI
 - [x] **B13. `admixture_cv` folds truncated to u8** *Done in 0ad353c.* (`admixture.rs:741`) when
   folds > 256. RS
+- [ ] **B14. CLI options ignored without a word:** `qp3pop --outgroup-mode`
+  and `--no-bias-correction` with `--f2-dir`; `sfs --joint` with
+  `--projection`, `--folded`, `--all-chromosomes`. Error out when they
+  cannot apply.
+- [ ] **B15. Broken pipe:** `popmix kinship ... | head` prints
+  `Error: [Errno 32] Broken pipe` and exits 120; exit quietly.
+- [ ] **B16. Sex lost on conversion:** `convertf` to PLINK writes sex 0 and
+  `merge` writes `U` for every sample although the `.ind` has M/F.
 
 ## C. Licence and provenance (P0, for MIT)
 
@@ -529,6 +546,17 @@ thread count.
   `clippy::pedantic` lints (1,782 warnings, mostly noise). RS
 - [ ] **M3. Document why graph search is split across Rust and Python** (or
   resolve it with F9). AI
+- [ ] **M4. CLI consistency** (found writing the skill, N): `sfs` with one
+  population prints S/pi/Watterson/Tajima lines to stdout before its TSV
+  (even with `-o`), and lacks `--pseudohaploid`; qpadm prints weight SEs
+  only in JSON, and qpadm/qpwave have no `--fudge`; `Ignore` is left out by
+  `pca`, `kinship`, `admixture` but kept by `extract-f2` without
+  `--populations`; `info` orders populations differently for TGENO and
+  PACKEDANCESTRYMAP of the same data; `dates` years per generation and
+  jackknife, and `rolloff`'s fit range, are fixed in the CLI; JSON from
+  `write_table` lacks a trailing newline; README claims `--format json` for
+  `kinship` and `sfs` and "6 formats" (TGENO is a seventh), as does the
+  convertf docstring.
 
 ## N. Agent skill for popmix (P1)
 
