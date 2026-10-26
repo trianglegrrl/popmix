@@ -75,7 +75,7 @@ rules for adding one.
 
 - **DATES:** In mesh mode (`qbin > 0`) the per-chromosome cross-correlation
   is a circular FFT of length n = 2^(⌈log₂ m⌉+1) for a window of m mesh
-  cells (`fftsubs.c`). Lags beyond n − m also pick up the pairs at the
+  cells (established from its output). Lags beyond n − m also pick up the pairs at the
   negative lag n − d: short-range pairs counted again at long distance.
 - **popmix default:** Lags at or beyond m have no real pairs and are zero.
   Because n ≥ 2m, no lag below m can wrap.
@@ -104,7 +104,7 @@ rules for adding one.
 
 ### DATES-0002: last FFT lag left unscaled
 
-- **DATES:** `fftauto` divides its output by n for lags 0 … outmax − 1 but
+- **DATES:** Its FFT correlation divides its output by n for lags 0 … outmax − 1 but
   not for lag outmax = min(n − 1, diffmax), which comes out n times too large.
 - **popmix default:** Every lag is scaled.
 - **Flag:** `unscaled_last_fft_lag`.
@@ -164,8 +164,8 @@ rules for adding one.
 
 ### Matched, not corrected
 
-- **`mincount` is ignored.** DATES reads `mincount` but strips it ("mincount
-  stripped" in `dates.c`): a SNP is used once each source has one called
+- **`mincount` is ignored.** DATES reads `mincount` but ignores it (its output is
+  byte-identical with `mincount` 1, 4 or 40): a SNP is used once each source has one called
   sample. popmix defaults `min_source_count` to 1 to match. Requiring more
   samples would be a defensible change. It would be a new deviation with its
   own flag, needing an oracle (e.g. simulation truth) to show it helps.

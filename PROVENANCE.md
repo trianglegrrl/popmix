@@ -55,7 +55,7 @@ numbers only.
 | `crates/popmix-core/src/fstats/jackknife.rs`, `geno_fstats.rs` (jackknife), `qpadm/f4ratio.rs` | admixtools2 R (GPL-3) | `jackknife.md`, `small-helpers.md` |
 | `crates/popmix-core/src/qpgraph/graph_search.rs` (enumeration) | admixtools2 R (GPL-3) | `small-helpers.md`; the exclusion rule and the order were found from `generate_all_graphs` output |
 | `python/popmix/resample.py` (`compare_fits`), `qpadm_models.py` (model sets), `dstats.py` (`fstat_combinations`) | admixtools2 R (GPL-3) | `small-helpers.md` |
-| `crates/popmix-core/src/dates/ld_decay.rs` (mesh cells, lag sums to bins) | DATES `dates.c` (no licence) | `dates-mesh.md` |
+| `crates/popmix-core/src/dates/` (the whole module: weights, LD decay, mesh, exponential fit, jackknife, analysis) | DATES v753 `dates.c` (no licence) | `dates-mesh.md`, then `dates.md` |
 
 Exposure during the rewrites, recorded for completeness:
 - The f4ratio implementer had earlier seen about 25 lines of the old body while reading a caller of the jackknife.
@@ -77,8 +77,7 @@ None of these is the substance of the new code.
 Everything else: the f-statistics, f2 blocks and blocks, qpWave, qpAdm,
 qpadm_p, rotation and pairs, SFS, genotype matrices, kinship (KING-robust
 and READ, which differ in implementation from PLINK 2 and READv2), ADMIXTURE
-(SQUAREM, where ADMIXTURE's source is unpublished), DATES apart from the two
-helpers above, every reader and writer in `popmix-io` (merge, VCF, TGENO),
+(SQUAREM, where ADMIXTURE's source is unpublished), every reader and writer in `popmix-io` (merge, VCF, TGENO),
 and the Python bindings, CLI, f2 directories, DOT, RDS, plots and SFS
 wrappers.
 

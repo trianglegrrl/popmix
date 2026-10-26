@@ -259,8 +259,8 @@ same round trip (DATES-0003). On AADR the full-precision default fit differs
 by 0.002 generations.
 
 DATES keeps a SNP once each source population has one called sample. It
-reads `mincount` from the parameter file but ignores it ("mincount stripped"
-in `dates.c`), so popmix defaults `min_source_count` to 1 as well.
+reads `mincount` from the parameter file but ignores it (its output is byte-identical with
+`mincount` 1, 4 or 40), so popmix defaults `min_source_count` to 1 as well.
 
 **Regenerating references.** Run
 `DATES_BIN=<dir> tests/golden/dates/generate_dates_reference.sh [config...]`.
