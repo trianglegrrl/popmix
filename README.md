@@ -126,6 +126,24 @@ maturin develop -m crates/popmix-python/Cargo.toml
 conda install -c bioconda popmix
 ```
 
+### Agent skill for Claude Code
+
+popmix ships a skill for AI agents: `SKILL.md` (which command answers which
+question, input formats) and one file per command with every option, its
+default, examples and caveats. Install it where Claude Code finds personal
+skills, `~/.claude/skills/popmix`:
+
+```bash
+popmix install-skill
+# after upgrading popmix, replace the old copy
+popmix install-skill --force
+# or into a project
+popmix install-skill --dest .claude/skills/popmix
+```
+
+The skill lives in the package (`python/popmix/skill/`); its examples run in
+the test suite, so it cannot drift from the CLI.
+
 ## Input File Formats
 
 Popmix reads 6 standard genotype file formats. Most formats use a **prefix** convention where related files share a common path prefix. VCF files use a full path (with extension).
@@ -215,6 +233,7 @@ Popmix auto-detects the format from file extensions:
 | `f4` | Compute f4 statistic (D-statistic / ABBA-BABA test). |
 | `find-graphs` | Search for the admixture graphs that best fit the data. |
 | `info` | Show dataset information. |
+| `install-skill` | Install the popmix agent skill for Claude Code. |
 | `kinship` | Kinship for every pair of samples: KING-robust or READ-style. |
 | `merge` | Merge two genotype datasets. |
 | `outgroup-f3` | Matrix of outgroup f3(outgroup; A, B) for every pair of populations. |

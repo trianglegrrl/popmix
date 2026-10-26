@@ -63,6 +63,14 @@ def test_wheels_are_installed_and_run_before_publishing(workflow: dict) -> None:
         assert "pip install" in runs and "popmix --version" in runs, name
 
 
+def test_wheels_ship_the_agent_skill(workflow: dict) -> None:
+    # the skill is package data (python/popmix/skill/): the built wheel must hold it
+    for name in ("linux", "macos", "windows"):
+        runs = " ".join(s.get("run", "") for s in workflow["jobs"][name]["steps"])
+        assert "popmix install-skill --dest skill-check" in runs, name
+        assert "test -f skill-check/commands/qpadm.md" in runs, name
+
+
 def test_publishes_from_tags_with_trusted_publishing(workflow: dict) -> None:
     publish = workflow["jobs"]["publish"]
     assert set(publish["needs"]) == {"linux", "macos", "windows", "sdist"}

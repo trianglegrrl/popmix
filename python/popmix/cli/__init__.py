@@ -27,6 +27,7 @@ Commands:
     sfs         Site-frequency spectrum (dadi projection or admixtools2 joint_sfs)
     admixture   Ancestry proportions as ADMIXTURE (unsupervised, supervised, projection)
     rolloff     ROLLOFF: admixture dates from weighted LD correlation
+    install-skill Install the popmix agent skill for Claude Code
 """
 
 from __future__ import annotations
@@ -1442,6 +1443,68 @@ def find_graphs(populations: list, nadmix: int, outgroup: str | None, method: st
                 for a, b in g.edges:
                     click.echo(f"  {a}\t{b}")
 
+    except EXPECTED_ERRORS as e:
+        fail(e)
+
+
+SKILL_DEST = "~/.claude/skills/popmix"
+
+
+def _is_popmix_skill(path) -> bool:
+    """Whether PATH holds a copy of this skill (so --force may replace it)."""
+    skill_md = path / "SKILL.md"
+    try:
+        return skill_md.is_file() and "\nname: popmix\n" in skill_md.read_text(errors="replace")
+    except OSError:
+        return False
+
+
+def _copy_resource_tree(source, dest) -> int:
+    """Copy a package resource directory to DEST; the number of files copied."""
+    dest.mkdir(parents=True)
+    n = 0
+    for item in sorted(source.iterdir(), key=lambda p: p.name):
+        if item.name == "__pycache__":
+            continue
+        if item.is_dir():
+            n += _copy_resource_tree(item, dest / item.name)
+        else:
+            (dest / item.name).write_bytes(item.read_bytes())
+            n += 1
+    return n
+
+
+@cli.command("install-skill")
+@click.option("--dest", default=SKILL_DEST,
+              help=f"Directory to install the skill into (default: {SKILL_DEST}, Claude Code's "
+                   "personal skills)")
+@click.option("--force", is_flag=True, default=False,
+              help="Replace an earlier copy of the popmix skill at --dest")
+def install_skill(dest: str, force: bool):
+    """Install the popmix agent skill (SKILL.md and one file per command) for Claude Code.
+
+    The skill ships inside the popmix package and documents this version's
+    commands, so reinstall it (with --force) after upgrading popmix.
+    """
+    import shutil
+    from importlib import resources
+    from pathlib import Path
+
+    try:
+        target = Path(dest).expanduser()
+        if target.exists() or target.is_symlink():
+            if not target.is_dir():
+                raise ValueError(f"{target} exists and is not a directory")
+            if any(target.iterdir()):
+                if not _is_popmix_skill(target):
+                    raise ValueError(f"{target} is not empty and not a popmix skill; choose another --dest")
+                if not force:
+                    raise ValueError(f"{target} already holds a popmix skill; use --force to replace it")
+                shutil.rmtree(target)
+            else:
+                target.rmdir()
+        n = _copy_resource_tree(resources.files("popmix") / "skill", target)
+        click.echo(f"Installed the popmix {pm.__version__} skill ({n} files) to {target}")
     except EXPECTED_ERRORS as e:
         fail(e)
 
