@@ -9,6 +9,7 @@ output is byte-identical at every thread count.
 
 Usage: python benchmarks/run.py [--cases extract_f2,qpadm] [--repeats 5]
                                 [--threads 1,4,16] [--out results.json]
+                                [--reuse-reference earlier.json]
 Results go to benchmarks/results/<host>-<date>.json unless --out is given.
 """
 
@@ -44,6 +45,17 @@ def _fresh(directory: Path) -> Path:
     return directory
 
 
+def reused_reference(earlier: dict, name: str, ref_dir: Path) -> dict:
+    """The reference timing of case `name` from an earlier report, whose
+    outputs are still in `ref_dir`, marked with the earlier date."""
+    case = earlier.get("cases", {}).get(name)
+    if case is None:
+        raise SystemExit(f"the earlier report has no case {name}")
+    if not ref_dir.is_dir() or not any(ref_dir.iterdir()):
+        raise SystemExit(f"{name}: no reference outputs in {ref_dir}")
+    return {**case["reference_runs"], "reused_from": earlier["date"]}
+
+
 def versions() -> dict:
     def out(cmd: list[str]) -> str:
         try:
@@ -64,7 +76,11 @@ def main() -> None:
     parser.add_argument("--repeats", type=int, default=5)
     parser.add_argument("--threads", default="1,4,16")
     parser.add_argument("--out", type=Path)
+    parser.add_argument("--reuse-reference", type=Path, metavar="REPORT",
+                        help="take the reference timings from this earlier report and its outputs from the "
+                             "run directories, and run only popmix")
     args = parser.parse_args()
+    earlier = json.loads(args.reuse_reference.read_text()) if args.reuse_reference else None
     threads = [int(t) for t in args.threads.split(",")]
     today = datetime.date.today().isoformat()
     out = args.out or Path(__file__).parent / "results" / f"{socket.gethostname()}-{today}.json"
@@ -74,11 +90,15 @@ def main() -> None:
         case = CASES[name]
         source = case.prepare()
         work = CACHE / "runs" / name
-        print(f"{name}: reference ({case.reference})", flush=True)
-        ref_dir = _fresh(work / "reference")
-        ref = measure(case.ref(source, ref_dir), ref_dir, args.repeats, log=ref_dir / "run.log")
+        if earlier is not None:
+            ref_dir = work / "reference"
+            ref_runs = reused_reference(earlier, name, ref_dir)
+        else:
+            print(f"{name}: reference ({case.reference})", flush=True)
+            ref_dir = _fresh(work / "reference")
+            ref_runs = measure(case.ref(source, ref_dir), ref_dir, args.repeats, log=ref_dir / "run.log").summary()
         result = {"analysis": case.analysis, "reference": case.reference,
-                  "reference_runs": ref.summary(), "popmix": {}}
+                  "reference_runs": ref_runs, "popmix": {}}
         digests = {}
         for t in threads:
             print(f"{name}: popmix, {t} threads", flush=True)
@@ -91,7 +111,7 @@ def main() -> None:
         report["cases"][name] = result
         _write(out, report)
         best = min(result["popmix"].values(), key=lambda r: r["wall_s"]["median"])
-        print(f"  reference {ref.summary()['wall_s']['median']:.2f}s, popmix best {best['wall_s']['median']:.2f}s, "
+        print(f"  reference {ref_runs['wall_s']['median']:.2f}s, popmix best {best['wall_s']['median']:.2f}s, "
               f"agreement {best['agreement']}, identical across threads: {result['identical_across_threads']}",
               flush=True)
 

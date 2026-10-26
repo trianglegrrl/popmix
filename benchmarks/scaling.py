@@ -245,12 +245,30 @@ def _fresh(directory: Path) -> Path:
     return directory
 
 
-def run_point(p: Point, threads: int, repeats: int) -> dict:
+def reused_reference(earlier: dict, curve: str, key: str, work: Path) -> dict:
+    """The reference timings of a point from an earlier report, whose outputs
+    are still in `work`, each marked with the earlier date."""
+    point = earlier.get("curves", {}).get(curve, {}).get(key)
+    if point is None:
+        raise SystemExit(f"the earlier report has no point {curve}/{key}")
+    out = {}
+    for t, runs in point["reference"].items():
+        ref_dir = work / f"reference-t{t}"
+        if not ref_dir.is_dir() or not any(ref_dir.iterdir()):
+            raise SystemExit(f"{curve}/{key}: no reference outputs in {ref_dir}")
+        out[t] = {**runs, "reused_from": earlier["date"]}
+    return out
+
+
+def run_point(p: Point, threads: int, repeats: int, earlier: dict | None = None) -> dict:
     source = p.prepare()
     work = SCALING / "runs" / p.curve / p.key.replace(":", "-")
     result: dict = {"x": p.x, "analysis": p.analysis, "input": _size(source), "reference": {}, "popmix": {}}
     ref_dir = None
-    if p.ref is not None:
+    if p.ref is not None and earlier is not None:
+        result["reference"] = reused_reference(earlier, p.curve, p.key, work)
+        ref_dir = work / f"reference-t{list(result['reference'])[-1]}"
+    elif p.ref is not None:
         for t in p.ref_threads:
             ref_dir = _fresh(work / f"reference-t{t}")
             print(f"  {p.key}: reference{f', {t} threads' if t else ''}", flush=True)
@@ -272,7 +290,11 @@ def main() -> None:
     parser.add_argument("--repeats", type=int, default=3)
     parser.add_argument("--threads", type=int, default=16, help="popmix threads on the size curves")
     parser.add_argument("--out", type=Path)
+    parser.add_argument("--reuse-reference", type=Path, metavar="REPORT",
+                        help="take the reference timings from this earlier report and its outputs from the "
+                             "run directories, and run only popmix")
     args = parser.parse_args()
+    earlier = json.loads(args.reuse_reference.read_text()) if args.reuse_reference else None
     today = datetime.date.today().isoformat()
     out = args.out or Path(__file__).parent / "results" / f"scaling-{socket.gethostname()}-{today}.json"
     report = json.loads(out.read_text()) if out.exists() else {
@@ -285,7 +307,7 @@ def main() -> None:
         if p.key in done:
             continue
         print(f"{p.curve}: {p.key}", flush=True)
-        done[p.key] = run_point(p, args.threads, args.repeats)
+        done[p.key] = run_point(p, args.threads, args.repeats, earlier)
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json.dumps(report, indent=1, default=_plain) + "\n")
     print(f"wrote {out}")

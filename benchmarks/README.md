@@ -44,6 +44,20 @@ entry at atol 1e-15 + rtol 1e-10.
 
 Results are kept in `results/`, with the machine and the tool versions.
 
+### Rerunning popmix only
+
+The reference tools do not change between popmix commits, so a rerun can
+take their timings from an earlier report and check agreement against
+their outputs, still in the run directories, while timing popmix afresh:
+
+```bash
+# not run: needs the reference outputs of an earlier run
+python benchmarks/run.py --reuse-reference benchmarks/results/razorback-2026-10-25.json
+python benchmarks/scaling.py --reuse-reference benchmarks/results/scaling-razorback-2026-10-25.json
+```
+
+Each reused reference timing is marked `reused_from` with the earlier date.
+
 ## Scaling
 
 `scaling.py` measures how time and memory grow, popmix against the

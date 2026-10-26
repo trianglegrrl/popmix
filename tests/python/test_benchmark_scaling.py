@@ -63,7 +63,7 @@ def test_numpy_agreement_values_are_written_as_json(tmp_path, monkeypatch):
     point = scaling.Point(curve="samples", x=1, analysis="kinship", prepare=lambda: tmp_path, popmix=None,
                           ref=None, agree=None)
     monkeypatch.setattr(scaling, "points", lambda: [point])
-    monkeypatch.setattr(scaling, "run_point", lambda p, t, r: {"agreement": {"pass": np.bool_(True), "x": np.float64(1)}})
+    monkeypatch.setattr(scaling, "run_point", lambda p, t, r, e=None: {"agreement": {"pass": np.bool_(True), "x": np.float64(1)}})
     monkeypatch.setattr(scaling, "machine", lambda: {})
     monkeypatch.setattr(scaling, "versions", lambda: {})
     out = tmp_path / "out.json"
