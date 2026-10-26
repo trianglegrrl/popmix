@@ -417,7 +417,7 @@ fn read_plink(
     snp_range: Option<(usize, usize)>,
 ) -> PyResult<PyGenotypeMatrix> {
     compute(py, move || {
-        let mut reader = PlinkReader::new(prefix).map_err(to_py_err)?;
+        let reader = PlinkReader::new(prefix).map_err(to_py_err)?;
 
         let geno = match snp_range {
             Some((start, end)) => reader.read_snp_range(start..end).map_err(to_py_err)?,
@@ -471,7 +471,7 @@ fn read_packedancestrymap(
     snp_range: Option<(usize, usize)>,
 ) -> PyResult<PyGenotypeMatrix> {
     compute(py, move || {
-        let mut reader = PackedAncestryMapReader::new(prefix).map_err(to_py_err)?;
+        let reader = PackedAncestryMapReader::new(prefix).map_err(to_py_err)?;
 
         let geno = match snp_range {
             Some((start, end)) => reader.read_snp_range(start..end).map_err(to_py_err)?,
@@ -665,11 +665,11 @@ fn convertf_files(
     // Read the input data
     let geno = match in_format {
         GenoFormat::PackedPed => {
-            let mut reader = PlinkReader::new(input_prefix).map_err(to_py_err)?;
+            let reader = PlinkReader::new(input_prefix).map_err(to_py_err)?;
             reader.read_all().map_err(to_py_err)?
         }
         GenoFormat::PackedAncestrymap => {
-            let mut reader = PackedAncestryMapReader::new(input_prefix).map_err(to_py_err)?;
+            let reader = PackedAncestryMapReader::new(input_prefix).map_err(to_py_err)?;
             reader.read_all().map_err(to_py_err)?
         }
         GenoFormat::Eigenstrat => {
@@ -776,11 +776,11 @@ fn merge(
 
             match fmt {
                 GenoFormat::PackedPed => {
-                    let mut reader = PlinkReader::new(prefix).map_err(to_py_err)?;
+                    let reader = PlinkReader::new(prefix).map_err(to_py_err)?;
                     reader.read_all().map_err(to_py_err)
                 }
                 GenoFormat::PackedAncestrymap => {
-                    let mut reader = PackedAncestryMapReader::new(prefix).map_err(to_py_err)?;
+                    let reader = PackedAncestryMapReader::new(prefix).map_err(to_py_err)?;
                     reader.read_all().map_err(to_py_err)
                 }
                 GenoFormat::Eigenstrat => {
@@ -3018,7 +3018,7 @@ pub(crate) fn read_genotypes_any_format(prefix: &str) -> PyResult<GenotypeMatrix
 
     // Check for PLINK format (.bed file)
     if Path::new(&format!("{}.bed", prefix)).exists() {
-        let mut reader = PlinkReader::new(prefix).map_err(to_py_err)?;
+        let reader = PlinkReader::new(prefix).map_err(to_py_err)?;
         return reader.read_all().map_err(to_py_err);
     }
 
@@ -3036,7 +3036,7 @@ pub(crate) fn read_genotypes_any_format(prefix: &str) -> PyResult<GenotypeMatrix
             return reader.read_all().map_err(to_py_err);
         }
         if is_packed_format(&geno_path).map_err(to_py_err)? {
-            let mut reader = PackedAncestryMapReader::new(prefix).map_err(to_py_err)?;
+            let reader = PackedAncestryMapReader::new(prefix).map_err(to_py_err)?;
             return reader.read_all().map_err(to_py_err);
         } else {
             let reader = EigenstratReader::new(prefix).map_err(to_py_err)?;

@@ -76,7 +76,7 @@ fn test_read_snps_aadr_packedancestrymap() {
         return;
     }
 
-    let mut reader = PackedAncestryMapReader::new(aadr_prefix())
+    let reader = PackedAncestryMapReader::new(aadr_prefix())
         .expect("Failed to open AADR PACKEDANCESTRYMAP dataset");
 
     // Read first 100 SNPs
@@ -176,7 +176,7 @@ fn test_read_single_snp_aadr_packedancestrymap() {
         return;
     }
 
-    let mut reader = PackedAncestryMapReader::new(aadr_prefix())
+    let reader = PackedAncestryMapReader::new(aadr_prefix())
         .expect("Failed to open AADR PACKEDANCESTRYMAP dataset");
 
     // Read SNP at index 1000

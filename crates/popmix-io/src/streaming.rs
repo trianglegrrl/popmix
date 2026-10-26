@@ -503,6 +503,30 @@ mod tests {
     }
 
     #[test]
+    fn readers_are_shared_between_threads() {
+        use rayon::prelude::*;
+        fn sync<T: Sync>(_: &T) {}
+        let (_dir, bed) = family_bed();
+        let plink = crate::PlinkReader::new(&bed).unwrap();
+        let packed = PackedAncestryMapReader::new(SMALL).unwrap();
+        sync(&plink);
+        sync(&packed);
+        let n = plink.num_snps();
+        let parts: Vec<(Vec<u8>, Vec<u8>)> = (0..4)
+            .into_par_iter()
+            .map(|k| {
+                let r = k * n / 4..(k + 1) * n / 4;
+                let a = plink.read_snp_range(r.clone()).unwrap();
+                let b = packed.read_snp_range(r).unwrap();
+                (a.snp_raw(0).to_vec(), b.snp_raw(0).to_vec())
+            })
+            .collect();
+        for (a, b) in parts {
+            assert_eq!(a, b);
+        }
+    }
+
+    #[test]
     fn bed_rows_match_the_in_memory_genotypes() {
         use popmix_core::GenotypeRows;
         let (_dir, bed) = family_bed();

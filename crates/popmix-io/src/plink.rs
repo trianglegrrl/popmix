@@ -12,6 +12,8 @@
 use std::fs::File;
 use std::path::Path;
 
+use std::sync::OnceLock;
+
 use memmap2::Mmap;
 use ndarray::Array2;
 
@@ -28,7 +30,8 @@ pub struct PlinkReader {
     prefix: String,
     samples: Vec<Sample>,
     snps: Vec<Snp>,
-    bed_mmap: Option<Mmap>,
+    /// Mapped on first read; a `OnceLock` so reads take `&self`.
+    bed_mmap: OnceLock<Mmap>,
     bytes_per_snp: usize,
 }
 
@@ -55,7 +58,7 @@ impl PlinkReader {
             prefix,
             samples,
             snps,
-            bed_mmap: None,
+            bed_mmap: OnceLock::new(),
             bytes_per_snp,
         })
     }
@@ -86,14 +89,19 @@ impl PlinkReader {
     }
 
     /// Memory-map the .bed file for efficient reading.
-    fn ensure_mmap(&mut self) -> Result<&Mmap> {
-        if self.bed_mmap.is_none() {
+    fn ensure_mmap(&self) -> Result<&Mmap> {
+        if let Some(map) = self.bed_mmap.get() {
+            return Ok(map);
+        }
+        {
             let bed_path = format!("{}.bed", self.prefix);
             let file =
                 File::open(&bed_path).map_err(|e| PopmixError::io_with_path(e, &bed_path))?;
 
             let mmap =
-                unsafe { Mmap::map(&file).map_err(|e| PopmixError::io_with_path(e, &bed_path))? };
+                // SAFETY: the map is only read; like every reader of these files,
+            // popmix assumes no other process truncates the file while it is open.
+            unsafe { Mmap::map(&file).map_err(|e| PopmixError::io_with_path(e, &bed_path))? };
 
             // Verify magic number and mode
             if mmap.len() < 3 {
@@ -123,24 +131,25 @@ impl PlinkReader {
                 });
             }
 
-            self.bed_mmap = Some(mmap);
+            // another thread may have mapped it meanwhile: either map serves
+            let _ = self.bed_mmap.set(mmap);
         }
 
-        Ok(self.bed_mmap.as_ref().unwrap())
+        Ok(self.bed_mmap.get().expect("mapped above"))
     }
 
     /// Read all genotypes into a GenotypeMatrix.
     ///
     /// This reads the entire .bed file and converts to a matrix.
     /// For very large files, consider using `read_snp_range` instead.
-    pub fn read_all(&mut self) -> Result<GenotypeMatrix> {
+    pub fn read_all(&self) -> Result<GenotypeMatrix> {
         self.read_snp_range(0..self.snps.len())
     }
 
     /// Read genotypes for a range of SNPs.
     ///
     /// Returns a GenotypeMatrix with only the specified SNPs.
-    pub fn read_snp_range(&mut self, range: std::ops::Range<usize>) -> Result<GenotypeMatrix> {
+    pub fn read_snp_range(&self, range: std::ops::Range<usize>) -> Result<GenotypeMatrix> {
         crate::check_snp_range(&range, self.snps.len())?;
         // Copy values before mmap borrow
         let n_samples = self.samples.len();
@@ -169,7 +178,7 @@ impl PlinkReader {
     }
 
     /// Read genotypes for a single SNP.
-    pub fn read_snp(&mut self, snp_idx: usize) -> Result<Vec<Genotype>> {
+    pub fn read_snp(&self, snp_idx: usize) -> Result<Vec<Genotype>> {
         crate::check_snp_range(&(snp_idx..snp_idx + 1), self.snps.len())?;
         // Copy values before mmap borrow
         let n_samples = self.samples.len();

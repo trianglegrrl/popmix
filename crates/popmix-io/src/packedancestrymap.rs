@@ -20,6 +20,8 @@
 use std::fs::File;
 use std::path::Path;
 
+use std::sync::OnceLock;
+
 use memmap2::Mmap;
 use ndarray::Array2;
 
@@ -45,7 +47,8 @@ pub struct PackedAncestryMapReader {
     prefix: String,
     samples: Vec<Sample>,
     snps: Vec<Snp>,
-    geno_mmap: Option<Mmap>,
+    /// Mapped on first read; a `OnceLock` so reads take `&self`.
+    geno_mmap: OnceLock<Mmap>,
     bytes_per_snp: usize,
 }
 
@@ -131,7 +134,7 @@ impl PackedAncestryMapReader {
             prefix,
             samples,
             snps,
-            geno_mmap: None,
+            geno_mmap: OnceLock::new(),
             bytes_per_snp,
         })
     }
@@ -162,14 +165,19 @@ impl PackedAncestryMapReader {
     }
 
     /// Memory-map the .geno file for efficient reading.
-    fn ensure_mmap(&mut self) -> Result<&Mmap> {
-        if self.geno_mmap.is_none() {
+    fn ensure_mmap(&self) -> Result<&Mmap> {
+        if let Some(map) = self.geno_mmap.get() {
+            return Ok(map);
+        }
+        {
             let geno_path = format!("{}.geno", self.prefix);
             let file =
                 File::open(&geno_path).map_err(|e| PopmixError::io_with_path(e, &geno_path))?;
 
             let mmap =
-                unsafe { Mmap::map(&file).map_err(|e| PopmixError::io_with_path(e, &geno_path))? };
+                // SAFETY: the map is only read; like every reader of these files,
+            // popmix assumes no other process truncates the file while it is open.
+            unsafe { Mmap::map(&file).map_err(|e| PopmixError::io_with_path(e, &geno_path))? };
 
             // Verify magic number
             if mmap.len() < 4 || &mmap[0..4] != b"GENO" {
@@ -189,19 +197,20 @@ impl PackedAncestryMapReader {
                 });
             }
 
-            self.geno_mmap = Some(mmap);
+            // another thread may have mapped it meanwhile: either map serves
+            let _ = self.geno_mmap.set(mmap);
         }
 
-        Ok(self.geno_mmap.as_ref().unwrap())
+        Ok(self.geno_mmap.get().expect("mapped above"))
     }
 
     /// Read all genotypes into a GenotypeMatrix.
-    pub fn read_all(&mut self) -> Result<GenotypeMatrix> {
+    pub fn read_all(&self) -> Result<GenotypeMatrix> {
         self.read_snp_range(0..self.snps.len())
     }
 
     /// Read genotypes for a range of SNPs.
-    pub fn read_snp_range(&mut self, range: std::ops::Range<usize>) -> Result<GenotypeMatrix> {
+    pub fn read_snp_range(&self, range: std::ops::Range<usize>) -> Result<GenotypeMatrix> {
         crate::check_snp_range(&range, self.snps.len())?;
         // Copy values before mmap borrow
         let n_samples = self.samples.len();
@@ -233,7 +242,7 @@ impl PackedAncestryMapReader {
     }
 
     /// Read genotypes for a single SNP.
-    pub fn read_snp(&mut self, snp_idx: usize) -> Result<Vec<Genotype>> {
+    pub fn read_snp(&self, snp_idx: usize) -> Result<Vec<Genotype>> {
         // Copy values before mmap borrow
         let n_samples = self.samples.len();
         let bytes_per_snp = self.bytes_per_snp;

@@ -606,7 +606,7 @@ mod tests {
         write_packedancestrymap(&prefix, &matrix).unwrap();
 
         // Read back
-        let mut reader = PackedAncestryMapReader::new(&prefix).unwrap();
+        let reader = PackedAncestryMapReader::new(&prefix).unwrap();
         let reloaded = reader.read_all().unwrap();
 
         // Compare
@@ -638,7 +638,7 @@ mod tests {
         write_packedped(&prefix, &matrix).unwrap();
 
         // Read back
-        let mut reader = PlinkReader::new(&prefix).unwrap();
+        let reader = PlinkReader::new(&prefix).unwrap();
         let reloaded = reader.read_all().unwrap();
 
         // Compare
@@ -725,7 +725,7 @@ mod tests {
         write_packedped(&plink_prefix, &eigen_matrix).unwrap();
 
         // Read PACKEDPED
-        let mut reader = PlinkReader::new(&plink_prefix).unwrap();
+        let reader = PlinkReader::new(&plink_prefix).unwrap();
         let plink_matrix = reader.read_all().unwrap();
 
         // Compare genotypes
@@ -756,14 +756,14 @@ mod tests {
         write_packedped(&plink_prefix, &matrix).unwrap();
 
         // Read PACKEDPED
-        let mut reader = PlinkReader::new(&plink_prefix).unwrap();
+        let reader = PlinkReader::new(&plink_prefix).unwrap();
         let plink_matrix = reader.read_all().unwrap();
 
         // Write PACKEDANCESTRYMAP
         write_packedancestrymap(&packed_prefix, &plink_matrix).unwrap();
 
         // Read PACKEDANCESTRYMAP
-        let mut reader = PackedAncestryMapReader::new(&packed_prefix).unwrap();
+        let reader = PackedAncestryMapReader::new(&packed_prefix).unwrap();
         let packed_matrix = reader.read_all().unwrap();
 
         // Compare genotypes

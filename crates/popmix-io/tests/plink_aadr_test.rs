@@ -55,7 +55,7 @@ fn test_read_snps_aadr_ho() {
         return;
     }
 
-    let mut reader = PlinkReader::new(AADR_HO_PREFIX).expect("Failed to open AADR HO dataset");
+    let reader = PlinkReader::new(AADR_HO_PREFIX).expect("Failed to open AADR HO dataset");
 
     // Read first 100 SNPs
     let geno_matrix = reader
