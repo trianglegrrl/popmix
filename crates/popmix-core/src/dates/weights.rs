@@ -1,93 +1,80 @@
-//! Weight computation for DATES algorithm.
+//! SNP weights for DATES: the difference of the two source allele
+//! frequencies, at the SNPs informative enough to use.
 //!
-//! Computes SNP weights based on allele frequency differences between source populations.
+//! Provenance: written from the clean-room specification
+//! `docs/cleanroom/dates.md` (section 3), Narasimhan et al. 2019 (Science,
+//! supplementary methods of DATES), DATES's parameter-file documentation and
+//! DATES v753 run as a black box.
 
-use crate::error::PopmixError;
+use crate::error::{PopmixError, Result};
 use crate::genotype_matrix::AlleleFrequencies;
-use crate::Result;
 
-/// Result of weight computation for a single SNP.
+/// Smallest |p1 − p2| for a SNP to be used.
+const MIN_WEIGHT: f64 = 0.001;
+/// Smallest m(1 − m), m the mean source frequency, for a SNP to be used.
+const MIN_MEAN_HET: f64 = 0.001;
+
+/// SNP weights w = p1 − p2.
 #[derive(Debug, Clone)]
 pub struct WeightResult {
-    /// Weights for each SNP (p_source1 - p_source2).
+    /// One per SNP: p1 − p2 where the SNP is valid, NaN elsewhere.
     pub weights: Vec<f64>,
-    /// Number of SNPs with valid weights.
+    /// Number of valid SNPs.
     pub n_valid: usize,
-    /// Indices of SNPs with valid weights.
+    /// Indices of the valid SNPs, increasing.
     pub valid_indices: Vec<usize>,
 }
 
-/// Compute weights for each SNP based on allele frequency difference between sources.
+/// Whether a SNP with weight `w` and source frequencies `p1`, `p2` is
+/// informative enough: `w` finite with |w| ≥ 0.001, and m(1 − m) ≥ 0.001
+/// for the mean frequency m = (p1 + p2) / 2.
+pub(crate) fn informative(w: f64, p1: f64, p2: f64) -> bool {
+    if !w.is_finite() || w.abs() < MIN_WEIGHT {
+        return false;
+    }
+    let m = (p1 + p2) * 0.5;
+    m * (1.0 - m) >= MIN_MEAN_HET
+}
+
+/// Weights p1 − p2 from the frequencies of `source1` and `source2` in `af`.
 ///
-/// The weight for SNP x is: w(x) = p_source1(x) - p_source2(x)
-///
-/// # Arguments
-/// * `af` - Allele frequencies for all populations
-/// * `source1` - First source population name
-/// * `source2` - Second source population name
-/// * `min_count` - Minimum allele count per source population (default: 4, i.e., 2 diploid individuals)
-///
-/// # Returns
-/// WeightResult containing the weights for each SNP
+/// A SNP is valid when each source has at least `min_count` observed alleles
+/// (default 4), both frequencies are finite, |p1 − p2| ≥ 0.001 and the mean
+/// frequency m has m(1 − m) ≥ 0.001.
 pub fn compute_weights(
     af: &AlleleFrequencies,
     source1: &str,
     source2: &str,
     min_count: Option<u32>,
 ) -> Result<WeightResult> {
-    let min_n = min_count.unwrap_or(4); // Default: at least 2 diploid individuals
-
-    // Get population indices
-    let idx1 = af
+    let i1 = af
         .pop_index(source1)
         .ok_or_else(|| PopmixError::PopulationNotFound(source1.to_string()))?;
-    let idx2 = af
+    let i2 = af
         .pop_index(source2)
         .ok_or_else(|| PopmixError::PopulationNotFound(source2.to_string()))?;
+    let min_count = min_count.unwrap_or(4);
 
-    let n_snps = af.n_snps();
-    let mut weights = vec![f64::NAN; n_snps];
-    let mut valid_indices = Vec::with_capacity(n_snps);
-
-    // the index runs over three arrays at once
-    #[allow(clippy::needless_range_loop)]
-    for snp_idx in 0..n_snps {
-        // Check if both populations have sufficient data
-        let count1 = af.counts[[snp_idx, idx1]];
-        let count2 = af.counts[[snp_idx, idx2]];
-
-        if count1 >= min_n && count2 >= min_n {
-            let p1 = af.frequencies[[snp_idx, idx1]];
-            let p2 = af.frequencies[[snp_idx, idx2]];
-
-            // Both frequencies must be valid
-            if p1.is_finite() && p2.is_finite() {
-                let freq_diff = (p1 - p2).abs();
-
-                // DATES filter: frequency difference must be >= 0.001
-                if freq_diff < 0.001 {
-                    continue;
-                }
-
-                // DATES filter: MAF check using mean frequency
-                // y = (p1 + p2) / 2, then check y*(1-y) >= 0.001
-                let mean_freq = (p1 + p2) * 0.5;
-                let maf_term = mean_freq * (1.0 - mean_freq);
-                if maf_term < 0.001 {
-                    continue;
-                }
-
-                weights[snp_idx] = p1 - p2;
-                valid_indices.push(snp_idx);
-            }
+    let mut weights = vec![f64::NAN; af.n_snps()];
+    let mut valid_indices = Vec::new();
+    for (i, w_out) in weights.iter_mut().enumerate() {
+        if af.counts[[i, i1]] < min_count || af.counts[[i, i2]] < min_count {
+            continue;
+        }
+        let p1 = af.frequencies[[i, i1]];
+        let p2 = af.frequencies[[i, i2]];
+        if !p1.is_finite() || !p2.is_finite() {
+            continue;
+        }
+        let w = p1 - p2;
+        if informative(w, p1, p2) {
+            *w_out = w;
+            valid_indices.push(i);
         }
     }
-
-    let n_valid = valid_indices.len();
-
     Ok(WeightResult {
         weights,
-        n_valid,
+        n_valid: valid_indices.len(),
         valid_indices,
     })
 }

@@ -1,39 +1,25 @@
-//! DATES: Distribution of Ancestry Tracts of Evolutionary Signals
+//! DATES: dating admixture from the decay of weighted ancestry covariance.
 //!
-//! This module implements admixture dating via LD decay estimation,
-//! based on the method described in Narasimhan et al. (2018).
+//! An admixed (test) population inherits, from an admixture `n` generations
+//! ago, ancestry tracts whose covariance between two SNPs decays as
+//! exp(−n·d) with their genetic distance d. Weighting each SNP by the
+//! difference of the two source frequencies, correlating the residual
+//! genotypes of each test individual over pairs of SNPs, binning by distance
+//! and fitting A·exp(−n·d) + K gives the number of generations; a
+//! leave-one-chromosome-out weighted jackknife gives its standard error.
 //!
-//! # Algorithm Overview
+//! Stages: `weights` (SNP weights), `ld_decay` (the binned weighted LD
+//! table, by every pair or on an FFT mesh), `exponential_fit` (the fit and
+//! the weighted jackknife), `dating` (the whole analysis) and `compat` (the
+//! DATES v753 behaviours popmix corrects by default).
 //!
-//! DATES estimates admixture timing by measuring the exponential decay of
-//! linkage disequilibrium (LD) with genetic distance. After admixture,
-//! LD decays each generation due to recombination.
-//!
-//! ## Core Mathematical Model
-//!
-//! ```text
-//! E[a(d)] = A × exp(-n × d) + K
-//! ```
-//!
-//! Where:
-//! - `a(d)` = weighted LD covariance at genetic distance d (in Morgans)
-//! - `n` = generations since admixture (the parameter we estimate)
-//! - `A` = amplitude ∝ 2αβ × F₂(source1, source2)² (mixture proportions × divergence)
-//! - `K` = background LD constant (from inter-chromosomal pairs)
-//! - `d` = genetic distance in Morgans (cM / 100)
-//!
-//! ## Weighted LD Statistic
-//!
-//! For SNP pairs (x, y) at genetic distance d:
-//!
-//! ```text
-//! a(d) = Σ [ Cov(geno_x, geno_y) × w(x) × w(y) ]
-//! ```
-//!
-//! Where:
-//! - `w(x) = p_source1(x) - p_source2(x)` (allele frequency difference at SNP x)
-//! - Covariance computed in the test population
-//! - Weights from reference/source populations
+//! Provenance: written from the clean-room specification
+//! `docs/cleanroom/dates.md` (and `docs/cleanroom/dates-mesh.md`),
+//! Narasimhan et al. 2019 (Science 365, eaat7487, supplementary methods),
+//! Chintalapati, Patterson & Moorjani 2022 (eLife 11:e77625), Busing, Meijer
+//! & van der Leeden 1999 (the weighted delete-m jackknife), DATES's README and
+//! parameter-file documentation, and the output of DATES v753 run as a black
+//! box (`tests/golden/dates/v753/`).
 
 mod compat;
 mod dating;

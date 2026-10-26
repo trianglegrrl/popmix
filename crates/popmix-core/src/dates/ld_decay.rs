@@ -1,83 +1,61 @@
-//! LD decay computation for DATES algorithm.
+//! The weighted LD decay table of DATES.
 //!
-//! Computes weighted linkage disequilibrium binned by genetic distance,
-//! following DATES v753 (`dates.c`) in both of its modes. With
-//! [`DatesCompat::V753`] the output is identical to DATES; by default two
-//! mesh FFT quirks are corrected (see [`DatesCompat`]).
+//! Each test individual's genotypes are regressed on the two source
+//! frequencies (its admixture proportion α), and the residual at each SNP is
+//! weighted by w = p1 − p2. For pairs of SNPs on one chromosome, the
+//! products of these values are summed into bins of genetic distance over
+//! all test individuals; each bin reports their correlation. Two modes, as in
+//! DATES: every pair of SNPs closer than `maxdis` (`qbin` = 0), or a mesh of
+//! cells `binsize / qbin` wide whose per-lag sums come from FFT
+//! cross-correlations (`qbin` > 0). Leave-one-chromosome-out tables feed the
+//! jackknife.
 //!
-//! - `qbin = 0` (DATES default): every SNP pair on a chromosome closer than
-//!   `maxdis` is visited directly.
-//! - `qbin > 0`: weighted residuals are placed on a genome-wide mesh of
-//!   `binsize / qbin` Morgans and pair sums are taken at every mesh lag with
-//!   FFT cross-correlation (`setqbins`, `ddadd`, `ddcorr` in DATES).
-//!
-//! For each individual in the test population:
-//! 1. α = regression of (g/2 - p2) on (p1 - p2) over valid SNPs
-//! 2. residual = g/2 - (α p1 + (1 - α) p2)
-//! 3. y = residual × (p1 - p2)
-//!
-//! Pairs (y1, y2) are accumulated per chromosome into DATES CORR sums, so the
-//! all-chromosome table and each leave-one-chromosome-out table (used by the
-//! jackknife) come from the same sums.
+//! Provenance: written from the clean-room specifications
+//! `docs/cleanroom/dates.md` (section 4) and `docs/cleanroom/dates-mesh.md`
+//! (whose `mesh_cells` and `MeshLagSums` are kept as written from it),
+//! Narasimhan et al. 2019 (Science, supplementary methods of DATES),
+//! Chintalapati, Patterson & Moorjani 2022 (eLife), DATES's parameter-file
+//! documentation (binsize, maxdis, qbin) and DATES v753 run as a black box
+//! (`tests/golden/dates/v753/`).
+
+use std::collections::BTreeMap;
+
+use rustfft::num_complex::Complex;
+use rustfft::FftPlanner;
 
 use super::compat::DatesCompat;
+use super::weights::informative;
+use crate::error::{PopmixError, Result};
 use crate::genotype_matrix::{AlleleFrequencies, GenotypeMatrix};
-use crate::genotypes::{Chromosome, Snp};
+use crate::genotypes::{Chromosome, PopulationId, Snp};
+use crate::options::check_bins;
 use crate::threading::ordered_sum;
-use crate::Result;
-use rustfft::{num_complex::Complex, FftPlanner};
 
-/// DATES `numchrom`: chromosomes outside 1..=22 are not used.
-const NUM_CHROMOSOMES: u8 = 22;
+/// Mesh axis advance (Morgans) from one chromosome to the next.
+const CHROMOSOME_GAP: f64 = 5.0;
+/// Most mesh cells (`qbin` · maxdis / binsize) a run may ask for.
+const MAX_MESH_CELLS: f64 = 1e7;
 
-/// Options for LD decay computation.
+/// Options of the LD table (DATES's binsize, maxdis and qbin, in cM).
 #[derive(Debug, Clone)]
 pub struct LdOptions {
-    /// Width of each distance bin in cM (DATES `binsize` × 100). Default: 0.1
+    /// Bin width (cM); DATES's `binsize` is this / 100 Morgans.
     pub bin_width_cm: f64,
-    /// Maximum distance to consider in cM (DATES `maxdis` × 100). Default: 100.0
+    /// Largest pair distance (cM); DATES's `maxdis` is this / 100 Morgans.
     pub max_distance_cm: f64,
-    /// Drop bins with fewer pairs than this. Default: 0, which reports every
-    /// bin as DATES does.
+    /// Bins with fewer pairs are left out of the table (0 keeps all).
     pub min_pairs_per_bin: usize,
-    /// Mesh cells per distance bin (DATES `qbin`). 0 visits every SNP pair
-    /// directly; > 0 uses the FFT mesh. Default: 0 (the DATES default).
+    /// Mesh cells per bin; 0 counts every pair exactly.
     pub qbin: usize,
-    /// DATES v753 mesh quirks to reproduce. [`crate::dates::dates`] sets this
-    /// from `DatesOptions::compat`. Default: none.
+    /// DATES v753 behaviours to reproduce (mesh mode only here).
     pub compat: DatesCompat,
-}
-
-impl LdOptions {
-    /// Most mesh cells (`qbin` per bin) a run may ask for.
-    const MAX_MESH_CELLS: f64 = 1e7;
-
-    /// Positive bin width and maximum distance, at most
-    /// [`crate::options::MAX_BINS`] bins, and a mesh of a size that fits.
-    pub fn validate(&self) -> Result<()> {
-        crate::options::check_bins(
-            "bin_width_cm",
-            self.bin_width_cm,
-            "max_distance_cm",
-            self.max_distance_cm,
-        )?;
-        let cells = self.qbin as f64 * self.max_distance_cm / self.bin_width_cm;
-        if cells > Self::MAX_MESH_CELLS {
-            return Err(crate::error::PopmixError::Validation(format!(
-                "qbin {} makes {cells:.0} mesh cells; at most {:.0} are allowed",
-                self.qbin,
-                Self::MAX_MESH_CELLS
-            )));
-        }
-        Ok(())
-    }
 }
 
 impl Default for LdOptions {
     fn default() -> Self {
         LdOptions {
-            bin_width_cm: 0.1,      // DATES binsize = 0.001 Morgan
-            max_distance_cm: 100.0, // DATES default: maxdis = 1.0 Morgan = 100 cM
+            bin_width_cm: 0.1,
+            max_distance_cm: 100.0,
             min_pairs_per_bin: 0,
             qbin: 0,
             compat: DatesCompat::CORRECTED,
@@ -85,49 +63,68 @@ impl Default for LdOptions {
     }
 }
 
-/// A single distance bin for LD decay, as written to the DATES `.out` file.
+impl LdOptions {
+    /// Bin width and maximum distance positive and not too many bins; the
+    /// mesh not too fine.
+    pub fn validate(&self) -> Result<()> {
+        check_bins(
+            "bin_width_cm",
+            self.bin_width_cm,
+            "max_distance_cm",
+            self.max_distance_cm,
+        )?;
+        let cells = self.qbin as f64 * self.max_distance_cm / self.bin_width_cm;
+        if cells > MAX_MESH_CELLS {
+            return Err(PopmixError::Validation(format!(
+                "qbin {} makes {cells:.0} mesh cells; at most 10000000 are allowed",
+                self.qbin
+            )));
+        }
+        Ok(())
+    }
+}
+
+/// One distance bin of the LD table.
 #[derive(Debug, Clone)]
 pub struct LdBin {
-    /// Bin distance in cM: (bin index + 1) × bin width.
+    /// Upper edge of the bin (cM), as DATES prints it.
     pub distance_cm: f64,
-    /// Weighted LD covariance without mean subtraction (v12 = S12/S0).
+    /// Mean of y1·y2 over the bin's pairs.
     pub weighted_ld: f64,
-    /// Z-score: sqrt(S0) × correlation.
+    /// sqrt(pairs) · correlation.
     pub z_score: f64,
-    /// Correlation without mean subtraction (v12 / sqrt(v11 × v22)). This is
-    /// the column DATES fits.
+    /// Σy1y2 / sqrt(Σy1² · Σy2²) (no mean removed).
     pub correlation: f64,
-    /// Regression coefficient S12/S11.
+    /// Σy1y2 / Σy1².
     pub regression_coef: f64,
-    /// Number of SNP pairs in this bin.
+    /// Number of pairs.
     pub n_pairs: usize,
-    /// Approximate standard error of the correlation (Fisher, 1/sqrt(n - 3)).
+    /// 1 / sqrt(pairs − 3), NaN for 3 pairs or fewer.
     pub std_err: f64,
 }
 
-/// LD decay for all chromosomes together and with each chromosome left out.
+/// The LD table of all chromosomes and, per chromosome, with it left out.
 #[derive(Debug, Clone)]
 pub struct LdDecay {
-    /// Bins computed from all chromosomes.
+    /// The table over every chromosome.
     pub bins: Vec<LdBin>,
-    /// One entry per chromosome 1..=22 present in the data, in order.
+    /// One per autosome present, in increasing order.
     pub chromosomes: Vec<ChromosomeLd>,
 }
 
-/// Leave-one-chromosome-out LD decay for the jackknife.
+/// The table with one chromosome left out.
 #[derive(Debug, Clone)]
 pub struct ChromosomeLd {
-    /// Chromosome number (1..=22).
+    /// The chromosome left out.
     pub chromosome: u8,
-    /// Number of SNPs on this chromosome in the input, before any filtering.
-    /// DATES uses this as the jackknife weight.
+    /// Its SNPs in the input, before any filtering (the jackknife weight).
     pub n_snps: usize,
-    /// Bins computed from all other chromosomes.
+    /// The table of every other chromosome.
     pub leave_one_out: Vec<LdBin>,
 }
 
-/// Accumulator for correlation statistics (DATES CORR struct).
-#[derive(Debug, Clone, Default)]
+/// Sums over the pairs of one bin: count and Σy1, Σy2, Σy1², Σy1y2, Σy2².
+#[derive(Debug, Clone, Copy, Default)]
 struct CorrBin {
     s0: f64,
     s1: f64,
@@ -138,59 +135,45 @@ struct CorrBin {
 }
 
 impl CorrBin {
-    /// DATES `addcorr`.
-    fn add(&mut self, y1: f64, y2: f64) {
-        self.s0 += 1.0;
-        self.s1 += y1;
-        self.s2 += y2;
-        self.s11 += y1 * y1;
-        self.s12 += y1 * y2;
-        self.s22 += y2 * y2;
+    fn add(&mut self, o: &CorrBin) {
+        self.s0 += o.s0;
+        self.s1 += o.s1;
+        self.s2 += o.s2;
+        self.s11 += o.s11;
+        self.s12 += o.s12;
+        self.s22 += o.s22;
     }
 
-    fn merge(&mut self, other: &CorrBin) {
-        self.s0 += other.s0;
-        self.s1 += other.s1;
-        self.s2 += other.s2;
-        self.s11 += other.s11;
-        self.s12 += other.s12;
-        self.s22 += other.s22;
-    }
-
-    fn minus(&self, other: &CorrBin) -> CorrBin {
+    fn minus(&self, o: &CorrBin) -> CorrBin {
         CorrBin {
-            s0: self.s0 - other.s0,
-            s1: self.s1 - other.s1,
-            s2: self.s2 - other.s2,
-            s11: self.s11 - other.s11,
-            s12: self.s12 - other.s12,
-            s22: self.s22 - other.s22,
+            s0: self.s0 - o.s0,
+            s1: self.s1 - o.s1,
+            s2: self.s2 - o.s2,
+            s11: self.s11 - o.s11,
+            s12: self.s12 - o.s12,
+            s22: self.s22 - o.s22,
         }
     }
 
-    /// One `.out` row: DATES `dumpit` with `calccorr(corrpt, 1, NO)`, which
-    /// does not subtract means. Bins with no pairs are reported as zeros.
-    fn to_ld_bin(&self, distance_cm: f64) -> LdBin {
+    fn to_ld_bin(self, k: usize, bin_width_cm: f64) -> LdBin {
         let (weighted_ld, correlation, z_score) = if self.s0 < 0.5 {
             (0.0, 0.0, 0.0)
         } else {
-            let n = self.s0;
-            let v11 = self.s11 / n;
-            let v12 = self.s12 / n;
-            let v22 = self.s22 / n;
-            let corr = v12 / (v11 * v22 + 1.0e-20).sqrt();
-            (v12, corr, n.sqrt() * corr)
+            let v11 = self.s11 / self.s0;
+            let v12 = self.s12 / self.s0;
+            let v22 = self.s22 / self.s0;
+            let corr = v12 / (v11 * v22 + 1e-20).sqrt();
+            (v12, corr, self.s0.sqrt() * corr)
         };
-        let n = self.s0;
         LdBin {
-            distance_cm,
+            distance_cm: (k + 1) as f64 * bin_width_cm,
             weighted_ld,
             z_score,
             correlation,
-            regression_coef: self.s12 / (self.s11 + 1.0e-20),
-            n_pairs: n.round() as usize,
-            std_err: if n > 3.0 {
-                1.0 / (n - 3.0).sqrt()
+            regression_coef: self.s12 / (self.s11 + 1e-20),
+            n_pairs: self.s0.round() as usize,
+            std_err: if self.s0 > 3.0 {
+                1.0 / (self.s0 - 3.0).sqrt()
             } else {
                 f64::NAN
             },
@@ -198,19 +181,28 @@ impl CorrBin {
     }
 }
 
-/// Compute weighted LD decay by genetic distance using the DATES algorithm.
-///
-/// # Arguments
-/// * `geno` - Genotype matrix (needed for individual genotypes)
-/// * `af` - Allele frequencies (unused, kept for API compatibility)
-/// * `test_pop` - Test (admixed) population
-/// * `weights` - Per-SNP weights (p_source1 - p_source2), NaN if invalid
-/// * `source1_freqs` - Allele frequencies in source1 population
-/// * `source2_freqs` - Allele frequencies in source2 population
-/// * `options` - Computation options
-///
-/// # Returns
-/// The LD decay bins for all chromosomes together.
+fn add_bins(acc: &mut [CorrBin], other: &[CorrBin]) {
+    acc.iter_mut().zip(other).for_each(|(a, b)| a.add(b));
+}
+
+/// The bins reported: those with at least `min_pairs` pairs.
+fn report(sums: &[CorrBin], bin_width_cm: f64, min_pairs: usize) -> Vec<LdBin> {
+    sums.iter()
+        .enumerate()
+        .filter(|(_, b)| b.s0 >= min_pairs as f64)
+        .map(|(k, b)| b.to_ld_bin(k, bin_width_cm))
+        .collect()
+}
+
+/// An autosome taking part: its SNP count and the SNPs used, by position.
+struct ChromSnps {
+    chromosome: u8,
+    n_snps: usize,
+    used: Vec<usize>,
+}
+
+/// The binned weighted LD over all chromosomes; see
+/// [`compute_ld_decay_by_chromosome`].
 pub fn compute_ld_decay(
     geno: &GenotypeMatrix,
     af: &AlleleFrequencies,
@@ -220,7 +212,7 @@ pub fn compute_ld_decay(
     source2_freqs: &[f64],
     options: Option<LdOptions>,
 ) -> Result<Vec<LdBin>> {
-    compute_ld_decay_by_chromosome(
+    Ok(compute_ld_decay_by_chromosome(
         geno,
         af,
         test_pop,
@@ -228,13 +220,16 @@ pub fn compute_ld_decay(
         source1_freqs,
         source2_freqs,
         options,
-    )
-    .map(|ld| ld.bins)
+    )?
+    .bins)
 }
 
-/// Compute weighted LD decay for all chromosomes and leaving out each one.
+/// The binned weighted LD of the test population, over every autosome and
+/// with each left out in turn.
 ///
-/// Arguments are as for [`compute_ld_decay`].
+/// `weights`, `source1_freqs` and `source2_freqs` hold one value per SNP of
+/// `geno`; SNPs on autosomes 1-22 with an informative weight are used. `af`
+/// is not used (kept for compatibility).
 pub fn compute_ld_decay_by_chromosome(
     geno: &GenotypeMatrix,
     _af: &AlleleFrequencies,
@@ -246,271 +241,303 @@ pub fn compute_ld_decay_by_chromosome(
 ) -> Result<LdDecay> {
     let opts = options.unwrap_or_default();
     opts.validate()?;
-
-    let test_pop_id = crate::genotypes::PopulationId::new(test_pop);
-    let test_indices = geno.population_indices(&test_pop_id);
-    if test_indices.is_empty() {
-        return Err(crate::error::PopmixError::PopulationNotFound(
-            test_pop.to_string(),
-        ));
+    let samples = geno.population_indices(&PopulationId::new(test_pop));
+    if samples.is_empty() {
+        return Err(PopmixError::PopulationNotFound(test_pop.to_string()));
     }
-
-    let snps = geno.snps();
-    let binsize = opts.bin_width_cm / 100.0;
-    let maxdis = opts.max_distance_cm / 100.0;
-    // DATES: numbins = nnint(maxdis/binsize) + 5, of which numbins - 5 are reported
-    let n_bins = (maxdis / binsize).round() as usize;
-    let n_alloc = n_bins + 5;
-
-    // Chromosomes present in the input and their unfiltered SNP counts
-    let mut n_snps_by_chrom = [0usize; NUM_CHROMOSOMES as usize + 1];
-    for snp in snps {
-        if let Some(c) = chromosome_number(&snp.chromosome) {
-            n_snps_by_chrom[c as usize] += 1;
-        }
-    }
-    let chroms: Vec<u8> = (1..=NUM_CHROMOSOMES)
-        .filter(|&c| n_snps_by_chrom[c as usize] > 0)
-        .collect();
-    let mut chrom_slot = [usize::MAX; NUM_CHROMOSOMES as usize + 1];
-    for (slot, &c) in chroms.iter().enumerate() {
-        chrom_slot[c as usize] = slot;
-    }
-
-    // SNPs DATES does not ignore: |p1 - p2| >= 0.001 and p(1-p) >= 0.001 at the
-    // mean source frequency. Kept in file order within each chromosome.
-    let mut snps_by_chrom: Vec<Vec<usize>> = vec![Vec::new(); chroms.len()];
-    for (idx, snp) in snps.iter().enumerate() {
-        let Some(c) = chromosome_number(&snp.chromosome) else {
-            continue;
-        };
-        let w = weights[idx];
-        if !w.is_finite() || w.abs() < 0.001 {
-            continue;
-        }
-        let mean_freq = (source1_freqs[idx] + source2_freqs[idx]) * 0.5;
-        if mean_freq * (1.0 - mean_freq) < 0.001 {
-            continue;
-        }
-        snps_by_chrom[chrom_slot[c as usize]].push(idx);
-    }
-    if let Some(snp) = snps_by_chrom
-        .iter()
-        .flatten()
-        .map(|&i| &snps[i])
-        .find(|s| !s.position_morgans.is_finite())
-    {
-        return Err(crate::error::PopmixError::Validation(format!(
-            "SNP {} has no genetic position ({}); DATES needs one for every SNP",
-            snp.id, snp.position_morgans
+    let n = geno.n_snps();
+    if weights.len() != n || source1_freqs.len() != n || source2_freqs.len() != n {
+        return Err(PopmixError::Validation(format!(
+            "DATES needs one weight and source frequency per SNP ({n}); got {}, {} and {}",
+            weights.len(),
+            source1_freqs.len(),
+            source2_freqs.len()
         )));
     }
-    for chrom_snps in &mut snps_by_chrom {
-        chrom_snps.sort_by(|&a, &b| {
+    let binsize = opts.bin_width_cm / 100.0;
+    let maxdis = opts.max_distance_cm / 100.0;
+    let n_bins = (maxdis / binsize).round() as usize;
+    let snps = geno.snps();
+
+    let chroms = chromosomes_used(snps, weights, source1_freqs, source2_freqs)?;
+
+    let per_chrom: Vec<Vec<CorrBin>> = if opts.qbin == 0 {
+        let part = |s: usize| {
+            let values = individual_values(
+                geno,
+                samples[s],
+                &chroms,
+                weights,
+                source1_freqs,
+                source2_freqs,
+            );
+            values
+                .iter()
+                .map(|v| exact_bins(v, snps, binsize, maxdis, n_bins))
+                .collect::<Vec<_>>()
+        };
+        ordered_sum(
+            samples.len(),
+            || vec![vec![CorrBin::default(); n_bins]; chroms.len()],
+            part,
+            |acc, p| acc.iter_mut().zip(&p).for_each(|(a, b)| add_bins(a, b)),
+        )
+    } else {
+        let qbin = opts.qbin;
+        let cells = mesh_cells(snps, binsize, qbin);
+        let diffmax = (qbin as f64 * maxdis / binsize).round() as usize;
+        let part = |s: usize| {
+            let values = individual_values(
+                geno,
+                samples[s],
+                &chroms,
+                weights,
+                source1_freqs,
+                source2_freqs,
+            );
+            let mut fft = MeshFft::new();
+            values
+                .iter()
+                .map(|v| fft.lag_sums(v, &cells, diffmax, opts.compat))
+                .collect::<Vec<_>>()
+        };
+        let sums = ordered_sum(
+            samples.len(),
+            || vec![MeshLagSums::new(diffmax); chroms.len()],
+            part,
+            |acc, p| acc.iter_mut().zip(&p).for_each(|(a, b)| a.merge(b)),
+        );
+        sums.iter()
+            .map(|s| s.to_bins(binsize, qbin, n_bins))
+            .collect()
+    };
+
+    let mut total = vec![CorrBin::default(); n_bins];
+    for c in &per_chrom {
+        add_bins(&mut total, c);
+    }
+    let chromosomes = chroms
+        .iter()
+        .zip(&per_chrom)
+        .map(|(c, sums)| {
+            let loo: Vec<CorrBin> = total.iter().zip(sums).map(|(t, s)| t.minus(s)).collect();
+            ChromosomeLd {
+                chromosome: c.chromosome,
+                n_snps: c.n_snps,
+                leave_one_out: report(&loo, opts.bin_width_cm, opts.min_pairs_per_bin),
+            }
+        })
+        .collect();
+    Ok(LdDecay {
+        bins: report(&total, opts.bin_width_cm, opts.min_pairs_per_bin),
+        chromosomes,
+    })
+}
+
+/// Autosomes 1-22 present, in increasing order, each with its SNP count and
+/// its used SNPs sorted by genetic position (stable). A used SNP without a
+/// finite genetic position is an error.
+fn chromosomes_used(
+    snps: &[Snp],
+    weights: &[f64],
+    source1_freqs: &[f64],
+    source2_freqs: &[f64],
+) -> Result<Vec<ChromSnps>> {
+    let mut by_chrom: BTreeMap<u8, ChromSnps> = BTreeMap::new();
+    for (i, snp) in snps.iter().enumerate() {
+        let c = match snp.chromosome {
+            Chromosome::Autosome(c) if (1..=22).contains(&c) => c,
+            _ => continue,
+        };
+        let entry = by_chrom.entry(c).or_insert_with(|| ChromSnps {
+            chromosome: c,
+            n_snps: 0,
+            used: Vec::new(),
+        });
+        entry.n_snps += 1;
+        if informative(weights[i], source1_freqs[i], source2_freqs[i]) {
+            entry.used.push(i);
+        }
+    }
+    let mut chroms: Vec<ChromSnps> = by_chrom.into_values().collect();
+    for c in &mut chroms {
+        if let Some(&i) = c
+            .used
+            .iter()
+            .find(|&&i| !snps[i].position_morgans.is_finite())
+        {
+            return Err(PopmixError::Validation(format!(
+                "SNP {} has no genetic position ({}); DATES needs one for every SNP",
+                snps[i].id, snps[i].position_morgans
+            )));
+        }
+        c.used.sort_by(|&a, &b| {
             snps[a]
                 .position_morgans
                 .total_cmp(&snps[b].position_morgans)
         });
     }
-
-    let residuals = |sample_idx: usize| {
-        weighted_residuals(
-            geno,
-            &snps_by_chrom,
-            sample_idx,
-            weights,
-            source1_freqs,
-            source2_freqs,
-        )
-    };
-
-    let chrom_bins: Vec<Vec<CorrBin>> = if opts.qbin == 0 {
-        ordered_sum(
-            test_indices.len(),
-            || vec![vec![CorrBin::default(); n_alloc]; chroms.len()],
-            |i| {
-                exact_individual_bins(
-                    snps,
-                    &snps_by_chrom,
-                    &residuals(test_indices[i]),
-                    binsize,
-                    maxdis,
-                    n_alloc,
-                )
-            },
-            |a, b| merge_chrom_bins(a, b),
-        )
-    } else {
-        let qbin = opts.qbin;
-        let cells = mesh_cells(snps, binsize, qbin);
-        // DATES: diffmax = nnint(qbin * maxdis / binsize)
-        let diffmax = (qbin as f64 * maxdis / binsize).round() as usize;
-        // per-sample sums are added in sample order, whatever the thread count
-        let lag_sums = ordered_sum(
-            test_indices.len(),
-            || vec![MeshLagSums::new(diffmax); chroms.len()],
-            |i| {
-                mesh_individual_lag_sums(
-                    &snps_by_chrom,
-                    &residuals(test_indices[i]),
-                    &cells,
-                    diffmax,
-                    opts.compat,
-                )
-            },
-            |a, b| {
-                for (x, y) in a.iter_mut().zip(b.iter()) {
-                    x.merge(y);
-                }
-            },
-        );
-        lag_sums
-            .iter()
-            .map(|sums| sums.to_bins(binsize, qbin, n_alloc))
-            .collect()
-    };
-
-    let mut total = vec![CorrBin::default(); n_alloc];
-    for bins in &chrom_bins {
-        for (t, b) in total.iter_mut().zip(bins.iter()) {
-            t.merge(b);
-        }
-    }
-
-    let report = |bins: &[CorrBin]| -> Vec<LdBin> {
-        bins.iter()
-            .take(n_bins)
-            .enumerate()
-            .filter(|(_, b)| b.s0 >= opts.min_pairs_per_bin as f64)
-            .map(|(k, b)| b.to_ld_bin((k as f64 + 1.0) * opts.bin_width_cm))
-            .collect()
-    };
-
-    let chromosomes = chroms
-        .iter()
-        .zip(chrom_bins.iter())
-        .map(|(&chromosome, bins)| {
-            let loo: Vec<CorrBin> = total
-                .iter()
-                .zip(bins.iter())
-                .map(|(t, b)| t.minus(b))
-                .collect();
-            ChromosomeLd {
-                chromosome,
-                n_snps: n_snps_by_chrom[chromosome as usize],
-                leave_one_out: report(&loo),
-            }
-        })
-        .collect();
-
-    Ok(LdDecay {
-        bins: report(&total),
-        chromosomes,
-    })
+    Ok(chroms)
 }
 
-fn chromosome_number(chrom: &Chromosome) -> Option<u8> {
-    match chrom {
-        Chromosome::Autosome(n) if (1..=NUM_CHROMOSOMES).contains(n) => Some(*n),
-        _ => None,
-    }
-}
-
-fn merge_chrom_bins(a: &mut [Vec<CorrBin>], b: Vec<Vec<CorrBin>>) {
-    for (xa, xb) in a.iter_mut().zip(b.iter()) {
-        for (x, y) in xa.iter_mut().zip(xb.iter()) {
-            x.merge(y);
-        }
-    }
-}
-
-/// Weighted residuals y = (g/2 - prediction) × (p1 - p2) for one individual,
-/// as `(snp_idx, y)` per chromosome slot, skipping missing genotypes.
-fn weighted_residuals(
+/// One individual's weighted residuals: per chromosome, (SNP index, y) at
+/// its called used SNPs, in position order.
+fn individual_values(
     geno: &GenotypeMatrix,
-    snps_by_chrom: &[Vec<usize>],
-    sample_idx: usize,
+    sample: usize,
+    chroms: &[ChromSnps],
     weights: &[f64],
-    source1_freqs: &[f64],
-    source2_freqs: &[f64],
+    p1: &[f64],
+    p2: &[f64],
 ) -> Vec<Vec<(usize, f64)>> {
-    // α = dot(g - p2, p1 - p2) / dot(p1 - p2, p1 - p2)
-    let mut numerator = 0.0;
-    let mut denominator = 0.0;
-    let observed: Vec<Vec<(usize, f64)>> = snps_by_chrom
-        .iter()
-        .map(|chrom_snps| {
-            chrom_snps
-                .iter()
-                .filter_map(|&snp_idx| {
-                    let g = geno.snp_raw(snp_idx)[sample_idx];
-                    if g > 2 {
-                        return None;
-                    }
-                    let geno_val = g as f64 / 2.0;
-                    let w = weights[snp_idx];
-                    numerator += (geno_val - source2_freqs[snp_idx]) * w;
-                    denominator += w * w;
-                    Some((snp_idx, geno_val))
-                })
-                .collect()
-        })
-        .collect();
-
-    let alpha = if denominator > 1e-15 {
-        numerator / denominator
-    } else {
-        0.5
+    let called = |i: usize| -> Option<f64> {
+        let g = geno.snp_raw(i)[sample];
+        (g <= 2).then(|| g as f64 / 2.0)
     };
-
-    observed
-        .into_iter()
-        .map(|chrom_obs| {
-            chrom_obs
-                .into_iter()
-                .map(|(snp_idx, geno_val)| {
-                    let prediction =
-                        alpha * source1_freqs[snp_idx] + (1.0 - alpha) * source2_freqs[snp_idx];
-                    (snp_idx, (geno_val - prediction) * weights[snp_idx])
+    let (mut num, mut den) = (0.0, 0.0);
+    for c in chroms {
+        for &i in &c.used {
+            if let Some(x) = called(i) {
+                let w = weights[i];
+                num += (x - p2[i]) * w;
+                den += w * w;
+            }
+        }
+    }
+    let alpha = if den <= 1e-15 { 0.5 } else { num / den };
+    chroms
+        .iter()
+        .map(|c| {
+            c.used
+                .iter()
+                .filter_map(|&i| {
+                    called(i).map(|x| {
+                        (
+                            i,
+                            (x - (alpha * p1[i] + (1.0 - alpha) * p2[i])) * weights[i],
+                        )
+                    })
                 })
                 .collect()
         })
         .collect()
 }
 
-/// DATES `qbin = 0` main loop: every pair closer than `maxdis` on a chromosome.
-fn exact_individual_bins(
+/// Exact mode: every pair (i before j) closer than `maxdis`, y1 the earlier.
+fn exact_bins(
+    values: &[(usize, f64)],
     snps: &[Snp],
-    snps_by_chrom: &[Vec<usize>],
-    residuals: &[Vec<(usize, f64)>],
     binsize: f64,
     maxdis: f64,
-    n_alloc: usize,
-) -> Vec<Vec<CorrBin>> {
-    let mut chrom_bins = vec![vec![CorrBin::default(); n_alloc]; snps_by_chrom.len()];
-
-    for (bins, chrom_res) in chrom_bins.iter_mut().zip(residuals.iter()) {
-        for (i, &(snp_i, y1)) in chrom_res.iter().enumerate() {
-            let pos_i = snps[snp_i].position_morgans;
-            for &(snp_j, y2) in &chrom_res[i + 1..] {
-                let dis = snps[snp_j].position_morgans - pos_i;
-                if dis >= maxdis {
-                    break;
-                }
-                // DATES: s = (int) (dis/binsize)
-                let s = (dis / binsize) as usize;
-                if s < n_alloc {
-                    bins[s].add(y1, y2);
-                }
+    n_bins: usize,
+) -> Vec<CorrBin> {
+    let mut bins = vec![CorrBin::default(); n_bins];
+    let pos: Vec<f64> = values
+        .iter()
+        .map(|&(i, _)| snps[i].position_morgans)
+        .collect();
+    for a in 0..values.len() {
+        let y1 = values[a].1;
+        for b in a + 1..values.len() {
+            let dis = pos[b] - pos[a];
+            if dis >= maxdis {
+                break;
             }
+            let k = (dis / binsize) as usize;
+            let Some(bin) = bins.get_mut(k) else {
+                continue;
+            };
+            let y2 = values[b].1;
+            bin.s0 += 1.0;
+            bin.s1 += y1;
+            bin.s2 += y2;
+            bin.s11 += y1 * y1;
+            bin.s12 += y1 * y2;
+            bin.s22 += y2 * y2;
+        }
+    }
+    bins
+}
+
+/// An FFT planner (which caches its plans), kept across one individual's
+/// chromosomes.
+struct MeshFft {
+    planner: FftPlanner<f64>,
+}
+
+impl MeshFft {
+    fn new() -> Self {
+        MeshFft {
+            planner: FftPlanner::new(),
         }
     }
 
-    chrom_bins
-}
+    /// One individual's lag sums on one chromosome (lags 0..=`diffmax`).
+    fn lag_sums(
+        &mut self,
+        values: &[(usize, f64)],
+        cells: &[usize],
+        diffmax: usize,
+        compat: DatesCompat,
+    ) -> MeshLagSums {
+        let mut out = MeshLagSums::new(diffmax);
+        let (Some(lo), Some(hi)) = (
+            values.iter().map(|&(i, _)| cells[i]).min(),
+            values.iter().map(|&(i, _)| cells[i]).max(),
+        ) else {
+            return out;
+        };
+        let m = hi - lo + 1;
+        if m <= 1 {
+            return out;
+        }
+        let n = 1usize << ((m as f64).log2().ceil().round() as u32 + 1);
+        let zero = Complex::new(0.0, 0.0);
+        let (mut cn, mut cy, mut cq) = (vec![zero; n], vec![zero; n], vec![zero; n]);
+        for &(i, y) in values {
+            let c = cells[i] - lo;
+            cn[c].re += 1.0;
+            cy[c].re += y;
+            cq[c].re += y * y;
+        }
+        let fwd = self.planner.plan_fft_forward(n);
+        let inv = self.planner.plan_fft_inverse(n);
+        fwd.process(&mut cn);
+        fwd.process(&mut cy);
+        fwd.process(&mut cq);
+        let corr = |a: &[Complex<f64>], b: &[Complex<f64>]| -> Vec<f64> {
+            let mut v: Vec<Complex<f64>> = a.iter().zip(b).map(|(x, y)| x.conj() * y).collect();
+            inv.process(&mut v);
+            v.iter().map(|c| c.re).collect()
+        };
+        let c_nn = corr(&cn, &cn);
+        let c_ny = corr(&cn, &cy);
+        let c_yy = corr(&cy, &cy);
+        let c_nq = corr(&cn, &cq);
 
-/// Gap (Morgans) put between chromosomes on the genome-wide mesh axis.
-const CHROMOSOME_GAP: f64 = 5.0;
+        let scale = 1.0 / n as f64;
+        let last = if compat.circular_fft_lags {
+            diffmax.min(n - 1)
+        } else {
+            diffmax.min(m - 1)
+        };
+        for d in 0..=last {
+            let back = (n - d) % n;
+            out.pairs[d] = c_nn[d] * scale;
+            out.later[d] = c_ny[d] * scale;
+            out.earlier[d] = c_ny[back] * scale;
+            out.cross[d] = c_yy[d] * scale;
+            out.later_sq[d] = c_nq[d] * scale;
+            out.earlier_sq[d] = c_nq[back] * scale;
+        }
+        let unscaled = (n - 1).min(diffmax);
+        if compat.unscaled_last_fft_lag && unscaled <= last {
+            out.pairs[unscaled] = c_nn[unscaled];
+            out.cross[unscaled] = c_yy[unscaled];
+        }
+        out
+    }
+}
 
 /// The mesh cell of every SNP, in the order given.
 ///
@@ -612,116 +639,6 @@ impl MeshLagSums {
         }
         bins
     }
-}
-
-/// DATES mesh accumulation (`z0q`, `z1q`, `z2q`) and `ddadd` for one individual.
-fn mesh_individual_lag_sums(
-    snps_by_chrom: &[Vec<usize>],
-    residuals: &[Vec<(usize, f64)>],
-    cells: &[usize],
-    diffmax: usize,
-    compat: DatesCompat,
-) -> Vec<MeshLagSums> {
-    let mut planner = FftPlanner::<f64>::new();
-
-    snps_by_chrom
-        .iter()
-        .zip(residuals.iter())
-        .map(|(_, chrom_res)| {
-            let mut sums = MeshLagSums::new(diffmax);
-            let (Some(slo), Some(shi)) = (
-                chrom_res.iter().map(|&(i, _)| cells[i]).min(),
-                chrom_res.iter().map(|&(i, _)| cells[i]).max(),
-            ) else {
-                return sums;
-            };
-            let len = shi - slo + 1;
-            if len <= 1 {
-                return sums;
-            }
-
-            let mut z0 = vec![0.0; len];
-            let mut z1 = vec![0.0; len];
-            let mut z2 = vec![0.0; len];
-            for &(snp_idx, y) in chrom_res {
-                let s = cells[snp_idx] - slo;
-                z0[s] += 1.0;
-                z1[s] += y;
-                z2[s] += y * y;
-            }
-
-            // DATES fftsubs.c FFT length: 2^(ceil(log2 m) + 1). This is only
-            // long enough for lags up to n - m; see the output loop below.
-            let n = 2f64.powf((len as f64).log2().ceil() + 1.0).round() as usize;
-            let fft = planner.plan_fft_forward(n);
-            let ifft = planner.plan_fft_inverse(n);
-            let forward = |z: &[f64]| {
-                let mut buf: Vec<Complex<f64>> = vec![Complex::new(0.0, 0.0); n];
-                for (b, &v) in buf.iter_mut().zip(z) {
-                    b.re = v;
-                }
-                fft.process(&mut buf);
-                buf
-            };
-            let a0 = forward(&z0);
-            let a1 = forward(&z1);
-            let a2 = forward(&z2);
-
-            // Circular correlation c[d] = Σ_i a[i] b[(i + d) mod n] = IFFT(conj(A) B)[d];
-            // c[(n - d) mod n] gives b ahead of a.
-            let cross = |a: &[Complex<f64>], b: &[Complex<f64>]| {
-                let mut buf: Vec<Complex<f64>> =
-                    a.iter().zip(b).map(|(x, y)| x.conj() * y).collect();
-                ifft.process(&mut buf);
-                let scale = 1.0 / n as f64;
-                buf.into_iter().map(|c| c.re * scale).collect::<Vec<f64>>()
-            };
-            let c00 = cross(&a0, &a0);
-            let c01 = cross(&a0, &a1);
-            let c11 = cross(&a1, &a1);
-            let c02 = cross(&a0, &a2);
-
-            // DATES fftauto / fftcv2 output has two quirks that only matter
-            // when diffmax > n - m (maxdis long relative to the chromosome's
-            // mesh window); `compat` chooses whether to reproduce them:
-            // - DATES-0001: the correlation is circular, so lags beyond n - m
-            //   also include wrapped negative-lag (short-range) pairs. Real
-            //   pairs have lags below m, and n >= 2m, so the corrected output
-            //   just stops at lag m - 1.
-            // - DATES-0002: fftauto scales only cout[0..outmax) by 1/n, so its
-            //   last lag outmax = min(n - 1, diffmax) is left n times too large.
-            let outmax = (n - 1).min(diffmax);
-            let last_scale = if compat.unscaled_last_fft_lag {
-                n as f64
-            } else {
-                1.0
-            };
-            let auto = |c: &[f64], d: usize| match d.cmp(&outmax) {
-                std::cmp::Ordering::Less => c[d],
-                std::cmp::Ordering::Equal => c[d] * last_scale,
-                std::cmp::Ordering::Greater => 0.0,
-            };
-            let maxlag = if compat.circular_fft_lags {
-                diffmax
-            } else {
-                diffmax.min(len - 1)
-            };
-            for d in 0..=maxlag {
-                sums.pairs[d] = auto(&c00, d);
-                sums.cross[d] = auto(&c11, d);
-                if d < n {
-                    sums.later[d] = c01[d];
-                    sums.later_sq[d] = c02[d];
-                }
-                if d <= n {
-                    let neg = (n - d) % n;
-                    sums.earlier[d] = c01[neg];
-                    sums.earlier_sq[d] = c02[neg];
-                }
-            }
-            sums
-        })
-        .collect()
 }
 
 #[cfg(test)]
@@ -939,8 +856,8 @@ mod tests {
     // 50 SNPs in consecutive mesh cells span a window of m = 50 cells, so
     // DATES's FFT length is n = 2^(ceil(log2 50) + 1) = 128. Real pairs have
     // lags of at most 49 cells. A circular lag d > n - m = 78 also picks up
-    // the pairs at negative lag n - d, from bin 79 on. fftauto leaves lag
-    // n - 1 = 127 unscaled, and it holds the wrapped lag-1 pairs.
+    // the pairs at negative lag n - d, from bin 79 on. DATES v753 leaves lag
+    // n - 1 = 127 unscaled (DATES-0002), and it holds the wrapped lag-1 pairs.
     const MESH_TEST_BINS: usize = 130;
     const FIRST_WRAPPED_BIN: usize = 79;
     const UNSCALED_BIN: usize = 127;

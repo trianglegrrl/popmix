@@ -1,36 +1,37 @@
-//! Exponential decay fitting for DATES algorithm.
+//! The exponential fit of the LD decay, and the weighted block jackknife.
 //!
-//! Fits the LD decay curve to estimate admixture time, reproducing DATES v753
-//! `dates_expfit` (one exponential, affine mode) and `dowtjack`.
+//! The fit: correlations y_k of consecutive distance bins, from `lovalfit`
+//! on, are fitted by A·r^(k+1) + K (affine) or A·r^(k+1); for a fixed r,
+//! A and K are the least-squares solution, so the fit is a one-dimensional
+//! minimisation of the mean squared error over 0 < r < 1. The number of
+//! generations is −ln(r) / binsize. popmix finds the global minimum to full
+//! precision: a log-spaced grid over the decay per bin, each local minimum
+//! refined by golden-section search.
 //!
-//! DATES model: a_i = A × r^(i+1) + K
+//! The jackknife: the weighted delete-one-block jackknife of Busing, Meijer
+//! & van der Leeden 1999, over chromosomes weighted by their SNP counts, as
+//! DATES uses it.
 //!
-//! Where:
-//! - a_i = correlation at the i-th fitted bin (column 4 of the `.out` file)
-//! - A = amplitude, K = affine constant, both fitted by unconstrained least
-//!   squares for each r
-//! - r = per-bin decay (0 < r < 1)
-//!
-//! The admixture time in generations is n = -ln(r) / step, where step is the
-//! bin width in Morgans. DATES finds r with a seeded random search followed by
-//! a GSL simplex; popmix instead minimises the same mean squared error to full
-//! precision, which agrees with DATES to its printed precision.
+//! Provenance: written from the clean-room specification
+//! `docs/cleanroom/dates.md` (sections 5 and 6), Narasimhan et al. 2019
+//! (Science, supplementary methods of DATES), Chintalapati, Patterson &
+//! Moorjani 2022 (eLife), Busing et al. 1999 (Statistics and Computing
+//! 9:3-8), and DATES v753 run as a black box (`tests/golden/dates/v753/`).
 
-use super::LdBin;
-use crate::error::PopmixError;
-use crate::Result;
+use super::ld_decay::LdBin;
+use crate::error::{PopmixError, Result};
 
-/// Options for exponential fitting.
+/// Which bins to fit and how.
 #[derive(Debug, Clone)]
 pub struct FitOptions {
-    /// Fit bins from the first one at or beyond this distance (cM).
-    /// DATES `lovalfit`. Default: 0.45
+    /// First distance fitted (cM): leading bins below it are skipped
+    /// (DATES's `lovalfit`, in cM).
     pub min_distance_cm: f64,
-    /// Stop at the first bin beyond this distance (cM). Default: 100.0
+    /// Last distance fitted (cM).
     pub max_distance_cm: f64,
-    /// Use affine model (with constant K). Default: true
+    /// Fit an additive constant K (DATES's `afffit`).
     pub use_affine: bool,
-    /// Bin size in cM. Default: 0.1
+    /// Width of a bin (cM); converts the decay per bin to generations.
     pub bin_size_cm: f64,
 }
 
@@ -38,131 +39,172 @@ impl Default for FitOptions {
     fn default() -> Self {
         FitOptions {
             min_distance_cm: 0.45,
-            max_distance_cm: 100.0, // DATES default: maxdis = 1.0 Morgan = 100 cM
+            max_distance_cm: 100.0,
             use_affine: true,
             bin_size_cm: 0.1,
         }
     }
 }
 
-/// Result of exponential decay fitting.
+/// The fitted decay A·exp(−n·d) + K.
 #[derive(Debug, Clone)]
 pub struct DecayFit {
-    /// Amplitude at the first fitted bin (A × r).
+    /// A·r: the fitted excess over K at the first fitted bin.
     pub amplitude: f64,
-    /// Decay rate in generations (n).
+    /// n, in generations.
     pub decay_rate: f64,
-    /// Affine constant (K), 0 if affine model not used.
+    /// K (0 when not affine).
     pub intercept: f64,
-    /// R-squared goodness of fit.
+    /// 1 − RSS / total sum of squares (0 if the correlations are constant).
     pub r_squared: f64,
-    /// Standard error of decay rate (from jackknife, if run).
+    /// Jackknife standard error of n (NaN until `dates` fills it in).
     pub decay_rate_se: f64,
-    /// Mean squared error of the fit (DATES `scorit`).
+    /// The mean squared error at the fit.
     pub rss: f64,
 }
 
-/// Least-squares fit of A and K for a fixed r (DATES `scorit`).
+/// Grid points of the decay per bin u = −ln r.
+const GRID_POINTS: usize = 4000;
+const U_MIN: f64 = 1e-7;
+const U_MAX: f64 = 20.0;
+const GOLDEN_ITERATIONS: usize = 200;
+const GOLDEN_REL_WIDTH: f64 = 1e-15;
+
+/// The least-squares fit at one value of r.
 struct LinearFit {
     a: f64,
     k: f64,
     mse: f64,
 }
 
-fn fit_linear(y: &[f64], r: f64, use_affine: bool) -> LinearFit {
-    let n = y.len() as f64;
-    let mut sx = 0.0;
-    let mut sy = 0.0;
-    let mut sxx = 0.0;
-    let mut sxy = 0.0;
-    let mut x = 1.0;
-    for &yi in y {
-        x *= r;
+/// The least-squares A (and K, if `affine`) for x_k = r^(k+1), and the mean
+/// squared error; +∞ error when the affine system is singular.
+fn solve_at(y: &[f64], r: f64, affine: bool) -> LinearFit {
+    let m = y.len() as f64;
+    let (mut sx, mut sy, mut sxx, mut sxy) = (0.0, 0.0, 0.0, 0.0);
+    let mut x = r;
+    for &yk in y {
         sx += x;
-        sy += yi;
+        sy += yk;
         sxx += x * x;
-        sxy += x * yi;
+        sxy += x * yk;
+        x *= r;
     }
-
-    let (a, k) = if use_affine {
-        let det = n * sxx - sx * sx;
+    let (a, k) = if affine {
+        let det = m * sxx - sx * sx;
         if det.abs() < 1e-300 {
             return LinearFit {
-                a: 0.0,
-                k: 0.0,
+                a: f64::NAN,
+                k: f64::NAN,
                 mse: f64::INFINITY,
             };
         }
-        ((n * sxy - sx * sy) / det, (sxx * sy - sx * sxy) / det)
-    } else if sxx > 1e-300 {
-        (sxy / sxx, 0.0)
-    } else {
+        ((m * sxy - sx * sy) / det, (sxx * sy - sx * sxy) / det)
+    } else if sxx <= 1e-300 {
         (0.0, 0.0)
+    } else {
+        (sxy / sxx, 0.0)
     };
-
-    let mut sse = 0.0;
-    let mut x = 1.0;
-    for &yi in y {
+    let mut ss = 0.0;
+    let mut x = r;
+    for &yk in y {
+        let e = yk - a * x - k;
+        ss += e * e;
         x *= r;
-        let e = yi - (a * x + k);
-        sse += e * e;
     }
-    LinearFit { a, k, mse: sse / n }
+    LinearFit { a, k, mse: ss / m }
 }
 
-/// Golden-section minimisation of f on [lo, hi].
-fn golden_section(f: &impl Fn(f64) -> f64, mut lo: f64, mut hi: f64) -> f64 {
-    let invphi = (5.0_f64.sqrt() - 1.0) / 2.0;
-    let mut x1 = hi - invphi * (hi - lo);
-    let mut x2 = lo + invphi * (hi - lo);
-    let mut f1 = f(x1);
-    let mut f2 = f(x2);
-    for _ in 0..200 {
-        if hi - lo <= 1e-15 * hi.abs().max(1e-300) {
+/// Mean squared error at r, NaN taken as +∞ so comparisons stay ordered.
+fn mse_at(y: &[f64], r: f64, affine: bool) -> f64 {
+    let e = solve_at(y, r, affine).mse;
+    if e.is_nan() {
+        f64::INFINITY
+    } else {
+        e
+    }
+}
+
+/// Golden-section search for the minimum of f on [lo, hi]; returns (r, f(r)).
+fn golden_section(f: impl Fn(f64) -> f64, mut lo: f64, mut hi: f64) -> (f64, f64) {
+    let inv_phi = (5f64.sqrt() - 1.0) / 2.0;
+    let mut c = hi - inv_phi * (hi - lo);
+    let mut d = lo + inv_phi * (hi - lo);
+    let mut fc = f(c);
+    let mut fd = f(d);
+    for _ in 0..GOLDEN_ITERATIONS {
+        if hi - lo <= GOLDEN_REL_WIDTH * hi.abs() {
             break;
         }
-        if f1 <= f2 {
-            hi = x2;
-            x2 = x1;
-            f2 = f1;
-            x1 = hi - invphi * (hi - lo);
-            f1 = f(x1);
+        if fc < fd {
+            hi = d;
+            d = c;
+            fd = fc;
+            c = hi - inv_phi * (hi - lo);
+            fc = f(c);
         } else {
-            lo = x1;
-            x1 = x2;
-            f1 = f2;
-            x2 = lo + invphi * (hi - lo);
-            f2 = f(x2);
+            lo = c;
+            c = d;
+            fc = fd;
+            d = lo + inv_phi * (hi - lo);
+            fd = f(d);
         }
     }
-    if f1 <= f2 {
-        x1
+    if fc <= fd {
+        (c, fc)
     } else {
-        x2
+        (d, fd)
     }
 }
 
-/// Fit exponential decay model to LD bins as DATES `dates_expfit` does.
+/// The r in (0, 1) minimising the mean squared error of the fit to `y`.
+fn minimise(y: &[f64], affine: bool) -> Option<f64> {
+    let (ln_lo, ln_hi) = (U_MIN.ln(), U_MAX.ln());
+    let step = (ln_hi - ln_lo) / (GRID_POINTS - 1) as f64;
+    let grid: Vec<f64> = (0..GRID_POINTS)
+        .map(|t| (-(ln_lo + t as f64 * step).exp()).exp())
+        .collect();
+    let errs: Vec<f64> = grid.iter().map(|&r| mse_at(y, r, affine)).collect();
+
+    let mut best: Option<(f64, f64)> = None;
+    for t in 0..GRID_POINTS {
+        let left = if t == 0 { f64::INFINITY } else { errs[t - 1] };
+        let right = if t + 1 == GRID_POINTS {
+            f64::INFINITY
+        } else {
+            errs[t + 1]
+        };
+        if !(errs[t] <= left && errs[t] <= right) {
+            continue;
+        }
+        // r decreases along the grid: the bracket runs from the next grid
+        // point (smaller r) to the previous one (larger r).
+        let lo = grid[(t + 1).min(GRID_POINTS - 1)];
+        let hi = grid[t.saturating_sub(1)];
+        let (r, e) = golden_section(|r| mse_at(y, r, affine), lo, hi);
+        if !r.is_finite() || !e.is_finite() {
+            continue;
+        }
+        if best.is_none_or(|(_, be)| e < be) {
+            best = Some((r, e));
+        }
+    }
+    best.map(|(r, _)| r)
+}
+
+/// Fit A·r^(k+1) + K to the correlations of the bins in the fitting range.
 ///
-/// Bins are fitted from the first with distance ≥ `min_distance_cm` up to the
-/// last with distance ≤ `max_distance_cm`, consecutively.
-///
-/// # Arguments
-/// * `ld_bins` - LD decay bins from compute_ld_decay, in distance order
-/// * `options` - Fitting options
-///
-/// # Returns
-/// DecayFit with the fitted parameters
+/// Bins are taken in the order given: leading bins with `distance_cm` below
+/// `min_distance_cm` are skipped, then bins are taken while `distance_cm` is
+/// at most `max_distance_cm`. At least 4 are needed.
 pub fn fit_exponential(ld_bins: &[LdBin], options: Option<FitOptions>) -> Result<DecayFit> {
     let opts = options.unwrap_or_default();
-
     let y: Vec<f64> = ld_bins
         .iter()
         .skip_while(|b| b.distance_cm < opts.min_distance_cm)
         .take_while(|b| b.distance_cm <= opts.max_distance_cm)
         .map(|b| b.correlation)
         .collect();
-
     if y.len() < 4 {
         return Err(PopmixError::InsufficientData {
             context: "exponential fit (bins in fitting range)".to_string(),
@@ -170,93 +212,48 @@ pub fn fit_exponential(ld_bins: &[LdBin], options: Option<FitOptions>) -> Result
             actual: y.len(),
         });
     }
-    if let Some(bad) = y.iter().position(|v| !v.is_finite()) {
+    if let Some(i) = y.iter().position(|v| !v.is_finite()) {
         return Err(PopmixError::InvalidValue {
             context: "exponential fit".to_string(),
-            details: format!("non-finite correlation in fitted bin {bad}"),
+            details: format!("non-finite correlation in fitted bin {i}"),
         });
     }
 
-    // Search u = -ln(r) on a log grid covering 1e-7 .. 20 per bin, then refine
-    // every local minimum on the grid and keep the best.
-    let mse = |r: f64| fit_linear(&y, r, opts.use_affine).mse;
-    let n_grid = 4000;
-    let (u_lo, u_hi) = (1e-7_f64.ln(), 20.0_f64.ln());
-    let grid: Vec<f64> = (0..n_grid)
-        .map(|k| (-(u_lo + (u_hi - u_lo) * k as f64 / (n_grid - 1) as f64).exp()).exp())
-        .collect();
-    let values: Vec<f64> = grid.iter().map(|&r| mse(r)).collect();
+    let r = minimise(&y, opts.use_affine).ok_or_else(|| PopmixError::InvalidValue {
+        context: "exponential fit".to_string(),
+        details: "no minimum of the fit error found".to_string(),
+    })?;
+    let fit = solve_at(&y, r, opts.use_affine);
 
-    let mut best_r = f64::NAN;
-    let mut best_mse = f64::INFINITY;
-    for k in 0..n_grid {
-        let left = if k == 0 { f64::INFINITY } else { values[k - 1] };
-        let right = if k + 1 == n_grid {
-            f64::INFINITY
-        } else {
-            values[k + 1]
-        };
-        if values[k] > left || values[k] > right {
-            continue;
-        }
-        // grid is in decreasing r
-        let hi = if k == 0 { grid[0] } else { grid[k - 1] };
-        let lo = if k + 1 == n_grid {
-            grid[k]
-        } else {
-            grid[k + 1]
-        };
-        let r = golden_section(&mse, lo, hi);
-        let m = mse(r);
-        if m < best_mse {
-            best_mse = m;
-            best_r = r;
-        }
-    }
-
-    if !best_r.is_finite() {
-        return Err(PopmixError::InvalidValue {
-            context: "exponential fit".to_string(),
-            details: "no minimum of the fit error found".to_string(),
-        });
-    }
-
-    let fit = fit_linear(&y, best_r, opts.use_affine);
-    let step_morgans = opts.bin_size_cm / 100.0;
-    let decay_rate = -best_r.ln() / step_morgans;
-
-    let mean_y = y.iter().sum::<f64>() / y.len() as f64;
-    let ss_tot: f64 = y.iter().map(|v| (v - mean_y).powi(2)).sum();
+    let m = y.len() as f64;
+    let mean = y.iter().sum::<f64>() / m;
+    let ss_tot: f64 = y.iter().map(|v| (v - mean) * (v - mean)).sum();
     let r_squared = if ss_tot > 0.0 {
-        1.0 - fit.mse * y.len() as f64 / ss_tot
+        1.0 - fit.mse * m / ss_tot
     } else {
         0.0
     };
-
+    let step = opts.bin_size_cm / 100.0;
     Ok(DecayFit {
-        amplitude: fit.a * best_r,
-        decay_rate,
-        intercept: fit.k,
+        amplitude: fit.a * r,
+        decay_rate: -r.ln() / step,
+        intercept: if opts.use_affine { fit.k } else { 0.0 },
         r_squared,
         decay_rate_se: f64::NAN,
         rss: fit.mse,
     })
 }
 
-/// Weighted block jackknife (DATES `dowtjack` / nicklib `weightjack`).
+/// Weighted delete-one-block jackknife (Busing et al. 1999).
 ///
-/// # Arguments
-/// * `full_estimate` - Estimate from all blocks
-/// * `estimates` - (weight, estimate with that block removed) per block;
-///   blocks with weight < 1e-6 are ignored
-///
-/// # Returns
-/// (bias-corrected jackknife estimate, standard error)
+/// `estimates` holds (weight, estimate with that block left out); blocks of
+/// weight below 1e-6 are ignored, and at least two must remain. Returns the
+/// bias-corrected estimate and its standard error.
 pub fn weighted_jackknife(full_estimate: f64, estimates: &[(f64, f64)]) -> Result<(f64, f64)> {
     let blocks: Vec<(f64, f64)> = estimates
         .iter()
         .copied()
-        .filter(|(w, _)| *w >= 1e-6)
+        .filter(|&(w, _)| w >= 1e-6)
         .collect();
     let g = blocks.len();
     if g <= 1 {
@@ -266,22 +263,20 @@ pub fn weighted_jackknife(full_estimate: f64, estimates: &[(f64, f64)]) -> Resul
             actual: g,
         });
     }
+    let total: f64 = blocks.iter().map(|&(w, _)| w).sum();
+    let bias: f64 = blocks.iter().map(|&(_, t)| full_estimate - t).sum();
+    let weighted_mean: f64 = blocks.iter().map(|&(w, t)| w * t).sum::<f64>() / total;
+    let estimate = bias + weighted_mean;
 
-    let total_weight: f64 = blocks.iter().map(|(w, _)| w).sum();
-    let jackest = blocks.iter().map(|(_, m)| full_estimate - m).sum::<f64>()
-        + blocks.iter().map(|(w, m)| w * m).sum::<f64>() / total_weight;
-
-    let var = blocks
-        .iter()
-        .map(|(w, m)| {
-            let h = total_weight / w;
-            let tau = h * full_estimate - (h - 1.0) * m - jackest;
-            tau * tau / (h - 1.0)
-        })
-        .sum::<f64>()
-        / g as f64;
-
-    Ok((jackest, if var > 0.0 { var.sqrt() } else { 0.0 }))
+    let mut var = 0.0;
+    for &(w, t) in &blocks {
+        let h = total / w;
+        let pseudo = h * full_estimate - (h - 1.0) * t;
+        let d = pseudo - estimate;
+        var += d * d / (h - 1.0);
+    }
+    var /= g as f64;
+    Ok((estimate, if var > 0.0 { var.sqrt() } else { 0.0 }))
 }
 
 #[cfg(test)]

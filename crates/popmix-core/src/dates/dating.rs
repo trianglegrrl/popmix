@@ -1,34 +1,38 @@
-//! Main DATES algorithm implementation.
+//! The DATES analysis: weights, LD table, exponential fit and the
+//! leave-one-chromosome-out weighted jackknife, giving the date of
+//! admixture in generations and years.
 //!
-//! Estimates admixture timing from LD decay patterns.
+//! Provenance: written from the clean-room specification
+//! `docs/cleanroom/dates.md` (section 7), Narasimhan et al. 2019 (Science,
+//! supplementary methods of DATES), Chintalapati, Patterson & Moorjani 2022
+//! (eLife), DATES's README and parameter-file documentation, and DATES v753
+//! run as a black box (`tests/golden/dates/v753/`).
+
+use rayon::prelude::*;
 
 use super::compat::DatesCompat;
 use super::exponential_fit::{fit_exponential, weighted_jackknife, DecayFit, FitOptions};
 use super::ld_decay::{compute_ld_decay_by_chromosome, LdBin, LdOptions};
 use super::weights::{compute_weights, WeightResult};
+use crate::error::{PopmixError, Result};
 use crate::genotype_matrix::{AlleleFrequencies, GenotypeMatrix};
 use crate::genotypes::PopulationId;
-use crate::Result;
-use rayon::prelude::*;
+use crate::options::check_positive;
 
-/// Options for DATES algorithm.
+/// Options of the analysis.
 #[derive(Debug, Clone)]
 pub struct DatesOptions {
-    /// Options for LD computation.
+    /// The LD table (its `compat` is replaced by [`DatesOptions::compat`]).
     pub ld_options: LdOptions,
-    /// Options for exponential fitting.
+    /// The exponential fit.
     pub fit_options: FitOptions,
-    /// Generation time in years (for converting to years BP). Default: 29.0
+    /// Years per generation.
     pub generation_time: f64,
-    /// Minimum observed allele count in each source population for a SNP to
-    /// be used. Default: 1, so one called sample suffices, as in DATES v753
-    /// (which reads `mincount` but ignores it: "mincount stripped").
+    /// Fewest observed alleles in each source for a SNP to be used.
     pub min_source_count: u32,
-    /// Run jackknife for standard error estimation. Default: true
+    /// Run the leave-one-chromosome-out jackknife.
     pub run_jackknife: bool,
-    /// DATES v753 quirks to reproduce. Applies to every stage, overriding
-    /// `ld_options.compat`. Default: none, all corrected; use
-    /// [`DatesCompat::V753`] to compare against DATES output.
+    /// DATES v753 behaviours to reproduce.
     pub compat: DatesCompat,
 }
 
@@ -45,110 +49,67 @@ impl Default for DatesOptions {
     }
 }
 
-/// Round to `decimals` places as printf would print it.
-fn round_printed(x: f64, decimals: usize) -> f64 {
-    format!("{x:.decimals$}").parse().unwrap_or(x)
+/// One jackknife block: a chromosome left out.
+#[derive(Debug, Clone)]
+pub struct JackknifeBlock {
+    /// The chromosome left out.
+    pub chromosome: u8,
+    /// Its weight (SNP count).
+    pub weight: f64,
+    /// The estimate without it (generations).
+    pub generations: f64,
 }
 
-/// Fit LD bins, first rounding correlations as DATES prints them if asked.
-fn fit_bins(bins: &[LdBin], opts: &DatesOptions) -> Result<DecayFit> {
-    if opts.compat.fit_printed_values {
-        let rounded: Vec<LdBin> = bins
-            .iter()
-            .map(|b| LdBin {
-                correlation: round_printed(b.correlation, 6),
-                ..b.clone()
-            })
-            .collect();
-        fit_exponential(&rounded, Some(opts.fit_options.clone()))
-    } else {
-        fit_exponential(bins, Some(opts.fit_options.clone()))
-    }
-}
-
-/// Result of DATES analysis.
+/// The result of [`dates`].
 #[derive(Debug, Clone)]
 pub struct DatesResult {
-    /// Test (admixed) population.
     pub test_pop: PopulationId,
-    /// First source population.
     pub source1: PopulationId,
-    /// Second source population.
     pub source2: PopulationId,
-    /// Estimated number of generations since admixture: the weighted
-    /// jackknife estimate if the jackknife ran (as DATES reports), otherwise
-    /// the full-data fit.
+    /// Jackknife estimate (or the full fit without the jackknife).
     pub generations: f64,
-    /// Standard error of generations (from jackknife).
+    /// Jackknife standard error (NaN without the jackknife).
     pub generations_se: f64,
-    /// Estimated years before present.
     pub years_bp: f64,
-    /// Standard error of years BP.
     pub years_bp_se: f64,
-    /// LD decay bins (all chromosomes combined).
+    /// The LD table over every chromosome.
     pub ld_bins: Vec<LdBin>,
-    /// Exponential decay fit result.
+    /// The full-data fit.
     pub fit: DecayFit,
-    /// Number of SNPs used.
+    /// SNPs with a valid weight.
     pub n_snps: usize,
-    /// Weight statistics.
     pub weights: WeightResult,
-    /// Number of chromosomes used.
+    /// Distinct autosomes among the SNPs.
     pub n_chromosomes: usize,
-    /// Per-chromosome jackknife blocks, empty if the jackknife did not run.
     pub jackknife_by_chromosome: Vec<JackknifeBlock>,
 }
 
-/// One leave-one-chromosome-out jackknife block (a row of the DATES `.jin`).
-#[derive(Debug, Clone)]
-pub struct JackknifeBlock {
-    /// Chromosome left out (1..=22).
-    pub chromosome: u8,
-    /// Block weight: number of SNPs on the chromosome in the input.
-    pub weight: f64,
-    /// Generations estimated without this chromosome.
-    pub generations: f64,
+/// `x` rounded to `decimals` decimals, as `printf("%.*f")` prints it.
+fn printed(x: f64, decimals: usize) -> f64 {
+    format!("{x:.decimals$}").parse().unwrap_or(x)
 }
 
-/// Estimate admixture time using the DATES algorithm.
+/// The fit of `bins`, on their correlations rounded to 6 decimals if
+/// `rounded`.
+fn fit_bins(bins: &[LdBin], options: &FitOptions, rounded: bool) -> Result<DecayFit> {
+    if rounded {
+        let r: Vec<LdBin> = bins
+            .iter()
+            .map(|b| LdBin {
+                correlation: printed(b.correlation, 6),
+                ..b.clone()
+            })
+            .collect();
+        fit_exponential(&r, Some(options.clone()))
+    } else {
+        fit_exponential(bins, Some(options.clone()))
+    }
+}
+
+/// Date the admixture of `test_pop` between `source1` and `source2`.
 ///
-/// DATES estimates when admixture occurred by measuring the decay of
-/// linkage disequilibrium with genetic distance. LD from recent
-/// admixture decays exponentially, with the decay rate proportional
-/// to the number of generations since admixture.
-///
-/// # Arguments
-/// * `geno` - Genotype matrix with all relevant populations
-/// * `af` - Allele frequencies (or will be computed if None). Given, they
-///   are used as they are, so with `compat.every_sample_diploid` they should
-///   come from [`AlleleFrequencies::from_genotypes_counting`] with
-///   `all_diploid` set.
-/// * `test_pop` - Name of the test (admixed) population
-/// * `source1` - Name of first source population
-/// * `source2` - Name of second source population
-/// * `options` - Algorithm options
-///
-/// # Returns
-/// DatesResult with estimated admixture timing
-///
-/// # Example
-/// ```ignore
-/// use popmix_core::dates::{dates, DatesOptions};
-///
-/// let result = dates(
-///     &geno,
-///     Some(&af),
-///     "Admixed_Pop",
-///     "Source1",
-///     "Source2",
-///     None,
-/// )?;
-///
-/// println!("Admixture time: {:.0} ± {:.0} generations",
-///          result.generations, result.generations_se);
-/// println!("Years BP: {:.0} ± {:.0}",
-///          result.years_bp, result.years_bp_se);
-/// ```
+/// `af` supplies the allele frequencies; when `None` they are computed from
+/// `geno` for the three populations.
 pub fn dates(
     geno: &GenotypeMatrix,
     af: Option<&AlleleFrequencies>,
@@ -158,123 +119,91 @@ pub fn dates(
     options: Option<DatesOptions>,
 ) -> Result<DatesResult> {
     let opts = options.unwrap_or_default();
-    crate::options::check_positive("generation_time", opts.generation_time)?;
-
-    // Compute allele frequencies if not provided
-    let owned_af;
+    check_positive("generation_time", opts.generation_time)?;
+    let computed;
     let af = match af {
         Some(af) => af,
         None => {
-            let pops = vec![test_pop, source1, source2];
-            // DATES-0004: DATES counts every sample as diploid
-            owned_af = AlleleFrequencies::from_genotypes_counting(
+            computed = AlleleFrequencies::from_genotypes_counting(
                 geno,
-                Some(&pops),
+                Some(&[test_pop, source1, source2]),
                 opts.compat.every_sample_diploid,
             );
-            &owned_af
+            &computed
         }
     };
 
-    // Step 1: Compute weights (p_source1 - p_source2)
     let weights = compute_weights(af, source1, source2, Some(opts.min_source_count))?;
-
     if weights.n_valid == 0 {
-        return Err(crate::error::PopmixError::InsufficientData {
+        return Err(PopmixError::InsufficientData {
             context: "No SNPs with valid weights".to_string(),
             required: 100,
             actual: 0,
         });
     }
-
-    // Get source population frequency arrays
-    let source1_idx = af
+    let i1 = af
         .pop_index(source1)
-        .ok_or_else(|| crate::error::PopmixError::PopulationNotFound(source1.to_string()))?;
-    let source2_idx = af
+        .ok_or_else(|| PopmixError::PopulationNotFound(source1.to_string()))?;
+    let i2 = af
         .pop_index(source2)
-        .ok_or_else(|| crate::error::PopmixError::PopulationNotFound(source2.to_string()))?;
+        .ok_or_else(|| PopmixError::PopulationNotFound(source2.to_string()))?;
+    let p1: Vec<f64> = (0..af.n_snps()).map(|i| af.frequencies[[i, i1]]).collect();
+    let p2: Vec<f64> = (0..af.n_snps()).map(|i| af.frequencies[[i, i2]]).collect();
 
-    let source1_freqs: Vec<f64> = (0..geno.n_snps())
-        .map(|i| af.frequencies[[i, source1_idx]])
-        .collect();
-    let source2_freqs: Vec<f64> = (0..geno.n_snps())
-        .map(|i| af.frequencies[[i, source2_idx]])
-        .collect();
-
-    // Step 2: Compute LD decay, for all chromosomes and leaving each one out
+    let ld_options = LdOptions {
+        compat: opts.compat,
+        ..opts.ld_options.clone()
+    };
     let ld = compute_ld_decay_by_chromosome(
         geno,
         af,
         test_pop,
         &weights.weights,
-        &source1_freqs,
-        &source2_freqs,
-        Some(LdOptions {
-            compat: opts.compat,
-            ..opts.ld_options.clone()
-        }),
+        &p1,
+        &p2,
+        Some(ld_options),
     )?;
-
     if ld.bins.is_empty() {
-        return Err(crate::error::PopmixError::InsufficientData {
+        return Err(PopmixError::InsufficientData {
             context: "No LD bins computed".to_string(),
             required: 10,
             actual: 0,
         });
     }
 
-    // Step 3: Fit exponential decay
-    let mut fit = fit_bins(&ld.bins, &opts)?;
+    let rounded = opts.compat.fit_printed_values;
+    let mut fit = fit_bins(&ld.bins, &opts.fit_options, rounded)?;
 
-    // Step 4: Weighted jackknife over chromosomes (DATES dates_wtjack + dowtjack)
-    let (generations, generations_se, jackknife_by_chromosome) = if opts.run_jackknife {
-        let blocks = ld
+    let (generations, generations_se, blocks) = if opts.run_jackknife {
+        let blocks: Vec<JackknifeBlock> = ld
             .chromosomes
             .par_iter()
             .map(|c| {
-                let loo = fit_bins(&c.leave_one_out, &opts)?;
-                Ok(JackknifeBlock {
+                fit_bins(&c.leave_one_out, &opts.fit_options, rounded).map(|f| JackknifeBlock {
                     chromosome: c.chromosome,
                     weight: c.n_snps as f64,
-                    generations: loo.decay_rate,
+                    generations: f.decay_rate,
                 })
             })
-            .collect::<Result<Vec<_>>>()?;
-        let printed = |x: f64| {
-            if opts.compat.fit_printed_values {
-                round_printed(x, 3)
-            } else {
-                x
-            }
-        };
+            .collect::<Result<_>>()?;
+        let at_precision = |x: f64| if rounded { printed(x, 3) } else { x };
         let estimates: Vec<(f64, f64)> = blocks
             .iter()
-            .map(|b| (b.weight, printed(b.generations)))
+            .map(|b| (b.weight, at_precision(b.generations)))
             .collect();
-        let (est, se) = weighted_jackknife(printed(fit.decay_rate), &estimates)?;
+        let (est, se) = weighted_jackknife(at_precision(fit.decay_rate), &estimates)?;
         fit.decay_rate_se = se;
         (est, se, blocks)
     } else {
         (fit.decay_rate, f64::NAN, Vec::new())
     };
 
-    // Convert to years
-    let years_bp = generations * opts.generation_time;
-    let years_bp_se = if generations_se.is_finite() {
-        generations_se * opts.generation_time
-    } else {
-        f64::NAN
-    };
-
-    // Count chromosomes used
-    let n_chromosomes = geno
+    let autosomes: std::collections::BTreeSet<_> = geno
         .snps()
         .iter()
         .filter(|s| s.is_autosomal())
         .map(|s| &s.chromosome)
-        .collect::<std::collections::HashSet<_>>()
-        .len();
+        .collect();
 
     Ok(DatesResult {
         test_pop: PopulationId::new(test_pop),
@@ -282,14 +211,18 @@ pub fn dates(
         source2: PopulationId::new(source2),
         generations,
         generations_se,
-        years_bp,
-        years_bp_se,
+        years_bp: generations * opts.generation_time,
+        years_bp_se: if generations_se.is_finite() {
+            generations_se * opts.generation_time
+        } else {
+            f64::NAN
+        },
         ld_bins: ld.bins,
         fit,
         n_snps: weights.n_valid,
         weights,
-        n_chromosomes,
-        jackknife_by_chromosome,
+        n_chromosomes: autosomes.len(),
+        jackknife_by_chromosome: blocks,
     })
 }
 
