@@ -67,9 +67,8 @@ the sources (the last row above equals the qpAdm chi-squared).
 ## Caveats
 
 - The ranks tested go from 0 to (number of left populations - 2). If every
-  test is rejected the estimated rank is reported as the highest rank
-  tested, although the data then call for full rank (one stream more than
-  the output says); read the p-values.
+  test is rejected the estimated rank is one above the highest rank tested:
+  full rank, as many streams as left populations.
 - The same SNP-set note as [qpadm](qpadm.md) applies to `--input`.
 - The regularization (fudge 1e-4) is fixed on the CLI.
 

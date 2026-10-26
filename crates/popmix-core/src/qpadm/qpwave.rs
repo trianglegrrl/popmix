@@ -105,18 +105,23 @@ pub fn qpwave(
     // Perform rank tests
     let rank_tests = compute_rank_tests(&f4_matrix, max_rank, opts.fudge)?;
 
-    // Estimate rank as lowest rank where p-value > 0.05
-    let estimated_rank = rank_tests
-        .iter()
-        .find(|r| r.p_value > 0.05)
-        .map(|r| r.rank)
-        .unwrap_or(max_rank);
+    let estimated_rank = estimate_rank(&rank_tests, max_rank);
 
     Ok(QpWaveResult {
         rank_tests,
         estimated_rank,
         f4_matrix,
     })
+}
+
+/// The lowest rank whose test is not rejected (p > 0.05); with every rank
+/// rejected, the rank is above `max_rank`.
+fn estimate_rank(rank_tests: &[RankTest], max_rank: usize) -> usize {
+    rank_tests
+        .iter()
+        .find(|r| r.p_value > 0.05)
+        .map(|r| r.rank)
+        .unwrap_or(max_rank + 1)
 }
 
 /// Rank tests 0..=max_rank, as admixtools2 `drop_ranks` / `qpadm_fit`.
@@ -234,6 +239,29 @@ mod tests {
         // (though this depends on the synthetic data structure)
         println!("Rank tests: {:?}", result.rank_tests);
         println!("Estimated rank: {}", result.estimated_rank);
+    }
+
+    fn rank_test(rank: usize, p_value: f64) -> RankTest {
+        RankTest {
+            rank,
+            chi_sq: 1.0,
+            df: 1,
+            p_value,
+        }
+    }
+
+    #[test]
+    fn test_estimated_rank_is_lowest_rank_not_rejected() {
+        let tests = [rank_test(0, 0.01), rank_test(1, 0.3), rank_test(2, 0.9)];
+        assert_eq!(estimate_rank(&tests, 2), 1);
+    }
+
+    #[test]
+    fn test_estimated_rank_with_every_rank_rejected_is_above_max_rank() {
+        // --left French_1,French_2: rank 0, the only rank tested, has p = 0.039
+        assert_eq!(estimate_rank(&[rank_test(0, 0.039)], 0), 1);
+        let tests = [rank_test(0, 1e-9), rank_test(1, 0.01)];
+        assert_eq!(estimate_rank(&tests, 1), 2);
     }
 
     #[test]
