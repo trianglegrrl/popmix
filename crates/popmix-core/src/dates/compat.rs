@@ -24,6 +24,13 @@ pub struct DatesCompat {
     /// (%12.6f) and runs the jackknife on estimates as printed in its `.jin`
     /// file (%9.3f). Corrected: full precision throughout.
     pub fit_printed_values: bool,
+    /// DATES-0004. DATES counts every sample as diploid: a pseudohaploid
+    /// call (0 or 2) is two copies of one allele, so in a source population
+    /// that mixes pseudohaploid and diploid samples each pseudohaploid
+    /// sample weighs as much as a diploid one in its allele frequency.
+    /// Corrected: a pseudohaploid call is one allele, as everywhere else in
+    /// popmix. Populations of one ploidy give the same frequencies either way.
+    pub every_sample_diploid: bool,
 }
 
 impl DatesCompat {
@@ -32,6 +39,7 @@ impl DatesCompat {
         circular_fft_lags: false,
         unscaled_last_fft_lag: false,
         fit_printed_values: false,
+        every_sample_diploid: false,
     };
 
     /// Reproduce DATES v753 exactly.
@@ -39,5 +47,6 @@ impl DatesCompat {
         circular_fft_lags: true,
         unscaled_last_fft_lag: true,
         fit_printed_values: true,
+        every_sample_diploid: true,
     };
 }

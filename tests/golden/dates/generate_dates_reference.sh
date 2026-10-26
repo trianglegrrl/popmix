@@ -35,6 +35,8 @@ CONFIGS=(
     "simulation_q0|$HERE/example_data/family_packed|French|Yoruba|Simulation|1.0|0"
     "simulation_q10|$HERE/example_data/family_packed|French|Yoruba|Simulation|1.0|10"
     "aadr_french_q10|$AADR_PREFIX|Sardinian.DG|Russia_Samara_EBA_Yamnaya.AG|French.DG|0.5|10"
+    # a source of mixed ploidy (DATES-0004); generate_yamnaya_subset.sh makes the input
+    "yamnaya_chr21_22_q10|$HERE/yamnaya_chr21_22|Sardinian|Russia_Samara_EBA_Yamnaya|French|0.5|10"
 )
 
 run_config() {
@@ -75,7 +77,8 @@ EOF
     local dest="$OUT_ROOT/$name"
     rm -rf "$dest"
     mkdir -p "$dest"
-    sed "s|$work/admixlist|admixlist|" "$work/par" > "$dest/par"
+    # inputs in tests/golden/dates are named relative to the config directory
+    sed -e "s|$work/admixlist|admixlist|" -e "s|: $HERE/|: ../../|" "$work/par" > "$dest/par"
     cp "$work/admixlist" "$dest/admixlist"
     for ext in out fit jin jout; do
         cp "$res/$test.$ext" "$dest/dates.$ext"

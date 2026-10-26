@@ -104,9 +104,11 @@ def load_reference(name: str) -> DatesReference:
 
     jk_est, jk_se = (float(x) for x in (ref_dir / "dates.jout").read_text().split())
 
+    # inputs kept in tests/golden/dates are named relative to the config directory
+    prefix = str((ref_dir / par["genotypename"]).resolve())[: -len(".geno")]
     return DatesReference(
         name=name,
-        prefix=par["genotypename"][: -len(".geno")],
+        prefix=prefix,
         source1=source1,
         source2=source2,
         test_pop=test_pop,
@@ -133,13 +135,18 @@ def jackknife_tol(ref: DatesReference) -> float:
     return (g + 2) * fit_tol(ref) + GEN_TOL
 
 
-QUICK_CONFIGS = ["chr20_22_q0", "chr20_22_q10"]
+# yamnaya_chr21_22_q10: a source mixing pseudo-haploid samples and a diploid
+# genome (DATES-0004), from AADR v66.p1 (generate_yamnaya_subset.sh)
+QUICK_CONFIGS = ["chr20_22_q0", "chr20_22_q10", "yamnaya_chr21_22_q10"]
 SLOW_CONFIGS = ["simulation_q0", "simulation_q10", "aadr_french_q10"]
 
 COMPAT = "dates-v753"
 
 # Mesh-mode configs whose exact-mode (qbin: 0) DATES run on the same data is
 # an oracle for what the mesh approximates.
+# Configs with a source of mixed ploidy, where DATES-0004 applies
+MIXED_PLOIDY = {"yamnaya_chr21_22_q10"}
+
 EXACT_MODE_ORACLE = {
     "chr20_22_q10": "chr20_22_q0",
     "simulation_q10": "simulation_q0",
@@ -272,6 +279,9 @@ def _check_default_ld_table(name: str):
     from the first wrapped lag to maxdis, and nothing in exact mode. Every
     other bin of the default table must match DATES.
     """
+    if name in MIXED_PLOIDY:
+        pytest.skip("DATES-0004 changes the source frequencies, so every bin; see "
+                    "every_sample_diploid_flag_counts_pseudohaploid_calls_as_two_alleles")
     ref, default = _result_for(name, None)
     corrected = _corrected_bins(name)
     n = len(default.ld_bins)
@@ -294,6 +304,8 @@ def _check_default_result(name: str):
     DATES-0003 (fitting printed values) still applies, so this is the
     full-precision result against DATES's printed one.
     """
+    if name in MIXED_PLOIDY:
+        pytest.skip("DATES-0004 changes this config's source frequencies")
     if _corrected_bins(name):
         pytest.skip("DATES-0001 changes this config's LD table; see default_vs_exact_mode")
     _check_jackknife_result(name, compat=None)

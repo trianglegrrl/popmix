@@ -504,9 +504,10 @@ ROLLOFF_CASE = Case(
 # --- DATES ---------------------------------------------------------------------
 
 DATES = Path(os.environ.get("POPMIX_DATES", HOME / "DATES"))
-# sources diploid: with a pseudo-haploid source popmix and DATES v753 differ
-# (TASKS.md E4)
-DATES_POPS = {"test": "French", "source1": "Sardinian", "source2": "Han"}
+# Russia_Samara_EBA_Yamnaya mixes pseudo-haploid samples and a diploid genome
+# (I6729.DG): --compat dates-v753 counts every sample diploid, as DATES does
+# (DEVIATIONS.md, DATES-0004)
+DATES_POPS = {"test": "French", "source1": "Sardinian", "source2": "Russia_Samara_EBA_Yamnaya"}
 DATES_BINSIZE, DATES_MAXDIS, DATES_QBIN, DATES_LOVAL = 0.001, 0.5, 10, 0.45
 # tests/golden/test_dates_v753.py: printed precision, plus dates_expfit's
 # optimizer tolerance (gslprecision 1e-6 in r) for fitted generations

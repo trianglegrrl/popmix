@@ -13,6 +13,7 @@ rules for adding one.
 | DATES-0001 | Mesh FFT lags wrap around | Lags with no real pairs are zero | `compat="dates-v753"` |
 | DATES-0002 | Last FFT lag left unscaled | Every lag scaled | `compat="dates-v753"` |
 | DATES-0003 | Fits the printed (rounded) values | Full precision | `compat="dates-v753"` |
+| DATES-0004 | Counts every sample as diploid, so a pseudo-haploid call is two alleles | A pseudo-haploid call is one allele | `compat="dates-v753"` |
 | ADMIXTOOLS2-0001 | qpAdm `popdrop` nested path compares siblings, not nested models | A real nested path from the full model | `compat="admixtools2-2.0.10"` |
 | ADMIXTOOLS2-0002 | Constrained qpAdm with ≥ 3 sources stops with an error | Returns the full result | nothing to reproduce |
 | ADMIXTOOLS2-0003 | `joint_sfs()` drops SNPs whose allele count is not exactly an integer in floating point | Counts them | `compat="admixtools2-2.0.10"` (`joint_sfs`) |
@@ -127,6 +128,39 @@ rules for adding one.
   `jackknife_result` checks pass only with it on (compat). `default_result`
   checks that the full-precision result stays within DATES's reported
   precision wherever no other correction applies.
+
+### DATES-0004: every sample counted as diploid
+
+- **DATES:** Source allele frequencies count every sample as diploid: a
+  call of 0 or 2 from a pseudo-haploid sample is two copies of one allele.
+  Established black-box (benchmarks/cases.py's DATES case, French =
+  Sardinian + Russia_Samara_EBA_Yamnaya on AADR v66.p1): popmix counted
+  0.046% more pairs than DATES and fit 153.8 generations against 152.9.
+  Russia_Samara_EBA_Yamnaya holds 45 pseudo-haploid samples and one diploid
+  genome, I6729.DG. Leaving I6729.DG out, or adding a chromosome-23 SNP
+  heterozygous in every sample so that popmix takes them all as diploid,
+  makes popmix's LD table and fits identical to DATES's.
+- **popmix default:** A pseudo-haploid call is one allele, as in every
+  other popmix statistic (and admixtools2), so each observed allele weighs
+  the same. Counting it twice weighs a pseudo-haploid sample like a diploid
+  genome, though it carries half the information. In a population of one
+  ploidy the two give the same frequencies.
+- **Flag:** `every_sample_diploid`.
+- **Affects:** Only source populations that mix pseudo-haploid and diploid
+  samples. The frequencies change, so the SNPs that pass the frequency
+  filters, the weights and every LD bin.
+- **Live numbers** (bench16, chromosomes 1-22, maxdis 0.5, qbin 10; full-data
+  fit; jackknife estimate ± SE): DATES = compat 152.925; 153.339 ± 22.306
+  (972,605 SNPs); popmix default 153.843; 154.470 ± 22.536 (972,942 SNPs).
+- **Tests:**
+  - `dating.rs`: `every_sample_diploid_flag_counts_pseudohaploid_calls_as_two_alleles`
+    (isolation: the flag alone gives exactly the result with every sample
+    marked diploid). `genotype_matrix.rs`:
+    `a_pseudohaploid_call_counts_one_allele` (the corrected count).
+  - `tests/golden/test_dates_v753.py`, config `yamnaya_chr21_22_q10`
+    (chromosomes 21-22 of 74 AADR v66.p1 samples, with I6729.DG among 12
+    Yamnaya; `generate_yamnaya_subset.sh`): every compat check, at DATES's
+    printed precision.
 
 ### Matched, not corrected
 

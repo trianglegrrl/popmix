@@ -187,6 +187,18 @@ impl GenotypeMatrix {
     /// A pseudohaploid sample's call (0 or 2) is one allele, as in admixtools2
     /// and the streaming reader: it adds `geno / (3 - ploidy)` copies.
     pub fn allele_frequency(&self, snp_idx: usize, sample_indices: &[usize]) -> (f64, u32) {
+        self.allele_frequency_counting(snp_idx, sample_indices, false)
+    }
+
+    /// [`Self::allele_frequency`], or with `all_diploid` every sample counted
+    /// as diploid whatever its ploidy (a call of 2 is two copies), as DATES
+    /// counts (DATES-0004).
+    pub fn allele_frequency_counting(
+        &self,
+        snp_idx: usize,
+        sample_indices: &[usize],
+        all_diploid: bool,
+    ) -> (f64, u32) {
         let mut sum = 0.0f64;
         let mut count = 0u32;
 
@@ -194,7 +206,11 @@ impl GenotypeMatrix {
             let geno = self.data[[snp_idx, sample_idx]];
             if geno <= 2 {
                 // Not missing
-                let ploidy = self.samples[sample_idx].ploidy.effective_ploidy() as u32;
+                let ploidy = if all_diploid {
+                    2
+                } else {
+                    self.samples[sample_idx].ploidy.effective_ploidy() as u32
+                };
                 sum += geno as f64 / (3 - ploidy) as f64;
                 count += ploidy;
             }
@@ -270,6 +286,17 @@ impl AlleleFrequencies {
         geno: &GenotypeMatrix,
         population_filter: Option<&[&str]>,
     ) -> Self {
+        Self::from_genotypes_counting(geno, population_filter, false)
+    }
+
+    /// [`Self::from_genotypes_for_populations`], or with `all_diploid` every
+    /// sample counted as diploid (see
+    /// [`GenotypeMatrix::allele_frequency_counting`]).
+    pub fn from_genotypes_counting(
+        geno: &GenotypeMatrix,
+        population_filter: Option<&[&str]>,
+        all_diploid: bool,
+    ) -> Self {
         let all_populations = geno.populations();
 
         // Filter to requested populations
@@ -302,7 +329,8 @@ impl AlleleFrequencies {
                 let mut counts = Vec::with_capacity(n_pops);
 
                 for indices in &pop_indices {
-                    let (freq, count) = geno.allele_frequency(snp_idx, indices);
+                    let (freq, count) =
+                        geno.allele_frequency_counting(snp_idx, indices, all_diploid);
                     freqs.push(freq);
                     counts.push(count);
                 }

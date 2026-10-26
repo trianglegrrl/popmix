@@ -1,0 +1,14 @@
+genotypename: ../../yamnaya_chr21_22.geno
+snpname: ../../yamnaya_chr21_22.snp
+indivname: ../../yamnaya_chr21_22.ind
+admixlist: admixlist
+binsize: 0.001
+maxdis: 0.5
+seed: 77
+runmode: 1
+chithresh: 0.0
+mincount: 4
+qbin: 10
+runfit: YES
+afffit: YES
+lovalfit: 0.45

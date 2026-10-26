@@ -267,7 +267,10 @@ Tasks:
     Russia_Samara_EBA_Yamnaya, AADR v66.p1): popmix with
     `compat="dates-v753"` counts 0.06% more pairs per bin than DATES, and
     the fit moves from 152.9 to 153.8 generations. With diploid sources it
-    matches; the case uses those until this is understood.
+    matches; the case uses those until this is understood. Diagnosed:
+    DATES counts every sample as diploid, and the Yamnaya source holds a
+    diploid genome (I6729.DG) among pseudo-haploid samples; reproduced
+    under the compat flag (DATES-0004), and the case uses Yamnaya again.
   - the stock `/home/a/DATES/bin/dates` aborts at random in mesh mode too
     (uninitialized `numbins`), and its `dowtjack` needs a missing
     libgsl.so.19: the case builds DATES with `dates_numbins_fix.patch` in

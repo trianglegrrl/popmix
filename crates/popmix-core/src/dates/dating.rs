@@ -119,7 +119,10 @@ pub struct JackknifeBlock {
 ///
 /// # Arguments
 /// * `geno` - Genotype matrix with all relevant populations
-/// * `af` - Allele frequencies (or will be computed if None)
+/// * `af` - Allele frequencies (or will be computed if None). Given, they
+///   are used as they are, so with `compat.every_sample_diploid` they should
+///   come from [`AlleleFrequencies::from_genotypes_counting`] with
+///   `all_diploid` set.
 /// * `test_pop` - Name of the test (admixed) population
 /// * `source1` - Name of first source population
 /// * `source2` - Name of second source population
@@ -163,7 +166,12 @@ pub fn dates(
         Some(af) => af,
         None => {
             let pops = vec![test_pop, source1, source2];
-            owned_af = AlleleFrequencies::from_genotypes_for_populations(geno, Some(&pops));
+            // DATES-0004: DATES counts every sample as diploid
+            owned_af = AlleleFrequencies::from_genotypes_counting(
+                geno,
+                Some(&pops),
+                opts.compat.every_sample_diploid,
+            );
             &owned_af
         }
     };
@@ -376,6 +384,111 @@ mod tests {
         assert!(result.generations > 0.0);
         assert!(result.years_bp > 0.0);
         assert!(!result.ld_bins.is_empty());
+    }
+
+    /// The test genotypes with source2 of mixed ploidy: its first sample
+    /// diploid (heterozygous calls), the others pseudohaploid (0 or 2 only),
+    /// as with a diploid genome among pseudohaploid ancient samples.
+    fn mixed_ploidy_genotypes() -> GenotypeMatrix {
+        let base = create_test_genotypes();
+        let mut data = Array2::zeros((base.n_snps(), base.n_samples()));
+        for snp_idx in 0..base.n_snps() {
+            data.row_mut(snp_idx).assign(&base.snp_raw(snp_idx));
+        }
+        for snp_idx in 0..data.nrows() {
+            for sample_idx in 31..40 {
+                if data[[snp_idx, sample_idx]] == 1 {
+                    data[[snp_idx, sample_idx]] = if (snp_idx + sample_idx) % 3 == 0 {
+                        2
+                    } else {
+                        0
+                    };
+                }
+            }
+        }
+        let mut geno =
+            GenotypeMatrix::new(data, base.samples().to_vec(), base.snps().to_vec()).unwrap();
+        geno.detect_ploidy(geno.n_snps());
+        assert_eq!(geno.samples()[30].ploidy, crate::genotypes::Ploidy::Diploid);
+        assert_eq!(
+            geno.samples()[31].ploidy,
+            crate::genotypes::Ploidy::Pseudohaploid
+        );
+        geno
+    }
+
+    fn mixed_ploidy_options(compat: DatesCompat) -> DatesOptions {
+        let mut opts = DatesOptions::default();
+        opts.ld_options.min_pairs_per_bin = 10;
+        opts.run_jackknife = false;
+        opts.compat = compat;
+        opts
+    }
+
+    fn ld_summary(r: &DatesResult) -> Vec<(usize, f64, f64)> {
+        r.ld_bins
+            .iter()
+            .map(|b| (b.n_pairs, b.weighted_ld, b.correlation))
+            .collect()
+    }
+
+    /// DATES-0004 isolation: with `every_sample_diploid` alone, a source of
+    /// mixed ploidy gives exactly what it gives with every sample marked
+    /// diploid, and differs from the default, which counts a pseudohaploid
+    /// call as one allele.
+    #[test]
+    fn every_sample_diploid_flag_counts_pseudohaploid_calls_as_two_alleles() {
+        let mixed = mixed_ploidy_genotypes();
+        let mut diploid = mixed.clone();
+        diploid.set_all_diploid();
+        let flag = DatesCompat {
+            every_sample_diploid: true,
+            ..DatesCompat::CORRECTED
+        };
+
+        let with_flag = dates(
+            &mixed,
+            None,
+            "test",
+            "source1",
+            "source2",
+            Some(mixed_ploidy_options(flag)),
+        )
+        .unwrap();
+        let as_diploid = dates(
+            &diploid,
+            None,
+            "test",
+            "source1",
+            "source2",
+            Some(mixed_ploidy_options(DatesCompat::CORRECTED)),
+        )
+        .unwrap();
+        let default = dates(
+            &mixed,
+            None,
+            "test",
+            "source1",
+            "source2",
+            Some(mixed_ploidy_options(DatesCompat::CORRECTED)),
+        )
+        .unwrap();
+
+        assert_eq!(
+            with_flag.weights.valid_indices,
+            as_diploid.weights.valid_indices
+        );
+        assert_eq!(
+            format!("{:?}", with_flag.weights.weights),
+            format!("{:?}", as_diploid.weights.weights)
+        );
+        assert_eq!(ld_summary(&with_flag), ld_summary(&as_diploid));
+        assert_ne!(
+            format!("{:?}", with_flag.weights.weights),
+            format!("{:?}", default.weights.weights)
+        );
+        let (v753, corrected) = (DatesCompat::V753, DatesCompat::CORRECTED);
+        assert!(v753.every_sample_diploid && !corrected.every_sample_diploid);
     }
 
     #[test]
