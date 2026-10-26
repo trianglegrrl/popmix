@@ -43,19 +43,34 @@ impl BitGenotypes {
             hom0: vec![0; n_samples * words],
             hom2: vec![0; n_samples * words],
         };
-        let mut row = vec![0u8; n_samples];
-        for snp in 0..n_snps {
-            rows.next_row(&mut row)?;
-            let (w, bit) = (snp / 64, 1u64 << (snp % 64));
-            for (s, &x) in row.iter().enumerate() {
-                let i = s * words + w;
-                match x {
-                    0 => g.hom0[i] |= bit,
-                    1 => g.het[i] |= bit,
-                    2 => g.hom2[i] |= bit,
-                    _ => {}
-                }
+        if n_samples == 0 {
+            return Ok(g);
+        }
+        // a batch of whole words of SNPs at a time, then each sample's words
+        // in parallel
+        const BATCH_WORDS: usize = 64;
+        let mut batch = vec![0u8; BATCH_WORDS * 64 * n_samples];
+        for w0 in (0..words).step_by(BATCH_WORDS) {
+            let first = w0 * 64;
+            let n_rows = (first + BATCH_WORDS * 64).min(n_snps) - first;
+            for row in batch.chunks_exact_mut(n_samples).take(n_rows) {
+                rows.next_row(row)?;
             }
+            let batch = &batch[..n_rows * n_samples];
+            let span = n_rows.div_ceil(64);
+            let set = |v: &mut [u64], code: u8| {
+                v.par_chunks_mut(words).enumerate().for_each(|(s, sample)| {
+                    for (w, word) in sample[w0..w0 + span].iter_mut().enumerate() {
+                        let rows = w * 64..((w + 1) * 64).min(n_rows);
+                        for (bit, r) in rows.enumerate() {
+                            *word |= ((batch[r * n_samples + s] == code) as u64) << bit;
+                        }
+                    }
+                });
+            };
+            set(&mut g.het, 1);
+            set(&mut g.hom0, 0);
+            set(&mut g.hom2, 2);
         }
         Ok(g)
     }
@@ -98,28 +113,105 @@ pub struct KingPair {
     pub kinship: f64,
 }
 
+/// Samples per side of a tile of pairs, and 64-SNP words per chunk: a
+/// tile's bit sets for one chunk stay in cache while all its pairs are
+/// counted.
+const TILE: usize = 32;
+const CHUNK: usize = 512;
+
 /// KING-robust kinship for every pair, in PLINK 2's order.
+///
+/// Pairs are counted a tile at a time, the tiles in parallel; counts are
+/// integers, so the result does not depend on the thread count.
 pub fn king_robust(g: &BitGenotypes) -> Vec<KingPair> {
     let n = g.n_samples;
-    (1..n)
+    let n_tiles = n.div_ceil(TILE);
+    let tiles: Vec<(usize, usize)> = (0..n_tiles)
+        .flat_map(|a| (0..=a).map(move |b| (a, b)))
+        .collect();
+    let counted: Vec<_> = tiles
         .into_par_iter()
-        .flat_map_iter(|i| (0..i).map(move |j| king_pair(g, i, j)))
-        .collect()
+        .map(|(a, b)| ((a, b), count_tile(g, a * TILE, b * TILE)))
+        .collect();
+    let mut pairs = vec![
+        KingPair {
+            i: 0,
+            j: 0,
+            nsnp: 0,
+            hethet: 0,
+            ibs0: 0,
+            het1_hom2: 0,
+            het2_hom1: 0,
+            kinship: 0.0,
+        };
+        n * n.saturating_sub(1) / 2
+    ];
+    for ((a, b), counts) in counted {
+        for (k, c) in counts.into_iter().enumerate() {
+            let (i, j) = (a * TILE + k / TILE, b * TILE + k % TILE);
+            if j < i && i < n {
+                pairs[i * (i - 1) / 2 + j] = king_pair(i, j, c);
+            }
+        }
+    }
+    pairs
 }
 
-fn king_pair(g: &BitGenotypes, i: usize, j: usize) -> KingPair {
-    let (het_i, a0, a2) = (
-        g.sample(&g.het, i),
-        g.sample(&g.hom0, i),
-        g.sample(&g.hom2, i),
-    );
-    let (het_j, b0, b2) = (
-        g.sample(&g.het, j),
-        g.sample(&g.hom0, j),
-        g.sample(&g.hom2, j),
-    );
+/// Counts for the pairs of samples `i0..i0 + TILE` with `j0..j0 + TILE`
+/// (row-major, `TILE` per row; pairs with `j >= i` or past the last sample
+/// are left zero), with AVX2 and POPCNT where the CPU has them.
+fn count_tile(g: &BitGenotypes, i0: usize, j0: usize) -> Vec<[u64; 5]> {
+    #[cfg(target_arch = "x86_64")]
+    if std::arch::is_x86_feature_detected!("avx2") && std::arch::is_x86_feature_detected!("popcnt")
+    {
+        // SAFETY: the CPU has the features the function is compiled for.
+        return unsafe { count_tile_avx2(g, i0, j0) };
+    }
+    count_tile_portable(g, i0, j0)
+}
+
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2,popcnt")]
+unsafe fn count_tile_avx2(g: &BitGenotypes, i0: usize, j0: usize) -> Vec<[u64; 5]> {
+    count_tile_portable(g, i0, j0)
+}
+
+#[inline(always)]
+fn count_tile_portable(g: &BitGenotypes, i0: usize, j0: usize) -> Vec<[u64; 5]> {
+    let n = g.n_samples;
+    let mut acc = vec![[0u64; 5]; TILE * TILE];
+    for lo in (0..g.words).step_by(CHUNK) {
+        let hi = (lo + CHUNK).min(g.words);
+        let part = |s: usize| {
+            let r = s * g.words + lo..s * g.words + hi;
+            (&g.het[r.clone()], &g.hom0[r.clone()], &g.hom2[r])
+        };
+        for i in i0..(i0 + TILE).min(n) {
+            let a = part(i);
+            for j in j0..(j0 + TILE).min(n).min(i) {
+                let b = part(j);
+                let c = counts(a, b);
+                let e = &mut acc[(i - i0) * TILE + (j - j0)];
+                for (x, y) in e.iter_mut().zip(c) {
+                    *x += y;
+                }
+            }
+        }
+    }
+    acc
+}
+
+type Masks<'a> = (&'a [u64], &'a [u64], &'a [u64]);
+
+/// (SNPs called in both, het-het, IBS0, het in i and hom in j, the reverse)
+/// over the words of two samples' (het, hom0, hom2) bit sets.
+#[inline(always)]
+fn counts((het_i, a0, a2): Masks, (het_j, b0, b2): Masks) -> [u64; 5] {
+    // equal lengths up front, so the loop has no bounds checks and vectorizes
+    let n = het_i.len();
+    let (a0, a2, het_j, b0, b2) = (&a0[..n], &a2[..n], &het_j[..n], &b0[..n], &b2[..n]);
     let (mut nsnp, mut hethet, mut ibs0, mut h1, mut h2) = (0u64, 0u64, 0u64, 0u64, 0u64);
-    for w in 0..g.words {
+    for w in 0..n {
         let called_i = het_i[w] | a0[w] | a2[w];
         let called_j = het_j[w] | b0[w] | b2[w];
         let hom_i = a0[w] | a2[w];
@@ -130,6 +222,10 @@ fn king_pair(g: &BitGenotypes, i: usize, j: usize) -> KingPair {
         h1 += (het_i[w] & hom_j).count_ones() as u64;
         h2 += (het_j[w] & hom_i).count_ones() as u64;
     }
+    [nsnp, hethet, ibs0, h1, h2]
+}
+
+fn king_pair(i: usize, j: usize, [nsnp, hethet, ibs0, h1, h2]: [u64; 5]) -> KingPair {
     let min_het = (hethet + h1).min(hethet + h2);
     let kinship = 0.5 - (4 * ibs0 + h1 + h2) as f64 / (4 * min_het) as f64;
     KingPair {
@@ -233,6 +329,60 @@ mod tests {
     fn no_heterozygote_gives_minus_infinity() {
         let g = ndarray::arr2(&[[0u8, 2], [2, 2], [0, 0], [2, 1]]);
         assert_eq!(king_robust(&bits(g))[0].kinship, f64::NEG_INFINITY);
+    }
+
+    #[test]
+    fn counts_match_a_direct_count_over_many_samples_and_snps() {
+        // several tiles of samples and chunks of SNPs, with missing calls
+        let (n_snps, n) = (5_000, 75);
+        let mut state = 99u64;
+        let geno = Array2::from_shape_fn((n_snps, n), |_| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            (state % 4) as u8
+        });
+        let pairs = king_robust(&bits(geno.clone()));
+        assert_eq!(pairs.len(), n * (n - 1) / 2);
+        let mut k = 0;
+        for i in 1..n {
+            for j in 0..i {
+                let p = pairs[k];
+                k += 1;
+                assert_eq!((p.i, p.j), (i, j));
+                let (mut nsnp, mut hethet, mut ibs0, mut h1, mut h2) = (0, 0, 0, 0, 0);
+                for snp in 0..n_snps {
+                    let (a, b) = (geno[[snp, i]], geno[[snp, j]]);
+                    if a > 2 || b > 2 {
+                        continue;
+                    }
+                    nsnp += 1;
+                    hethet += (a == 1 && b == 1) as u64;
+                    ibs0 += (a.abs_diff(b) == 2) as u64;
+                    h1 += (a == 1 && b != 1) as u64;
+                    h2 += (b == 1 && a != 1) as u64;
+                }
+                assert_eq!(
+                    (p.nsnp, p.hethet, p.ibs0, p.het1_hom2, p.het2_hom1),
+                    (nsnp, hethet, ibs0, h1, h2),
+                    "pair ({i}, {j})"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn the_fast_kernel_counts_as_the_portable_one() {
+        let mut state = 7u64;
+        let geno = Array2::from_shape_fn((3_000, 40), |_| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            (state % 4) as u8
+        });
+        let g = bits(geno);
+        assert_eq!(count_tile(&g, 32, 0), count_tile_portable(&g, 32, 0));
+        assert_eq!(count_tile(&g, 32, 32), count_tile_portable(&g, 32, 32));
     }
 
     #[test]
