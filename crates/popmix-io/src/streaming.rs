@@ -250,13 +250,39 @@ impl SnpMajor {
     /// of the first `n_snps_check` SNPs is heterozygous, reading only until
     /// each has shown one. Other samples' ploidy is left as it is.
     pub fn detect_ploidy(&self, samples: &mut [Sample], selected: &[usize], n_snps_check: usize) {
+        // chunks of SNPs in parallel, a round at a time, until every sample
+        // has shown a heterozygous call or the SNPs run out
+        const CHUNK: usize = 1 << 14;
+        let n_check = n_snps_check.min(self.n_snps);
         let mut pending: Vec<usize> = selected.to_vec();
-        for snp in 0..n_snps_check.min(self.n_snps) {
-            if pending.is_empty() {
-                break;
-            }
-            let record = self.record(snp);
-            pending.retain(|&s| self.code(record, s) != 1);
+        let round = CHUNK * rayon::current_num_threads().max(1);
+        let mut start = 0;
+        while start < n_check && !pending.is_empty() {
+            let end = (start + round).min(n_check);
+            let found: Vec<bool> = (start..end)
+                .step_by(CHUNK)
+                .collect::<Vec<_>>()
+                .into_par_iter()
+                .map(|lo| {
+                    let mut found = vec![false; pending.len()];
+                    for snp in lo..(lo + CHUNK).min(end) {
+                        let record = self.record(snp);
+                        for (f, &s) in found.iter_mut().zip(&pending) {
+                            *f |= self.code(record, s) == 1;
+                        }
+                    }
+                    found
+                })
+                .reduce(
+                    || vec![false; pending.len()],
+                    |a, b| a.iter().zip(&b).map(|(x, y)| *x || *y).collect(),
+                );
+            let mut k = 0;
+            pending.retain(|_| {
+                k += 1;
+                !found[k - 1]
+            });
+            start = end;
         }
         for &s in selected {
             samples[s].ploidy = if pending.contains(&s) {
