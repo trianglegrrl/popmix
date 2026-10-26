@@ -20,8 +20,8 @@ popmix sfs --input PREFIX --populations A[,B,...] [--projection N1,N2,...] [--fo
 | `--populations` | text (comma-separated) | required | Populations, one axis of the spectrum each. |
 | `--projection` | text (comma-separated integers) | none (full sample sizes) | Allele counts to project each population down to (one per population), by hypergeometric sampling, as dadi `Spectrum.from_data_dict`. SNPs with fewer observed alleles are left out; without a projection, SNPs with any missing data are left out. Diploid samples carry 2 alleles, pseudo-haploid samples 1. |
 | `--folded` | flag | off | Fold the spectrum (minor-allele counts), as dadi `fold()`. Use it unless the counted allele is the derived one. |
-| `--joint` | flag | off | admixtools2 `joint_sfs()` instead: counts among the observed alleles, no projection, every chromosome; `--projection`, `--folded` and `--all-chromosomes` do not apply. |
-| `--compat` | `admixtools2-2.0.10` | none (corrected) | With `--joint`: reproduce admixtools2 exactly, which drops SNPs whose count is not an exact integer in floating point (ADMIXTOOLS2-0003). |
+| `--joint` | flag | off | admixtools2 `joint_sfs()` instead: counts among the observed alleles, no projection, every chromosome; `--projection` and `--folded` are refused, and `--all-chromosomes` is implied. |
+| `--compat` | `admixtools2-2.0.10` | none (corrected) | Only with `--joint`: reproduce admixtools2 exactly, which drops SNPs whose count is not an exact integer in floating point (ADMIXTOOLS2-0003). |
 | `--all-chromosomes` | flag | off | Use every SNP, not only autosomes (`--joint` always uses every SNP, as admixtools2). |
 | `--output`, `-o` | text (path) | none (stdout) | Write the spectrum table here instead of stdout. |
 

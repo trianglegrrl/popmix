@@ -60,7 +60,7 @@ more drift shared by pop2 and pop3 since they split from pop1.
 ## Caveats
 
 - `--outgroup-mode` and `--no-bias-correction` apply only with `--input`;
-  f3 from `--f2-dir` is never normalized, and the flags are ignored there.
+  f3 from `--f2-dir` is never normalized, and the flags are refused there.
 - A target that is a single pseudo-haploid sample has no bias correction
   (0/0): its f3 is NaN with `n` 0 (admixtools2 returns NA).
 - From f2 blocks the combinations keep their order; admixtools2 sorts them

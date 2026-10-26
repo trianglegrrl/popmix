@@ -541,6 +541,10 @@ def qp3pop(pop1: list, pop2: list, pop3: list, outgroup_mode: bool, no_bias_corr
     From genotypes, f3 is normalized by the target's heterozygosity unless
     --outgroup-mode is given; from f2 blocks it is never normalized.
     """
+    if f2_dir:
+        for flag, given in [("--outgroup-mode", outgroup_mode), ("--no-bias-correction", no_bias_correction)]:
+            if given:
+                raise click.UsageError(f"{flag} applies to genotypes (--input), not to --f2-dir")
     try:
         data = stat_source(input_prefix, f2_dir, pop1 + pop2 + pop3)
         df = pm.qp3pop(data, pop1, pop2 or None, pop3 or None, outgroupmode=outgroup_mode,
@@ -741,6 +745,10 @@ def sfs(input_prefix: str, populations: list, projection: list, folded: bool, jo
 
     import pandas as pd
 
+    for flag, given in [("--projection", joint and projection), ("--folded", joint and folded),
+                        ("--compat", not joint and compat)]:
+        if given:
+            raise click.UsageError(f"{flag} applies {'without' if joint else 'only with'} --joint")
     try:
         validate_populations(input_prefix, populations)
         if joint:
