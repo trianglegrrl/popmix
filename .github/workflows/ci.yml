@@ -1,0 +1,61 @@
+# Tests on every push and pull request: the Rust and Python suites, the
+# golden tests whose reference data ship in the repository, and the small
+# benchmark (benchmarks/smoke.py), whose times go to the job summary.
+#
+# The goldens that need AADR or a reference tool (admixtools2 in R,
+# smartpca, PLINK 2, ...) skip here; they run on a machine that has them
+# (TESTING.md). TASKS.md K1 adds macOS, Windows and aarch64.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Rust format and lints
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --workspace --all-targets -- -D warnings
+      - name: Rust tests
+        run: cargo test --workspace
+
+      - name: Build and install popmix
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install maturin
+          maturin develop --release -m crates/popmix-python/Cargo.toml -E dev,plot
+      - name: Python lints
+        run: |
+          source .venv/bin/activate
+          ruff check python tests benchmarks
+      - name: Python tests
+        run: |
+          source .venv/bin/activate
+          pytest tests/python
+      - name: Golden tests with shipped reference data
+        run: |
+          source .venv/bin/activate
+          pytest tests/golden
+
+      - name: Small benchmark
+        run: |
+          source .venv/bin/activate
+          python benchmarks/smoke.py --repeats 3 --out "$GITHUB_STEP_SUMMARY"

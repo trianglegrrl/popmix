@@ -72,3 +72,14 @@ speed-ups, the agreement of every case and the scaling curves:
 python benchmarks/report_html.py benchmarks/results/<host>-<date>.json \
     --scaling benchmarks/results/scaling-<host>-<date>.json -o report.html
 ```
+
+## In CI
+
+`smoke.py` times popmix's main commands on the small dataset shipped in the
+repository (`tests/golden/dates/family_chr20_22`), with no reference tool;
+the CI workflow (`.github/workflows/ci.yml`) writes its table to the job
+summary, so a change in popmix's times shows from commit to commit:
+
+```bash
+python benchmarks/smoke.py --repeats 3
+```
