@@ -1237,6 +1237,9 @@
      "agreement": {
       "score": 303.298360219762,
       "score_rel": 2.7585981065179454e-12,
+      "seeds": 3,
+      "popmix_spread": 1.1368683772161603e-13,
+      "reference_spread": 0.0,
       "pass": true
      }
     },
@@ -1292,6 +1295,9 @@
      "agreement": {
       "score": 303.298360219762,
       "score_rel": 2.7585981065179454e-12,
+      "seeds": 3,
+      "popmix_spread": 1.1368683772161603e-13,
+      "reference_spread": 0.0,
       "pass": true
      }
     },
@@ -1347,6 +1353,9 @@
      "agreement": {
       "score": 303.298360219762,
       "score_rel": 2.7585981065179454e-12,
+      "seeds": 3,
+      "popmix_spread": 1.1368683772161603e-13,
+      "reference_spread": 0.0,
       "pass": true
      }
     }
@@ -3747,6 +3756,8 @@
       "score": 303.2983602189247,
       "reference_score": 303.29836021976,
       "score_rel": -2.7541000866418556e-12,
+      "seeds": 3,
+      "reference_spread": 8.01492205937393e-12,
       "pass": true
      }
     },
@@ -3804,6 +3815,8 @@
       "score": 303.2983602189247,
       "reference_score": 303.29836021976,
       "score_rel": -2.7541000866418556e-12,
+      "seeds": 3,
+      "reference_spread": 8.01492205937393e-12,
       "pass": true
      }
     },
@@ -3861,6 +3874,8 @@
       "score": 303.2983602189247,
       "reference_score": 303.29836021976,
       "score_rel": -2.7541000866418556e-12,
+      "seeds": 3,
+      "reference_spread": 8.01492205937393e-12,
       "pass": true
      }
     }

@@ -300,8 +300,8 @@ local({
 a <- commandArgs(TRUE)
 edges <-as.matrix(read.table(a[2], col.names = c("from", "to")))
 f2 <- f2_from_geno(a[1], pops = strsplit(a[3], ",")[[1]], verbose = FALSE)
-r <- qpgraph(f2, edges, numstart = 10, seed = 1, verbose = FALSE)
-jsonlite::write_json(list(score = r$score), file.path(a[4], "qpgraph.json"), digits = NA, auto_unbox = TRUE)
+r <- qpgraph(f2, edges, numstart = 10, seed = as.integer(a[4]), verbose = FALSE)
+jsonlite::write_json(list(score = r$score), file.path(a[5], "qpgraph.json"), digits = NA, auto_unbox = TRUE)
 """
 
 
@@ -311,20 +311,38 @@ def _graph_file(o: Path) -> Path:
     return path
 
 
+def _score(name: str) -> Callable[[Path], float]:
+    return lambda d: json.loads((d / name).read_text())["score"]
+
+
+def _popmix_qpgraph(i: Path, o: Path, t: int, seed: int = 1) -> list[str]:
+    return ["sh", "-c", f"popmix --threads {t} qpgraph -i {i} --graph {_graph_file(o)} "
+                        f"--numstart 10 --seed {seed} --format json > {o / 'qpgraph.json'}"]
+
+
+def _ref_qpgraph(i: Path, o: Path, seed: int = 1) -> list[str]:
+    return _r(_R_QPGRAPH, o, str(i), str(_graph_file(o)), ",".join(GRAPH_POPS), str(seed))
+
+
 def _agree_qpgraph(ours: Path, theirs: Path) -> dict:
-    got = json.loads((ours / "qpgraph.json").read_text())["score"]
-    want = json.loads((theirs / "qpgraph.json").read_text())["score"]
+    got, want = _score("qpgraph.json")(ours), _score("qpgraph.json")(theirs)
     rel = abs(got - want) / abs(want)
+    # the best of 10 random starts, by seed: each tool's run-to-run spread
+    mine = [got, *_seed_runs(theirs, "popmix", lambda d, s: _popmix_qpgraph(subset(), d, 4, s),
+                             _score("qpgraph.json")).values()]
+    ref = [want, *_seed_runs(theirs, "admixtools2", lambda d, s: _ref_qpgraph(subset(), d, s),
+                             _score("qpgraph.json")).values()]
     # an optimized score: R's L-BFGS-B stops at factr * epsilon
-    return {"score": want, "score_rel": rel, "pass": rel <= 1e-6}
+    return {"score": want, "score_rel": rel, "seeds": 1 + len(SPREAD_SEEDS),
+            "popmix_spread": max(mine) - min(mine), "reference_spread": max(ref) - min(ref),
+            "pass": rel <= 1e-6}
 
 
 QPGRAPH_CASE = Case(
     name="qpgraph", analysis="qpGraph, 6 populations, 1 admixture, 10 starts",
     reference="admixtools2 2.0.10 qpgraph",
-    popmix=lambda i, o, t: ["sh", "-c", f"popmix --threads {t} qpgraph -i {i} --graph {_graph_file(o)} "
-                                        f"--numstart 10 --seed 1 --format json > {o / 'qpgraph.json'}"],
-    ref=lambda i, o: _r(_R_QPGRAPH, o, str(i), str(_graph_file(o)), ",".join(GRAPH_POPS)),
+    popmix=_popmix_qpgraph,
+    ref=_ref_qpgraph,
     agree=_agree_qpgraph,
 )
 
@@ -408,9 +426,10 @@ def _loglik(log: Path) -> float:
     return float(re.findall(r"^Loglikelihood: (\S+)", log.read_text(), re.M)[-1])
 
 
-def _seed_logliks(theirs: Path, tool: str, cmd: Callable[[Path, int], list[str]]) -> dict[int, float]:
-    """The log-likelihood of each SPREAD_SEEDS run of one tool (run once per
-    benchmark, kept with the reference output)."""
+def _seed_runs(theirs: Path, tool: str, cmd: Callable[[Path, int], list[str]],
+               value: Callable[[Path], float]) -> dict[int, float]:
+    """The result of each SPREAD_SEEDS run of one tool (run once per
+    benchmark, kept with the reference output): the tool's run-to-run spread."""
     cached = theirs / f"seeds-{tool}.json"
     if not cached.exists():
         out = {}
@@ -419,9 +438,13 @@ def _seed_logliks(theirs: Path, tool: str, cmd: Callable[[Path, int], list[str]]
             d.mkdir(exist_ok=True)
             run = subprocess.run(cmd(d, seed), cwd=d, check=True, capture_output=True, text=True)
             (d / "run.log").write_text(run.stdout)
-            out[seed] = _loglik(d / "run.log")
+            out[seed] = value(d)
         cached.write_text(json.dumps(out))
     return {int(k): v for k, v in json.loads(cached.read_text()).items()}
+
+
+def _seed_logliks(theirs: Path, tool: str, cmd: Callable[[Path, int], list[str]]) -> dict[int, float]:
+    return _seed_runs(theirs, tool, cmd, lambda d: _loglik(d / "run.log"))
 
 
 def _agree_admixture(ours: Path, theirs: Path) -> dict:
@@ -937,21 +960,31 @@ local({
 a <- commandArgs(TRUE)
 pops <- strsplit(a[2], ",")[[1]]
 f2 <- f2_from_geno(a[1], pops = pops, verbose = FALSE)
-set.seed(1)
+set.seed(as.integer(a[5]))
 r <- find_graphs(f2, numadmix = as.integer(a[3]), outpop = pops[1], stop_gen = as.integer(a[4]), verbose = FALSE)
-jsonlite::write_json(list(score = min(r$score), graphs = nrow(r)), file.path(a[5], "find_graphs.json"),
+jsonlite::write_json(list(score = min(r$score), graphs = nrow(r)), file.path(a[6], "find_graphs.json"),
                      digits = NA, auto_unbox = TRUE)
 """
 
 
+def _ref_find_graphs(i: Path, o: Path, seed: int = 1) -> list[str]:
+    return _r(_R_FIND_GRAPHS, o, str(i), ",".join(GRAPH_POPS), str(FIND_GRAPHS_ADMIX),
+              str(FIND_GRAPHS_GENERATIONS), str(seed))
+
+
 def _agree_find_graphs(ours: Path, theirs: Path) -> dict:
     got = json.loads((ours / "find_graphs.json").read_text())
-    want = json.loads((theirs / "find_graphs.json").read_text())["score"]
+    want = _score("find_graphs.json")(theirs)
     best = got["graphs"][0]["score"]
+    # the evolutionary search's best by seed; popmix's exhaustive search has
+    # no seed
+    ref = [want, *_seed_runs(theirs, "admixtools2", lambda d, s: _ref_find_graphs(subset(), d, s),
+                             _score("find_graphs.json")).values()]
     # an exhaustive search: its best is at least as good as any graph's,
     # each fit to L-BFGS-B's convergence
     return {"graphs_fitted": got["n_evaluated"], "score": best, "reference_score": want,
-            "score_rel": (best - want) / abs(want), "pass": best <= want * (1 + 1e-6)}
+            "score_rel": (best - want) / abs(want), "seeds": 1 + len(SPREAD_SEEDS),
+            "reference_spread": max(ref) - min(ref), "pass": best <= want * (1 + 1e-6)}
 
 
 FIND_GRAPHS_CASE = Case(
@@ -963,8 +996,7 @@ FIND_GRAPHS_CASE = Case(
                                         f"{','.join(GRAPH_POPS)} --nadmix {FIND_GRAPHS_ADMIX} --outgroup "
                                         f"{GRAPH_POPS[0]} --method exhaustive --top 1 --format json "
                                         f"> {o / 'find_graphs.json'}"],
-    ref=lambda i, o: _r(_R_FIND_GRAPHS, o, str(i), ",".join(GRAPH_POPS), str(FIND_GRAPHS_ADMIX),
-                        str(FIND_GRAPHS_GENERATIONS)),
+    ref=_ref_find_graphs,
     agree=_agree_find_graphs,
 )
 
