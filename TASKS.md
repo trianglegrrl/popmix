@@ -90,12 +90,12 @@ from the code, not yet shown.
   allele treated as mismatch, so a single new pseudohaploid sample gives
   "No overlapping SNPs"; duplicate (chr, pos) in file B overwrite each other
   (`merge.rs:125-128`). PG [reviewer-verified; duplicates suspected]
-- [ ] **A11. qpWave rank when every test is rejected:** `qpwave.rs:113`
+- [x] **A11. qpWave rank when every test is rejected:** `qpwave.rs:113`
   falls back to the highest rank tested (`unwrap_or(max_rank)`), so with
   every rank rejected it reports one rank too few: `--left French_1,French_2`
   says rank 0 though rank 0 has p = 0.039. All rejected means rank above
   `max_rank`; report `max_rank + 1`. Check qpAdm's feasibility uses the same.
-- [ ] **A12. `extract-f2 --snp-range` without `--populations`** finds 0
+- [x] **A12. `extract-f2 --snp-range` without `--populations`** finds 0
   populations, writes an empty f2 directory and exits 0; with
   `--snp-range`, `--maxmiss`, `--auto-only` and `--pseudohaploid` are
   ignored. Error out, or honour them.
@@ -355,13 +355,29 @@ thread count.
 - [ ] **F13. Readers usable across threads:** map in `new()`, read via
   `&self` (`plink.rs:128`, `packedancestrymap.rs:143`), with `// SAFETY:`
   comments on the two `Mmap::map` calls. RS
-- [ ] **F14. KING kinship speed:** popmix 3.9 s against PLINK 2's 0.84 s (16
+- [ ] **F14. KING kinship speed:** popmix 3.9 s against PLINK 2's 1.2 s (16
   threads) for 220 samples x 1.2M SNPs in the E benchmark; packed popcount
-  kernels as plink2 uses (F11).
+  kernels as plink2 uses (F11). At 3,970 samples 547 s and 7.4 GB against
+  PLINK 2's 201 s. Threads, as in PCA (F17): at 2,000 samples 215 s on 1
+  thread, 131 s on 4, 158 s on 16, CPU time 216 s to 1,527 s.
 - [ ] **F15. CLI startup:** `import popmix` loads pandas eagerly (through
   `popmix.admixture`), about a second on every command; import it lazily.
-- [ ] **F16. ADMIXTURE speed:** popmix 43.7 s against ADMIXTURE's 29 s in
+- [ ] **F16. ADMIXTURE speed:** popmix 19.3 s against ADMIXTURE's 13.9 s in
   the E benchmark.
+- [ ] **F17. PCA cost grows with the square of the samples:** in the sample
+  scaling curve popmix takes about 4x per doubling (5.8 s at 250 samples,
+  62.7 s at 1,000, 225 s at 2,000, 1,079 s at 3,970) and smartpca about 2x
+  (63, 174, 406, 1,385 s); at 2,000 samples popmix uses 2.3x smartpca's CPU
+  time. Threads do not help either: at 2,000 samples popmix takes 362 s on 1
+  thread, 223 s on 4 and 286 s on 16, while its CPU time grows from 363 s to
+  3,029 s, so the extra threads spin or contend instead of working. Profile
+  the PCA path (the samples x samples product, its eigensolver, the parallel
+  split), and make it scale like smartpca's with samples and threads.
+- [ ] **F18. `extract_f2` runs on one core:** 128 populations take 16 s at
+  every thread count from 1 to 16, CPU time equal to wall time. Parallelize
+  the per-SNP frequencies and the per-block pair sums (populations x
+  populations x blocks), which dominate past 64 populations: 51.6 s and
+  6.9 GB at 497.
 
 ## G. Scientific guardrails and honest reporting (P1)
 
