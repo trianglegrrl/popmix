@@ -555,11 +555,13 @@ thread count.
   all references and record the dataset checksums
   (`CHECKSUMS.normalized.md5`).
   *References regenerated (tests/golden/aadr/build_aadr_v66p1.py builds the
-  labelled dataset). Open: three live checks fail on v66.p1 data and are
+  labelled dataset). Open: four live checks fail on v66.p1 data and are
   not papered over: DATES `aadr_french_q10-default_result` (DATES-0003
   moves the jackknife by 0.16, beyond the check's bound),
-  `ancient_5pop-qpgraph_fit` (L-BFGS-B ends 1.9e-6 above admixtools2), and
-  two 2-admixture graphs at admixtools2's weights (1.6e-10 apart).*
+  `ancient_5pop-qpgraph_fit` (L-BFGS-B ends 1.9e-6 above admixtools2),
+  two 2-admixture graphs at admixtools2's weights (1.6e-10 apart), and
+  ROLLOFF `aadr_asw` (decay 1.3e-5 and jackknife 6.4e-5 from nls's, with
+  an equal squared error).*
 - [x] **O5. Update CLAUDE.md, README, TESTING.md and generator defaults** to
   v66.p1 paths; keep v62.0 only where a test pins a specific old result.
 - [x] **O6. Data ethics check in CI:** *Done in 803ae88.* a test that fails if any individual or
