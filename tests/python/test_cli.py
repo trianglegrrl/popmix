@@ -745,3 +745,43 @@ def test_closed_stdout_exits_quietly():
     err = proc.stderr.read().decode()
     assert proc.wait(timeout=60) == 141
     assert err == ""
+
+
+@pytest.mark.parametrize("fmt", ["eigenstrat", "packedancestrymap", "plink", "ped", "tgeno"])
+def test_sex_survives_convertf_and_merge(tmp_path, fmt):
+    """The .ind's M/F/U reach every output format and a merge (B16)."""
+    src = tmp_path / "src"
+    other = tmp_path / "other"
+    for prefix, rows in [(src, ["A1 M PopA", "A2 F PopA", "A3 U PopB"]), (other, ["B1 F PopC"])]:
+        Path(f"{prefix}.ind").write_text("".join(f"{r}\n" for r in rows))
+        Path(f"{prefix}.snp").write_text("rs1 1 0.01 100 G A\nrs2 1 0.02 200 T C\n")
+        Path(f"{prefix}.geno").write_text("".join(f"{g * len(rows)}\n" for g in "01"))
+    conv, merged, back = tmp_path / "conv", tmp_path / "merged", tmp_path / "back"
+    run_cli("convertf", "-i", str(src), "-o", str(conv), "-of", fmt)
+    run_cli("merge", "-a", str(conv), "-b", str(other), "-o", str(merged), "-of", fmt)
+    run_cli("convertf", "-i", str(merged), "-o", str(back), "-of", "eigenstrat")
+    sexes = {line.split()[0]: line.split()[1] for line in Path(f"{back}.ind").read_text().splitlines()}
+    assert sexes == {"A1": "M", "A2": "F", "A3": "U", "B1": "F"}
+
+
+@pytest.mark.parametrize("args, flag", [
+    (["qp3pop", "--pop1", "PopA", "--pop2", "PopB", "--pop3", "PopC", "--outgroup-mode"], "--outgroup-mode"),
+    (["qp3pop", "--pop1", "PopA", "--pop2", "PopB", "--pop3", "PopC", "--no-bias-correction"],
+     "--no-bias-correction"),
+])
+def test_qp3pop_refuses_genotype_options_with_f2_dir(tmp_path, args, flag):
+    """With --f2-dir these options have nothing to act on (B14)."""
+    r = run_cli(*args, "--f2-dir", str(tmp_path), check=False)
+    assert r.returncode == 2
+    assert flag in r.stderr and "--f2-dir" in r.stderr
+
+
+@pytest.mark.parametrize("args, flag", [
+    (["--joint", "--projection", "2"], "--projection"),
+    (["--joint", "--folded"], "--folded"),
+    (["--compat", "admixtools2-2.0.10"], "--compat"),
+])
+def test_sfs_refuses_options_of_the_other_spectrum(args, flag):
+    r = run_cli("sfs", "-i", "tests/fixtures/small_eigenstrat", "--populations", "PopA", *args, check=False)
+    assert r.returncode == 2
+    assert flag in r.stderr
