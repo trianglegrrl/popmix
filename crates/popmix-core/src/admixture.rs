@@ -120,6 +120,23 @@ fn normalize_q(q: &mut [f64], k: usize) {
     }
 }
 
+/// Relative rounding error of a log-likelihood summed over many genotypes:
+/// a change smaller than this fraction of it is noise.
+const ROUNDING: f64 = 1e-13;
+
+/// The increase of the quadratic model g's - 1/2 s'As (A the negated
+/// Hessian, K x K row-major) for the step s.
+fn predicted_gain(a: &[f64], g: &[f64], s: &[f64]) -> f64 {
+    let k = g.len();
+    let mut quad = 0.0;
+    for t in 0..k {
+        for u in 0..k {
+            quad += s[t] * a[t * k + u] * s[u];
+        }
+    }
+    g.iter().zip(s).map(|(x, y)| x * y).sum::<f64>() - 0.5 * quad
+}
+
 /// SNPs per parallel chunk. Fixed, and partial sums are added in order, so
 /// results do not depend on the number of threads.
 const CHUNK: usize = 256;
@@ -352,6 +369,35 @@ fn q_terms(
     out
 }
 
+/// The log-likelihood contributions of `samples` at (q, p), summed as
+/// [`q_terms`] sums them, so each equals its entry there.
+fn sample_ll(d: &Data, q: &[f64], p: &[f64], k: usize, samples: &[usize]) -> Vec<f64> {
+    let m = d.geno.n_snps();
+    let chunk = 4 * CHUNK;
+    let parts: Vec<Vec<f64>> = (0..m.div_ceil(chunk))
+        .into_par_iter()
+        .map(|c| {
+            let mut ll = vec![0.0; samples.len()];
+            for j in c * chunk..((c + 1) * chunk).min(m) {
+                let pj = &p[j * k..(j + 1) * k];
+                for (l, &i) in ll.iter_mut().zip(samples) {
+                    let Some(h) = d.h(j, i) else { continue };
+                    let qi = &q[i * k..(i + 1) * k];
+                    let a: f64 = qi.iter().zip(pj).map(|(x, y)| x * y).sum();
+                    let b: f64 = qi.iter().zip(pj).map(|(x, y)| x * (1.0 - y)).sum();
+                    *l += h * a.ln() + (2.0 - h) * b.ln();
+                }
+            }
+            ll
+        })
+        .collect();
+    let mut out = vec![0.0; samples.len()];
+    for part in parts {
+        out.iter_mut().zip(&part).for_each(|(a, b)| *a += b);
+    }
+    out
+}
+
 /// One Newton step on every sample's Q with P fixed, each within the
 /// simplex and bounds, halved until that sample's log-likelihood does not
 /// decrease.
@@ -379,7 +425,18 @@ fn q_newton(d: &Data, q: &[f64], p: &[f64], k: usize, fixed_q: &[bool]) -> Vec<f
         })
         .collect();
     let mut out = q.to_vec();
-    let mut pending: Vec<usize> = (0..n).filter(|&i| !fixed_q[i]).collect();
+    // a step predicted to gain less than the rounding error of the sample's
+    // log-likelihood cannot be told from no step: keep its Q
+    let (mut pending, mut kept): (Vec<usize>, Vec<usize>) =
+        (0..n).filter(|&i| !fixed_q[i]).partition(|&i| {
+            let r = i * k..(i + 1) * k;
+            let gain = predicted_gain(
+                &hess[i * k * k..(i + 1) * k * k],
+                &grad[r.clone()],
+                &step[r],
+            );
+            gain > ROUNDING * ll0[i].abs()
+        });
     for _ in 0..30 {
         if pending.is_empty() {
             break;
@@ -390,21 +447,28 @@ fn q_newton(d: &Data, q: &[f64], p: &[f64], k: usize, fixed_q: &[bool]) -> Vec<f
             }
         }
         normalize_q(&mut out, k);
-        let (ll1, _, _) = q_terms(d, &out, p, k, false);
-        pending.retain(|&i| ll1[i] < ll0[i]);
+        // only the samples still pending: the others are settled
+        let ll1 = sample_ll(d, &out, p, k, &pending);
+        let mut r = 0;
+        pending.retain(|&i| {
+            r += 1;
+            ll1[r - 1] < ll0[i]
+        });
         for &i in &pending {
             step[i * k..(i + 1) * k].iter_mut().for_each(|x| *x *= 0.5);
         }
     }
-    for &i in &pending {
+    kept.append(&mut pending);
+    for &i in &kept {
         out[i * k..(i + 1) * k].copy_from_slice(&q[i * k..(i + 1) * k]);
     }
     out
 }
 
 /// One Newton step on every SNP's P with Q fixed, within the bounds, halved
-/// until that SNP's log-likelihood does not decrease.
-fn p_newton(d: &Data, q: &[f64], p: &[f64], k: usize) -> Vec<f64> {
+/// until that SNP's log-likelihood does not decrease; with the
+/// log-likelihood at the new P, summed SNP by SNP in order.
+fn p_newton(d: &Data, q: &[f64], p: &[f64], k: usize) -> (Vec<f64>, f64) {
     let n = d.geno.n_samples();
     let m = d.geno.n_snps();
     let snp_ll = |j: usize, pj: &[f64]| -> f64 {
@@ -418,9 +482,9 @@ fn p_newton(d: &Data, q: &[f64], p: &[f64], k: usize) -> Vec<f64> {
             })
             .sum()
     };
-    (0..m)
+    let per_snp: Vec<(Vec<f64>, f64)> = (0..m)
         .into_par_iter()
-        .flat_map_iter(|j| {
+        .map(|j| {
             let pj = &p[j * k..(j + 1) * k];
             let mut g = vec![0.0; k];
             let mut a = vec![0.0; k * k];
@@ -443,7 +507,7 @@ fn p_newton(d: &Data, q: &[f64], p: &[f64], k: usize) -> Vec<f64> {
                 }
             }
             if !any {
-                return pj.to_vec();
+                return (pj.to_vec(), 0.0);
             }
             // a tiny ridge keeps the system positive definite where some
             // population has no weight at this SNP
@@ -453,20 +517,27 @@ fn p_newton(d: &Data, q: &[f64], p: &[f64], k: usize) -> Vec<f64> {
             let lo: Vec<f64> = pj.iter().map(|x| BOUND - x).collect();
             let hi: Vec<f64> = pj.iter().map(|x| 1.0 - BOUND - x).collect();
             let mut step = box_qp(&a, &g, &lo, &hi);
+            if predicted_gain(&a, &g, &step) <= ROUNDING * ll0.abs() {
+                return (pj.to_vec(), ll0);
+            }
             for _ in 0..30 {
                 let cand: Vec<f64> = pj.iter().zip(&step).map(|(x, s)| clamp(x + s)).collect();
-                if snp_ll(j, &cand) >= ll0 {
-                    return cand;
+                let ll = snp_ll(j, &cand);
+                if ll >= ll0 {
+                    return (cand, ll);
                 }
                 step.iter_mut().for_each(|x| *x *= 0.5);
             }
-            pj.to_vec()
+            (pj.to_vec(), ll0)
         })
-        .collect()
+        .collect();
+    let ll = per_snp.iter().map(|x| x.1).sum();
+    (per_snp.into_iter().flat_map(|x| x.0).collect(), ll)
 }
 
 /// One block-relaxation iteration (ADMIXTURE's method): a Newton step on Q
-/// with P fixed, then on P with the new Q fixed.
+/// with P fixed, then on P with the new Q fixed; with the log-likelihood
+/// there.
 fn block_step(
     d: &Data,
     q: &[f64],
@@ -474,14 +545,15 @@ fn block_step(
     k: usize,
     mode: Mode,
     fixed_q: &[bool],
-) -> (Vec<f64>, Vec<f64>) {
+) -> (Vec<f64>, Vec<f64>, f64) {
     let q1 = q_newton(d, q, p, k, fixed_q);
-    let p1 = if mode == Mode::FixedP {
-        p.to_vec()
+    if mode == Mode::FixedP {
+        let ll = loglik(d, &q1, p, k);
+        (q1, p.to_vec(), ll)
     } else {
-        p_newton(d, &q1, p, k)
-    };
-    (q1, p1)
+        let (p1, ll) = p_newton(d, &q1, p, k);
+        (q1, p1, ll)
+    }
 }
 
 /// Block relaxation from (q, p), accelerated with SQUAREM, until the
@@ -509,8 +581,8 @@ fn fit(
     };
     while iterations < options.max_iterations {
         iterations += 1;
-        let (q1, p1) = block_step(d, &q, &p, k, mode, fixed_q);
-        let (q2, p2) = block_step(d, &q1, &p1, k, mode, fixed_q);
+        let (q1, p1, _) = block_step(d, &q, &p, k, mode, fixed_q);
+        let (q2, p2, l2) = block_step(d, &q1, &p1, k, mode, fixed_q);
         // r = theta1 - theta0, v = theta2 - 2 theta1 + theta0
         let diff = |a: &[f64], b: &[f64]| a.iter().zip(b).map(|(x, y)| x - y).collect::<Vec<f64>>();
         let (rq, rp) = (diff(&q1, &q), diff(&p1, &p));
@@ -541,11 +613,9 @@ fn fit(
             let (mut qa, mut pa) = (step(&q, &rq, &vq), step(&p, &rp, &vp));
             fix(&mut qa, &mut pa, &q);
             // a stabilizing step from the extrapolated point
-            let (qs, ps) = block_step(d, &qa, &pa, k, mode, fixed_q);
-            let ls = loglik(d, &qs, &ps, k);
+            let (qs, ps, ls) = block_step(d, &qa, &pa, k, mode, fixed_q);
             candidate = Some((qs, ps, ls));
         }
-        let l2 = loglik(d, &q2, &p2, k);
         let (qn, pn, ln) = match candidate {
             Some((qs, ps, ls)) if ls.is_finite() && ls >= l2 => (qs, ps, ls),
             _ => (q2, p2, l2),
@@ -556,7 +626,7 @@ fn fit(
         ll = ln;
         // below 1e-13 of the log-likelihood, changes are rounding noise in
         // its sum over millions of genotypes
-        if gain.abs() < options.tolerance.max(1e-13 * ll.abs()) {
+        if gain.abs() < options.tolerance.max(ROUNDING * ll.abs()) {
             converged = true;
             break;
         }
@@ -853,6 +923,20 @@ mod tests {
         assert!((again - fit.loglik).abs() < 1e-9 * fit.loglik.abs());
         let (q0, p0) = random_start(6, 500, 2, 1);
         assert!(admixture_loglik(&g, &q0, &p0, 2).unwrap() < fit.loglik);
+    }
+
+    #[test]
+    fn the_terms_of_some_samples_are_their_terms_among_all() {
+        let qs = [1.0, 0.0, 0.5, 0.3, 0.9, 0.1, 0.2, 0.6];
+        let (g, _) = simulated(&qs, 3_000);
+        let (q, p) = random_start(8, 3_000, 2, 3);
+        let d = Data {
+            geno: &g,
+            held_out: None,
+        };
+        let (all, _, _) = q_terms(&d, &q, &p, 2, false);
+        let some = sample_ll(&d, &q, &p, 2, &[6, 1, 3]);
+        assert_eq!(some, vec![all[6], all[1], all[3]]);
     }
 
     #[test]
