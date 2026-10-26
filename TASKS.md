@@ -152,7 +152,7 @@ from the code, not yet shown.
   and `--no-bias-correction` with `--f2-dir`; `sfs --joint` with
   `--projection`, `--folded`, `--all-chromosomes`. Error out when they
   cannot apply.
-- [ ] **B15. Broken pipe:** `popmix kinship ... | head` prints
+- [x] **B15. Broken pipe:** `popmix kinship ... | head` prints
   `Error: [Errno 32] Broken pipe` and exits 120; exit quietly.
 - [ ] **B16. Sex lost on conversion:** `convertf` to PLINK writes sex 0 and
   `merge` writes `U` for every sample although the `.ind` has M/F.

@@ -735,3 +735,13 @@ class TestFindGraphsCommand:
                          "--outgroup", "Mbuti", "--all-chromosomes", check=False)
         assert result.returncode != 0
         assert "outgroup" in result.stderr.lower()
+
+
+def test_closed_stdout_exits_quietly():
+    """`popmix ... | head` closing the pipe early: no error message, the shell's SIGPIPE status (B15)."""
+    proc = subprocess.Popen(["popmix", "populations", "tests/fixtures/small_eigenstrat"],
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc.stdout.close()  # before popmix has started writing
+    err = proc.stderr.read().decode()
+    assert proc.wait(timeout=60) == 141
+    assert err == ""
