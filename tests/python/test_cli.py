@@ -314,7 +314,10 @@ class TestF2Source:
         args = ["f3", "--target", "Simulation", "--source1", "French", "--source2", "Yoruba", "--format", "json"]
         from_dir = json.loads(run_cli(*args, "--f2-dir", str(out)).stdout)
         from_geno = json.loads(run_cli(*args, "--input", SMALL_PREFIX, "--all-chromosomes").stdout)
-        assert from_dir == from_geno
+        # f2 block sums are matrix products, so the two routes agree to rounding
+        assert from_dir.keys() == from_geno.keys()
+        for key, value in from_dir.items():
+            assert value == pytest.approx(from_geno[key], rel=1e-12), key
 
     @small_data
     def test_extract_f2_defaults_to_every_population(self, tmp_path):

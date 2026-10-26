@@ -45,7 +45,11 @@ def test_a_one_sample_population_matches_across_formats(tmp_path):
     """Simulation is a single sample, where the per-population bias correction matters most."""
     original = pm.extract_f2(SMALL, POPS)
     text = pm.extract_f2(_convert(tmp_path, "eigenstrat"), POPS)
-    assert text.f2("Simulation", "French") == original.f2("Simulation", "French")
+    # f2 block sums are matrix products: the formats agree to rounding
+    got, want = text.f2("Simulation", "French"), original.f2("Simulation", "French")
+    assert got.keys() == want.keys()
+    for key in want:
+        assert got[key] == pytest.approx(want[key], rel=1e-12), key
 
 
 def test_statistic_dicts_have_a_fixed_key_order():
