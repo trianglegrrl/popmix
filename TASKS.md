@@ -532,22 +532,27 @@ thread count.
 
 ## N. Agent skill for popmix (P1)
 
-- [ ] **N1. Skill layout with progressive disclosure:** `skills/popmix/SKILL.md`
+- [x] **N1. Skill layout with progressive disclosure:** `skills/popmix/SKILL.md`
   (what popmix does, when to use which command, input formats, an index of
   commands) plus one file per CLI command, `skills/popmix/commands/<command>.md`
   (subcommands get their own files), each complete: synopsis, every
   argument and option with type, default and meaning, input and output
   files, worked examples on real data, how to read the result, caveats, and
-  the reference tool and function it corresponds to.
-- [ ] **N2. 1:1 mapping enforced by a test:** walk the Click command tree;
+  the reference tool and function it corresponds to. *Done in d2a252a, at
+  `python/popmix/skill/` (package data, the one copy) rather than
+  `skills/`.*
+- [x] **N2. 1:1 mapping enforced by a test:** walk the Click command tree;
   every command has exactly one doc file and every doc file one command;
   every option and argument of the command appears in its file with the
-  right default; fails when the CLI and the skill drift.
-- [ ] **N3. Examples that run:** the examples in each command file execute in
-  the test suite (small bundled data), so they cannot go stale.
-- [ ] **N4. Ship it:** include the skill in the package (installed with
+  right default; fails when the CLI and the skill drift. *Done in d2a252a
+  (`tests/python/test_skill.py`).*
+- [x] **N3. Examples that run:** the examples in each command file execute in
+  the test suite (small bundled data), so they cannot go stale. *Done in
+  d2a252a (`# runs` blocks; AADR examples are `# not run: ...`).*
+- [x] **N4. Ship it:** include the skill in the package (installed with
   popmix) with a command or documented step to install it for Claude
-  Code (`~/.claude/skills/popmix`); version it with popmix.
+  Code (`~/.claude/skills/popmix`); version it with popmix. *Done in
+  d2a252a (`popmix install-skill`; SKILL.md states the version, tested).*
 
 ## O. AADR v66.p1 as the reference dataset (P0)
 
