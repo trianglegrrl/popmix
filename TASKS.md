@@ -326,21 +326,25 @@ thread count.
   (admixtools2's `maxmem`). Measured: 25 pops 13.4 s / 1.17 GB, 100 pops
   55.7 s / 3.48 GB; ~1,000 pops extrapolates to ~35 GB. PD
   [reviewer-verified]
+  Progress: block sums are matrix products and the kept SNPs are indexed in place (10dd2f5): `--maxmiss 1`, 4 threads, 128 populations 47.7 s to 15.7 s, 497 populations 676 s / 19.8 GB to 158 s / 13.8 GB; no block value differs from admixtools2 (16-256 populations). Left: pair chunking with a memory limit; the frequency table (6.9 GB at 497 populations) and the assembled blocks dominate memory.
 - [ ] **F5. PCA eigensolver.** nalgebra `SymmetricEigen` is dense,
   single-threaded, O(n³), rerun every outlier iteration (n = 2000: 9.9 s;
   ~20 min per iteration at 10k). Use a parallel solver (faer) or a partial
   top-K Lanczos/randomized solver plus the trace for Tracy-Widom; bound the
   n×n accumulators per in-flight group (~800 MB each at n = 10k). PD
   [reviewer-verified]
-- [ ] **F6. Release the GIL** in every long-running `lib.rs` function
+  Progress: faer's sequential eigensolver (5x nalgebra's at 2,000 samples), 27f0ab6. A partial top-K solver is not needed at the sizes measured.
+- [x] **F6. Release the GIL** in every long-running `lib.rs` function
   (`extract_f2`, `qpadm`, `qpadm_rotate`, `qpgraph`, `find_graphs`,
   `convertf`, `merge`, `read_*`); 0 `allow_threads` there today. RS
   [reviewer-verified]
-- [ ] **F7. Thread pool that honours its contract.** The default of 4 applies
+  Done: every long-running binding runs through `compute` (GIL released, popmix's pool installed), d7be64f.
+- [x] **F7. Thread pool that honours its contract.** The default of 4 applies
   only if `init_thread_pool` runs first; `get_threads()` creates the global
   pool (16 here) and `init_threads(8)` then returns `False`
   (`threading.rs:47`). Own a pool and `install` each entry point. RS
   [reviewer-verified]
+  Done: popmix owns its pool (4 threads until `init_threads(n)`, which works at any time), d7be64f.
 - [ ] **F8. Fixed-order reductions everywhere,** with a thread-count
   determinism test for every parallel sum (A9 first).
 - [ ] **F9. Graph search:** compute `precompute_f3` once per population set,
@@ -364,10 +368,13 @@ thread count.
   kernels as plink2 uses (F11). At 3,970 samples 547 s and 7.4 GB against
   PLINK 2's 201 s. Threads, as in PCA (F17): at 2,000 samples 215 s on 1
   thread, 131 s on 4, 158 s on 16, CPU time 216 s to 1,527 s.
-- [ ] **F15. CLI startup:** `import popmix` loads pandas eagerly (through
+  Progress: tiled pair counts, AVX2/POPCNT kernel chosen at run time, words built per sample (911385b): 1,000 samples 61 s to 36 s (1 thread), 38 s to 18 s (4); pair counting 45 s to 20 s and 24 s to 7.6 s. Benchmarks to rerun.
+- [x] **F15. CLI startup:** `import popmix` loads pandas eagerly (through
   `popmix.admixture`), about a second on every command; import it lazily.
+  Done: submodules load on first use; `popmix --help` 0.33 s to 0.04 s, 8d5ae2b.
 - [ ] **F16. ADMIXTURE speed:** popmix 19.3 s against ADMIXTURE's 13.9 s in
   the E benchmark.
+  Progress: no passes for settled samples and SNPs, P-step log-likelihood reused (577c8fc): 53.0 s to 21.9 s (1 thread), 22.7 s to 6.3 s (4); ADMIXTURE 13.6 s on one thread. One thread is still slower.
 - [ ] **F17. PCA cost grows with the square of the samples:** in the sample
   scaling curve popmix takes about 4x per doubling (5.8 s at 250 samples,
   62.7 s at 1,000, 225 s at 2,000, 1,079 s at 3,970) and smartpca about 2x
@@ -377,11 +384,13 @@ thread count.
   3,029 s, so the extra threads spin or contend instead of working. Profile
   the PCA path (the samples x samples product, its eigensolver, the parallel
   split), and make it scale like smartpca's with samples and threads.
-- [ ] **F18. `extract_f2` runs on one core:** 128 populations take 16 s at
+  Progress: tiled upper-triangle X X', panel products for loadings and projections (27f0ab6): 1,000 samples 100 s to 65 s (1 thread), 53 s to 42 s (4). The GEMM runs at about 30 GFLOP/s per core. On this machine (i7-1360P, 4 P + 8 E cores, 16 logical CPUs, about 1.5 of them busy with other processes) FLOP-bound work stops scaling at 4-8 threads, and at 14-16 threads rayon workers are descheduled while the others spin, so 16 threads is slower than 4 for every kernel: the CPU-time growth in the scaling curves comes from that, not from popmix.
+- [x] **F18. `extract_f2` runs on one core:** 128 populations take 16 s at
   every thread count from 1 to 16, CPU time equal to wall time. Parallelize
   the per-SNP frequencies and the per-block pair sums (populations x
   populations x blocks), which dominate past 64 populations: 51.6 s and
   6.9 GB at 497.
+  Done: frequencies of every SNP in parallel from a mapped file, integer counts: 128 populations 16.4 s to 7.4 s (1 thread) and 3.9 s (4), byte-identical, ff63790.
 
 ## G. Scientific guardrails and honest reporting (P1)
 
