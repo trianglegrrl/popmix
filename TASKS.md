@@ -261,12 +261,13 @@ Tasks:
 - [x] **E2. Agreement in the same run.** *Done in 05bb262.* Max absolute and relative difference
   of every output against the reference, pass/fail at the CLAUDE.md
   tolerances.
-- [ ] **E3. Variation.** popmix across repeats and thread counts (1, 2, 4, 8,
+- [x] **E3. Variation.** popmix across repeats and thread counts (1, 2, 4, 8,
   all), expected bit-identical; the reference tools' own run-to-run spread
   where they are stochastic (ADMIXTURE seeds, qpGraph starts, find_graphs).
   (popmix across 1/4/16 threads: done in 05bb262, identical in every case;
-  the stochastic tools' spread remains, with their cases. ADMIXTURE: both
-  tools' log-likelihood spread over seeds 1-3 is in its agreement.)
+  ADMIXTURE, qpGraph and find_graphs: each tool's spread over seeds 1-3 is
+  in its case's agreement; qpGraph's best of 10 starts spreads by 1e-13
+  (popmix) and 0 (admixtools2), find_graphs' evolutionary search by 8e-12.)
 - [x] **E4. Coverage.** *Done: cases in `benchmarks/cases.py`.* admixtools2 (extract_f2, f2/f3/f4/qpdstat, qpadm,
   qpadm rotation, qpgraph, find_graphs, resampling), classic ADMIXTOOLS
   (qpDstat, qp3Pop, qpAdm, qpGraph), smartpca, ADMIXTURE, DATES, ROLLOFF,
