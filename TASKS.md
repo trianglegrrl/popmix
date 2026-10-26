@@ -296,10 +296,12 @@ Tasks:
 - [x] **E5. Scaling curves** in SNPs, samples, populations and threads, up to
   full AADR v66.p1 (23,089 samples × 1.23M SNPs). *Done: `benchmarks/scaling.py`,
   results in 5c1c90c; the findings are F14, F17 and F18.*
-- [ ] **E6. Report.** Results as JSON in the repo with tool versions and
+- [x] **E6. Report.** Results as JSON in the repo with tool versions and
   machine details; a script renders tables and charts to an HTML page
   (published as an artifact) and a summary in README. A small-data subset
-  runs in CI so regressions show up.
+  runs in CI so regressions show up. *Done: report_html.py, README
+  (1919738), ci.yml with benchmarks/smoke.py; the workflow has not yet run
+  on GitHub.*
 
 ## F. Performance and scalability (requirement)
 
