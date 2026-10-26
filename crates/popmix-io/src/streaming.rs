@@ -57,7 +57,7 @@ fn record_length(geno_path: &str, n_samples: usize, n_snps: usize) -> Result<usi
 /// Compute allele frequencies by streaming through a PACKEDANCESTRYMAP file.
 ///
 /// This maps the file and computes each SNP's allele frequencies, the SNPs in
-/// parallel, without loading the full genotype matrix. This matches admixtools2's approach.
+/// parallel, without loading the full genotype matrix ([`SnpMajor`]). This matches admixtools2's approach.
 ///
 /// # Arguments
 /// * `geno_path` - Path to the .geno file
@@ -75,97 +75,8 @@ pub fn compute_allele_frequencies_packedancestrymap(
     populations: &[&str],
     auto_only: bool,
 ) -> Result<AlleleFrequencies> {
-    let n_samples = samples.len();
-    let n_snps_total = snps.len();
-    let n_pops = populations.len();
-
-    // Filter SNPs if auto_only is set
-    let (snp_indices, filtered_snps): (Vec<usize>, Vec<Snp>) = if auto_only {
-        snps.iter()
-            .enumerate()
-            .filter(|(_, snp)| snp.is_autosomal())
-            .map(|(idx, snp)| (idx, snp.clone()))
-            .unzip()
-    } else {
-        snps.iter()
-            .enumerate()
-            .map(|(idx, snp)| (idx, snp.clone()))
-            .unzip()
-    };
-
-    let n_snps_filtered = filtered_snps.len();
-
-    // Build population -> (column index, sample indices with ploidy) mapping
-    let mut pop_to_col: HashMap<&str, usize> = HashMap::new();
-    let mut pop_sample_info: Vec<Vec<(usize, u32)>> = vec![Vec::new(); n_pops];
-
-    for (col_idx, &pop_name) in populations.iter().enumerate() {
-        pop_to_col.insert(pop_name, col_idx);
-    }
-
-    for (sample_idx, sample) in samples.iter().enumerate() {
-        let pop_name = sample.population.as_str();
-        if let Some(&col_idx) = pop_to_col.get(pop_name) {
-            let ploidy = sample.ploidy.effective_ploidy() as u32;
-            pop_sample_info[col_idx].push((sample_idx, ploidy));
-        }
-    }
-
-    let bytes_per_snp = record_length(geno_path, n_samples, n_snps_total)?;
-    let file = File::open(geno_path).map_err(|e| PopmixError::io_with_path(e, geno_path))?;
-    // SAFETY: the map is only read; like every reader of these files,
-    // popmix assumes no other process truncates the file while it is open.
-    let mmap = unsafe { Mmap::map(&file) }.map_err(|e| PopmixError::io_with_path(e, geno_path))?;
-    if mmap.len() < 4 || &mmap[..4] != b"GENO" {
-        return Err(PopmixError::InvalidFileFormat {
-            file: geno_path.to_string(),
-            details: "Expected PACKEDANCESTRYMAP format".to_string(),
-        });
-    }
-    // record_length checked that the file holds the header and every SNP
-    let records = &mmap[bytes_per_snp..];
-
-    // Each SNP's frequencies on their own, the SNPs in parallel
-    let mut frequencies = Array2::from_elem((n_snps_filtered, n_pops), f64::NAN);
-    let mut counts = Array2::zeros((n_snps_filtered, n_pops));
-    frequencies
-        .axis_iter_mut(Axis(0))
-        .into_par_iter()
-        .zip(counts.axis_iter_mut(Axis(0)))
-        .zip(&snp_indices)
-        .for_each(|((mut freq, mut count), &snp)| {
-            let record = &records[snp * bytes_per_snp..(snp + 1) * bytes_per_snp];
-            for (col, sample_info) in pop_sample_info.iter().enumerate() {
-                // admixtools2 adds genotype / (3 - ploidy) alleles over ploidy
-                // observed: a pseudo-haploid het counts half. Twice that is an
-                // integer, and every sum is exact, so counting in integers
-                // gives the same frequencies.
-                let (mut twice_alt, mut observed) = (0u64, 0u64);
-                for &(sample_idx, ploidy) in sample_info {
-                    let g = (record[sample_idx / 4] >> (6 - 2 * (sample_idx % 4))) & 0b11;
-                    // 00=HomRef(0), 01=Het(1), 10=HomAlt(2), 11=Missing;
-                    // without a branch, as missing calls are common
-                    let called = (g != 3) as u64 * ploidy as u64;
-                    twice_alt += g as u64 * called;
-                    observed += called;
-                }
-                if observed > 0 {
-                    freq[col] = twice_alt as f64 / 2.0 / observed as f64;
-                    count[col] = observed as u32;
-                }
-            }
-        });
-
-    // Create population IDs
-    let population_ids: Vec<PopulationId> =
-        populations.iter().map(|&p| PopulationId::new(p)).collect();
-
-    Ok(AlleleFrequencies {
-        frequencies,
-        counts,
-        populations: population_ids,
-        snps: filtered_snps,
-    })
+    let file = SnpMajor::open_packed(geno_path, samples.len(), snps.len())?;
+    Ok(file.allele_frequencies(samples, snps, populations, auto_only))
 }
 
 /// Detect ploidy for samples by scanning for heterozygous calls.
@@ -231,102 +142,272 @@ pub fn detect_ploidy_packedancestrymap_selected(
     n_snps_check: usize,
     n_snps_total: usize,
 ) -> Result<()> {
-    let n_check = n_snps_check.min(n_snps_total);
-    let bytes_per_snp = record_length(geno_path, samples.len(), n_snps_total)?;
-    let mut file = std::io::BufReader::with_capacity(
-        1 << 22,
-        File::open(geno_path).map_err(|e| PopmixError::io_with_path(e, geno_path))?,
-    );
-    file.seek(SeekFrom::Start(bytes_per_snp as u64))
-        .map_err(|e| PopmixError::io_with_path(e, geno_path))?;
-    let mut pending: Vec<usize> = selected.to_vec();
-    let mut snp_buffer = vec![0u8; bytes_per_snp];
-    for _ in 0..n_check {
-        if pending.is_empty() {
-            break;
-        }
-        file.read_exact(&mut snp_buffer)
-            .map_err(|e| PopmixError::io_with_path(e, geno_path))?;
-        pending.retain(|&s| decode_packed_byte(snp_buffer[s / 4])[s % 4] != 1);
-    }
-    for &s in selected {
-        samples[s].ploidy = if pending.contains(&s) {
-            Ploidy::Pseudohaploid
-        } else {
-            Ploidy::Diploid
-        };
-    }
+    let file = SnpMajor::open_packed(geno_path, samples.len(), n_snps_total)?;
+    file.detect_ploidy(samples, selected, n_snps_check);
     Ok(())
 }
 
-/// Genotype rows streamed from a PACKEDANCESTRYMAP file: the SNPs marked in
-/// `keep`, in file order, for the given samples (by index in the .ind file).
-pub struct PackedRows {
-    file: std::io::BufReader<File>,
+/// A memory-mapped file of 2-bit genotypes stored SNP by SNP: a
+/// PACKEDANCESTRYMAP .geno or a PLINK .bed (SNP-major).
+pub struct SnpMajor {
     path: String,
+    map: Mmap,
+    /// Offset of the first SNP's record.
+    start: usize,
+    bytes_per_snp: usize,
+    n_samples: usize,
+    n_snps: usize,
+    bed: bool,
+}
+
+/// popmix genotype codes (0, 1, 2; 3 missing) of PLINK's 2-bit values:
+/// 00 homozygous A1, 01 missing, 10 heterozygous, 11 homozygous A2.
+const BED_CODES: [u8; 4] = [2, 3, 1, 0];
+
+impl SnpMajor {
+    fn map(path: &str) -> Result<Mmap> {
+        let file = File::open(path).map_err(|e| PopmixError::io_with_path(e, path))?;
+        // SAFETY: the map is only read; like every reader of these files,
+        // popmix assumes no other process truncates the file while it is open.
+        unsafe { Mmap::map(&file) }.map_err(|e| PopmixError::io_with_path(e, path))
+    }
+
+    /// A PACKEDANCESTRYMAP .geno of `n_samples` samples and `n_snps` SNPs.
+    pub fn open_packed(geno_path: &str, n_samples: usize, n_snps: usize) -> Result<Self> {
+        let bytes_per_snp = record_length(geno_path, n_samples, n_snps)?;
+        let map = Self::map(geno_path)?;
+        if map.len() < 4 || &map[..4] != b"GENO" {
+            return Err(PopmixError::InvalidFileFormat {
+                file: geno_path.to_string(),
+                details: "Expected PACKEDANCESTRYMAP format".to_string(),
+            });
+        }
+        // record_length checked that the file holds the header and every SNP
+        Ok(SnpMajor {
+            path: geno_path.to_string(),
+            map,
+            start: bytes_per_snp,
+            bytes_per_snp,
+            n_samples,
+            n_snps,
+            bed: false,
+        })
+    }
+
+    /// A SNP-major PLINK .bed of `n_samples` samples and `n_snps` SNPs.
+    pub fn open_bed(bed_path: &str, n_samples: usize, n_snps: usize) -> Result<Self> {
+        let map = Self::map(bed_path)?;
+        if map.len() < 3 || map[..3] != [0x6c, 0x1b, 0x01] {
+            return Err(PopmixError::InvalidFileFormat {
+                file: bed_path.to_string(),
+                details: "not a SNP-major PLINK .bed (magic 6c 1b 01)".to_string(),
+            });
+        }
+        let bytes_per_snp = n_samples.div_ceil(4);
+        let expected = 3 + n_snps * bytes_per_snp;
+        if map.len() != expected {
+            return Err(PopmixError::UnexpectedFileSize {
+                file: bed_path.to_string(),
+                expected: expected as u64,
+                actual: map.len() as u64,
+            });
+        }
+        Ok(SnpMajor {
+            path: bed_path.to_string(),
+            map,
+            start: 3,
+            bytes_per_snp,
+            n_samples,
+            n_snps,
+            bed: true,
+        })
+    }
+
+    pub fn n_snps(&self) -> usize {
+        self.n_snps
+    }
+
+    /// The bytes of SNP `snp`.
+    #[inline]
+    pub fn record(&self, snp: usize) -> &[u8] {
+        let at = self.start + snp * self.bytes_per_snp;
+        &self.map[at..at + self.bytes_per_snp]
+    }
+
+    /// The genotype code (0, 1, 2; 3 missing) of sample `s` in a record.
+    #[inline]
+    pub fn code(&self, record: &[u8], s: usize) -> u8 {
+        let byte = record[s / 4];
+        if self.bed {
+            BED_CODES[((byte >> (2 * (s % 4))) & 0b11) as usize]
+        } else {
+            // the first sample of a byte is in its high bits
+            (byte >> (6 - 2 * (s % 4))) & 0b11
+        }
+    }
+
+    /// Set the ploidy of the samples in `selected`: pseudo-haploid if none
+    /// of the first `n_snps_check` SNPs is heterozygous, reading only until
+    /// each has shown one. Other samples' ploidy is left as it is.
+    pub fn detect_ploidy(&self, samples: &mut [Sample], selected: &[usize], n_snps_check: usize) {
+        let mut pending: Vec<usize> = selected.to_vec();
+        for snp in 0..n_snps_check.min(self.n_snps) {
+            if pending.is_empty() {
+                break;
+            }
+            let record = self.record(snp);
+            pending.retain(|&s| self.code(record, s) != 1);
+        }
+        for &s in selected {
+            samples[s].ploidy = if pending.contains(&s) {
+                Ploidy::Pseudohaploid
+            } else {
+                Ploidy::Diploid
+            };
+        }
+    }
+
+    /// Allele frequencies of `populations` (samples with their ploidy set),
+    /// each SNP on its own, the SNPs in parallel; with `auto_only`, of the
+    /// autosomal SNPs only.
+    pub fn allele_frequencies(
+        &self,
+        samples: &[Sample],
+        snps: &[Snp],
+        populations: &[&str],
+        auto_only: bool,
+    ) -> AlleleFrequencies {
+        let n_pops = populations.len();
+        let (snp_indices, filtered_snps): (Vec<usize>, Vec<Snp>) = snps
+            .iter()
+            .enumerate()
+            .filter(|(_, snp)| !auto_only || snp.is_autosomal())
+            .map(|(idx, snp)| (idx, snp.clone()))
+            .unzip();
+        let pop_to_col: HashMap<&str, usize> = populations
+            .iter()
+            .enumerate()
+            .map(|(c, &p)| (p, c))
+            .collect();
+        let mut pop_sample_info: Vec<Vec<(usize, u32)>> = vec![Vec::new(); n_pops];
+        for (sample_idx, sample) in samples.iter().enumerate() {
+            if let Some(&col) = pop_to_col.get(sample.population.as_str()) {
+                let ploidy = sample.ploidy.effective_ploidy() as u32;
+                pop_sample_info[col].push((sample_idx, ploidy));
+            }
+        }
+
+        let mut frequencies = Array2::from_elem((filtered_snps.len(), n_pops), f64::NAN);
+        let mut counts = Array2::zeros((filtered_snps.len(), n_pops));
+        frequencies
+            .axis_iter_mut(Axis(0))
+            .into_par_iter()
+            .zip(counts.axis_iter_mut(Axis(0)))
+            .zip(&snp_indices)
+            .for_each(|((mut freq, mut count), &snp)| {
+                let record = self.record(snp);
+                for (col, sample_info) in pop_sample_info.iter().enumerate() {
+                    // admixtools2 adds genotype / (3 - ploidy) alleles over
+                    // ploidy observed: a pseudo-haploid het counts half.
+                    // Twice that is an integer, and every sum is exact, so
+                    // counting in integers gives the same frequencies.
+                    let (mut twice_alt, mut observed) = (0u64, 0u64);
+                    for &(sample_idx, ploidy) in sample_info {
+                        let g = self.code(record, sample_idx);
+                        // without a branch, as missing calls are common
+                        let called = (g != 3) as u64 * ploidy as u64;
+                        twice_alt += g as u64 * called;
+                        observed += called;
+                    }
+                    if observed > 0 {
+                        freq[col] = twice_alt as f64 / 2.0 / observed as f64;
+                        count[col] = observed as u32;
+                    }
+                }
+            });
+        AlleleFrequencies {
+            frequencies,
+            counts,
+            populations: populations.iter().map(|&p| PopulationId::new(p)).collect(),
+            snps: filtered_snps,
+        }
+    }
+}
+
+/// Genotype rows streamed from a [`SnpMajor`] file: the SNPs marked in
+/// `keep`, in file order, for the given samples (by index in the file).
+pub struct SnpMajorRows {
+    file: SnpMajor,
     keep: Vec<bool>,
     samples: Vec<usize>,
-    buffer: Vec<u8>,
     next_snp: usize,
 }
 
-impl PackedRows {
+/// Rows of a PACKEDANCESTRYMAP file (the name before PLINK was streamed too).
+pub type PackedRows = SnpMajorRows;
+
+impl SnpMajorRows {
+    /// Rows of `file`: `keep` has one entry per SNP.
+    pub fn from_file(file: SnpMajor, keep: Vec<bool>, samples: Vec<usize>) -> Result<Self> {
+        let n_samples = file.n_samples;
+        if let Some(&bad) = samples.iter().find(|&&s| s >= n_samples) {
+            return Err(PopmixError::InvalidFileFormat {
+                file: file.path.clone(),
+                details: format!("sample {bad} out of range for {n_samples} samples"),
+            });
+        }
+        if keep.len() != file.n_snps {
+            return Err(PopmixError::InvalidFileFormat {
+                file: file.path.clone(),
+                details: format!("{} SNPs selected of {}", keep.len(), file.n_snps),
+            });
+        }
+        Ok(SnpMajorRows {
+            file,
+            keep,
+            samples,
+            next_snp: 0,
+        })
+    }
+
+    /// Rows of a PACKEDANCESTRYMAP .geno with `keep.len()` SNPs.
     pub fn open(
         geno_path: &str,
         n_samples: usize,
         keep: Vec<bool>,
         samples: Vec<usize>,
     ) -> Result<Self> {
-        let bytes_per_snp = record_length(geno_path, n_samples, keep.len())?;
-        if let Some(&bad) = samples.iter().find(|&&s| s >= n_samples) {
-            return Err(PopmixError::InvalidFileFormat {
-                file: geno_path.to_string(),
-                details: format!("sample {bad} out of range for {n_samples} samples"),
-            });
-        }
-        let mut file =
-            File::open(geno_path).map_err(|e| PopmixError::io_with_path(e, geno_path))?;
-        let mut magic = [0u8; 4];
-        file.read_exact(&mut magic)
-            .map_err(|e| PopmixError::io_with_path(e, geno_path))?;
-        if &magic != b"GENO" {
-            return Err(PopmixError::InvalidFileFormat {
-                file: geno_path.to_string(),
-                details: "Expected PACKEDANCESTRYMAP format".to_string(),
-            });
-        }
-        file.seek(SeekFrom::Start(bytes_per_snp as u64))
-            .map_err(|e| PopmixError::io_with_path(e, geno_path))?;
-        Ok(PackedRows {
-            file: std::io::BufReader::with_capacity(1 << 22, file),
-            path: geno_path.to_string(),
-            keep,
-            samples,
-            buffer: vec![0u8; bytes_per_snp],
-            next_snp: 0,
-        })
+        let file = SnpMajor::open_packed(geno_path, n_samples, keep.len())?;
+        Self::from_file(file, keep, samples)
+    }
+
+    /// Rows of a SNP-major PLINK .bed with `keep.len()` SNPs.
+    pub fn open_bed(
+        bed_path: &str,
+        n_samples: usize,
+        keep: Vec<bool>,
+        samples: Vec<usize>,
+    ) -> Result<Self> {
+        let file = SnpMajor::open_bed(bed_path, n_samples, keep.len())?;
+        Self::from_file(file, keep, samples)
     }
 }
 
-impl popmix_core::GenotypeRows for PackedRows {
+impl popmix_core::GenotypeRows for SnpMajorRows {
     fn next_row(&mut self, out: &mut [u8]) -> Result<()> {
-        loop {
-            if self.next_snp >= self.keep.len() {
-                return Err(PopmixError::InvalidFileFormat {
-                    file: self.path.clone(),
-                    details: "read past the last SNP".to_string(),
-                });
-            }
-            self.file
-                .read_exact(&mut self.buffer)
-                .map_err(|e| PopmixError::io_with_path(e, &self.path))?;
+        while self.next_snp < self.keep.len() && !self.keep[self.next_snp] {
             self.next_snp += 1;
-            if self.keep[self.next_snp - 1] {
-                break;
-            }
         }
+        if self.next_snp >= self.keep.len() {
+            return Err(PopmixError::InvalidFileFormat {
+                file: self.file.path.clone(),
+                details: "read past the last SNP".to_string(),
+            });
+        }
+        let record = self.file.record(self.next_snp);
+        self.next_snp += 1;
         for (o, &s) in out.iter_mut().zip(&self.samples) {
-            *o = decode_packed_byte(self.buffer[s / 4])[s % 4];
+            *o = self.file.code(record, s);
         }
         Ok(())
     }
@@ -406,6 +487,66 @@ mod tests {
                 .iter()
                 .zip(&many.frequencies)
                 .all(|(a, b)| a.to_bits() == b.to_bits()));
+        }
+    }
+
+    /// The family data as a PLINK .bed in a fresh directory, and its prefix.
+    fn family_bed() -> (tempfile::TempDir, String) {
+        let dir = tempfile::tempdir().unwrap();
+        let prefix = dir.path().join("family").to_string_lossy().to_string();
+        let geno = PackedAncestryMapReader::new(SMALL)
+            .unwrap()
+            .read_all()
+            .unwrap();
+        crate::writers::write_packedped(&prefix, &geno).unwrap();
+        (dir, prefix)
+    }
+
+    #[test]
+    fn bed_rows_match_the_in_memory_genotypes() {
+        use popmix_core::GenotypeRows;
+        let (_dir, bed) = family_bed();
+        let geno = crate::PlinkReader::new(&bed).unwrap().read_all().unwrap();
+        let keep: Vec<bool> = (0..geno.n_snps()).map(|i| i % 3 != 1).collect();
+        let samples = vec![53, 0, 7, 20];
+        let mut rows =
+            SnpMajorRows::open_bed(&format!("{bed}.bed"), 54, keep.clone(), samples.clone())
+                .unwrap();
+        let mut row = vec![0u8; samples.len()];
+        for snp in (0..geno.n_snps()).filter(|&i| keep[i]) {
+            rows.next_row(&mut row).unwrap();
+            let want: Vec<u8> = samples.iter().map(|&s| geno.snp_raw(snp)[s]).collect();
+            assert_eq!(row, want, "SNP {snp}");
+        }
+        assert!(rows.next_row(&mut row).is_err());
+    }
+
+    #[test]
+    fn bed_frequencies_and_ploidy_match_the_in_memory_ones() {
+        let (_dir, bed) = family_bed();
+        let mut geno = crate::PlinkReader::new(&bed).unwrap().read_all().unwrap();
+        geno.detect_ploidy(geno.n_snps());
+        let mut samples = geno.samples().to_vec();
+        samples.iter_mut().for_each(|s| s.ploidy = Ploidy::Diploid);
+        let file = SnpMajor::open_bed(&format!("{bed}.bed"), 54, geno.n_snps()).unwrap();
+        let all: Vec<usize> = (0..54).collect();
+        file.detect_ploidy(&mut samples, &all, geno.n_snps());
+        let pops = ["French", "Simulation", "Yoruba"];
+        let ploidy = |s: &[Sample]| s.iter().map(|x| x.ploidy).collect::<Vec<_>>();
+        assert_eq!(ploidy(&samples), ploidy(geno.samples()));
+        let streamed = file.allele_frequencies(&samples, geno.snps(), &pops, false);
+        let in_memory = AlleleFrequencies::from_genotypes_for_populations(&geno, Some(&pops));
+        for (col, pop) in pops.iter().enumerate() {
+            let other = in_memory.pop_index(pop).unwrap();
+            assert_eq!(streamed.counts.column(col), in_memory.counts.column(other));
+            let (a, b) = (
+                streamed.frequencies.column(col),
+                in_memory.frequencies.column(other),
+            );
+            assert!(a
+                .iter()
+                .zip(b)
+                .all(|(x, y)| x.to_bits() == y.to_bits() || (x.is_nan() && y.is_nan())));
         }
     }
 

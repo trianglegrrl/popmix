@@ -8,9 +8,9 @@ use popmix_core::{
     F3GenoOptions, F4Mode, GenoPopulations, GenoStats, GenotypeMatrix, GenotypeRows, MatrixRows,
     Sample, Snp,
 };
-use popmix_io::{is_packed_format, PackedRows};
+use popmix_io::{PackedRows, SnpMajorRows};
 
-use crate::ploidy::{ploidy_rule, PloidyRule};
+use crate::ploidy::{mapped, ploidy_rule, PloidyRule};
 use crate::{read_genotypes_of, to_py_err};
 
 /// The SNPs, samples and row source for statistics on `populations`.
@@ -62,20 +62,18 @@ fn open_source_filtered_with(
 ) -> PyResult<(Source, Vec<Snp>, GenoPopulations, Vec<Sample>)> {
     let pop_refs: Vec<&str> = populations.iter().map(|p| p.as_str()).collect();
     let index = |pop: &str| populations.iter().position(|p| p == pop);
-    let geno_path = format!("{prefix}.geno");
-    let packed = std::path::Path::new(&geno_path).exists()
-        && is_packed_format(&geno_path).map_err(to_py_err)?;
-    let (samples, snps, matrix) = if packed {
-        let mut samples =
-            popmix_io::eigenstrat::read_ind_file(&format!("{prefix}.ind")).map_err(to_py_err)?;
-        let snps =
-            popmix_io::eigenstrat::read_snp_file(&format!("{prefix}.snp")).map_err(to_py_err)?;
-        rule.apply_packed(&geno_path, &mut samples, &pop_refs, snps.len())?;
-        (samples, snps, None)
+    let (samples, snps, file, matrix) = if let Some(mut m) = mapped(prefix)? {
+        rule.apply_mapped(&m.file, &mut m.samples, &pop_refs);
+        (m.samples, m.snps, Some(m.file), None)
     } else {
         let mut geno = read_genotypes_of(prefix, populations)?;
         rule.apply(&mut geno);
-        (geno.samples().to_vec(), geno.snps().to_vec(), Some(geno))
+        (
+            geno.samples().to_vec(),
+            geno.snps().to_vec(),
+            None,
+            Some(geno),
+        )
     };
     popmix_core::genotypes::check_sorted(&snps).map_err(to_py_err)?;
 
@@ -110,14 +108,15 @@ fn open_source_filtered_with(
         .filter(|(_, &k)| k)
         .map(|(s, _)| s.clone())
         .collect();
-    let source = match matrix {
-        None => Source::Packed(
-            PackedRows::open(&geno_path, samples.len(), keep, selected).map_err(to_py_err)?,
-        ),
-        Some(m) => {
+    let source = match (file, matrix) {
+        (Some(file), _) => {
+            Source::Packed(SnpMajorRows::from_file(file, keep, selected).map_err(to_py_err)?)
+        }
+        (None, Some(m)) => {
             let rows = (0..keep.len()).filter(|&i| keep[i]).collect();
             Source::Matrix(m, rows, selected)
         }
+        (None, None) => unreachable!("a dataset is mapped or read"),
     };
     let pops = GenoPopulations {
         names: populations.to_vec(),
@@ -285,17 +284,9 @@ pub fn sample_ploidy(
 ) -> PyResult<Vec<(String, u8)>> {
     let rule = ploidy_rule(pseudohaploid)?;
     let pop_refs: Vec<&str> = populations.iter().map(|p| p.as_str()).collect();
-    let geno_path = format!("{prefix}.geno");
-    let samples = if std::path::Path::new(&geno_path).exists()
-        && is_packed_format(&geno_path).map_err(to_py_err)?
-    {
-        let mut samples =
-            popmix_io::eigenstrat::read_ind_file(&format!("{prefix}.ind")).map_err(to_py_err)?;
-        let n_snps = popmix_io::eigenstrat::read_snp_file(&format!("{prefix}.snp"))
-            .map_err(to_py_err)?
-            .len();
-        rule.apply_packed(&geno_path, &mut samples, &pop_refs, n_snps)?;
-        samples
+    let samples = if let Some(mut m) = mapped(prefix)? {
+        rule.apply_mapped(&m.file, &mut m.samples, &pop_refs);
+        m.samples
     } else {
         let mut geno = read_genotypes_of(prefix, &populations)?;
         rule.apply(&mut geno);

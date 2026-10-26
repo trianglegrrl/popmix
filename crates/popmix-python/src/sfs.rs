@@ -6,7 +6,6 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
 use popmix_core::{joint_sfs, projected_sfs, AlleleFrequencies, JointSfsCompat, Spectrum};
-use popmix_io::{compute_allele_frequencies_packedancestrymap, is_packed_format};
 
 use crate::ploidy::{ploidy_rule, PloidyRule};
 use crate::to_py_err;
@@ -20,17 +19,10 @@ fn allele_frequencies(
     rule: PloidyRule,
 ) -> PyResult<AlleleFrequencies> {
     let pops: Vec<&str> = populations.iter().map(|s| s.as_str()).collect();
-    let geno_path = format!("{prefix}.geno");
-    let af = if std::path::Path::new(&geno_path).exists()
-        && is_packed_format(&geno_path).map_err(to_py_err)?
-    {
-        let mut samples =
-            popmix_io::eigenstrat::read_ind_file(&format!("{prefix}.ind")).map_err(to_py_err)?;
-        let snps =
-            popmix_io::eigenstrat::read_snp_file(&format!("{prefix}.snp")).map_err(to_py_err)?;
-        rule.apply_packed(&geno_path, &mut samples, &pops, snps.len())?;
-        compute_allele_frequencies_packedancestrymap(&geno_path, &samples, &snps, &pops, auto_only)
-            .map_err(to_py_err)?
+    let af = if let Some(mut m) = crate::ploidy::mapped(prefix)? {
+        rule.apply_mapped(&m.file, &mut m.samples, &pops);
+        m.file
+            .allele_frequencies(&m.samples, &m.snps, &pops, auto_only)
     } else {
         let mut geno = crate::read_genotypes_of(prefix, populations)?;
         rule.apply(&mut geno);

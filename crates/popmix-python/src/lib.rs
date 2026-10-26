@@ -24,10 +24,10 @@ use pyo3::types::PyDict;
 use popmix_core::{AlleleFrequencies, BlockDefinition, F2Blocks, GenotypeMatrix, Ploidy, Sample};
 use popmix_io::tgeno::{is_tgeno_format, TgenoReader};
 use popmix_io::{
-    compute_allele_frequencies_packedancestrymap, is_packed_format, merge::merge_genotypes,
-    read_f2_blocks, write_ancestrymap, write_eigenstrat, write_f2_blocks, write_packedancestrymap,
-    write_packedped, write_ped, write_tgeno, AncestryMapReader, EigenstratReader, GenoFormat,
-    PackedAncestryMapReader, PedReader, PlinkReader, VcfReader,
+    is_packed_format, merge::merge_genotypes, read_f2_blocks, write_ancestrymap, write_eigenstrat,
+    write_f2_blocks, write_packedancestrymap, write_packedped, write_ped, write_tgeno,
+    AncestryMapReader, EigenstratReader, GenoFormat, PackedAncestryMapReader, PedReader,
+    PlinkReader, VcfReader,
 };
 
 // ============================================================================
@@ -1665,35 +1665,24 @@ fn extract_f2(
             None => BlockDefinition::default(),
         };
 
-        // Use streaming approach for PACKEDANCESTRYMAP (the main use case)
+        // Packed .geno and PLINK .bed are read in place, SNP by SNP
         let geno_path = format!("{}.geno", prefix);
-        if Path::new(&geno_path).exists() && is_packed_format(&geno_path).map_err(to_py_err)? {
-            // Read sample and SNP metadata only (no genotypes)
-            let ind_path = format!("{}.ind", prefix);
-            let snp_path = format!("{}.snp", prefix);
-
-            let mut samples = popmix_io::eigenstrat::read_ind_file(&ind_path).map_err(to_py_err)?;
-            let snps = popmix_io::eigenstrat::read_snp_file(&snp_path).map_err(to_py_err)?;
+        if let Some(ploidy::Mapped {
+            file,
+            mut samples,
+            snps,
+        }) = ploidy::mapped(prefix)?
+        {
             popmix_core::genotypes::check_sorted(&snps).map_err(to_py_err)?;
             if let Some(labels) = &relabel {
                 apply_sample_labels(&mut samples, labels)?;
             }
             require_sample_populations(&samples, &populations)?;
-
-            // Ploidy of the requested populations' samples
             let pop_refs: Vec<&str> = populations.iter().map(|s| s.as_str()).collect();
-            rule.apply_packed(&geno_path, &mut samples, &pop_refs, snps.len())?;
-
-            // Compute allele frequencies by streaming through file (SNP by SNP)
-            let af = compute_allele_frequencies_packedancestrymap(
-                &geno_path, &samples, &snps, &pop_refs, auto_only,
-            )
-            .map_err(to_py_err)?;
-
-            // Compute F2 blocks
+            rule.apply_mapped(&file, &mut samples, &pop_refs);
+            let af = file.allele_frequencies(&samples, &snps, &pop_refs, auto_only);
             let f2_blocks =
                 F2Blocks::from_allele_frequencies_with_options(&af, &block_def, &f2_options);
-
             return Ok(PyF2Blocks { inner: f2_blocks });
         }
 

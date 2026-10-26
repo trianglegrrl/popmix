@@ -198,7 +198,7 @@ pub use ped::PedReader;
 pub use plink::PlinkReader;
 pub use streaming::{
     compute_allele_frequencies_packedancestrymap, detect_ploidy_packedancestrymap,
-    detect_ploidy_packedancestrymap_selected, PackedRows,
+    detect_ploidy_packedancestrymap_selected, PackedRows, SnpMajor, SnpMajorRows,
 };
 pub use vcf::{VcfReader, VcfSkipped};
 pub use writers::{
