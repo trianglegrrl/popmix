@@ -34,7 +34,9 @@ jobs:
           cargo fmt --all -- --check
           cargo clippy --workspace --all-targets -- -D warnings
       - name: Rust tests
-        run: cargo test --workspace
+        run: |
+          cargo test --workspace
+          cargo bench -p popmix-core --bench kernels --no-run
 
       - name: Build and install popmix
         run: |

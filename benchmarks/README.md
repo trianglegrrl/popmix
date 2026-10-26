@@ -83,3 +83,16 @@ summary, so a change in popmix's times shows from commit to commit:
 ```bash
 python benchmarks/smoke.py --repeats 3
 ```
+
+## Kernels
+
+`crates/popmix-core/benches/kernels.rs` times the hot kernels (PCA, KING,
+f2 blocks, ADMIXTURE) on synthetic genotypes with criterion, to compare
+changes to one kernel without the reference tools or AADR:
+
+```bash
+# not run: takes about a minute and is for comparing changes
+cargo bench -p popmix-core --bench kernels
+```
+
+CI builds them (`--no-run`) so they keep compiling.

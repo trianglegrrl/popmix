@@ -25,7 +25,6 @@ approx = { workspace = true }
 proptest = { workspace = true }
 criterion = { workspace = true }
 
-# Benchmarks will be added later
-# [[bench]]
-# name = "fstats"
-# harness = false
+[[bench]]
+name = "kernels"
+harness = false
