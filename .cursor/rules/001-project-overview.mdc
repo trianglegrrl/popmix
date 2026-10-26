@@ -41,7 +41,8 @@ pytest tests/golden -v  # Compare with admixtools2
 
 ## Test Data Locations
 
-- **AADR v62**: `/references/aadr/v62.0_1240k_public.*` (EIGENSTRAT)
+- **AADR v66.p1**: `/references/aadr/v66.p1/v66.p1_1240K.aadr.patch.PUB.*` (TGENO); the goldens
+  use `tests/golden/aadr/build_aadr_v66p1.py`'s labelled subset. Never v62.0 or v66.0.
 - **AADR HO**: `/references/aadr_v54.1.p1/HO_public.*` (PLINK)
 - **1000G**: `/8tb/1000genomes/` (PLINK)
 

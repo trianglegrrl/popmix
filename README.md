@@ -36,7 +36,7 @@ popmix convertf \
 # Step 2: Merge your samples with a reference panel (e.g., AADR)
 popmix merge \
   --file-a my_samples \
-  --file-b /references/aadr/v62.0_1240k_public \
+  --file-b /references/aadr/v66.p1/v66.p1_1240K.aadr.patch.PUB \
   --output merged_dataset \
   --output-format plink
 
@@ -48,21 +48,21 @@ popmix populations merged_dataset --filter "French*"
 popmix extract-f2 \
   -i merged_dataset \
   -o f2_blocks/ \
-  --populations "MySample,French.DG,Han.DG,Yoruba.DG,Mbuti.DG"
+  --populations "MySample,French,Han,Yoruba,Mbuti"
 
 # Step 5: Run admixture analyses
 popmix qpadm \
   -i merged_dataset \
   --target MySample \
-  --left "French.DG,Han.DG" \
-  --right "Yoruba.DG,Mbuti.DG,Papuan.DG"
+  --left "French,Han" \
+  --right "Yoruba,Mbuti,Papuan"
 
 # Step 6: Date the admixture event
 popmix dates \
   -i merged_dataset \
   --test-pop MySample \
-  --source1 French.DG \
-  --source2 Han.DG
+  --source1 French \
+  --source2 Han
 ```
 
 You can also work directly with VCF files for quick analyses:
@@ -74,7 +74,7 @@ popmix info my_samples.vcf.gz
 # Merge VCF with reference panel (auto-detects format)
 popmix merge \
   --file-a my_samples.vcf.gz \
-  --file-b /references/aadr/v62.0_1240k_public \
+  --file-b /references/aadr/v66.p1/v66.p1_1240K.aadr.patch.PUB \
   --output merged \
   --output-format plink
 ```
@@ -243,13 +243,12 @@ popmix info /path/to/data --populations  # Show all populations with counts
 **Output:**
 ```
 Dataset: /path/to/data
-Format: PACKEDANCESTRYMAP
-Samples: 17629
+Format: tgeno
+Samples: 23089
 SNPs: 1233013
-Populations: 1234
-  French.DG: 45 samples
-  Han.DG: 32 samples
-  Yoruba.DG: 28 samples
+Populations: 3898
+  - Spain_Guayadeque_LateAntiquity
+  - Denmark_Bogovej_Viking
   ...
 ```
 
@@ -265,18 +264,18 @@ popmix populations /path/to/data --format json
 
 **Output:**
 ```
-Populations in /path/to/data (847 total):
+Populations in /path/to/data (3898 total):
 
 Population                               Samples
 --------------------------------------------------
-French.DG                                     45
-Han.DG                                        32
-Yoruba.DG                                     28
-Mbuti.DG                                      12
+French                                        31
+Han                                           46
+Yoruba                                        24
+Mbuti                                         15
 ...
 
 Tip: Use --filter "pattern*" to search
-Tip: Specify populations with: --populations "French.DG,Han.DG,Yoruba.DG"
+Tip: Specify populations with: --populations "French,Han,Yoruba"
 ```
 
 ### `popmix merge`
@@ -286,7 +285,7 @@ Merge two genotype datasets. Keeps only SNPs present in both files.
 ```bash
 popmix merge \
   --file-a my_samples \
-  --file-b /references/aadr/v62.0_1240k_public \
+  --file-b /references/aadr/v66.p1/v66.p1_1240K.aadr.patch.PUB \
   --output merged_data \
   --output-format plink
 ```
@@ -519,12 +518,12 @@ popmix convertf -i data -o data_plink -if eigenstrat -of plink
 Popmix provides helpful error messages with fuzzy suggestions when population names are wrong:
 
 ```
-Error: Population 'French' not found in dataset.
+Error: Population 'French.DG' not found in dataset.
 
 Did you mean one of these?
-  - French.DG (45 samples)
-  - French.SDG (12 samples)
-  - French_Alsace.SG (8 samples)
+  - French (31 samples)
+  - France_FrenchAlps (10 samples)
+  - FrenchPolynesia_200BP (2 samples)
 
 Tip: List all populations with: popmix populations /path/to/data
 Tip: Search populations with: popmix populations /path/to/data --filter "French*"
@@ -563,7 +562,7 @@ pop_counts = pm.list_populations("/path/to/data")
 
 # Get suggestions for a typo
 suggestions = pm.suggest_populations("/path/to/data", "Frnch")
-# Returns: [("French.DG", 45), ("French.SDG", 12)]
+# Returns: [("French", 31), ("FIN", 89), ...]
 ```
 
 ### Merging Datasets
@@ -572,7 +571,7 @@ suggestions = pm.suggest_populations("/path/to/data", "Frnch")
 # Merge two datasets
 result = pm.merge(
     file_a="my_samples",
-    file_b="/references/aadr/v62.0_1240k_public",
+    file_b="/references/aadr/v66.p1/v66.p1_1240K.aadr.patch.PUB",
     output="merged_data",
     output_format="plink"
 )
@@ -725,8 +724,8 @@ results, with CPU time, memory and run-to-run variation, are in
 
 ## Validation
 
-Every analysis is checked against its reference tool on real data (AADR v62
-and the 1000 Genomes samples in it):
+Every analysis is checked against its reference tool on real data (AADR
+v66.p1 and the 1000 Genomes samples in it):
 
 | Analysis | Reference | Agreement |
 |----------|-----------|-----------|

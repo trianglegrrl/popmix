@@ -29,9 +29,12 @@ current numbers.
 | Golden | 471 | every analysis against its reference tool on real data | `pytest tests/golden` |
 | Slow (of the Python and golden) | 288 | AADR configurations, searches and reference runs | add `--run-slow` |
 
-Golden tests skip when their data is missing: AADR v62 and v66.p1 under
+Golden tests skip when their data is missing: AADR v66.p1 under
 `/references/aadr`, or the genotype files the generators put in the
-reference cache (`~/.cache/popmix-references`, or `POPMIX_REFERENCE_CACHE`).
+reference cache (`~/.cache/popmix-references`, or `POPMIX_REFERENCE_CACHE`),
+among them the AADR v66.p1 dataset labelled by data type that every AADR
+golden reads (`python tests/golden/aadr/build_aadr_v66p1.py`; see AADR
+v66.p1 Reference Data below).
 
 ## Test Structure
 
@@ -43,6 +46,7 @@ tests/
 ├── python/                # API, CLI, formats, validation, property tests
 └── golden/                # each analysis against its reference tool
     ├── test_*.py          # one file per analysis and reference
+    ├── aadr/              # builds the AADR v66.p1 dataset the goldens read
     ├── admixtools2/       # admixtools2 2.0.10 references and their R generators
     ├── admixture/  dadi/  eigensoft/  plink2/  readv2/  rolloff/
     ├── dates/             # DATES v753 runs and data
@@ -159,9 +163,9 @@ Tip: Search populations with: popmix populations tests/fixtures/small_eigenstrat
 
 ```bash
 popmix f2 \
-  --input /references/aadr/v62.0_1240k_public \
-  --pop1 Han.DG \
-  --pop2 Yoruba.DG
+  --input /references/aadr/v66.p1/v66.p1_1240K.aadr.patch.PUB \
+  --pop1 Han \
+  --pop2 Yoruba
 ```
 
 ## Genotype Formats, Conversion and Merge
@@ -290,7 +294,7 @@ deviation.
 ### f-statistics, qpWave and qpAdm vs admixtools2 2.0.10
 
 `tests/golden/test_fstats_admixtools2.py` (`--run-slow`) runs popmix on the
-same AADR v62 populations as stored admixtools2 runs and checks each stage of
+same AADR v66.p1 populations as stored admixtools2 runs and checks each stage of
 the pipeline:
 
 | Check | Compared against | Tolerance |
@@ -423,7 +427,7 @@ own output, and admixtools2's, parse back to the graph's edges.
 
 `tests/golden/test_vcf_ped_admixtools2.py` checks f2 from VCF and PED
 input (`vcf_ped/<name>.json`, `generate_vcf_ped.py`: the small family data,
-and with `--run-slow` dg_6pop populations of AADR v62, in PLINK format and
+and with `--run-slow` dg_6pop populations of AADR v66.p1, in PLINK format and
 exported by PLINK 2 as bgzipped VCF and as PED): popmix's f2 blocks from the
 PED (5 cM blocks from its map) and from the VCF (no map: 2 Mb blocks, as
 admixtools2 makes without one; populations given by `inds`/`pops`) match
@@ -493,7 +497,7 @@ Configs: `family_all` (all 54 samples), `family_lsqproject` and
 `family_project_no_outliers` (PCA on French and Yoruba, Simulation and
 Simulation.1 projected, with and without `lsqproject`), and with
 `--run-slow` `aadr_1kg_lsqproject` and `aadr_1kg_project` (PCA on six 1000
-Genomes populations, CEU, TSI, FIN, YRI, CHB, GIH; 63 YRI outliers removed
+Genomes populations, CEU, TSI, FIN, YRI, CHB, GIH; 58 YRI outliers removed
 over five rounds; three ancient populations projected). Regenerate with
 `tests/golden/eigensoft/build_smartpca.sh`, then
 `python tests/golden/eigensoft/generate_pca.py [config...]`.
@@ -516,8 +520,8 @@ counts) and `--make-king bin` (the kinship matrix as doubles).
 | `test_kinship` | `.king.bin`, minus infinity for pseudo-haploid samples | rtol 1e-10 |
 
 Configs: `family` (all 54 samples) and, with `--run-slow`,
-`aadr_yri_ceu_lbk` (YRI.DG, CEU.DG and 69 pseudo-haploid Germany_EN_LBK.AG
-samples; 36,046 pairs).
+`aadr_yri_ceu_lbk` (YRI.DG, CEU.DG and 25 pseudo-haploid
+Germany_HalberstadtSonntagsfeld_EN_LBK.AG samples; 25,425 pairs).
 
 `tests/golden/test_read_readv2.py` checks `read_kinship` against READv2 2.01
 (`tests/golden/readv2/73739be/<config>/read.json`, from `generate_read.py`,
@@ -528,9 +532,10 @@ every pair and the overlapping SNPs (exact), and P0, normalized P0, SEs, z
 scores, the share of first-degree windows, effective SNPs, the kinship and
 its interval (rtol 1e-10). Corrected, P0 and kinship are unchanged and only
 the SEs and interval differ. Configs: `family` (49 diploid French and Yoruba
-samples) and, with `--run-slow`, `aadr_gurgy` (the 78 pseudo-haploid
-Neolithic Gurgy samples, whose pedigree has 59 first-degree pairs: 29 called
-parent-offspring, 28 siblings).
+samples) and, with `--run-slow`, `aadr_gurgy` (the 90 pseudo-haploid
+Neolithic France samples of AADR v66.p1 France_Yonne_N.AG and France_N.AG,
+whose Gurgy pedigree has 78 first-degree pairs: 35 called parent-offspring,
+35 siblings).
 
 `tests/python/test_kinship.py` checks the API's options and the `kinship`
 command.
@@ -716,24 +721,24 @@ The `chr20_22_reference.json` contains:
 ### AADR v66.p1 Reference Data
 
 **Location**: `/references/aadr/v66.p1/v66.p1_1240K.aadr.patch.PUB.*`
-(23,089 samples, 1,233,013 SNPs, TGENO). Population labels carry no
-data-type suffix (`French`; the suffix is on sample IDs). Used by the
-format goldens (`tests/golden/formats/`).
+(23,089 samples, 1,233,013 SNPs, TGENO), checked against the release's
+`CHECKSUMS.normalized.md5`. Population labels carry no data-type suffix
+(`French`; the suffix is on sample IDs). The format goldens
+(`tests/golden/formats/`) read it directly.
 
-### AADR v62 Reference Data
+Every other AADR golden, and the CLI, Nextflow and reader tests on AADR,
+read the populations they use from one derived dataset,
+`~/.cache/popmix-references/aadr_v66p1/aadr_v66p1.{geno,snp,ind}`, made by
+`python tests/golden/aadr/build_aadr_v66p1.py`: each individual relabelled
+`<label>.<suffix of its sample ID>` (`French.DG`, `Chimp.REF`,
+`Russia_Samara_EBA_Yamnaya.AG`), written by AdmixTools 8 convertf as
+PACKEDANCESTRYMAP with every SNP. Its `manifest.json` records the release
+checksums, the populations and its own checksums; each AADR reference
+records it as `dataset`. A new golden on other populations adds them to
+the script's list.
 
-**Location**: `/references/aadr/v62.0_1240k_public.*`
-
-| File | Size | Description |
-|------|------|-------------|
-| `.geno` | 5.4 GB | Genotype matrix (PACKEDANCESTRYMAP) |
-| `.ind` | 818 KB | 17,629 samples |
-| `.snp` | 78 MB | 1,233,013 SNPs |
-| `.anno` | 8.2 MB | Sample annotations |
-
-**Format**: PACKEDANCESTRYMAP (EIGENSTRAT binary)
-
-**Used by**: Golden master tests, CLI slow tests
+Never use AADR v62.0 or v66.0: they hold the 161 genomes of Jacobs et al.
+2019 that v66.p1 withdrew (`tests/python/test_data_ethics.py`).
 
 ### AADR v54 HO Reference Data
 
@@ -777,7 +782,7 @@ format goldens (`tests/golden/formats/`).
 | VCF tests | small_vcf*.vcf | `tests/fixtures/` |
 | Format and conversion goldens | AADR v66.p1 subset (generated) | reference cache |
 | DATES validation | chr20-22 data | `tests/golden/dates/` |
-| F-statistic golden | AADR v62 | `/references/aadr/` |
+| AADR goldens | AADR v66.p1, labelled subset (generated) | reference cache |
 | CLI PLINK tests | AADR v54 HO | `/references/aadr_v54.1.p1/` |
 | Quick tests | fixtures + dates | `tests/` |
 | Slow tests | All above | All locations |
@@ -818,8 +823,9 @@ If pair counts don't match exactly:
 
 ### Golden Master Test Failures
 
-1. Check that AADR data exists at `/references/aadr/v62.0_1240k_public`
-   (and `/references/aadr/v66.p1/` for the format goldens)
+1. Check that AADR v66.p1 exists at `/references/aadr/v66.p1/` and that
+   `python tests/golden/aadr/build_aadr_v66p1.py` has built its labelled
+   dataset in the reference cache
 2. Verify reference JSON files in `tests/golden/`
 3. Check population names match exactly (e.g., "Han.DG" not "Han")
 

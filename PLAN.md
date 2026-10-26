@@ -3,7 +3,7 @@
 Every feature is done the way the existing ones were:
 
 1. **Reference first.** A generator script runs the reference tool on real
-   data (AADR v62; the 54-sample DATES data for small-file cases) and stores
+   data (AADR v66.p1; the 54-sample DATES data for small-file cases) and stores
    every intermediate stage, not only the final numbers.
 2. **Golden tests at the CLAUDE.md tolerances** (statistics rtol 1e-10, SEs
    1e-6, weights 1e-6, p-values 1e-4), written before the code.

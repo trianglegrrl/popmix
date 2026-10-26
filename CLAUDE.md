@@ -91,7 +91,9 @@ Use the **system R** (not conda R) which has admixtools installed:
 library(admixtools)
 
 # Load data
-prefix <- "/references/aadr/v62.0_1240k_public"
+# AADR v66.p1 labelled by data type (Han.DG): build it once with
+# python tests/golden/aadr/build_aadr_v66p1.py
+prefix <- path.expand("~/.cache/popmix-references/aadr_v66p1/aadr_v66p1")
 f2_blocks <- f2_from_geno(prefix, pops = c("Han.DG", "Yoruba.DG", "Mbuti.DG"))
 
 # Compute statistics
@@ -144,7 +146,13 @@ pytest tests/golden -v      # Compare with admixtools2
 ## Test Data Locations
 
 Real datasets for testing:
-- **AADR v62**: `/references/aadr/v62.0_1240k_public.*` (EIGENSTRAT format)
+- **AADR v66.p1**: `/references/aadr/v66.p1/v66.p1_1240K.aadr.patch.PUB.*`
+  (TGENO; labels without data-type suffix, e.g. `French`). The goldens read
+  the populations they use, labelled `<label>.<data type>` (`French.DG`), from
+  `~/.cache/popmix-references/aadr_v66p1/aadr_v66p1`, which
+  `tests/golden/aadr/build_aadr_v66p1.py` builds. Never use AADR v62.0 or
+  v66.0: they hold the 161 genomes of Jacobs et al. 2019 that v66.p1 withdrew
+  (`tests/python/test_data_ethics.py`).
 - **AADR HO**: `/references/aadr_v54.1.p1/HO_public.*` (PLINK format)
 - **1000G**: `/8tb/1000genomes/` (PLINK format)
 
@@ -201,7 +209,9 @@ First, compute the expected output using admixtools2 in R:
 
 ```r
 library(admixtools)
-prefix <- "/references/aadr/v62.0_1240k_public"
+# AADR v66.p1 labelled by data type (Han.DG): build it once with
+# python tests/golden/aadr/build_aadr_v66p1.py
+prefix <- path.expand("~/.cache/popmix-references/aadr_v66p1/aadr_v66p1")
 f2 <- f2_from_geno(prefix, pops = c("Han.DG", "Yoruba.DG", "Mbuti.DG"))
 
 # Example: generate FST reference

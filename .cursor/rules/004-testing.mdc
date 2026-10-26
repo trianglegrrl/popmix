@@ -23,7 +23,9 @@ First, compute expected output using admixtools2 in R:
 
 ```r
 library(admixtools)
-prefix <- "/references/aadr/v62.0_1240k_public"
+# AADR v66.p1 labelled by data type (Han.DG): build it once with
+# python tests/golden/aadr/build_aadr_v66p1.py
+prefix <- path.expand("~/.cache/popmix-references/aadr_v66p1/aadr_v66p1")
 f2 <- f2_from_geno(prefix, pops = c("Han.DG", "Yoruba.DG", "Mbuti.DG"))
 
 result <- fst(f2)
