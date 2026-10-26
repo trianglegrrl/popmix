@@ -128,7 +128,9 @@ rules for adding one.
 - **Tests:** The golden `full_fit`, `jackknife_by_chrom` and
   `jackknife_result` checks pass only with it on (compat). `default_result`
   checks that the full-precision result stays within DATES's reported
-  precision wherever no other correction applies.
+  precision wherever no other correction applies and this one moves the
+  result less than that precision; on AADR French.DG it moves it more, and
+  the check is skipped with the measured shift.
 
 ### DATES-0004: every sample counted as diploid
 

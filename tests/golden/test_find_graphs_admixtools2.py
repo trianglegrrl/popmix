@@ -53,15 +53,19 @@ def f2_blocks():
                          maxmiss=p["maxmiss"], poly_only=p["poly_only"] == "f2")
 
 
-# At fixed admixture weights the fit has no optimizer in it, so it is exact.
+# At fixed admixture weights the fit has no optimizer in it, so it is exact:
+# each fitted f3 to rtol 1e-10 of its own size. A near-perfect fit's score
+# (1e-3 against a median near 10) is made of residuals far smaller than the
+# f3 statistics, so it is exact to about 1e-12 absolute instead.
 FIXED_RTOL = 1e-10
+FIXED_ATOL = 1e-12
 # Optimized scores: R's L-BFGS-B stops once an iteration reduces the score by
 # less than factr * epsilon = 2e-9 of it.
 OPT_RTOL = 1e-6
 
 
-def _close(ours: float, theirs: float, rtol: float) -> bool:
-    return abs(ours - theirs) <= rtol * abs(theirs) + 1e-15
+def _close(ours: float, theirs: float, rtol: float, atol: float = 1e-15) -> bool:
+    return abs(ours - theirs) <= rtol * abs(theirs) + atol
 
 
 @pytest.mark.parametrize("i", _cases())
@@ -92,7 +96,7 @@ def test_popmix_edge_lists_at_admixtools2_weights(f2_blocks, i):
     bad = []
     for k, (edges, g) in enumerate(zip(ours, case["graphs"])):  # noqa: B905
         score = pm.qpgraph(f2_blocks, edges, admix_weights=g["weights"] or None).score
-        if not _close(score, g["score"], FIXED_RTOL):
+        if not _close(score, g["score"], FIXED_RTOL, FIXED_ATOL):
             bad.append(f"graph {k}: {score!r} != {g['score']!r}")
     assert not bad, f"{len(bad)} of {len(ours)} differ:\n" + "\n".join(bad[:10])
 
@@ -113,7 +117,7 @@ def test_qpgraph_at_admixtools2_weights(f2_blocks, i):
     for k, g in enumerate(case["graphs"]):
         weights = g["weights"] or None
         ours = pm.qpgraph(f2_blocks, _edges(g), admix_weights=weights).score
-        if not _close(ours, g["score"], FIXED_RTOL):
+        if not _close(ours, g["score"], FIXED_RTOL, FIXED_ATOL):
             bad.append(f"graph {k}: {ours!r} != {g['score']!r}")
     assert not bad, f"{len(bad)} of {len(case['graphs'])} differ:\n" + "\n".join(bad[:10])
 

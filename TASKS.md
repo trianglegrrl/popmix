@@ -341,6 +341,10 @@ thread count.
 - [ ] **F14. KING kinship speed:** popmix 3.9 s against PLINK 2's 0.84 s (16
   threads) for 220 samples x 1.2M SNPs in the E benchmark; packed popcount
   kernels as plink2 uses (F11).
+- [ ] **F15. CLI startup:** `import popmix` loads pandas eagerly (through
+  `popmix.admixture`), about a second on every command; import it lazily.
+- [ ] **F16. ADMIXTURE speed:** popmix 43.7 s against ADMIXTURE's 29 s in
+  the E benchmark.
 
 ## G. Scientific guardrails and honest reporting (P1)
 
@@ -383,6 +387,13 @@ thread count.
 - [ ] **G13. Warn on the combinations users get wrong without noticing:**
   generalize the above into a warnings channel (Rust → Python → CLI), today
   almost absent.
+- [ ] **G14. qpGraph past a zero-bound kink:** where a fitted edge length
+  reaches zero the score has a kink, and R-style finite-difference
+  L-BFGS-B stalls before it from every start, as admixtools2's does
+  (AADR v66.p1 ancient_5pop admix1: both stop at weight 0.4502-0.4503,
+  score 0.67713, against the minimum 0.67706 at 0.45087). Polish the best
+  start by default (a bracketing line search on the stalled direction),
+  keep the stall under compat.
 
 ## H. Practitioner features (P1)
 

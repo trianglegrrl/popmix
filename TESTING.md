@@ -313,7 +313,7 @@ the pipeline:
 | `f4ratio` | `qpf4ratio()` | alpha and se rtol 1e-6 |
 | `qpgraph_f3` | `qpgraph()$f3` est and se, and `ppinv` (inverse f3 covariance) | est rtol 1e-10, se and ppinv rtol 1e-6 |
 | `qpgraph_fixed` | `qpgraph` internals at fixed admixture weights (admixtools2's best, and 0.3): edge lengths, fitted f3, score | rtol 1e-10 |
-| `qpgraph_fit` | `qpgraph(seed = 1)`, weights optimized | score at most admixtools2's (rtol 1e-10); weights within 1e-6 or admixtools2's spread over its starts |
+| `qpgraph_fit` | `qpgraph(seed = 1)`, weights optimized | every start's score rtol 1e-10 and weights 1e-6; where either tool's line search failed from some start (convergence 52, `ancient_5pop` admix1: both stall before a kink where an edge length reaches zero), score rtol 1e-5 and weights 1e-3 |
 | `fst_block_lengths`, `fst_blocks`, `fst_estimates` | `f2_from_geno(fst = TRUE)`, `fst()` | exact; rtol 1e-10; est 1e-10, se 1e-6 |
 
 Configs (`tests/golden/admixtools2/v2.0.10/<config>/`):
@@ -368,7 +368,7 @@ admixtures, 4 with 1 and 2; 2976 graphs):
 |-------|------------------|-----------|
 | `test_same_graphs_in_the_same_order` | `generate_all_graphs()`: every graph, in order, by its `graph_hash()` key | exact |
 | `test_graph_key_of_admixtools2_graphs` | `graph_hash()` key of each admixtools2 graph | exact |
-| `test_qpgraph_at_admixtools2_weights` | `qpgraph()` score of every graph, popmix fitted at admixtools2's best weights | rtol 1e-10 |
+| `test_qpgraph_at_admixtools2_weights` | `qpgraph()` score of every graph, popmix fitted at admixtools2's best weights | rtol 1e-10, atol 1e-12 (a near-perfect fit's residuals are exact only to the f3 statistics' size) |
 | `test_qpgraph_tree_scores` | `qpgraph()` score of every tree (nothing to optimize) | rtol 1e-10 |
 | `test_qpgraph_optimized_score_of_every_graph` | `qpgraph()` optimized score of every 1-admixture graph (84 and 1485) | rtol 1e-6 |
 | `test_qpgraph_optimized_score_with_two_admixtures` | the same for 2 admixtures: at least 1222 of 1302 agree, at most 39 higher (rounding sends some paths to other minima, DEVIATIONS.md); the best graph's score | rtol 1e-6 |
@@ -594,8 +594,9 @@ rexpfit.r itself) and dowtjack's weighted jackknife: the weighted Z-score,
 regression, correlation and pair count of every bin, for all data and each
 chromosome left out (rtol 1e-9, counts exact), and on `aadr_asw` (ASW with
 YRI and CEU, chromosomes 18-22) the fits, each with a squared error no
-larger than nls's (decay rtol 1e-5, affine term and amplitude 1e-4), and the
-jackknife (rtol 1e-5).
+larger than nls's and its parameters within nls's convergence (rtol 1e-4:
+nls's relative-offset rule bounds its last step against the residual, not
+the parameters), and the jackknife (rtol 1e-4).
 
 `tests/python/test_rolloff.py` checks the API and the `rolloff` command.
 

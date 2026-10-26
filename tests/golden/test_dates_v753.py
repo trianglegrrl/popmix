@@ -302,12 +302,23 @@ def _check_default_result(name: str):
     """Where no correction changes the LD table, users get what DATES reports.
 
     DATES-0003 (fitting printed values) still applies, so this is the
-    full-precision result against DATES's printed one.
+    full-precision result against DATES's printed one. With the LD table
+    unchanged, the default and compat="dates-v753" differ by DATES-0003
+    alone; where that moves the result past DATES's printed precision (on
+    aadr_french_q10, 0.16 generations of the jackknife, 1% of its SE), the
+    comparison says nothing about popmix and is skipped with the measured
+    shift. jackknife_result checks the compat run against DATES there.
     """
     if name in MIXED_PLOIDY:
         pytest.skip("DATES-0004 changes this config's source frequencies")
     if _corrected_bins(name):
         pytest.skip("DATES-0001 changes this config's LD table; see default_vs_exact_mode")
+    ref, default = _result_for(name, None)
+    _, compat = _result_for(name, COMPAT)
+    tol = jackknife_tol(ref)
+    shift = max(abs(default.generations - compat.generations), abs(default.generations_se - compat.generations_se))
+    if shift > tol:
+        pytest.skip(f"DATES-0003 alone moves this config's jackknife by {shift:.4f} generations (tol {tol:.4f})")
     _check_jackknife_result(name, compat=None)
 
 

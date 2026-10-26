@@ -12,8 +12,7 @@ dowtjack, as ADMIXTOOLS' expfit.sh.
 - fit and jackknife (aadr_asw only: with 4 admixed samples the family curve
   determines no date, and nls leaves DEoptim's bounds): popmix's least-squares
   fit (C, A, m) is at least as good as nls's and agrees with it to nls's
-  convergence (decay rtol 1e-5, C and A 1e-4), and the jackknife mean and SE
-  within 1e-5
+  convergence (rtol 1e-4), and the jackknife mean and SE within 1e-4
 """
 
 from __future__ import annotations
@@ -82,14 +81,18 @@ def _sse(bins: dict, fit, lval: float = 0.5, hval: float = 100.0) -> float:
 @pytest.mark.slow
 def test_fit_and_jackknife():
     """popmix's fit is at least as good as nls's (its squared error no
-    larger, in every case), and the two agree to nls's convergence: the decay
-    within 1e-5, the affine term and amplitude, which trade off along a flat
-    ridge where nls stops early, within 1e-4."""
+    larger, in every case), and the two agree to nls's convergence, 1e-4.
+
+    nls stops once its relative offset falls below 1e-5, which bounds the
+    step against the residual, not the parameters: along the flat ridge
+    where the affine term, amplitude and decay trade off it stops early. On
+    AADR v66.p1 aadr_asw its full fit ends with the decay 1.3e-5 and the
+    affine term 4.6e-5 from popmix's, at a squared error 5e-11 above it, and
+    the jackknife mean, built from that fit, 6.4e-5 from popmix's."""
     ref, ours = _run("aadr_asw")
 
     def same(f, r, where):
-        assert f[2] == pytest.approx(r[2], rel=1e-5), where
-        assert f[:2] == pytest.approx(r[:2], rel=1e-4), where
+        assert f == pytest.approx(r, rel=1e-4), where
 
     assert _sse(ours["bins"], ours["fit"]) <= _sse(ours["bins"], ref["fit"]) * (1 + 1e-12)
     same(ours["fit"], ref["fit"], "all")
@@ -97,4 +100,4 @@ def test_fit_and_jackknife():
         assert _sse(b, f) <= _sse(b, ref["jackknife_fits"][c]) * (1 + 1e-12), c
         same(f, ref["jackknife_fits"][c], c)
     assert ours["snp_weights"] == [ref["snp_weights"][c] for c in ours["chromosomes"]]
-    assert ours["jackknife"] == pytest.approx(ref["jackknife"], rel=1e-5)
+    assert ours["jackknife"] == pytest.approx(ref["jackknife"], rel=1e-4)
