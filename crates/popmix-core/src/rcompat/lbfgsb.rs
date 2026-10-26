@@ -807,8 +807,7 @@ fn formk(mem: &mut Memory, fs: &FreeSet) -> i32 {
     let wyv = |mem: &Memory, i: usize, j: usize| mem.wy[at(i, j, n)];
     let wsv = |mem: &Memory, i: usize, j: usize| mem.ws[at(i, j, n)];
 
-    let upcl;
-    if mem.updatd {
+    let upcl = if mem.updatd {
         if mem.iupdat > m {
             // shift the old part of wn1 up-left
             for jy in 1..m {
@@ -869,10 +868,10 @@ fn formk(mem: &mut Memory, fs: &FreeSet) -> i32 {
             ipntr = next(ipntr, m);
             mem.wn1[w1(is, jy)] = temp3;
         }
-        upcl = col - 1;
+        col - 1
     } else {
-        upcl = col;
-    }
+        col
+    };
 
     // the old part, for the variables that entered or left
     let mut ipntr = head;

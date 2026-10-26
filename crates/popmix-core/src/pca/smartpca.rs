@@ -408,7 +408,7 @@ pub fn smartpca(
         }
     }
 
-    let numoutiter = options.outlier_iterations.max(0) + 1;
+    let numoutiter = options.outlier_iterations + 1;
     let mut outliers = Vec::new();
     let mut n_killed = 0usize;
     let mut pass = 0;
