@@ -135,7 +135,7 @@ def _f2_point(curve: str, x: int, pops: list[str], prepare: Callable[[], Path], 
     return Point(
         curve, x, "extract_f2", prepare,
         popmix=lambda i, o, t: ["popmix", "--threads", str(t), "extract-f2", "-i", str(i), "-o", str(o / "f2"),
-                                "--populations", ",".join(pops)],
+                                "--populations", ",".join(pops), "--pseudohaploid", "admixtools2"],
         ref=(lambda i, o, _t: _r(_R_F2, o, str(i), ",".join(pops))) if with_ref else None,
         agree=_agree_f2 if with_ref else None, threads=threads)
 

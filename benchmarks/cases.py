@@ -108,6 +108,16 @@ def _r(script: str, outdir: Path, *args: str) -> list[str]:
     return [RSCRIPT, str(path), *args, str(outdir)]
 
 
+def _f2_mismatches(got: np.ndarray, want: np.ndarray) -> int:
+    """Entries off by more than CLAUDE.md's f-statistic tolerance, atol 1e-15 + rtol 1e-10.
+
+    NaN must meet NaN.
+    """
+    nan = np.isnan(got) | np.isnan(want)
+    off = np.abs(got - want) > 1e-15 + 1e-10 * np.abs(want)
+    return int(np.sum(np.where(nan, np.isnan(got) != np.isnan(want), off)))
+
+
 def _agree_f2(ours: Path, theirs: Path) -> dict:
     import popmix as pm
 
@@ -115,23 +125,22 @@ def _agree_f2(ours: Path, theirs: Path) -> dict:
     n, _, nb = meta["dim"]
     ref = np.fromfile(theirs / "f2.bin", dtype="<f8").reshape((nb, n, n)).transpose(1, 2, 0)
     f2 = pm.read_f2(str(ours / "f2"))
-    worst_abs = worst_rel = 0.0
+    worst_abs, differing = 0.0, 0
     for i, a in enumerate(meta["pops"]):
         for j, b in enumerate(meta["pops"]):
             if i < j:
                 got, want = np.asarray(f2.f2_per_block(a, b)), ref[i, j]
-                d = np.abs(got - want)
-                worst_abs = max(worst_abs, float(np.nanmax(d)))
-                worst_rel = max(worst_rel, float(np.nanmax(d / np.maximum(np.abs(want), 1e-300))))
+                differing += _f2_mismatches(got, want)
+                worst_abs = max(worst_abs, float(np.nanmax(np.abs(got - want), initial=0.0)))
     ok = list(f2.block_lengths) and len(f2.block_lengths) == nb
-    return {"blocks": nb, "max_abs": worst_abs, "max_rel": worst_rel,
-            "pass": bool(ok) and (worst_rel <= 1e-10 or worst_abs <= 1e-15)}
+    return {"blocks": nb, "max_abs": worst_abs, "differing": differing,
+            "pass": bool(ok) and differing == 0}
 
 
 F2_CASE = Case(
     name="extract_f2", analysis=f"f2 blocks, {len(POPS)} populations", reference="admixtools2 2.0.10 f2_from_geno",
     popmix=lambda i, o, t: ["popmix", "--threads", str(t), "extract-f2", "-i", str(i), "-o", str(o / "f2"),
-                            "--populations", ",".join(POPS)],
+                            "--populations", ",".join(POPS), "--pseudohaploid", "admixtools2"],
     ref=lambda i, o: _r(_R_F2, o, str(i), ",".join(POPS)),
     agree=_agree_f2,
 )

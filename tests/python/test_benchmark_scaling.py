@@ -70,3 +70,9 @@ def test_numpy_agreement_values_are_written_as_json(tmp_path, monkeypatch):
     monkeypatch.setattr("sys.argv", ["scaling.py", "--curves", "samples", "--out", str(out)])
     scaling.main()
     assert json.loads(out.read_text())["curves"]["samples"][point.key]["agreement"]["pass"] is True
+
+
+def test_f2_points_read_ploidy_as_admixtools2():
+    point = scaling._f2_point("populations", 4, ["A", "B"], lambda: Path("x"))
+    cmd = point.popmix(Path("in"), Path("out"), 4)
+    assert cmd[cmd.index("--pseudohaploid") + 1] == "admixtools2"

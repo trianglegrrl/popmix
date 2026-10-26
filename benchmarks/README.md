@@ -20,7 +20,9 @@ The input is AdmixTools 8 convertf's PACKEDANCESTRYMAP subset of AADR v66.p1
 to 16 populations (473 individuals, 1,233,013 SNPs), made once in the
 reference cache; the PCA and kinship cases use its 8 present-day
 populations. Each case is in `cases.py`: the two command lines and the
-comparison.
+comparison. The f2 cases run popmix with `--pseudohaploid admixtools2`, the
+reference's ploidy rule (DEVIATIONS.md ADMIXTOOLS2-0007), and compare every
+entry at atol 1e-15 + rtol 1e-10.
 
 | Case | Reference |
 |------|-----------|
