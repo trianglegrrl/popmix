@@ -91,9 +91,10 @@ def present_day_samples() -> list[str]:
 
 
 def _convertf(name: str, keep: Callable[[str, str], bool], fmt: str = "PACKEDANCESTRYMAP",
-              src: Path = AADR, **extra: str) -> Path:
-    """convertf's copy of src with only the samples `keep(id, group)` accepts
-    (the others relabelled Ignore). Made once, in the cache."""
+              src: Path = AADR, label: Callable[[str], str] = lambda g: g, **extra: str) -> Path:
+    """convertf's copy of src with only the samples `keep(id, group)` accepts,
+    labelled `label(group)` (the others relabelled Ignore). Made once, in the
+    cache."""
     out = SCALING / name
     done = Path(f"{out}.bed" if fmt == "PACKEDPED" else f"{out}.geno")
     if done.exists():
@@ -101,7 +102,7 @@ def _convertf(name: str, keep: Callable[[str, str], bool], fmt: str = "PACKEDANC
     SCALING.mkdir(parents=True, exist_ok=True)
     rows = [line.split() for line in Path(f"{src}.ind").read_text().splitlines()]
     ind = SCALING / f"{name}.in.ind"
-    ind.write_text("".join(f"{i} {s} {g if keep(i, g) else 'Ignore'}\n" for i, s, g in rows))
+    ind.write_text("".join(f"{i} {s} {label(g) if keep(i, g) else 'Ignore'}\n" for i, s, g in rows))
     ext = ("bed", "bim", "fam") if fmt == "PACKEDPED" else ("geno", "snp", "ind")
     keys = {"genotypename": f"{src}.geno", "snpname": f"{src}.snp", "indivname": ind, "outputformat": fmt,
             "genotypeoutname": f"{out}.{ext[0]}", "snpoutname": f"{out}.{ext[1]}",
@@ -178,11 +179,16 @@ def _pops_input(n: int) -> Callable[[], Path]:
     return prepare
 
 
+# The sample series as one population: smartpca stops at more than 100
+# populations, and neither PCA nor KING uses them
+PRESENT_DAY_LABEL = "PresentDay"
+
+
 def _samples_input(n: int, fmt: str = "PACKEDANCESTRYMAP") -> Callable[[], Path]:
     def prepare() -> Path:
         chosen = set(present_day_samples()[:n])
-        name = f"samples{n}" + ("_bed" if fmt == "PACKEDPED" else "")
-        return _convertf(name, lambda i, _g: i in chosen, fmt)
+        name = f"samples{n}_1pop" + ("_bed" if fmt == "PACKEDPED" else "")
+        return _convertf(name, lambda i, _g: i in chosen, fmt, label=lambda _g: PRESENT_DAY_LABEL)
     return prepare
 
 
