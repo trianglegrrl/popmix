@@ -620,6 +620,43 @@ rexpfit.r's method and its weighted jackknife by dowtjack, as expfit.sh.
   is generated the same way.
 
 
+## ADMIXTOOLS 7.0.2 (qpAdm)
+
+popmix's qpAdm follows admixtools2 (`qpadm()`), which is what its goldens
+check. The benchmark case `classic_qpadm` (benchmarks/cases.py) runs
+classic qpAdm (version 1520, `allsnps: NO`, `inbreed: NO`) on the same
+genotypes, with `--pseudohaploid diploid`, and the two differ beyond
+qpAdm's printed precision. This is a difference of method, not a bug in
+either, and popmix does not reproduce it.
+
+### Differences, not reproduced
+
+- **Which SNPs are used.** Established black-box on bench16 (Spain_EN =
+  Turkey_N + Serbia_IronGates_Mesolithic, 7 right): classic qpAdm keeps a
+  SNP when every basis statistic f4(L0, Li; R0, Rj) (L0 the target, R0 the
+  first right population) can be evaluated, where a statistic with one
+  factor exactly 0 (pL0 = pLi, or pR0 = pRj) counts as 0 even when the
+  other factor's population has no data there. Monomorphic SNPs are kept.
+  admixtools2 and popmix keep the SNPs every population has data at, less
+  the monomorphic ones. The rule gives classic qpAdm's "numsnps used"
+  exactly: 803,891 on the model (popmix 675,980; 725,784 with monomorphic
+  SNPs), 1,074,466 with Israel_Natufian (the population with least
+  coverage) left out of right, and 12,585 on chromosome 22 alone; and of
+  320 SNPs of chromosome 22 that only Israel_Natufian lacks, added one at a
+  time to the complete ones, it predicts which 52 qpAdm counts. Such a SNP
+  adds nothing to an f4 sum but counts in its block, so it shrinks that
+  block's f4 means. The rule also selects SNPs by their genotypes (left
+  populations fixed for one allele), and it is not expressible with f2
+  statistics, which need every population's frequency.
+- **Standard errors and chi-squared.** With the SNP sets made the same (classic
+  qpAdm given `badsnpname` for every SNP some population lacks: 725,784
+  SNPs; popmix with `poly_only=False`), the weights agree to the printed
+  precision (0.814 / 0.186; jackknife mean 0.813668, popmix 0.813619), but
+  the standard error is 0.021 (error variance 434e-6) against popmix's and
+  admixtools2's 0.0218, and chi-squared 12.582 against 12.631 (12.678 with
+  `oracle: NO`, `diagplus: 0`). qpAdm's own jackknife and covariance
+  estimate (oracle shrinkage) differ from admixtools2's.
+
 ## mergeit (AdmixTools 8.0.2)
 
 `popmix merge` is checked against mergeit (tests/golden/formats/

@@ -779,9 +779,15 @@ def _agree_classic_qpadm(ours: Path, theirs: Path) -> dict:
     out = {"weights_abs": max(abs(a - b) for a, b in zip(w, weights)),  # noqa: B905
            "se_abs": max(abs(a - b) for a, b in zip(s, se)),  # noqa: B905
            "chisq_abs": abs(got["chi_sq"] - chisq), "p_rel": abs(got["p_value"] - p) / p}
-    # qpAdm keeps another SNP set from admixtools2's (803,891 SNPs here, against
-    # 675,980), so on this model the two differ by more than the printed
-    # precision (weights by 1e-3, chi-squared by 1.5%): the case records how far.
+    # qpAdm keeps another SNP set from admixtools2's and popmix's (803,891
+    # SNPs here, against 675,980), so on this model the two differ by more
+    # than the printed precision (weights by 1e-3, chi-squared by 1.5%): the
+    # case records how far. Classic qpAdm keeps a SNP when every basis
+    # f4(L0, Li; R0, Rj) can be evaluated, an f4 with a factor exactly 0
+    # counting as 0 even when the other factor's population has no data, and
+    # keeps monomorphic SNPs; on the SNPs every population has, its standard
+    # errors and chi-squared still differ from admixtools2's (DEVIATIONS.md,
+    # "ADMIXTOOLS 7.0.2 (qpAdm)"). No popmix option reproduces it.
     # weights, SEs and chi-squared printed to 3 decimals; the tail probability
     # to 10 significant digits, so CLAUDE.md's p-value tolerance applies
     out["pass"] = (out["weights_abs"] <= PRINTED3 and out["se_abs"] <= PRINTED3 and out["chisq_abs"] <= PRINTED3

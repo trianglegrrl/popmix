@@ -258,6 +258,11 @@ Tasks:
   - classic qpAdm keeps another SNP set than admixtools2 and popmix
     (803,891 against 675,980 on the case's model), so weights differ by
     1e-3 and χ² by 1.5%: beyond qpAdm's printed precision, the case fails.
+    Diagnosed: qpAdm keeps a SNP when every basis f4 is evaluable, an f4
+    with a zero factor counting as 0 even where a population has no data,
+    and keeps monomorphic SNPs; on a common SNP set its SEs and χ² still
+    differ from admixtools2's. A difference of method, not reproduced
+    (DEVIATIONS.md, "ADMIXTOOLS 7.0.2 (qpAdm)").
   - DATES with a pseudo-haploid source (French = Sardinian +
     Russia_Samara_EBA_Yamnaya, AADR v66.p1): popmix with
     `compat="dates-v753"` counts 0.06% more pairs per bin than DATES, and
