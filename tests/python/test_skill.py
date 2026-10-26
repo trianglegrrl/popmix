@@ -33,6 +33,11 @@ import pytest
 import popmix as pm
 from popmix.cli import cli
 
+try:
+    from click._utils import UNSET
+except ImportError:  # click before 8.3: no default is None
+    UNSET = None
+
 ROOT = Path(__file__).resolve().parents[2]
 SKILL = ROOT / "python" / "popmix" / "skill"
 COMMANDS = SKILL / "commands"
@@ -131,6 +136,9 @@ def check_default(label: str, param: click.Parameter, cell: str) -> list[str]:
     if param.required:
         return [] if "required" in cell else [f"{label}: default cell should say 'required'"]
     default = param.default
+    if default is UNSET:
+        # click 8.3 and later mark a parameter without a default this way
+        default = False if isinstance(param, click.Option) and param.is_flag else None
     if isinstance(param, click.Option) and param.is_flag and param.secondary_opts:
         want = param.opts[0] if default else param.secondary_opts[0]
         return [] if f"`{want}`" in cell else [f"{label}: default should be `{want}`"]

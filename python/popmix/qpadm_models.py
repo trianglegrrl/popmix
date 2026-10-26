@@ -211,7 +211,11 @@ def _model_rows(models: pd.DataFrame | Mapping[str, Sequence] | Sequence[Mapping
     for m in records:
         if "left" not in m or "right" not in m:
             raise ValueError("each model needs 'left' and 'right' populations")
-        out.append({"left": _pops(m["left"]), "right": _pops(m["right"]), "target": m.get("target")})
+        target = m.get("target")
+        # a DataFrame holds a missing target as NaN (pandas 3) or None
+        if target is not None and not isinstance(target, str) and pd.isna(target):
+            target = None
+        out.append({"left": _pops(m["left"]), "right": _pops(m["right"]), "target": target})
     return out
 
 
