@@ -148,13 +148,13 @@ from the code, not yet shown.
   and `except Exception: pass` at `cli/__init__.py:73`. AI
 - [x] **B13. `admixture_cv` folds truncated to u8** *Done in 0ad353c.* (`admixture.rs:741`) when
   folds > 256. RS
-- [ ] **B14. CLI options ignored without a word:** `qp3pop --outgroup-mode`
+- [x] **B14. CLI options ignored without a word:** `qp3pop --outgroup-mode`
   and `--no-bias-correction` with `--f2-dir`; `sfs --joint` with
   `--projection`, `--folded`, `--all-chromosomes`. Error out when they
   cannot apply.
 - [x] **B15. Broken pipe:** `popmix kinship ... | head` prints
   `Error: [Errno 32] Broken pipe` and exits 120; exit quietly.
-- [ ] **B16. Sex lost on conversion:** `convertf` to PLINK writes sex 0 and
+- [x] **B16. Sex lost on conversion:** `convertf` to PLINK writes sex 0 and
   `merge` writes `U` for every sample although the `.ind` has M/F.
 
 ## C. Licence and provenance (P0, for MIT)
