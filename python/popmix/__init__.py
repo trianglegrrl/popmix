@@ -4,6 +4,11 @@ Popmix: Population genetics F-statistics and admixture analysis toolkit.
 A Rust/Python reimplementation of admixtools2.
 """
 
+import importlib
+import sys
+import types
+from typing import TYPE_CHECKING
+
 from popmix._core import (
     PyAdmixGraph,
     PyAlleleFrequencies,
@@ -57,50 +62,132 @@ from popmix._core import (
     suggest_populations,
     version,
 )
-from popmix.admixture import AdmixtureResult, admixture, admixture_loglik
-from popmix.dot import parse_dot, write_dot
-from popmix.dstats import (
-    cluster_order,
-    dstat_matrix,
-    f3blockdat_from_geno,
-    f4blockdat_from_geno,
-    fstat_combinations,
-    outgroup_f3_matrix,
-    qp3pop,
-    qpdstat,
-    sample_ploidy,
-)
-from popmix.f2_dirs import extract_f2_subset, read_admixtools2_f2, write_admixtools2_f2
-from popmix.graph_search import find_graphs
-from popmix.kinship import king, read_kinship
-from popmix.pca import PcaResult, smartpca
-from popmix.qpadm_models import (
-    qpadm_models,
-    qpadm_multi,
-    qpadm_p,
-    qpadm_rotate,
-    qpwave_pairs,
-    rotate_models,
-    test_cladality,
-)
-from popmix.resample import (
-    boo_list,
-    compare_fits,
-    loo_list,
-    qp3pop_resample_inds,
-    qp3pop_resample_snps,
-    qpadm_resample_inds,
-    qpadm_resample_snps,
-    qpdstat_resample_inds,
-    qpdstat_resample_snps,
-    qpgraph_resample_inds,
-    qpgraph_resample_multi,
-    qpgraph_resample_snps,
-    qpwave_resample_inds,
-    qpwave_resample_snps,
-)
-from popmix.rolloff import RolloffResult, rolloff
-from popmix.sfs import Sfs, joint_sfs, sfs
+
+# Python submodules load on first use: most import pandas, which takes
+# longer to import than the rest of popmix, and `popmix --help` needs none.
+_LAZY = {
+    "AdmixtureResult": "admixture",
+    "PcaResult": "pca",
+    "RolloffResult": "rolloff",
+    "Sfs": "sfs",
+    "admixture": "admixture",
+    "admixture_loglik": "admixture",
+    "boo_list": "resample",
+    "cluster_order": "dstats",
+    "compare_fits": "resample",
+    "dstat_matrix": "dstats",
+    "extract_f2_subset": "f2_dirs",
+    "f3blockdat_from_geno": "dstats",
+    "f4blockdat_from_geno": "dstats",
+    "find_graphs": "graph_search",
+    "fstat_combinations": "dstats",
+    "joint_sfs": "sfs",
+    "king": "kinship",
+    "loo_list": "resample",
+    "outgroup_f3_matrix": "dstats",
+    "parse_dot": "dot",
+    "qp3pop": "dstats",
+    "qp3pop_resample_inds": "resample",
+    "qp3pop_resample_snps": "resample",
+    "qpadm_models": "qpadm_models",
+    "qpadm_multi": "qpadm_models",
+    "qpadm_p": "qpadm_models",
+    "qpadm_resample_inds": "resample",
+    "qpadm_resample_snps": "resample",
+    "qpadm_rotate": "qpadm_models",
+    "qpdstat": "dstats",
+    "qpdstat_resample_inds": "resample",
+    "qpdstat_resample_snps": "resample",
+    "qpgraph_resample_inds": "resample",
+    "qpgraph_resample_multi": "resample",
+    "qpgraph_resample_snps": "resample",
+    "qpwave_pairs": "qpadm_models",
+    "qpwave_resample_inds": "resample",
+    "qpwave_resample_snps": "resample",
+    "read_admixtools2_f2": "f2_dirs",
+    "read_kinship": "kinship",
+    "rolloff": "rolloff",
+    "rotate_models": "qpadm_models",
+    "sample_ploidy": "dstats",
+    "sfs": "sfs",
+    "smartpca": "pca",
+    "test_cladality": "qpadm_models",
+    "write_admixtools2_f2": "f2_dirs",
+    "write_dot": "dot",
+}
+
+
+def __getattr__(name: str) -> object:
+    module = _LAZY.get(name)
+    if module is None:
+        raise AttributeError(f"module 'popmix' has no attribute {name!r}")
+    value = getattr(importlib.import_module(f"popmix.{module}"), name)
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(_LAZY))
+
+
+class _Package(types.ModuleType):
+    """``popmix.admixture`` is the function even once its submodule
+    ``popmix.admixture`` is imported, which sets the attribute to the module."""
+
+    def __getattribute__(self, name: str) -> object:
+        if _LAZY.get(name) == name:
+            return getattr(importlib.import_module(f"popmix.{name}"), name)
+        return super().__getattribute__(name)
+
+
+sys.modules[__name__].__class__ = _Package
+
+
+if TYPE_CHECKING:
+    from popmix.admixture import AdmixtureResult, admixture, admixture_loglik
+    from popmix.dot import parse_dot, write_dot
+    from popmix.dstats import (
+        cluster_order,
+        dstat_matrix,
+        f3blockdat_from_geno,
+        f4blockdat_from_geno,
+        fstat_combinations,
+        outgroup_f3_matrix,
+        qp3pop,
+        qpdstat,
+        sample_ploidy,
+    )
+    from popmix.f2_dirs import extract_f2_subset, read_admixtools2_f2, write_admixtools2_f2
+    from popmix.graph_search import find_graphs
+    from popmix.kinship import king, read_kinship
+    from popmix.pca import PcaResult, smartpca
+    from popmix.qpadm_models import (
+        qpadm_models,
+        qpadm_multi,
+        qpadm_p,
+        qpadm_rotate,
+        qpwave_pairs,
+        rotate_models,
+        test_cladality,
+    )
+    from popmix.resample import (
+        boo_list,
+        compare_fits,
+        loo_list,
+        qp3pop_resample_inds,
+        qp3pop_resample_snps,
+        qpadm_resample_inds,
+        qpadm_resample_snps,
+        qpdstat_resample_inds,
+        qpdstat_resample_snps,
+        qpgraph_resample_inds,
+        qpgraph_resample_multi,
+        qpgraph_resample_snps,
+        qpwave_resample_inds,
+        qpwave_resample_snps,
+    )
+    from popmix.rolloff import RolloffResult, rolloff
+    from popmix.sfs import Sfs, joint_sfs, sfs
 
 # Convenient aliases
 Sample = PySample
