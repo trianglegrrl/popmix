@@ -650,8 +650,12 @@ rexpfit.r's method and its weighted jackknife by dowtjack, as expfit.sh.
   agree where the curve determines a date (`aadr_asw`). There nls stops at
   its convergence tolerance on a flat ridge of the affine term and the
   amplitude: popmix's fits have a smaller squared error in every case (all
-  data and each chromosome left out), and their decays agree within 7.7e-6,
-  the jackknife within 3.4e-6.
+  data and each chromosome left out). On AADR v62.0 their decays agreed
+  within 7.7e-6 and the jackknife within 3.4e-6; on v66.p1 the
+  chromosome-left-out decays agree within 6.4e-6, but the all-data decay
+  differs by 1.3e-5 (6.512929 against nls's 6.512847, the squared errors
+  equal to 6 digits) and the jackknife by 6.4e-5, beyond the golden
+  test's 1e-5.
 - **expfit.sh's jackknife assumes chromosomes 1-22.** wtjack.pl matches
   per-chromosome fits to chromosomes 1 to 22 in order; with a subset of
   chromosomes its weights and estimates are misaligned. popmix weights each

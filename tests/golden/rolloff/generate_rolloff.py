@@ -32,7 +32,11 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[2]
-AADR = "/references/aadr/v62.0_1240k_public"
+# AADR v66.p1, each individual labelled <population>.<data type>, as
+# tests/golden/aadr/build_aadr_v66p1.py builds it in the reference cache; its
+# manifest.json (recorded in each AADR reference) has the release checksums.
+AADR_DIR = Path(os.environ.get("POPMIX_REFERENCE_CACHE", Path.home() / ".cache/popmix-references")) / "aadr_v66p1"
+AADR = str(AADR_DIR / "aadr_v66p1")
 SMALL = str(REPO / "tests/golden/dates/family_chr20_22")
 BIN = Path(os.environ.get("ROLLOFF_DIR", Path.home() / ".local/share/popmix-references/admixtools-7.0.2"))
 
@@ -127,6 +131,8 @@ def run(name: str) -> None:
         "jackknife": [float(m.group(1)), float(m.group(2))],
         "pairs_visited": [int(n_used.group(1)), int(n_used.group(2))],
     }
+    if cfg["prefix"] == AADR:
+        out["dataset"] = json.loads((AADR_DIR / "manifest.json").read_text())
     dest = HERE / "v7.0.2" / name
     dest.mkdir(parents=True, exist_ok=True)
     (dest / "rolloff.json").write_text(json.dumps(out) + "\n")
