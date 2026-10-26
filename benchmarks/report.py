@@ -15,11 +15,20 @@ def _fmt(seconds: float) -> str:
     return f"{seconds:.2f} s" if seconds < 120 else f"{seconds / 60:.1f} min"
 
 
+def _reused(results: dict) -> str:
+    dates = sorted({c["reference_runs"]["reused_from"] for c in results["cases"].values()
+                    if "reused_from" in c["reference_runs"]})
+    if not dates:
+        return ""
+    return (f" Reference times are from the run of {', '.join(dates)} (the reference tools are unchanged; "
+            "agreement is checked against that run's outputs); popmix was run again.")
+
+
 def render(results: dict) -> str:
     m, v = results["machine"], results["versions"]
     lines = [f"Measured {results['date']} on {m.get('cpu', '?')} ({m['cpus']} threads, "
              f"{m.get('memory_gb', '?')} GB); popmix {v['popmix']} ({v['popmix_commit']}), admixtools2 "
-             f"{v['admixtools2']}; median of {results['repeats']} runs after a warm-up run.", "",
+             f"{v['admixtools2']}; median of {results['repeats']} runs after a warm-up run.{_reused(results)}", "",
              "| Analysis | Reference | Reference time | popmix time (threads) | Speed-up | Peak memory, ref / popmix "
              "| Agreement | Same output at every thread count |",
              "|---|---|---|---|---|---|---|---|"]

@@ -31,3 +31,18 @@ def test_text_in_the_results_cannot_close_the_script():
     page = report_html.render(results, {"curves": {}})
     assert page.count("</script>") == 1
     assert _payload(page)["cases"]["x"]["analysis"] == "</script><b>"
+
+
+def test_the_summary_says_when_reference_times_were_reused():
+    import report
+
+    run = {"wall_s": {"median": 2.0, "cv": 0.01}, "peak_rss_mb": {"median": 10.0}}
+    results = {"date": "2026-10-26", "repeats": 5, "machine": {"cpus": 16},
+               "versions": {"popmix": "1.0.0", "popmix_commit": "abc", "admixtools2": "2.0.10"},
+               "cases": {"f2": {"analysis": "f2", "reference": "admixtools2",
+                                "reference_runs": {**run, "reused_from": "2026-10-25"},
+                                "popmix": {"4": {**run, "agreement": {"pass": True}}},
+                                "identical_across_threads": True}}}
+    assert "Reference times are from the run of 2026-10-25" in report.render(results)
+    del results["cases"]["f2"]["reference_runs"]["reused_from"]
+    assert "Reference times are from" not in report.render(results)
