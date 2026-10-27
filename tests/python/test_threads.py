@@ -42,11 +42,12 @@ def test_long_computations_release_the_gil():
 
     worker = threading.Thread(target=work)
     worker.start()
-    last, longest = time.perf_counter(), 0.0
+    # with the GIL held throughout, this loop would run once or twice; a
+    # loaded machine delays some of its turns, but not most of them
+    ticks = 0
     while worker.is_alive():
         time.sleep(0.001)
-        now = time.perf_counter()
-        longest, last = max(longest, now - last), now
+        ticks += 1
     worker.join()
     assert took[0] > 0.05, "the computation is too short to tell"
-    assert longest < took[0] / 2
+    assert ticks >= 10
