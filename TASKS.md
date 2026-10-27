@@ -31,6 +31,15 @@ from the code, not yet shown.
 - popmix ships an agent skill documenting every CLI command (section N).
 - `popmix convertf` becomes a full replacement for EIGENSOFT/AdmixTools
   convertf (section P).
+- 1.0 is released for **Linux only** (2026-10-27): K1's macOS and Windows
+  jobs run once the repository is public, after 1.0.
+- H7 takes simulated genotypes as input (users run msprime themselves;
+  popmix never imports it, msprime being GPL-3) and reports false-positive
+  rate and power; the README's caveats section says so.
+- K2's AADR subset goes on Zenodo (the user's account); K8's dry run uses a
+  TestPyPI trusted publisher the user sets up. C7 is with the user.
+- **Small source files** (2026-10-27): split by concern, no source file past
+  about 800 lines, long test modules in their own files (I7).
 
 ## Path to 1.0
 
@@ -39,7 +48,8 @@ cheaper: the refactors come first because every later task edits the code
 they move, and the public API is settled before features add to it.
 
 1. **Foundations.** K7 (process rules), L3 (PyO3 upgrade), L2, L1, I1, I2,
-   I4 (pipeline out of the bindings, `lib.rs` split), I3, I5, M2, M1.
+   I4 (pipeline out of the bindings, `lib.rs` split), I7 (small files), I3,
+   I5, M2, M1.
 2. **The API 1.0 freezes.** G13 (warnings channel), J1, J2, J4, J3, J5, M4,
    H6, I6, M3.
 3. **Honest science.** G8, G12, G2, G1, G3, G4, G5, G7, G10, G11, G6, G14,
@@ -48,7 +58,8 @@ they move, and the public API is settled before features add to it.
    out), P2, H8, H10, H7.
 5. **Performance left over.** F4 (pair chunks past ~1,000 populations, on
    I4's pipeline), F14 (KING at 3,970 samples).
-6. **Tests and CI.** K5, K4, K3 with P5, P4, K6, K1, K2, K8.
+6. **Tests and CI.** K5, K4, K3 with P5, P4, K6, K1 (Linux; macOS and
+   Windows after 1.0), K2, K8.
 7. **Release.** L4, L5, L6. C7 stays open.
 
 ## A. Wrong results (P0)
@@ -491,6 +502,8 @@ thread count.
   AI
 - [ ] **H7. Calibration by simulation:** a command giving the false-positive
   rate and power of a qpAdm or f4 design on msprime simulations. PR
+  Decided: popmix reads simulated genotypes the user makes with msprime
+  (GPL-3, never imported); the README's caveats section says so.
 - [ ] **H8. Admixture dating model checks:** single pulse vs extended
   admixture (residual test or two-exponential fit). PR
 - [ ] **H9. Ascertainment awareness:** record the SNP panel in f2 metadata;
@@ -530,6 +543,14 @@ thread count.
 - [ ] **I5. One linear-algebra library** in public types and hot paths. RS
 - [ ] **I6. Don't promise a stable Rust API at 1.0** until I1-I4 are done
   (Python package 1.0 is separate). RS
+- [ ] **I7. No source file past about 800 lines,** split by concern, enforced
+  by a test. Over it on 2026-10-27: `popmix-python/src/lib.rs` 3,628 (I4),
+  `rcompat/lbfgsb.rs` 2,127, `cli/__init__.py` 1,580, `f2_blocks.rs` 1,527,
+  `admixture.rs` 1,159, `writers.rs` 1,117, `benchmarks/cases.py` 1,064,
+  `dates/ld_decay.rs` 1,003, `streaming.rs` 954, `smartpca.rs` 930,
+  `qpgraph_fit.rs` 922, `merge.rs` 848, `qpadm/fit.rs` 845. First move inline
+  `mod tests` blocks into sibling `tests.rs` files, then split what is
+  still long.
 
 ## J. Python API consistency (P2)
 
@@ -550,6 +571,7 @@ thread count.
   golden tests that ship their data (family_chr20_22, rlang, family_4pop) on
   Linux, macOS and Windows, x86_64 and aarch64; a skipped golden fails CI
   (`POPMIX_REQUIRE_GOLDEN=1`). AI, PD
+  Decided: Linux for 1.0; macOS and Windows once the repository is public.
 - [ ] **K2. Portable AADR goldens:** a Zenodo-hosted AADR subset with
   checksums; nightly or self-hosted run of the AADR goldens; record
   `sessionInfo()` and tool versions in every reference. PD
