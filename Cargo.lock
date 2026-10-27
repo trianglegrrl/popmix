@@ -1140,6 +1140,7 @@ dependencies = [
  "nalgebra",
  "ndarray",
  "petgraph",
+ "pyo3",
  "rayon",
  "rustfft",
  "serde_json",

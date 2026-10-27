@@ -538,7 +538,7 @@ thread count.
   `KeyError`/`ValueError` for populations and validation, popmix exception
   subclasses; `From<PopmixError> for PyErr` so `.map_err(to_py_err)` becomes
   `?` (everything is `RuntimeError` today, `lib.rs:36`). RS, PD
-  *Done in COMMIT:* `popmix.errors`: `PopmixError` and `InputError`,
+  *Done in 509a02a:* `popmix.errors`: `PopmixError` and `InputError`,
   `PopulationNotFoundError`, `MissingFileError`, `FileError`,
   `ComputationError`, `InternalError`, each also the built-in it was
   (`ValueError`, ...), so no `except` breaks; not `KeyError`, whose
