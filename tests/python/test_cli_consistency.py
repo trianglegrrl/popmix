@@ -178,3 +178,47 @@ def test_readme_names_every_input_format():
     for fmt in _input_formats():
         assert f"`{fmt}`" in inputs, fmt
     assert "### TGENO" in readme
+
+
+# --- compat --------------------------------------------------------------------
+
+# the command of each public function that takes compat
+COMPAT_COMMANDS = {"qpadm": "qpadm", "dates": "dates", "smartpca": "pca", "read_kinship": "kinship",
+                   "joint_sfs": "sfs", "write_dot": "qpgraph"}
+
+
+def test_every_compat_switch_is_on_the_cli():
+    """DEVIATIONS.md step 2: Python and the CLI both take the compat switch."""
+    import inspect
+
+    from popmix.cli import cli
+
+    with_compat = {name for name in pm.__all__ if callable(getattr(pm, name))
+                   and not isinstance(getattr(pm, name), type)
+                   and "compat" in inspect.signature(getattr(pm, name)).parameters}
+    assert with_compat == set(COMPAT_COMMANDS)
+    for command in COMPAT_COMMANDS.values():
+        assert "compat" in {p.name for p in cli.commands[command].params}, command
+
+
+@pytest.mark.parametrize("compat", [None, "admixtools2-2.0.10"])
+def test_qpgraph_dot_takes_compat(dg6, f2_dir, tmp_path, compat):
+    """--dot writes what write_dot does, admixtools2's text with --compat (ADMIXTOOLS2-0004)."""
+    ref = json.loads((ROOT / "tests/golden/admixtools2/v2.0.10/dg_6pop/qpgraph.json").read_text())
+    edges = next(g for g in ref["graphs"] if g["name"] == "admix1")["edges"]
+    graph = tmp_path / "graph.txt"
+    graph.write_text("".join(f"{a}\t{b}\n" for a, b in edges))
+    dot = tmp_path / "graph.dot"
+    popmix("qpgraph", "--f2-dir", f2_dir, "--graph", str(graph), "--dot", str(dot),
+           *(["--compat", compat] if compat else []))
+    expected = pm.write_dot(pm.qpgraph(dg6, [tuple(e) for e in edges]), compat=compat)
+    assert dot.read_text() == expected
+
+
+def test_qpgraph_compat_needs_dot(tmp_path):
+    graph = tmp_path / "graph.txt"
+    graph.write_text("R\tA\nR\tB\n")
+    out = subprocess.run(["popmix", "qpgraph", "--graph", str(graph), "--f2-dir", str(tmp_path),
+                          "--compat", "admixtools2-2.0.10"], capture_output=True, text=True)
+    assert out.returncode == 2
+    assert "--compat applies only with --dot" in out.stderr

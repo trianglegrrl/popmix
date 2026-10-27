@@ -14,10 +14,10 @@ rules for adding one.
 | DATES-0002 | Last FFT lag left unscaled | Every lag scaled | `compat="dates-v753"` |
 | DATES-0003 | Fits the printed (rounded) values | Full precision | `compat="dates-v753"` |
 | DATES-0004 | Counts every sample as diploid, so a pseudo-haploid call is two alleles | A pseudo-haploid call is one allele | `compat="dates-v753"` |
-| ADMIXTOOLS2-0001 | qpAdm `popdrop` nested path compares siblings, not nested models | A real nested path from the full model | `compat="admixtools2-2.0.10"` |
+| ADMIXTOOLS2-0001 | qpAdm `popdrop` nested path compares siblings, not nested models | A real nested path from the full model | `compat="admixtools2-2.0.10"`; `qpadm --compat admixtools2-2.0.10` |
 | ADMIXTOOLS2-0002 | Constrained qpAdm with ≥ 3 sources stops with an error | Returns the full result | nothing to reproduce |
 | ADMIXTOOLS2-0003 | `joint_sfs()` drops SNPs whose allele count is not exactly an integer in floating point | Counts them | `compat="admixtools2-2.0.10"` (`joint_sfs`) |
-| ADMIXTOOLS2-0004 | `write_dot()` renames nodes on edges (removes "." and "-") but declares them unrenamed | Quoted names, unchanged | `compat="admixtools2-2.0.10"` (`write_dot`) |
+| ADMIXTOOLS2-0004 | `write_dot()` renames nodes on edges (removes "." and "-") but declares them unrenamed | Quoted names, unchanged | `compat="admixtools2-2.0.10"` (`write_dot`); `qpgraph --dot ... --compat admixtools2-2.0.10` |
 | ADMIXTOOLS2-0006 | PLINK files with chromosome codes X and Y stop with an error (`auto_only = TRUE`) | Reads them; X and Y are not autosomes | nothing to reproduce |
 | ADMIXTOOLS2-0007 | A sample with no heterozygous call among the first 1,000 SNPs is pseudo-haploid, which catches diploid genomes | Pseudo-haploid only with no heterozygous call at any SNP | `pseudohaploid="admixtools2"` (`--pseudohaploid admixtools2`) |
 | EIGENSOFT-0001 | smartpca reports the Tracy-Widom density as the p-value beyond its table | The tail | `compat="eigensoft-7.2.1"` |
@@ -182,8 +182,9 @@ rules for adding one.
 ## admixtools2
 
 `Admixtools2Compat` in `crates/popmix-core/src/qpadm/compat.rs`;
-`compat="admixtools2-2.0.10"` in Python (`qpadm`). The CLI's qpadm output
-has no popdrop table, so it has no `--compat` switch yet.
+`compat="admixtools2-2.0.10"` in Python (`qpadm`), `--compat
+admixtools2-2.0.10` on the CLI (`popmix qpadm`, whose text and JSON show
+the popdrop table).
 
 Apart from the entries below, popmix follows admixtools2 2.0.10 defaults:
 `maxmiss = 0`, `poly_only = "f2"`, blocks built after filtering, blocks

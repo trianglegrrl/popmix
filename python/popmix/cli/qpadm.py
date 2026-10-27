@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import math
 import sys
@@ -25,19 +26,24 @@ from ._errors import EXPECTED_ERRORS, fail
 @click.option("--left", required=True, callback=parse_population_list, help="Source populations (comma-separated)")
 @click.option("--right", required=True, callback=parse_population_list, help="Outgroup populations (comma-separated)")
 @click.option("--constrained/--unconstrained", default=False, help="Constrain weights to [0, 1]")
+@click.option("--compat", type=click.Choice(["admixtools2-2.0.10"]), default=None,
+              help="Reproduce admixtools2's popdrop nested path, which compares siblings (see DEVIATIONS.md)")
 @click.option("--fudge", type=float, default=1e-4,
               help="Regularisation of the f4 covariance, added to its diagonal as a fraction of its trace "
                    "(admixtools2 fudge; default: 1e-4)")
 @f2_source_options
 @click.option("--format", "output_format", type=click.Choice(["text", "json", "tsv"]), default="text",
               help="Output format")
-def qpadm(target: str, left: list, right: list, constrained: bool, fudge: float, input_prefix: str | None,
+def qpadm(target: str, left: list, right: list, constrained: bool, compat: str | None, fudge: float,
+          input_prefix: str | None,
           f2_dir: str | None, block_size: float, maxmiss: float, all_chromosomes: bool,
           output_format: str):
     """Estimate admixture weights using qpAdm.
 
     Models TARGET as a mixture of LEFT (source) populations, using RIGHT
-    populations as outgroups to constrain the model.
+    populations as outgroups to constrain the model. Also fits every subset
+    of the sources (admixtools2's popdrop table: pattern 1 marks a source
+    left out; best marks the nested path).
     """
     if len(left) < 1:
         click.echo("Error: Need at least 1 source population in --left", err=True)
@@ -50,7 +56,7 @@ def qpadm(target: str, left: list, right: list, constrained: bool, fudge: float,
     try:
         f2_blocks = load_f2_blocks(input_prefix, f2_dir, all_pops, block_size, maxmiss, all_chromosomes)
 
-        result = pm.qpadm(f2_blocks, left, right, target, constrained=constrained, fudge=fudge)
+        result = pm.qpadm(f2_blocks, left, right, target, constrained=constrained, fudge=fudge, compat=compat)
 
         if output_format == "json":
             output = {
@@ -62,6 +68,7 @@ def qpadm(target: str, left: list, right: list, constrained: bool, fudge: float,
                 "dof": result.dof,
                 "p": _json_number(result.p),
                 "feasible": result.feasible,
+                "popdrop": [_popdrop_json(row) for row in result.popdrop],
             }
             click.echo(json.dumps(output, indent=2))
         elif output_format == "tsv":
@@ -86,9 +93,31 @@ def qpadm(target: str, left: list, right: list, constrained: bool, fudge: float,
                 click.echo("=> Good model fit (p > 0.05)")
             else:
                 click.echo("=> Poor model fit (p <= 0.05)")
+            _echo_popdrop(result.popdrop)
 
     except EXPECTED_ERRORS as e:
         fail(e)
+
+
+def _popdrop_json(row: pm.PopDropRow) -> dict:
+    out = dataclasses.asdict(row)
+    for key in ("chisq", "p", "chisqdiff", "p_nested"):
+        out[key] = _json_number(out[key]) if out[key] is not None else None
+    out["weights"] = [None if w is None else _json_number(w) for w in row.weights]
+    return out
+
+
+def _echo_popdrop(rows: tuple[pm.PopDropRow, ...]) -> None:
+    """The popdrop table: each subset of the sources, as admixtools2 prints it."""
+    click.echo()
+    click.echo("Models (popdrop; pattern 1 = source left out):")
+    click.echo(f"  {'pattern':<8} {'wt':>3} {'dof':>4} {'chisq':>10} {'p':>9} {'f4rank':>6} {'feasible':>8} "
+               f"{'best':>5} weights")
+    for r in rows:
+        best = "" if r.best is None else str(r.best)
+        weights = ", ".join("NA" if w is None else f"{w:.4f}" for w in r.weights)
+        click.echo(f"  {r.pattern:<8} {r.wt:>3} {r.dof:>4} {r.chisq:>10.4f} {_p_text(r.p):>9} {r.f4rank:>6} "
+                   f"{str(r.feasible):>8} {best:>5} {weights}")
 
 
 @click.command()

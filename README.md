@@ -486,10 +486,19 @@ Admixture weights:
 Model fit: chisq=37.7305, dof=3, p=0.0000
 Feasible: True
 => Poor model fit (p <= 0.05)
+
+Models (popdrop; pattern 1 = source left out):
+  pattern   wt  dof      chisq         p f4rank feasible  best weights
+  00         0    3    37.7305    0.0000      1     True  True 0.4185, 0.5815
+  01         1    4   434.3187    0.0000      0     True False 1.0000, NA
+  10         1    4   196.3585    0.0000      0     True  True NA, 1.0000
 ```
 
 Two sources are not enough here: present-day French also carry
-hunter-gatherer ancestry the model leaves out.
+hunter-gatherer ancestry the model leaves out. The popdrop table fits every
+subset of the sources (admixtools2's `popdrop`); `--compat
+admixtools2-2.0.10` reproduces admixtools2's nested path (`best`), which
+compares siblings rather than nested models (DEVIATIONS.md).
 
 ### `popmix qpwave`
 

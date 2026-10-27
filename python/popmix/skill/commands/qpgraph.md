@@ -9,7 +9,8 @@ every pair of the graph's leaves, and the fit is scored.
 ```text
 popmix qpgraph --graph FILE (--input PREFIX | --f2-dir DIR) [--admix-weights W1,...]
                [--numstart N] [--seed S] [--diag X] [--diag-f3 X] [--unconstrained]
-               [--plot FILE] [--plot-fit FILE] [--dot FILE] [options] [--format text|json|tsv]
+               [--plot FILE] [--plot-fit FILE] [--dot FILE [--compat admixtools2-2.0.10]] [options]
+               [--format text|json|tsv]
 ```
 
 ## Arguments and options
@@ -26,6 +27,7 @@ popmix qpgraph --graph FILE (--input PREFIX | --f2-dir DIR) [--admix-weights W1,
 | `--plot` | text (path) | none | Also draw the fitted graph to this image file (needs `popmix[plot]`). |
 | `--plot-fit` | text (path) | none | Also plot the residual z of each f3 to this image file (needs `popmix[plot]`). |
 | `--dot` | text (path) | none | Also write the fitted graph in Graphviz DOT (drift x 1000 and weights in % as labels; names quoted). |
+| `--compat` | `admixtools2-2.0.10` | none (corrected) | With `--dot`: write admixtools2's DOT text exactly, which strips "." and "-" from names on edges only (DEVIATIONS.md ADMIXTOOLS2-0004). |
 | `--input`, `-i` | text (path) | none | Genotype prefix. f2 blocks are extracted for exactly this command's populations, on the SNPs with data in all of them (with `--maxmiss 0`). Give this or `--f2-dir`. |
 | `--f2-dir` | path (directory) | none | Read f2 blocks saved by [extract-f2](extract-f2.md) instead of genotypes; every population must be in them. The SNP set is the one extract-f2 chose. |
 | `--block-size` | number | 0.05 | With `--input`: jackknife block length in Morgans. |
