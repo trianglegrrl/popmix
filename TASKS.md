@@ -785,11 +785,16 @@ thread count.
   with a newline; the docs list seven formats, TGENO with its own README
   section. `info`'s order was already fixed (16858a9). The README's
   qpadm example output turned out invented (M5).
-- [ ] **M5. README example outputs are real runs.** The qpadm example's
+- [x] **M5. README example outputs are real runs.** The qpadm example's
   output was made up, with 3 dof from 3 left and 3 right populations
   (replaced in 6b02868 by a run on AADR v66.p1). Rerun every other
   `**Output:**` block on named data and check them with a test, so they
   cannot drift from what the command prints.
+  *Done in 96ee6f3:* every output block is a run on `aadr_v66p1`
+  (merge on the merge fixtures, the error example included);
+  `tests/golden/test_readme_examples.py` reruns them. It found `info`'s
+  population order random (a HashSet in `dataset_info`): first
+  appearance now.
 
 ## N. Agent skill for popmix (P1)
 
