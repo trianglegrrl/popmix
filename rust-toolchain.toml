@@ -1,0 +1,5 @@
+# The toolchain CI builds with. rustc 1.92 built extract_f2's block code
+# (thin-local LTO, 16 codegen units) into a loop with no end; 1.99 does not.
+[toolchain]
+channel = "1.99"
+components = ["rustfmt", "clippy"]
