@@ -44,6 +44,21 @@ pub(crate) struct PyF2Blocks {
     pub(crate) inner: F2Blocks,
 }
 
+impl PyF2Blocks {
+    /// Warn for each of `pops` with at most one allele per SNP, whose
+    /// sampling bias `statistic` cannot correct (TASKS.md G7).
+    fn warn_one_allele(&self, pops: &[&str], statistic: &str) -> PyResult<()> {
+        crate::warnings::emit(|w| {
+            for pop in pops.iter().filter(|p| self.inner.has_one_allele(p)) {
+                w(popmix_core::Warning::OneAllele {
+                    population: (*pop).to_string(),
+                    statistic: statistic.to_string(),
+                });
+            }
+        })
+    }
+}
+
 #[pymethods]
 impl PyF2Blocks {
     fn __reduce__<'py>(
@@ -273,6 +288,9 @@ impl PyF2Blocks {
         pop_b: &str,
     ) -> PyResult<Option<Bound<'py, PyDict>>> {
         require_populations(&self.inner, &[pop_a, pop_b])?;
+        if pop_a != pop_b {
+            self.warn_one_allele(&[pop_a, pop_b], "f2 with it")?;
+        }
         self.inner
             .f2(pop_a, pop_b)
             .map(|(est, se, n_snps)| stat_dict(py, est, se, ("n_snps", n_snps)))
@@ -304,6 +322,7 @@ impl PyF2Blocks {
         pop_c: &str,
     ) -> PyResult<Option<Bound<'py, PyDict>>> {
         require_populations(&self.inner, &[pop_a, pop_b, pop_c])?;
+        self.warn_one_allele(&[pop_a], "f3 with it as the target")?;
         self.inner
             .f3(pop_a, pop_b, pop_c)
             .map(|r| stat_dict(py, r.estimate, r.std_err, ("n_blocks", r.n_blocks)))

@@ -38,6 +38,13 @@ pub enum Warning {
     /// No genetic map: jackknife blocks fall back to 2 Mb of base-pair
     /// position, as admixtools2 (TASKS.md G5).
     NoGeneticMap,
+    /// A population with at most one allele at every SNP in a statistic
+    /// whose bias correction needs two: f2 with it, or f3 with it as the
+    /// target (TASKS.md G7).
+    OneAllele {
+        population: String,
+        statistic: String,
+    },
 }
 
 /// Warn when the SNPs seen by `evidence` have no genetic map, so that
@@ -152,6 +159,15 @@ impl fmt::Display for Warning {
                 "{analysis}: the jackknife over {chromosomes} chromosomes gives a rough standard \
                  error (fewer than {MIN_JACKKNIFE_CHROMOSOMES})"
             ),
+            Warning::OneAllele {
+                population,
+                statistic,
+            } => write!(
+                f,
+                "{population} has at most one allele at every SNP (as a single pseudo-haploid \
+                 sample): its sampling bias cannot be corrected, so {statistic} comes out too large \
+                 (f4, and f3 with it as a source, are not affected)"
+            ),
             Warning::NoGeneticMap => write!(
                 f,
                 "no genetic map (every SNP at the same map position): jackknife blocks are 2 Mb of \
@@ -242,6 +258,20 @@ mod tests {
         let mut evidence = CoordinateEvidence::default();
         evidence.observe(s);
         collect(|w| check_genetic_map(&evidence, &BlockDefinition::new(block_size), w))
+    }
+
+    #[test]
+    fn one_allele_says_which_statistic() {
+        let w = Warning::OneAllele {
+            population: "Chimp.REF".into(),
+            statistic: "f3 with it as the target".into(),
+        };
+        assert_eq!(
+            w.to_string(),
+            "Chimp.REF has at most one allele at every SNP (as a single pseudo-haploid sample): its \
+             sampling bias cannot be corrected, so f3 with it as the target comes out too large (f4, \
+             and f3 with it as a source, are not affected)"
+        );
     }
 
     #[test]

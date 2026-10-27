@@ -392,6 +392,14 @@ qpWave/qpAdm fits by the C++ code path (`cpp = TRUE`, the default).
 
 ### Matched, not corrected
 
+- **f2 and f3 with a single pseudo-haploid population.** Its one allele per
+  SNP leaves its sampling bias p(1 - p)/(n - 1) unestimable, so f2 with it
+  and f3 with it as the target keep its sampling variance: on the dg_6pop
+  f2, f3(Chimp.REF; Mbuti.DG, Han.DG) is 0.158 with z 344, while `qp3pop`
+  on genotypes gives NaN with n = 0 for such a target. popmix matches both
+  values and, on f2 blocks it extracted, warns (`Warning::OneAllele`,
+  TASKS.md G7); admixtools2-format f2 directories do not store what tells
+  (`tests/python/test_one_allele_warning.py`).
 - **qpAdm weight SEs scale by sqrt(blocks - 1).** admixtools2's C++ path
   (`cpp_get_weights_covariance`, the default) and its R path
   (`get_weights_covariance`) scale the leave-one-out weights differently,
