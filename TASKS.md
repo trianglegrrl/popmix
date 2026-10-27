@@ -578,7 +578,13 @@ thread count.
   the matrix path ordered populations as the file, the streamed path as
   requested (TGENO and PED gave other `populations` than packed input);
   both follow the request now. `QpWavePairsResult` methods call core's.
-- [ ] **I5. One linear-algebra library** in public types and hot paths. RS
+- [x] **I5. One linear-algebra library** in public types and hot paths. RS
+  *Done in COMMIT:* decided and recorded in popmix-core's crate docs:
+  ndarray is the only array type in public signatures (a test keeps it
+  so); nalgebra does the small dense solves inside qpAdm, qpGraph and
+  ADMIXTURE, faer only PCA's eigendecomposition, measured four times
+  nalgebra's speed at 2,000 samples (2.0 s against 8.0 s), the gap
+  growing as n^3. No hot loop converts between libraries.
 - [ ] **I6. Don't promise a stable Rust API at 1.0** until I1-I4 are done
   (Python package 1.0 is separate). RS
 - [x] **I7. No source file past about 800 lines,** split by concern, enforced

@@ -73,8 +73,8 @@ pub(crate) fn fudged_inverse(cov: &Array2<f64>, fudge: f64) -> Result<DMatrix<f6
 /// A rank-r approximation X ≈ A B: `a` is m x r and `b` is r x n.
 #[derive(Debug, Clone)]
 pub(crate) struct RankFit {
-    pub a: DMatrix<f64>,
-    pub b: DMatrix<f64>,
+    pub(crate) a: DMatrix<f64>,
+    pub(crate) b: DMatrix<f64>,
 }
 
 /// Row-major vectorisation of a matrix.

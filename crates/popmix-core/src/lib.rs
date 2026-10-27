@@ -10,6 +10,17 @@
 //! - Jackknife and bootstrap resampling
 //!
 //! All algorithms are optimized for parallel execution using rayon.
+//!
+//! ## Linear algebra
+//!
+//! Arrays in the public API are [`ndarray`]'s. Inside, small dense systems
+//! (qpAdm's SVD and inverses, qpGraph's and ADMIXTURE's constrained solves)
+//! use nalgebra, and PCA's one large symmetric eigendecomposition uses faer,
+//! whose blocked solver is about four times nalgebra's speed at 2,000
+//! samples (2.0 s against 8.0 s on one core, 2026-10-27), and the gap grows
+//! as n^3. No hot loop converts between them. Neither appears in a public
+//! signature (`tests/python/test_dependencies.py`).
+
 
 pub mod admixture;
 pub mod dates;
