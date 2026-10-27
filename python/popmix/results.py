@@ -260,6 +260,8 @@ class DatesResult:
     ``years_bp`` is ``sample_age`` + generations x ``generation_time``:
     years before present when the samples' age is given, else before they
     lived; ``years_bp_se`` combines the SEs of all three.
+    ``source_alleles``: each source's mean observed alleles per SNP used
+    (a warning below 10).
     """
 
     admixed: str
@@ -274,6 +276,7 @@ class DatesResult:
     sample_age_se: float
     n_snps: int
     n_chromosomes: int
+    source_alleles: tuple[float, float]
     jackknife_by_chromosome: tuple[tuple[int, float, float], ...]
     ld_bins: tuple[LdBin, ...]
     fit: DecayFit

@@ -98,6 +98,8 @@ pub struct DatesResult {
     pub weights: WeightResult,
     /// Distinct autosomes among the SNPs.
     pub n_chromosomes: usize,
+    /// Mean observed alleles per SNP used, in source1 and source2.
+    pub source_alleles: [f64; 2],
     pub jackknife_by_chromosome: Vec<JackknifeBlock>,
 }
 
@@ -168,6 +170,15 @@ pub fn dates(
     let i2 = af
         .pop_index(source2)
         .ok_or_else(|| PopmixError::PopulationNotFound(source2.to_string()))?;
+    let mean_alleles = |pop: usize| {
+        let total: f64 = weights
+            .valid_indices
+            .iter()
+            .map(|&s| f64::from(af.counts[[s, pop]]))
+            .sum();
+        total / weights.n_valid as f64
+    };
+    let source_alleles = [mean_alleles(i1), mean_alleles(i2)];
     let p1: Vec<f64> = (0..af.n_snps()).map(|i| af.frequencies[[i, i1]]).collect();
     let p2: Vec<f64> = (0..af.n_snps()).map(|i| af.frequencies[[i, i2]]).collect();
 
@@ -243,6 +254,7 @@ pub fn dates(
         n_snps: weights.n_valid,
         weights,
         n_chromosomes: autosomes.len(),
+        source_alleles,
         jackknife_by_chromosome: blocks,
     })
 }

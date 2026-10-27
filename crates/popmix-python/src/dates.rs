@@ -100,6 +100,9 @@ pub(crate) struct PyDatesResult {
     n_snps: usize,
     #[pyo3(get)]
     n_chromosomes: usize,
+    /// Mean observed alleles per SNP used, in each source.
+    #[pyo3(get)]
+    source_alleles: (f64, f64),
     ld_bins: Vec<popmix_core::LdBin>,
     fit: popmix_core::DecayFit,
     jackknife: Vec<popmix_core::dates::JackknifeBlock>,
@@ -279,10 +282,15 @@ pub(crate) fn dates(
             sample_age_se,
             n_snps: result.n_snps,
             n_chromosomes: result.n_chromosomes,
+            source_alleles: (result.source_alleles[0], result.source_alleles[1]),
             ld_bins: result.ld_bins,
             fit: result.fit,
             jackknife: result.jackknife_by_chromosome,
         })
+    })?;
+    crate::warnings::emit(|w| {
+        popmix_core::warnings::check_source_alleles(&out.source1, out.source_alleles.0, w);
+        popmix_core::warnings::check_source_alleles(&out.source2, out.source_alleles.1, w);
     })?;
     if jackknife {
         crate::warnings::emit(|w| {

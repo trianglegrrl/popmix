@@ -12,7 +12,7 @@ use crate::fstats::{BlockCoordinate, BlockDefinition, CoordinateEvidence};
 /// A warning.
 ///
 /// New variants may be added in minor releases.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum Warning {
     /// VCF records left out because popmix's formats hold only biallelic
@@ -45,6 +45,25 @@ pub enum Warning {
         population: String,
         statistic: String,
     },
+    /// A DATES source with few observed alleles per SNP used: its
+    /// frequencies, the SNP weights, are noisy (TASKS.md G10).
+    FewSourceAlleles { source: String, mean_alleles: f64 },
+}
+
+/// Fewest mean observed alleles per SNP in a DATES source before
+/// [`Warning::FewSourceAlleles`]: 5 diploid or 10 pseudo-haploid samples
+/// with every call.
+pub const MIN_SOURCE_ALLELES: f64 = 10.0;
+
+/// Warn when a DATES source averages fewer than [`MIN_SOURCE_ALLELES`]
+/// observed alleles per SNP used.
+pub fn check_source_alleles(source: &str, mean_alleles: f64, warn: &mut dyn FnMut(Warning)) {
+    if mean_alleles < MIN_SOURCE_ALLELES {
+        warn(Warning::FewSourceAlleles {
+            source: source.to_string(),
+            mean_alleles,
+        });
+    }
 }
 
 /// Warn when the SNPs seen by `evidence` have no genetic map, so that
@@ -168,6 +187,15 @@ impl fmt::Display for Warning {
                  sample): its sampling bias cannot be corrected, so {statistic} comes out too large \
                  (f4, and f3 with it as a source, are not affected)"
             ),
+            Warning::FewSourceAlleles {
+                source,
+                mean_alleles,
+            } => write!(
+                f,
+                "DATES: source {source} has {mean_alleles:.1} observed alleles per SNP used (fewer \
+                 than {MIN_SOURCE_ALLELES}; a SNP needs only one called sample): its frequencies, the \
+                 SNP weights, are noisy, which weakens the signal and widens the SE"
+            ),
             Warning::NoGeneticMap => write!(
                 f,
                 "no genetic map (every SNP at the same map position): jackknife blocks are 2 Mb of \
@@ -271,6 +299,18 @@ mod tests {
             "Chimp.REF has at most one allele at every SNP (as a single pseudo-haploid sample): its \
              sampling bias cannot be corrected, so f3 with it as the target comes out too large (f4, \
              and f3 with it as a source, are not affected)"
+        );
+    }
+
+    #[test]
+    fn few_source_alleles_warn_below_ten() {
+        assert_eq!(collect(|w| check_source_alleles("French", 10.0, w)), vec![]);
+        let warned = collect(|w| check_source_alleles("French", 3.25, w));
+        assert_eq!(
+            warned[0].to_string(),
+            "DATES: source French has 3.2 observed alleles per SNP used (fewer than 10; a SNP needs \
+             only one called sample): its frequencies, the SNP weights, are noisy, which weakens the \
+             signal and widens the SE"
         );
     }
 

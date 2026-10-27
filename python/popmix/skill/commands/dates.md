@@ -33,7 +33,7 @@ popmix dates --input PREFIX --admixed T --sources A,B [--bin-width CM]
 | `--jackknife` / `--no-jackknife` | flag | `--jackknife` | Standard errors by a weighted jackknife over chromosomes; `--no-jackknife` is faster and gives no SE. |
 | `--qbin` | integer (at least 0) | 0 | DATES `qbin`: 0 visits every SNP pair (exact); N > 0 bins SNPs on an FFT mesh of N cells per bin, much faster on large data and slightly approximate (10 is typical). |
 | `--compat` | `dates-v753` | none (corrected) | Reproduce DATES v753's quirks (DATES-0001 to DATES-0004) for output identical to DATES. |
-| `--format` | `text`, `json`, `tsv` | `text` | `text`: the date and the first 10 bins; `json`: admixed, sources, date, SE, years, generation_time(_se), sample_age(_se), fit (amplitude, decay_rate, r_squared), SNPs and the first 20 bins; `tsv`: every LD bin (distance_cm, n_pairs, correlation, weighted_ld). |
+| `--format` | `text`, `json`, `tsv` | `text` | `text`: the date and the first 10 bins; `json`: admixed, sources, date, SE, years, generation_time(_se), sample_age(_se), source_alleles, fit (amplitude, decay_rate, r_squared), SNPs and the first 20 bins; `tsv`: every LD bin (distance_cm, n_pairs, correlation, weighted_ld). |
 
 ## Inputs and outputs
 
@@ -105,7 +105,10 @@ popmix --threads 8 dates -i aadr_v66p1 --admixed French.DG \
   and pseudo-haploid calls counted as two alleles in the sources
   ([DATES-0004](https://github.com/trianglegrrl/popmix/blob/main/DEVIATIONS.md#dates-0004-every-sample-counted-as-diploid)).
 - DATES's `mincount` is ignored by DATES; popmix matches (a SNP is used
-  once each source has one called sample).
+  once each source has one called sample). So a source of few samples, or
+  of pseudo-haploid samples with much missing data, gives noisy weights:
+  popmix warns when a source averages fewer than 10 observed alleles per
+  SNP used (`source_alleles` in JSON).
 
 ## Reference
 
