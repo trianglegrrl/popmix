@@ -202,7 +202,9 @@ def load_f2_blocks(input_prefix: str | None, f2_dir: str | None, populations: li
                          maxmiss=maxmiss, pseudohaploid=_pseudohaploid())
 
 
-@click.group()
+# with no command, the help on stdout and success, whatever Click's version
+# does by default (8.2 changed it to the help on stderr and exit code 2)
+@click.group(invoke_without_command=True)
 @click.option("--threads", "-t", type=int, default=4, help="Number of threads to use (default: 4)")
 @click.option("--debug", is_flag=True, help="Show the traceback of an error")
 @click.version_option(version=pm.__version__, prog_name="popmix")
@@ -215,6 +217,8 @@ def cli(ctx, threads: int, debug: bool):
         raise click.BadParameter("Thread count must be at least 1")
     ctx.obj["threads"] = threads
     pm.init_threads(threads)
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
 
 
 @cli.command()
