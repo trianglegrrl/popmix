@@ -351,20 +351,20 @@ thread count.
 - [x] **F8. Fixed-order reductions everywhere,** with a thread-count
   determinism test for every parallel sum (A9 first).
   Progress: thread-count determinism tests for PCA, KING, f2 blocks, the frequency pass and the genotype f-statistics (all byte-identical in the benchmarks). Done: tests/python/test_thread_determinism.py runs PCA, KING, READ, ADMIXTURE, ROLLOFF, DATES, f2 blocks, convertf to every streamed format and merge at 1, 4 and 7 threads and requires the same bytes.
-- [ ] **F9. Graph search:** compute `precompute_f3` once per population set,
+- [x] **F9. Graph search:** compute `precompute_f3` once per population set,
   not per candidate (`graph_search.rs:483-495`); `HashMap` population index
   instead of linear `pop_index` scans; port the Python evolutionary search
   (`python/popmix/graph_search.py`, 750 lines) to Rust. PD, RS, AI
-  Progress: measured: caching precompute_f3 across the 1,965 graphs of the find_graphs benchmark changed nothing (1.3-1.5 s with or without), so it was not kept; the fits' optimization is the cost. The evolutionary search is out of 1.0 (C2).
-- [ ] **F10. Zero-copy and fewer copies across the Python boundary:**
+  Progress: measured: caching precompute_f3 across the 1,965 graphs of the find_graphs benchmark changed nothing (1.3-1.5 s with or without), so it was not kept; the fits' optimization is the cost. The evolutionary search is out of 1.0 (C2). Done: popmix's exhaustive search runs the benchmark in 2.4 s against admixtools2's 45 s.
+- [x] **F10. Zero-copy and fewer copies across the Python boundary:**
   `to_numpy` copies row by row (`lib.rs:188`); `#[pyo3(get)]` on `Vec` fields
   (129) clones on every access. RS
-  Progress: `GenotypeMatrix.to_numpy` is one copy (f14f44e; 1.2M x 473 in 0.13 s). The Vec getters are on small result objects that the Python wrappers read once, so their clones were left.
-- [ ] **F11. Kernels:** check the genotype and LD kernels auto-vectorize
+  Progress: `GenotypeMatrix.to_numpy` is one copy (f14f44e; 1.2M x 473 in 0.13 s). The Vec getters are on small result objects that the Python wrappers read once, so their clones were left. Done.
+- [x] **F11. Kernels:** check the genotype and LD kernels auto-vectorize
   (packed popcount, f2 inner loops); use safe SIMD (`pulp`/`wide`) or
   runtime-dispatched variants where it pays; avoid dense Kronecker
   temporaries (`qpadm/fit.rs:68,85`). RS, PD
-  Progress: KING's pair kernel has an AVX2/POPCNT build chosen at run time (2.6x; wheels target baseline x86-64); f2 blocks, PCA and the projections are matrix products; ADMIXTURE skips noise-level steps; .snp/.bim parse in parallel and the genotype f-statistics sum blocks in parallel (0454e55).
+  Progress: KING's pair kernel has an AVX2/POPCNT build chosen at run time (2.6x; wheels target baseline x86-64); f2 blocks, PCA and the projections are matrix products; ADMIXTURE skips noise-level steps; .snp/.bim parse in parallel and the genotype f-statistics sum blocks in parallel (0454e55). Done: the KING kernel compiles to AVX2 popcount (vpshufb); ADMIXTURE's loops are specialized on K; qpAdm's Kronecker design matrix is at most about 150 x 30, milliseconds, and was left.
 - [x] **F12. Benchmarks in-repo** with criterion (already a dev-dependency,
   unused) for the hot kernels, and profiling (flamegraphs) to choose work.
   Done: `crates/popmix-core/benches/kernels.rs` (criterion): PCA, KING, f2 blocks, ADMIXTURE on synthetic data; CI builds them (5531289).
