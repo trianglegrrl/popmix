@@ -50,7 +50,7 @@ fn require_populations(f2: &F2Blocks, pops: &[&str]) -> PyResult<()> {
     if unknown.is_empty() {
         return Ok(());
     }
-    let have: Vec<String> = f2.populations.iter().map(|p| p.to_string()).collect();
+    let have: Vec<String> = f2.populations().iter().map(|p| p.to_string()).collect();
     Err(popmix_exception(
         "PopulationNotFoundError",
         format!(

@@ -11,6 +11,7 @@
 
 pub mod blocks;
 pub mod f2;
+pub mod f2_arrays;
 pub mod f2_blocks;
 pub mod f3_f4;
 pub mod geno_fstats;
@@ -18,6 +19,7 @@ pub mod jackknife;
 
 pub use blocks::{BlockAssignment, BlockCoordinate, BlockDefinition, CoordinateEvidence};
 pub use f2::{f2_estimate, f2_single_snp, F2Result};
+pub use f2_arrays::F2Arrays;
 pub use f2_blocks::{F2Blocks, F2Options, FstBlocks};
 pub use f3_f4::{F3Result, F4Result, FstResult};
 pub use geno_fstats::{

@@ -1,6 +1,5 @@
 //! Bindings for site-frequency spectra.
 
-use ndarray::Array2;
 use numpy::IntoPyArray;
 use popmix_core::python::{input_error, internal_error, popmix_exception};
 use pyo3::prelude::*;
@@ -34,26 +33,19 @@ fn allele_frequencies(
         };
         AlleleFrequencies::from_genotypes_for_populations(&geno, Some(&pops))
     };
-    // the requested order, and every population present
-    let mut cols = Vec::with_capacity(pops.len());
+    // every population present, with data, in the requested order
     for p in &pops {
-        let k = af
+        let has_data = af
             .pop_index(p)
-            .filter(|&k| af.counts.column(k).iter().any(|&c| c > 0));
-        cols.push(k.ok_or_else(|| {
-            popmix_exception(
+            .is_some_and(|k| af.counts().column(k).iter().any(|&c| c > 0));
+        if !has_data {
+            return Err(popmix_exception(
                 "PopulationNotFoundError",
                 format!("population {p} not in {prefix}"),
-            )
-        })?);
+            ));
+        }
     }
-    let n = af.frequencies.nrows();
-    Ok(AlleleFrequencies {
-        frequencies: Array2::from_shape_fn((n, cols.len()), |(s, j)| af.frequencies[[s, cols[j]]]),
-        counts: Array2::from_shape_fn((n, cols.len()), |(s, j)| af.counts[[s, cols[j]]]),
-        populations: cols.iter().map(|&k| af.populations[k].clone()).collect(),
-        snps: af.snps,
-    })
+    Ok(af.filter_populations(&pops)?)
 }
 
 fn spectrum_dict<'py>(py: Python<'py>, sfs: Spectrum) -> PyResult<Bound<'py, PyDict>> {
@@ -124,8 +116,8 @@ pub fn projected_sfs_py(
     let af = crate::compute(py, || {
         allele_frequencies(prefix, &populations, auto_only, rule)
     })?;
-    let max: Vec<usize> = (0..af.counts.ncols())
-        .map(|p| af.counts.column(p).iter().copied().max().unwrap_or(0) as usize)
+    let max: Vec<usize> = (0..af.counts().ncols())
+        .map(|p| af.counts().column(p).iter().copied().max().unwrap_or(0) as usize)
         .collect();
     let sizes = if sizes.is_empty() { max } else { sizes };
     let (sfs, not_integer) = projected_sfs(&af, &sizes, folded)?;

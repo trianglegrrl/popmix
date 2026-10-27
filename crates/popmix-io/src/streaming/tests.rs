@@ -30,8 +30,8 @@ fn small_files_stream_with_48_byte_records() {
         let other = in_memory.pop_index(pop).unwrap();
         for snp in 0..streamed.n_snps() {
             let (a, b) = (
-                streamed.frequencies[[snp, col]],
-                in_memory.frequencies[[snp, other]],
+                streamed.frequencies()[[snp, col]],
+                in_memory.frequencies()[[snp, other]],
             );
             assert!(
                 a == b || (a.is_nan() && b.is_nan()),
@@ -63,12 +63,12 @@ fn frequencies_do_not_depend_on_the_thread_count() {
     let one = run(1);
     for threads in [2, 7] {
         let many = run(threads);
-        assert_eq!(one.snps.len(), many.snps.len());
-        assert_eq!(one.counts, many.counts);
+        assert_eq!(one.snps().len(), many.snps().len());
+        assert_eq!(one.counts(), many.counts());
         assert!(one
-            .frequencies
+            .frequencies()
             .iter()
-            .zip(&many.frequencies)
+            .zip(many.frequencies())
             .all(|(a, b)| a.to_bits() == b.to_bits()));
     }
 }
@@ -174,10 +174,13 @@ fn bed_frequencies_and_ploidy_match_the_in_memory_ones() {
     let in_memory = AlleleFrequencies::from_genotypes_for_populations(&geno, Some(&pops));
     for (col, pop) in pops.iter().enumerate() {
         let other = in_memory.pop_index(pop).unwrap();
-        assert_eq!(streamed.counts.column(col), in_memory.counts.column(other));
+        assert_eq!(
+            streamed.counts().column(col),
+            in_memory.counts().column(other)
+        );
         let (a, b) = (
-            streamed.frequencies.column(col),
-            in_memory.frequencies.column(other),
+            streamed.frequencies().column(col),
+            in_memory.frequencies().column(other),
         );
         assert!(a
             .iter()
@@ -239,7 +242,10 @@ fn text_geno_is_read_in_place() {
     let in_memory = AlleleFrequencies::from_genotypes_for_populations(&geno, Some(&pops));
     for (col, pop) in pops.iter().enumerate() {
         let other = in_memory.pop_index(pop).unwrap();
-        assert_eq!(streamed.counts.column(col), in_memory.counts.column(other));
+        assert_eq!(
+            streamed.counts().column(col),
+            in_memory.counts().column(other)
+        );
     }
 }
 

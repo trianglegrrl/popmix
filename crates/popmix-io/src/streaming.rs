@@ -453,12 +453,13 @@ impl SnpMajor {
                     }
                 }
             });
-        AlleleFrequencies {
+        AlleleFrequencies::new(
             frequencies,
             counts,
-            populations: populations.iter().map(|&p| PopulationId::new(p)).collect(),
-            snps: filtered_snps,
-        }
+            populations.iter().map(|&p| PopulationId::new(p)).collect(),
+            filtered_snps,
+        )
+        .expect("one row per SNP kept and one column per population")
     }
 }
 

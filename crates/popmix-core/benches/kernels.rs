@@ -93,13 +93,17 @@ fn f2_blocks(c: &mut Criterion) {
         b.iter(|| F2Blocks::from_allele_frequencies_with_options(&af, &def, &opts))
     });
     // many populations: one per pair of samples
-    let mut wide = af.clone();
     let k = 100;
-    wide.frequencies = Array2::from_shape_fn((af.n_snps(), k), |(s, p)| {
-        (af.frequencies[[s, p % 4]] + p as f64 * 1e-3).min(1.0)
-    });
-    wide.counts = Array2::from_shape_fn((af.n_snps(), k), |(s, p)| af.counts[[s, p % 4]]);
-    wide.populations = (0..k).map(|p| PopulationId::new(format!("W{p}"))).collect();
+    let wide = AlleleFrequencies::new(
+        Array2::from_shape_fn((af.n_snps(), k), |(s, p)| {
+            (af.frequencies()[[s, p % 4]] + p as f64 * 1e-3).min(1.0)
+        }),
+        Array2::from_shape_fn((af.n_snps(), k), |(s, p)| af.counts()[[s, p % 4]]),
+        (0..k).map(|p| PopulationId::new(format!("W{p}"))).collect(),
+        af.snps().to_vec(),
+    )
+    .unwrap();
+
     group.bench_function("100 populations, maxmiss 1", |b| {
         b.iter(|| F2Blocks::from_allele_frequencies_with_options(&wide, &def, &opts))
     });

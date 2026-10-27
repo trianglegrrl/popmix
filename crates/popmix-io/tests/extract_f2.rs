@@ -27,10 +27,10 @@ fn extract(prefix: &str, opts: &ExtractOptions) -> popmix_core::Result<F2Blocks>
 }
 
 fn assert_same(got: &F2Blocks, want: &F2Blocks, what: &str) {
-    assert_eq!(got.populations, want.populations, "{what}");
-    assert_eq!(got.block_lengths, want.block_lengths, "{what}");
-    assert_eq!(got.block_weights, want.block_weights, "{what}");
-    for (g, w) in got.block_sums.iter().zip(&want.block_sums) {
+    assert_eq!(got.populations(), want.populations(), "{what}");
+    assert_eq!(got.block_lengths(), want.block_lengths(), "{what}");
+    assert_eq!(got.block_weights(), want.block_weights(), "{what}");
+    for (g, w) in got.block_sums().iter().zip(want.block_sums()) {
         assert!((g - w).abs() <= 1e-12 * w.abs(), "{what}: {g} != {w}");
     }
 }
@@ -38,7 +38,7 @@ fn assert_same(got: &F2Blocks, want: &F2Blocks, what: &str) {
 #[test]
 fn every_format_gives_the_same_f2_blocks() {
     let packed = extract(&family(), &options(&POPS)).unwrap();
-    assert_eq!(packed.populations.len(), 3);
+    assert_eq!(packed.populations().len(), 3);
     let geno = read_genotypes(&family(), &mut warnings::ignore).unwrap();
     let dir = tempfile::tempdir().unwrap();
     type Write = fn(&Path, &GenotypeMatrix) -> popmix_core::Result<()>;
@@ -75,7 +75,7 @@ fn samples_take_the_populations_given_and_the_others_are_left_out() {
     let mut opts = options(&["A", "B"]);
     opts.labels = Some(labels);
     let got = extract(&family(), &opts).unwrap();
-    assert_eq!(got.populations.len(), 2);
+    assert_eq!(got.populations().len(), 2);
     // Yoruba is no longer there: only the listed samples are kept
     let mut opts = options(&["A", "Yoruba"]);
     opts.labels = Some([(french[0].clone(), "A".to_string())].into());

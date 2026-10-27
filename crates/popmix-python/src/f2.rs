@@ -50,7 +50,7 @@ impl PyF2Blocks {
     /// Get the number of blocks.
     #[getter]
     fn n_blocks(&self) -> usize {
-        self.inner.n_blocks
+        self.inner.n_blocks()
     }
 
     /// These populations only, in this order (admixtools2
@@ -100,7 +100,7 @@ impl PyF2Blocks {
     /// Number of SNPs in each block (the jackknife weights).
     #[getter]
     fn block_lengths(&self) -> Vec<usize> {
-        self.inner.block_lengths.clone()
+        self.inner.block_lengths().to_vec()
     }
 
     /// Number of SNPs in each FST block (FST uses its own SNP set and blocks,
@@ -109,9 +109,8 @@ impl PyF2Blocks {
     #[getter]
     fn fst_block_lengths(&self) -> Vec<usize> {
         self.inner
-            .fst
-            .as_ref()
-            .map(|f| f.block_lengths.clone())
+            .fst_blocks()
+            .map(|f| f.block_lengths().to_vec())
             .unwrap_or_default()
     }
 
@@ -122,7 +121,7 @@ impl PyF2Blocks {
         pop_a: &str,
         pop_b: &str,
     ) -> Option<Bound<'py, PyArray1<f64>>> {
-        let fst = self.inner.fst.as_ref()?;
+        let fst = self.inner.fst_blocks()?;
         let pair = self
             .inner
             .pair_index(self.inner.pop_index(pop_a)?, self.inner.pop_index(pop_b)?);
@@ -133,7 +132,7 @@ impl PyF2Blocks {
     #[getter]
     fn populations(&self) -> Vec<String> {
         self.inner
-            .populations
+            .populations()
             .iter()
             .map(|p| p.to_string())
             .collect()

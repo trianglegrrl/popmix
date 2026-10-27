@@ -184,7 +184,7 @@ impl PyAlleleFrequencies {
     #[getter]
     fn populations(&self) -> Vec<String> {
         self.inner
-            .populations
+            .populations()
             .iter()
             .map(|p| p.to_string())
             .collect()
@@ -196,7 +196,7 @@ impl PyAlleleFrequencies {
     ///     2D numpy array of shape (n_snps, n_populations) with frequency values.
     ///     NaN indicates missing data.
     fn to_numpy<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
-        self.inner.frequencies.clone().into_pyarray(py)
+        self.inner.frequencies().clone().into_pyarray(py)
     }
 
     /// Get observation counts as a numpy array.
@@ -204,7 +204,7 @@ impl PyAlleleFrequencies {
     /// Returns:
     ///     2D numpy array of shape (n_snps, n_populations) with observation counts.
     fn counts_to_numpy<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<u32>> {
-        self.inner.counts.clone().into_pyarray(py)
+        self.inner.counts().clone().into_pyarray(py)
     }
 
     /// Get allele frequency for a specific SNP and population.

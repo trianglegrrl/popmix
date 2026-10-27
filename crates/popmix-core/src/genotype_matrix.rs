@@ -7,7 +7,7 @@ use ndarray::{Array2, ArrayView1, Axis};
 use rayon::prelude::*;
 
 use crate::error::{PopmixError, Result};
-use crate::genotypes::{Chromosome, Genotype, Ploidy, PopulationId, Sample, Snp};
+use crate::genotypes::{Genotype, Ploidy, PopulationId, Sample, Snp};
 
 /// A matrix of genotypes with sample and SNP metadata.
 ///
@@ -234,25 +234,52 @@ impl GenotypeMatrix {
 pub struct AlleleFrequencies {
     /// Allele frequencies: [n_snps, n_pops]
     /// NaN for missing (no observations)
-    pub frequencies: Array2<f64>,
+    pub(crate) frequencies: Array2<f64>,
     /// Observation counts: [n_snps, n_pops]
     /// Number of observed alleles (not individuals)
-    pub counts: Array2<u32>,
+    pub(crate) counts: Array2<u32>,
     /// Population names (column labels)
-    pub populations: Vec<PopulationId>,
+    pub(crate) populations: Vec<PopulationId>,
     /// SNP metadata (row labels)
-    pub snps: Vec<Snp>,
+    pub(crate) snps: Vec<Snp>,
 }
 
 impl AlleleFrequencies {
-    /// Create AlleleFrequencies directly from precomputed data.
-    ///
-    /// Used primarily for testing and when frequencies are computed externally.
+    /// Allele frequencies computed elsewhere: [SNPs, populations] each, the
+    /// rows being `snps` and the columns `populations`.
     pub fn new(
         frequencies: Array2<f64>,
         counts: Array2<u32>,
         populations: Vec<PopulationId>,
-        chromosomes: Vec<Chromosome>,
+        snps: Vec<Snp>,
+    ) -> Result<Self> {
+        let want = (snps.len(), populations.len());
+        for (what, dim) in [("frequencies", frequencies.dim()), ("counts", counts.dim())] {
+            if dim != want {
+                return Err(PopmixError::DimensionMismatch {
+                    context: format!("allele {what}"),
+                    expected: format!("{want:?} (SNPs, populations)"),
+                    actual: format!("{dim:?}"),
+                });
+            }
+        }
+        Ok(AlleleFrequencies {
+            frequencies,
+            counts,
+            populations,
+            snps,
+        })
+    }
+
+    /// For tests: frequencies at SNPs made up from their chromosomes and
+    /// genetic positions.
+    #[cfg(test)]
+    pub(crate) fn from_positions(
+        frequencies: Array2<f64>,
+
+        counts: Array2<u32>,
+        populations: Vec<PopulationId>,
+        chromosomes: Vec<crate::genotypes::Chromosome>,
         positions: Vec<f64>,
     ) -> Self {
         // Create SNPs from chromosomes and positions
@@ -367,6 +394,27 @@ impl AlleleFrequencies {
 
     /// Get the number of SNPs.
     #[inline]
+    /// Allele frequencies: [SNPs, populations], NaN where a population has
+    /// no observed allele.
+    pub fn frequencies(&self) -> &Array2<f64> {
+        &self.frequencies
+    }
+
+    /// Observed alleles: [SNPs, populations].
+    pub fn counts(&self) -> &Array2<u32> {
+        &self.counts
+    }
+
+    /// The populations, in column order.
+    pub fn populations(&self) -> &[PopulationId] {
+        &self.populations
+    }
+
+    /// The SNPs, in row order.
+    pub fn snps(&self) -> &[Snp] {
+        &self.snps
+    }
+
     pub fn n_snps(&self) -> usize {
         self.snps.len()
     }

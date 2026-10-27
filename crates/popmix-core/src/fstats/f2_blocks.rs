@@ -24,37 +24,37 @@ use crate::genotypes::PopulationId;
 pub struct F2Blocks {
     /// F2 values (bias-corrected): [n_blocks, n_pairs]
     /// Each value is the sum of f2 for SNPs in that block for that pair.
-    pub block_sums: Array2<f64>,
+    pub(crate) block_sums: Array2<f64>,
 
     /// Raw squared differences (not bias-corrected): [n_blocks, n_pairs]
     /// Used for FST denominator computation.
-    pub block_raw_sums: Array2<f64>,
+    pub(crate) block_raw_sums: Array2<f64>,
 
     /// Weights (SNP counts): [n_blocks, n_pairs]
     /// Number of valid SNPs contributing to each block/pair.
-    pub block_weights: Array2<f64>,
+    pub(crate) block_weights: Array2<f64>,
 
     /// Heterozygosity sums: [n_blocks, n_pops]
     /// Sum of p*(1-p) for SNPs in each block for each population.
     /// Used for FST computation.
-    pub block_het_sums: Array2<f64>,
+    pub(crate) block_het_sums: Array2<f64>,
 
     /// Heterozygosity weights: [n_blocks, n_pops]
     /// Number of valid SNPs contributing to each block/population.
-    pub block_het_weights: Array2<f64>,
+    pub(crate) block_het_weights: Array2<f64>,
 
     /// Population names in order.
-    pub populations: Vec<PopulationId>,
+    pub(crate) populations: Vec<PopulationId>,
 
     /// Number of blocks.
-    pub n_blocks: usize,
+    pub(crate) n_blocks: usize,
 
     /// Block lengths (number of SNPs per block).
-    pub block_lengths: Vec<usize>,
+    pub(crate) block_lengths: Vec<usize>,
 
     /// FST blocks on admixtools2's FST SNP set, or `None` if not available
     /// (f2 directories written before storage version 4).
-    pub fst: Option<FstBlocks>,
+    pub(crate) fst: Option<FstBlocks>,
 }
 
 /// Per-block FST numerator and denominator, on admixtools2's FST SNP set.
@@ -71,11 +71,11 @@ pub struct F2Blocks {
 #[derive(Debug, Clone)]
 pub struct FstBlocks {
     /// SNPs per block.
-    pub block_lengths: Vec<usize>,
+    pub(crate) block_lengths: Vec<usize>,
     /// Block mean of the numerator: [n_blocks, n_pairs], pairs as `pair_index`.
-    pub num: Array2<f64>,
+    pub(crate) num: Array2<f64>,
     /// Block mean of the denominator: [n_blocks, n_pairs].
-    pub den: Array2<f64>,
+    pub(crate) den: Array2<f64>,
 }
 
 impl FstBlocks {

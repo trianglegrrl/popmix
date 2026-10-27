@@ -189,7 +189,7 @@ mod tests {
             positions.push(i as f64 * 0.0005);
         }
 
-        let af = AlleleFrequencies::new(
+        let af = AlleleFrequencies::from_positions(
             freqs,
             counts,
             pops.iter().map(|s| PopulationId::from(*s)).collect(),
