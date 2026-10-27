@@ -607,7 +607,7 @@ thread count.
 - [ ] **L2. Unused dependencies:** `ordered-float`; `proptest` and
   `criterion` unless F12/B6 use them. RS
 - [x] **L3. PyO3 upgrade** (0.22 `*_bound` API deprecated from 0.23); abi3
-  if rust-numpy allows. RS *Done in COMMIT:* pyo3 0.29.3 and numpy 0.29.0
+  if rust-numpy allows. RS *Done in f27da1b:* pyo3 0.29.3 and numpy 0.29.0
   (0.30 was under two weeks old; a small step before release); one abi3
   wheel per platform for CPython 3.9 on, checked in release.yml on 3.9 and
   3.14 (`.github/scripts/check-wheel.sh`); `gil_used = true` until popmix is
