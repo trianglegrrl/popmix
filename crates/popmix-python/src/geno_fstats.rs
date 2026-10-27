@@ -226,6 +226,7 @@ pub fn f4_from_geno(
 ) -> PyResult<Py<PyAny>> {
     let rule = ploidy_rule(pseudohaploid)?;
     let (source, snps, pops, _) = open_source_with(prefix, &populations, auto_only, rule)?;
+    warn_without_map(&snps, block_size)?;
     let mode = if f4mode { F4Mode::F4 } else { F4Mode::D };
     let out = crate::compute(py, || {
         run(source, |rows| {
@@ -233,6 +234,14 @@ pub fn f4_from_geno(
         })
     })?;
     to_dict(py, out)
+}
+
+/// Warn when `snps` have no genetic map, so blocks fall back to 2 Mb (G5).
+fn warn_without_map(snps: &[popmix_core::Snp], block_size: f64) -> PyResult<()> {
+    let mut evidence = popmix_core::CoordinateEvidence::default();
+    evidence.observe(snps);
+    let blocks = popmix_core::BlockDefinition::new(block_size);
+    crate::warnings::emit(|w| popmix_core::warnings::check_genetic_map(&evidence, &blocks, w))
 }
 
 /// f3-statistics from a genotype prefix (admixtools2 ``qp3pop`` on
@@ -266,6 +275,7 @@ pub fn f3_from_geno(
 ) -> PyResult<Py<PyAny>> {
     let rule = ploidy_rule(pseudohaploid)?;
     let (source, snps, pops, _) = open_source_with(prefix, &populations, auto_only, rule)?;
+    warn_without_map(&snps, block_size)?;
     let options = {
         let mut o = F3GenoOptions::default();
         o.apply_corr = apply_corr;

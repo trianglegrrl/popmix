@@ -9,6 +9,7 @@ use std::ops::Range;
 use std::path::Path;
 
 use popmix_core::genotypes::{check_populations, check_sorted};
+use popmix_core::warnings::check_genetic_map;
 use popmix_core::{
     AlleleFrequencies, BlockDefinition, CoordinateEvidence, F2Blocks, F2Options, PopmixError,
     PopulationId, Result, Sample, Warning,
@@ -125,7 +126,7 @@ pub fn extract_f2(
         .map(std::string::String::as_str)
         .collect();
     if let Some(mapped) = open_mapped(prefix, warn)? {
-        return from_mapped(mapped, opts, &pops);
+        return from_mapped(mapped, opts, &pops, warn);
     }
 
     let geno_path = format!("{prefix}.geno");
@@ -156,6 +157,9 @@ pub fn extract_f2(
     } else {
         geno
     };
+    let mut evidence = CoordinateEvidence::default();
+    evidence.observe(geno.snps());
+    check_genetic_map(&evidence, &opts.blocks, warn);
     let af = AlleleFrequencies::from_genotypes_for_populations(&geno, Some(&pops));
     Ok(F2Blocks::from_allele_frequencies_with_options(
         &af,
@@ -167,7 +171,12 @@ pub fn extract_f2(
 /// The f2 blocks of a dataset read in place, a chromosome at a time: only
 /// one chromosome's frequency table is held (blocks never span
 /// chromosomes).
-fn from_mapped(mapped: Mapped, opts: &ExtractOptions, pops: &[&str]) -> Result<F2Blocks> {
+fn from_mapped(
+    mapped: Mapped,
+    opts: &ExtractOptions,
+    pops: &[&str],
+    warn: &mut dyn FnMut(Warning),
+) -> Result<F2Blocks> {
     let Mapped {
         file,
         mut samples,
@@ -188,6 +197,7 @@ fn from_mapped(mapped: Mapped, opts: &ExtractOptions, pops: &[&str]) -> Result<F
     for snp in snps.iter().filter(|s| !opts.auto_only || s.is_autosomal()) {
         evidence.observe(std::slice::from_ref(snp));
     }
+    check_genetic_map(&evidence, &opts.blocks, warn);
     let parts = runs.iter().map(|r| {
         file.allele_frequencies_at(&samples, &snps[r.clone()], r.start, pops, opts.auto_only)
     });

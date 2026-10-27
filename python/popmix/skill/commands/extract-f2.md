@@ -68,6 +68,10 @@ blocks (under about 20) make standard errors unreliable.
 
 ## Caveats
 
+- Without a genetic map (every SNP at one map position, as from a VCF),
+  blocks are 2 Mb of base-pair position, as admixtools2: shorter than 5 cM,
+  so SEs come out slightly small, and popmix warns. Fewer than 20 blocks
+  also warn.
 - The SNP set is fixed here: with `--maxmiss 0` it is the SNPs with data in
   all the populations named, and only SNPs polymorphic among them
   (admixtools2 `poly_only = "f2"`). Statistics read from the directory

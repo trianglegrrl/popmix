@@ -462,6 +462,11 @@ pub(crate) fn f2_from_frequencies(
     af: &PyAlleleFrequencies,
     block_size: f64,
 ) -> PyResult<PyF2Blocks> {
+    let mut evidence = popmix_core::CoordinateEvidence::default();
+    evidence.observe(af.inner.snps());
+    crate::warnings::emit(|w| {
+        popmix_core::warnings::check_genetic_map(&evidence, &BlockDefinition::new(block_size), w);
+    })?;
     let inner = compute(py, move || {
         let block_def = BlockDefinition::new(block_size);
         F2Blocks::from_allele_frequencies(&af.inner, &block_def)

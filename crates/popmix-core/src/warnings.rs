@@ -6,6 +6,9 @@
 use std::fmt;
 use std::path::PathBuf;
 
+use crate::fstats::blocks::NO_MAP_BLOCK_SIZE_BP;
+use crate::fstats::{BlockCoordinate, BlockDefinition, CoordinateEvidence};
+
 /// A warning.
 ///
 /// New variants may be added in minor releases.
@@ -32,6 +35,24 @@ pub enum Warning {
         analysis: String,
         chromosomes: usize,
     },
+    /// No genetic map: jackknife blocks fall back to 2 Mb of base-pair
+    /// position, as admixtools2 (TASKS.md G5).
+    NoGeneticMap,
+}
+
+/// Warn when the SNPs seen by `evidence` have no genetic map, so that
+/// `block_def`'s blocks fall back to 2 Mb of base-pair position (unless
+/// base-pair blocks were asked for, with a block size of 100 or more).
+pub fn check_genetic_map(
+    evidence: &CoordinateEvidence,
+    block_def: &BlockDefinition,
+    warn: &mut dyn FnMut(Warning),
+) {
+    if block_def.block_size < 100.0
+        && block_def.coordinate(evidence) == BlockCoordinate::BasePairs(NO_MAP_BLOCK_SIZE_BP)
+    {
+        warn(Warning::NoGeneticMap);
+    }
 }
 
 /// Fewest jackknife blocks before [`Warning::FewBlocks`]. With g blocks
@@ -131,6 +152,12 @@ impl fmt::Display for Warning {
                 "{analysis}: the jackknife over {chromosomes} chromosomes gives a rough standard \
                  error (fewer than {MIN_JACKKNIFE_CHROMOSOMES})"
             ),
+            Warning::NoGeneticMap => write!(
+                f,
+                "no genetic map (every SNP at the same map position): jackknife blocks are 2 Mb of \
+                 base-pair position, as admixtools2, shorter than the 5 cM default, so standard \
+                 errors come out slightly small; add genetic positions to the .snp or .bim file"
+            ),
         }
     }
 }
@@ -194,6 +221,40 @@ mod tests {
             warned[0].to_string(),
             "DATES: the jackknife over 3 chromosomes gives a rough standard error (fewer than 10)"
         );
+    }
+
+    fn snps(morgans: impl Fn(u32) -> f64) -> Vec<crate::genotypes::Snp> {
+        (0..5u32)
+            .map(|i| {
+                crate::genotypes::Snp::new(
+                    format!("rs{i}"),
+                    crate::genotypes::Chromosome::Autosome(1),
+                    1000 * (i + 1),
+                    morgans(i),
+                    'A',
+                    'G',
+                )
+            })
+            .collect()
+    }
+
+    fn map_warnings(s: &[crate::genotypes::Snp], block_size: f64) -> Vec<Warning> {
+        let mut evidence = CoordinateEvidence::default();
+        evidence.observe(s);
+        collect(|w| check_genetic_map(&evidence, &BlockDefinition::new(block_size), w))
+    }
+
+    #[test]
+    fn snps_without_a_map_warn() {
+        let warned = map_warnings(&snps(|_| 0.0), 0.05);
+        assert_eq!(warned, vec![Warning::NoGeneticMap]);
+        assert!(warned[0].to_string().starts_with("no genetic map"));
+    }
+
+    #[test]
+    fn a_map_or_base_pair_blocks_asked_for_do_not_warn() {
+        assert_eq!(map_warnings(&snps(|i| f64::from(i) * 0.01), 0.05), vec![]);
+        assert_eq!(map_warnings(&snps(|_| 0.0), 2e6), vec![]);
     }
 
     #[test]
