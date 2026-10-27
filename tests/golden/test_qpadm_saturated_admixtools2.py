@@ -39,14 +39,14 @@ def result(f2):
 
 def test_weights_match_admixtools2(result):
     np.testing.assert_allclose(result.weights, [_num(w["weight"]) for w in REF["weights"]], rtol=1e-6)
-    np.testing.assert_allclose(result.weight_std_errors, [_num(w["se"]) for w in REF["weights"]], rtol=1e-6)
+    np.testing.assert_allclose(result.weight_se, [_num(w["se"]) for w in REF["weights"]], rtol=1e-6)
 
 
 def test_the_saturated_model_has_no_p_value(result):
     full = REF["rankdrop"][0]
     assert full["dof"] == 0 and full["p"] == "NA"
-    assert result.df == 0
-    assert math.isnan(result.p_value)
+    assert result.dof == 0
+    assert math.isnan(result.p)
     assert not result.is_good_fit()
 
 
@@ -56,9 +56,9 @@ def test_popdrop_matches_admixtools2(result):
         row = ours[want["pat"]]
         assert row.dof == want["dof"], want["pat"]
         if want["p"] == "NA":
-            assert math.isnan(row.p_value), want["pat"]
+            assert math.isnan(row.p), want["pat"]
         else:
-            np.testing.assert_allclose(row.p_value, _num(want["p"]), rtol=1e-4, err_msg=want["pat"])
+            np.testing.assert_allclose(row.p, _num(want["p"]), rtol=1e-4, err_msg=want["pat"])
 
 
 def _cli(f2, tmp_path: Path, fmt: str) -> str:
@@ -82,5 +82,5 @@ def test_cli_json_is_strict_json_with_a_null_p(f2, tmp_path):
         raise ValueError(f"not JSON: {token}")
 
     out = json.loads(_cli(f2, tmp_path, "json"), parse_constant=no_nan)
-    assert out["p_value"] is None
-    assert out["df"] == 0
+    assert out["p"] is None
+    assert out["dof"] == 0

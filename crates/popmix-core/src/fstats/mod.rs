@@ -28,5 +28,5 @@ pub use geno_fstats::{
 };
 pub use jackknife::{
     block_jackknife, block_jackknife_cov, jackknife_cov_from_loo, jackknife_from_loo,
-    jackknife_with_total, leave_one_out, leave_one_out_nafix,
+    jackknife_with_total, leave_one_out, leave_one_out_nafix, p_from_z, z_score,
 };

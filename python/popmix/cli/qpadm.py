@@ -54,17 +54,17 @@ def qpadm(target: str, left: list, right: list, constrained: bool, input_prefix:
                 "target": result.target,
                 "sources": result.sources,
                 "weights": dict(zip(result.sources, result.weights)),
-                "std_errors": dict(zip(result.sources, result.weight_std_errors)),
-                "chi_sq": result.chi_sq,
-                "df": result.df,
-                "p_value": _json_number(result.p_value),
-                "feasible": result.is_feasible(),
+                "se": dict(zip(result.sources, result.weight_se)),
+                "chisq": result.chisq,
+                "dof": result.dof,
+                "p": _json_number(result.p),
+                "feasible": result.feasible,
             }
             click.echo(json.dumps(output, indent=2))
         elif output_format == "tsv":
-            click.echo("target\tsource\tweight\tchi_sq\tdf\tp_value")
+            click.echo("target\tsource\tweight\tchisq\tdof\tp")
             for source, weight in zip(result.sources, result.weights):
-                click.echo(f"{target}\t{source}\t{weight:.4f}\t{result.chi_sq:.4f}\t{result.df}\t{_p_text(result.p_value)}")
+                click.echo(f"{target}\t{source}\t{weight:.4f}\t{result.chisq:.4f}\t{result.dof}\t{_p_text(result.p)}")
         else:
             click.echo(f"qpAdm: {target} = mix of {', '.join(left)}")
             click.echo(f"Outgroups: {', '.join(right)}")
@@ -73,9 +73,9 @@ def qpadm(target: str, left: list, right: list, constrained: bool, input_prefix:
             for source, weight in zip(result.sources, result.weights):
                 click.echo(f"  {source}: {weight:.4f} ({weight*100:.1f}%)")
             click.echo()
-            click.echo(f"Model fit: chi-sq={result.chi_sq:.4f}, df={result.df}, p={_p_text(result.p_value)}")
-            click.echo(f"Feasible: {result.is_feasible()}")
-            if math.isnan(result.p_value):
+            click.echo(f"Model fit: chisq={result.chisq:.4f}, dof={result.dof}, p={_p_text(result.p)}")
+            click.echo(f"Feasible: {result.feasible}")
+            if math.isnan(result.p):
                 click.echo("=> Model not tested: it has 0 degrees of freedom (as many right populations as"
                            " left), so the data cannot reject it")
             elif result.is_good_fit():
@@ -115,29 +115,29 @@ def qpwave(left: list, right: list, input_prefix: str | None, f2_dir: str | None
 
         if output_format == "json":
             output = {
-                "left": result.left_pops,
-                "right": result.right_pops,
+                "left": result.left,
+                "right": result.right,
                 "estimated_rank": result.estimated_rank,
                 "rank_tests": [
-                    {"rank": t.rank, "chi_sq": t.chi_sq, "df": t.df, "p_value": _json_number(t.p_value)}
+                    {"rank": t.rank, "chisq": t.chisq, "dof": t.dof, "p": _json_number(t.p)}
                     for t in result.rank_tests
                 ],
                 "is_clade": result.is_clade(),
             }
             click.echo(json.dumps(output, indent=2))
         elif output_format == "tsv":
-            click.echo("rank\tchi_sq\tdf\tp_value")
+            click.echo("rank\tchisq\tdof\tp")
             for t in result.rank_tests:
-                click.echo(f"{t.rank}\t{t.chi_sq:.4f}\t{t.df}\t{_p_text(t.p_value, 6)}")
+                click.echo(f"{t.rank}\t{t.chisq:.4f}\t{t.dof}\t{_p_text(t.p, 6)}")
         else:
             click.echo(f"qpWave: {', '.join(left)}")
             click.echo(f"Outgroups: {', '.join(right)}")
             click.echo()
             click.echo("Rank tests:")
-            click.echo("  Rank  Chi-sq     df    P-value")
+            click.echo("  Rank   chisq    dof          p")
             for t in result.rank_tests:
-                sig = "*" if t.p_value < 0.05 else " "
-                click.echo(f"  {t.rank:4d}  {t.chi_sq:8.4f}  {t.df:4d}  {_p_text(t.p_value, 6):>8} {sig}")
+                sig = "*" if t.p < 0.05 else " "
+                click.echo(f"  {t.rank:4d}  {t.chisq:8.4f}  {t.dof:4d}  {_p_text(t.p, 6):>8} {sig}")
             click.echo()
             click.echo(f"Estimated rank: {result.estimated_rank}")
             if result.is_clade():

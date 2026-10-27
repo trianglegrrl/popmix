@@ -18,5 +18,5 @@ def test_f2_matrix_equals_f2():
     assert len(set(f2.block_lengths)) > 1
     pops = list(f2.populations)
     matrix = f2.f2_matrix()
-    expected = np.array([[0.0 if a == b else f2.f2(a, b)["estimate"] for b in pops] for a in pops])
+    expected = np.array([[0.0 if a == b else f2.f2(a, b)["est"] for b in pops] for a in pops])
     np.testing.assert_array_equal(matrix, expected)

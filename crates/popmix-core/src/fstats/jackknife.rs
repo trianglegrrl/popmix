@@ -70,6 +70,21 @@ fn estimate_and_se(loo: &[f64], lengths: &[f64], tot: f64) -> (f64, f64) {
 ///
 /// Blocks whose value is not finite are left out entirely; `None` if none
 /// remains.
+/// z of an estimate and its standard error: est / se, NaN when the SE is 0
+/// or not finite (no information, not "no effect").
+pub fn z_score(est: f64, se: f64) -> f64 {
+    if se > 0.0 && se.is_finite() {
+        est / se
+    } else {
+        f64::NAN
+    }
+}
+
+/// Two-sided normal p-value of `z`, as admixtools2's `ztop`; NaN for NaN.
+pub fn p_from_z(z: f64) -> f64 {
+    libm::erfc(z.abs() / std::f64::consts::SQRT_2)
+}
+
 pub fn block_jackknife(values: &[f64], lengths: &[f64]) -> Option<(f64, f64)> {
     let (x, m) = finite_blocks(values, lengths);
     if x.is_empty() {
@@ -234,6 +249,18 @@ pub fn jackknife_cov_from_loo(
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn z_is_nan_without_a_standard_error_and_p_is_two_sided() {
+        assert_eq!(z_score(1.0, 0.5), 2.0);
+        assert!(z_score(1.0, 0.0).is_nan());
+        assert!(z_score(1.0, f64::NAN).is_nan());
+        // R 4.5: print(2 * pnorm(-1.96), digits = 17)
+        let p = p_from_z(1.96);
+        assert!((p - 0.049_995_790_296_440_856).abs() < 1e-16, "{p:.17}");
+        assert!((p_from_z(-1.96) - p_from_z(1.96)).abs() < 1e-18);
+        assert!(p_from_z(f64::NAN).is_nan());
+    }
     use super::*;
     use approx::assert_relative_eq;
 

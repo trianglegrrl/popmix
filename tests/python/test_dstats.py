@@ -81,7 +81,7 @@ class TestMatrices:
     def test_f4_matrix_from_f2_blocks(self):
         f2 = pm.extract_f2(SMALL, POPS)
         m = pm.dstat_matrix(f2, ["Simulation", "Simulation.1"], pop3="Yoruba", pop4="French", f4mode=True)
-        assert m.loc["Simulation", "Simulation.1"] == f2.f4("Simulation", "Simulation.1", "Yoruba", "French")["estimate"]
+        assert m.loc["Simulation", "Simulation.1"] == f2.f4("Simulation", "Simulation.1", "Yoruba", "French")["est"]
 
 
 class TestClusterOrder:
@@ -125,7 +125,7 @@ class TestCli:
         out = json.loads(cli("qpdstat", "--f2-dir", str(tmp_path / "f2"), "--pop1", "Simulation",
                              "--pop2", "Simulation.1", "--pop3", "Yoruba", "--pop4", "French", "--format", "json"))
         f2 = pm.read_f2(str(tmp_path / "f2"))
-        assert out[0]["est"] == pytest.approx(f2.f4("Simulation", "Simulation.1", "Yoruba", "French")["estimate"],
+        assert out[0]["est"] == pytest.approx(f2.f4("Simulation", "Simulation.1", "Yoruba", "French")["est"],
                                               rel=1e-12)
 
     def test_d_mode_needs_genotypes(self, tmp_path):

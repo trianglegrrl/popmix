@@ -139,7 +139,7 @@ class TestExtractF2Command:
             # Should be able to compute f2 from loaded data
             f2_result = f2_loaded.f2("Han.DG", "Yoruba.DG")
             assert f2_result is not None
-            assert f2_result["estimate"] > 0  # Different populations should have positive f2
+            assert f2_result["est"] > 0  # Different populations should have positive f2
 
     def test_extract_f2_missing_input_errors(self):
         """popmix extract-f2 with missing input should error."""
@@ -240,23 +240,23 @@ class TestCommandsMatchAdmixtools2:
         for row in _dg6("f2.json")["f2"]:
             out = json.loads(run_cli("f2", "--f2-dir", dg6_f2_dir, "--pop1", row["pop1"],
                                      "--pop2", row["pop2"], "--format", "json").stdout)
-            assert out["estimate"] == pytest.approx(row["est"], rel=1e-10, abs=1e-15)
-            assert out["std_err"] == pytest.approx(row["se"], rel=1e-6)
+            assert out["est"] == pytest.approx(row["est"], rel=1e-10, abs=1e-15)
+            assert out["se"] == pytest.approx(row["se"], rel=1e-6)
 
     def test_f3(self, dg6_f2_dir):
         for row in _dg6("f3_f4.json")["f3"][:10]:
             out = json.loads(run_cli("f3", "--f2-dir", dg6_f2_dir, "--target", row["pop1"],
                                      "--source1", row["pop2"], "--source2", row["pop3"],
                                      "--format", "json").stdout)
-            assert out["estimate"] == pytest.approx(row["est"], rel=1e-10, abs=1e-15)
-            assert out["std_err"] == pytest.approx(row["se"], rel=1e-6)
+            assert out["est"] == pytest.approx(row["est"], rel=1e-10, abs=1e-15)
+            assert out["se"] == pytest.approx(row["se"], rel=1e-6)
 
     def test_f4(self, dg6_f2_dir):
         for row in _dg6("f3_f4.json")["f4"][:10]:
             out = json.loads(run_cli("f4", "--f2-dir", dg6_f2_dir, "--pop1", row["pop1"], "--pop2", row["pop2"],
                                      "--pop3", row["pop3"], "--pop4", row["pop4"], "--format", "json").stdout)
-            assert out["estimate"] == pytest.approx(row["est"], rel=1e-10, abs=1e-15)
-            assert out["std_err"] == pytest.approx(row["se"], rel=1e-6)
+            assert out["est"] == pytest.approx(row["est"], rel=1e-10, abs=1e-15)
+            assert out["se"] == pytest.approx(row["se"], rel=1e-6)
 
     def test_qpwave(self, dg6_f2_dir):
         for m in _dg6("qpwave.json")["models"]:
@@ -265,10 +265,10 @@ class TestCommandsMatchAdmixtools2:
             ours = {t["rank"]: t for t in out["rank_tests"]}
             for row in m["rankdrop"]:
                 t = ours[row["f4rank"]]
-                assert t["df"] == row["dof"]
-                assert t["chi_sq"] == pytest.approx(row["chisq"], rel=1e-6)
+                assert t["dof"] == row["dof"]
+                assert t["chisq"] == pytest.approx(row["chisq"], rel=1e-6)
                 if "p" in row:
-                    assert t["p_value"] == pytest.approx(row["p"], rel=1e-4)
+                    assert t["p"] == pytest.approx(row["p"], rel=1e-4)
 
     def test_qpadm(self, dg6_f2_dir):
         for m in _dg6("qpadm.json")["models"]:
@@ -279,13 +279,13 @@ class TestCommandsMatchAdmixtools2:
             out = json.loads(run_cli(*args).stdout)
             for row in m["weights"]:
                 assert out["weights"][row["left"]] == pytest.approx(row["weight"], rel=1e-6, abs=1e-10)
-                assert out["std_errors"][row["left"]] == pytest.approx(row["se"], rel=1e-6, abs=1e-10)
+                assert out["se"][row["left"]] == pytest.approx(row["se"], rel=1e-6, abs=1e-10)
             if "rankdrop" in m:
                 row = next(x for x in m["rankdrop"] if x["f4rank"] == len(m["left"]) - 1)
-                assert out["df"] == row["dof"]
-                assert out["chi_sq"] == pytest.approx(row["chisq"], rel=1e-6)
+                assert out["dof"] == row["dof"]
+                assert out["chisq"] == pytest.approx(row["chisq"], rel=1e-6)
                 if "p" in row:
-                    assert out["p_value"] == pytest.approx(row["p"], rel=1e-4)
+                    assert out["p"] == pytest.approx(row["p"], rel=1e-4)
 
     def test_genotype_input_uses_extract_f2(self):
         """Without --f2-dir the command extracts just its own populations, as pm.extract_f2 does."""
@@ -297,8 +297,8 @@ class TestCommandsMatchAdmixtools2:
         out = json.loads(run_cli("f4", "--input", AADR_PREFIX, "--pop1", pops[0], "--pop2", pops[1],
                                  "--pop3", pops[2], "--pop4", pops[3], "--format", "json",
                                  timeout=1800).stdout)
-        assert out["estimate"] == expected["estimate"]
-        assert out["std_err"] == expected["std_err"]
+        assert out["est"] == expected["est"]
+        assert out["se"] == expected["se"]
 
 
 class TestF2Source:
@@ -587,7 +587,7 @@ class TestOutputFormats:
         result = run_cli("f2", "--input", SMALL_PREFIX, "--pop1", "French", "--pop2", "Yoruba",
                          "--all-chromosomes", "--format", "json")
         data = json.loads(result.stdout)
-        assert "estimate" in data
+        assert list(data) == ["est", "se", "z", "p", "n_snps"]
 
     @small_data
     def test_tsv_output(self):

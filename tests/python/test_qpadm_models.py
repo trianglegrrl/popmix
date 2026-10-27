@@ -49,8 +49,8 @@ def test_qpadm_p_matches_qpadm(f2):
     full = pm.qpadm(f2, ["French"], RIGHT, TARGET)
     p = pm.qpadm_p(f2, ["French"], RIGHT, TARGET, weights=True)
     assert p["f4rank"] == 0
-    assert p["dof"] == full.df
-    assert p["chisq"] == pytest.approx(full.chi_sq, rel=1e-12)
+    assert p["dof"] == full.dof
+    assert p["chisq"] == pytest.approx(full.chisq, rel=1e-12)
     assert p["weights"] == {"French": 1.0}
     assert p["feasible"]
     assert "weights" not in pm.qpadm_p(f2, ["French"], RIGHT, TARGET)
@@ -61,8 +61,8 @@ def test_test_cladality_is_qpwave_rank_zero(f2):
     left = [TARGET, "French"]
     rank0 = next(t for t in pm.qpwave(f2, left, RIGHT).rank_tests if t.rank == 0)
     c = pm.test_cladality(f2, left, RIGHT)
-    assert c["dof"] == rank0.df
-    assert c["chisq"] == pytest.approx(rank0.chi_sq, rel=1e-12)
+    assert c["dof"] == rank0.dof
+    assert c["chisq"] == pytest.approx(rank0.chisq, rel=1e-12)
 
 
 @needs_data
@@ -86,7 +86,7 @@ def test_qpadm_multi_takes_any_table_of_models(f2):
     assert tables[0].chisq[0] == tables[0].chisq[1]
     full = pm.qpadm_multi(f2, rows)
     assert [r.sources for r in full] == [["French"], ["French"]]
-    assert full[0].chi_sq == pytest.approx(tables[0].chisq[0], rel=1e-12)
+    assert full[0].chisq == pytest.approx(tables[0].chisq[0], rel=1e-12)
 
 
 def test_qpadm_multi_rejects_malformed_models():
@@ -103,4 +103,4 @@ def test_qpadm_rotate_full_results_are_qpadm(f2):
     assert rows.left.tolist() == [r.sources for r in full] == [["French"], ["Yoruba"]]
     assert rows.right.tolist() == [["Simulation", "Yoruba"], ["Simulation", "French"]]
     for (_, row), r in zip(rows.iterrows(), full):  # noqa: B905
-        assert row.chisq == pytest.approx(r.chi_sq, rel=1e-12)
+        assert row.chisq == pytest.approx(r.chisq, rel=1e-12)

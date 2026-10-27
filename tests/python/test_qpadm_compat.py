@@ -33,6 +33,6 @@ def test_compat_leaves_a_one_source_model_unchanged(f2):
     args = (f2, ["French"], ["Yoruba", "Simulation.1"], "Simulation")
     fixed, compat = pm.qpadm(*args), pm.qpadm(*args, compat="admixtools2-2.0.10")
     assert fixed.weights == compat.weights
-    assert fixed.chi_sq == compat.chi_sq
+    assert fixed.chisq == compat.chisq
     assert [(x.pattern, x.best) for x in fixed.popdrop] == [("0", True)]
     assert [(x.pattern, x.best) for x in compat.popdrop] == [("0", False)]

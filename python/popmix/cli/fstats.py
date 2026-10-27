@@ -10,6 +10,7 @@ import click
 import popmix as pm
 
 from ._common import (
+    _json_row,
     _pseudohaploid,
     f2_source_options,
     load_f2_blocks,
@@ -121,16 +122,16 @@ def f2(pop1: str, pop2: str, input_prefix: str | None, f2_dir: str | None, block
             sys.exit(1)
 
         if output_format == "json":
-            click.echo(json.dumps(result, indent=2))
+            click.echo(json.dumps(_json_row(result), indent=2))
         elif output_format == "tsv":
-            click.echo("pop1\tpop2\testimate\tstd_err\tz_score\tn_snps")
-            click.echo(f"{pop1}\t{pop2}\t{result['estimate']:.6f}\t{result['std_err']:.6f}\t{result['z_score']:.3f}\t{int(result['n_snps'])}")
+            click.echo("pop1\tpop2\test\tse\tz\tp\tn_snps")
+            click.echo(f"{pop1}\t{pop2}\t{result['est']:.6f}\t{result['se']:.6f}\t{result['z']:.3f}\t{result['p']:.6g}\t{result['n_snps']}")
         else:
             click.echo(f"f2({pop1}, {pop2}):")
-            click.echo(f"  Estimate: {result['estimate']:.6f}")
-            click.echo(f"  Std Error: {result['std_err']:.6f}")
-            click.echo(f"  Z-score: {result['z_score']:.3f}")
-            click.echo(f"  N SNPs: {int(result['n_snps'])}")
+            click.echo(f"  Estimate: {result['est']:.6f}")
+            click.echo(f"  Std Error: {result['se']:.6f}")
+            click.echo(f"  Z-score: {result['z']:.3f}  (p = {result['p']:.3g})")
+            click.echo(f"  N SNPs: {result['n_snps']}")
 
     except EXPECTED_ERRORS as e:
         fail(e)
@@ -288,17 +289,17 @@ def f3(target: str, source1: str, source2: str, input_prefix: str | None, f2_dir
             sys.exit(1)
 
         if output_format == "json":
-            click.echo(json.dumps(result, indent=2))
+            click.echo(json.dumps(_json_row(result), indent=2))
         elif output_format == "tsv":
-            click.echo("target\tsource1\tsource2\testimate\tstd_err\tz_score\tn_blocks")
-            click.echo(f"{target}\t{source1}\t{source2}\t{result['estimate']:.6f}\t{result['std_err']:.6f}\t{result['z_score']:.3f}\t{int(result['n_blocks'])}")
+            click.echo("target\tsource1\tsource2\test\tse\tz\tp\tn_blocks")
+            click.echo(f"{target}\t{source1}\t{source2}\t{result['est']:.6f}\t{result['se']:.6f}\t{result['z']:.3f}\t{result['p']:.6g}\t{result['n_blocks']}")
         else:
             click.echo(f"f3({target}; {source1}, {source2}):")
-            click.echo(f"  Estimate: {result['estimate']:.6f}")
-            click.echo(f"  Std Error: {result['std_err']:.6f}")
-            click.echo(f"  Z-score: {result['z_score']:.3f}")
-            click.echo(f"  N blocks: {int(result['n_blocks'])}")
-            if result['estimate'] < 0 and result['z_score'] < -3:
+            click.echo(f"  Estimate: {result['est']:.6f}")
+            click.echo(f"  Std Error: {result['se']:.6f}")
+            click.echo(f"  Z-score: {result['z']:.3f}  (p = {result['p']:.3g})")
+            click.echo(f"  N blocks: {result['n_blocks']}")
+            if result['est'] < 0 and result['z'] < -3:
                 click.echo("  => Significant admixture signal")
 
     except EXPECTED_ERRORS as e:
@@ -328,17 +329,17 @@ def f4(pop1: str, pop2: str, pop3: str, pop4: str, input_prefix: str | None, f2_
             sys.exit(1)
 
         if output_format == "json":
-            click.echo(json.dumps(result, indent=2))
+            click.echo(json.dumps(_json_row(result), indent=2))
         elif output_format == "tsv":
-            click.echo("pop1\tpop2\tpop3\tpop4\testimate\tstd_err\tz_score\tn_blocks")
-            click.echo(f"{pop1}\t{pop2}\t{pop3}\t{pop4}\t{result['estimate']:.6f}\t{result['std_err']:.6f}\t{result['z_score']:.3f}\t{int(result['n_blocks'])}")
+            click.echo("pop1\tpop2\tpop3\tpop4\test\tse\tz\tp\tn_blocks")
+            click.echo(f"{pop1}\t{pop2}\t{pop3}\t{pop4}\t{result['est']:.6f}\t{result['se']:.6f}\t{result['z']:.3f}\t{result['p']:.6g}\t{result['n_blocks']}")
         else:
             click.echo(f"f4({pop1}, {pop2}; {pop3}, {pop4}):")
-            click.echo(f"  Estimate: {result['estimate']:.6f}")
-            click.echo(f"  Std Error: {result['std_err']:.6f}")
-            click.echo(f"  Z-score: {result['z_score']:.3f}")
-            click.echo(f"  N blocks: {int(result['n_blocks'])}")
-            if abs(result['z_score']) > 3:
+            click.echo(f"  Estimate: {result['est']:.6f}")
+            click.echo(f"  Std Error: {result['se']:.6f}")
+            click.echo(f"  Z-score: {result['z']:.3f}  (p = {result['p']:.3g})")
+            click.echo(f"  N blocks: {result['n_blocks']}")
+            if abs(result['z']) > 3:
                 click.echo("  => Significant deviation from tree-like evolution")
 
     except EXPECTED_ERRORS as e:

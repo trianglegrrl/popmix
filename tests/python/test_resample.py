@@ -43,7 +43,7 @@ def test_qpadm_resample_snps_jackknife(f2):
     assert t.error.isna().all()
     assert all(w == [1.0] for w in t.weights)
     # leaving out one block barely moves the statistic
-    assert t.chisq.median() == pytest.approx(full.chi_sq, rel=0.2)
+    assert t.chisq.median() == pytest.approx(full.chisq, rel=0.2)
 
 
 def test_bootstrap_count_and_seed(f2):

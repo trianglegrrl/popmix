@@ -217,7 +217,7 @@ def test_resample_inds(inds_ref):
         where = r["ind"]
         assert qa.error[k] is None and qg.error[k] is None, where
         np.testing.assert_allclose(qa.weights[k], [float(w) for w in r["qpadm"]["weights"]], rtol=0, atol=WEIGHT_TOL)
-        np.testing.assert_allclose(qa.result[k].weight_std_errors, [float(w) for w in r["qpadm"]["se"]], rtol=SE_RTOL)
+        np.testing.assert_allclose(qa.result[k].weight_se, [float(w) for w in r["qpadm"]["se"]], rtol=SE_RTOL)
         assert qa.chisq[k] == pytest.approx(float(r["qpadm"]["chisq"]), rel=SE_RTOL), where
         rd = qw.rankdrop[k]
         assert [x["f4rank"] for x in rd] == r["qpwave"]["f4rank"], where

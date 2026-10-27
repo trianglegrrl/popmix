@@ -143,10 +143,10 @@ def _check_f2_estimates(name: str):
     mismatches = []
     for row in ref["f2"]:
         got = f2.f2(row["pop1"], row["pop2"])
-        if not np.isclose(got["estimate"], row["est"], rtol=F_RTOL, atol=F_ATOL):
-            mismatches.append(f"{row['pop1']}|{row['pop2']}: est {got['estimate']!r} != {row['est']!r}")
-        if not np.isclose(got["std_err"], row["se"], rtol=SE_RTOL, atol=0):
-            mismatches.append(f"{row['pop1']}|{row['pop2']}: se {got['std_err']!r} != {row['se']!r}")
+        if not np.isclose(got["est"], row["est"], rtol=F_RTOL, atol=F_ATOL):
+            mismatches.append(f"{row['pop1']}|{row['pop2']}: est {got['est']!r} != {row['est']!r}")
+        if not np.isclose(got["se"], row["se"], rtol=SE_RTOL, atol=0):
+            mismatches.append(f"{row['pop1']}|{row['pop2']}: se {got['se']!r} != {row['se']!r}")
     assert not mismatches, "\n".join(mismatches)
 
 
@@ -159,10 +159,10 @@ def _check_stat_rows(name: str, stat: str, n_pops: int):
         pops = [row[f"pop{i}"] for i in range(1, n_pops + 1)]
         got = compute(*pops)
         label = ",".join(pops)
-        if not np.isclose(got["estimate"], row["est"], rtol=F_RTOL, atol=F_ATOL):
-            mismatches.append(f"{stat}({label}): est {got['estimate']!r} != {row['est']!r}")
-        if not np.isclose(got["std_err"], row["se"], rtol=SE_RTOL, atol=0):
-            mismatches.append(f"{stat}({label}): se {got['std_err']!r} != {row['se']!r}")
+        if not np.isclose(got["est"], row["est"], rtol=F_RTOL, atol=F_ATOL):
+            mismatches.append(f"{stat}({label}): est {got['est']!r} != {row['est']!r}")
+        if not np.isclose(got["se"], row["se"], rtol=SE_RTOL, atol=0):
+            mismatches.append(f"{stat}({label}): se {got['se']!r} != {row['se']!r}")
     assert not mismatches, f"{len(mismatches)} of {2 * len(rows)} differ, first 10:\n" + "\n".join(
         mismatches[:10]
     )
@@ -215,16 +215,16 @@ def _check_qpwave_rank_tests(name: str):
         for row in m["rankdrop"]:
             r = ours[row["f4rank"]]
             label = f"{_model_label(m)} rank {row['f4rank']}"
-            if r.df != row["dof"]:
-                mismatches.append(f"{label}: df {r.df} != {row['dof']}")
-            if not np.isclose(r.chi_sq, row["chisq"], rtol=SE_RTOL, atol=0):
-                mismatches.append(f"{label}: chisq {r.chi_sq!r} != {row['chisq']!r}")
+            if r.dof != row["dof"]:
+                mismatches.append(f"{label}: df {r.dof} != {row['dof']}")
+            if not np.isclose(r.chisq, row["chisq"], rtol=SE_RTOL, atol=0):
+                mismatches.append(f"{label}: chisq {r.chisq!r} != {row['chisq']!r}")
             if "p" not in row:
                 # admixtools2 reports p = NA with 0 degrees of freedom; popmix reports 1
                 if row["dof"] != 0:
                     mismatches.append(f"{label}: admixtools2 has no p-value")
-            elif not np.isclose(r.p_value, row["p"], rtol=P_RTOL, atol=0):
-                mismatches.append(f"{label}: p {r.p_value!r} != {row['p']!r}")
+            elif not np.isclose(r.p, row["p"], rtol=P_RTOL, atol=0):
+                mismatches.append(f"{label}: p {r.p!r} != {row['p']!r}")
     assert not mismatches, "\n".join(mismatches)
 
 
@@ -239,7 +239,7 @@ def _check_qpadm_weights(name: str):
     for m in load_reference(name, "qpadm.json")["models"]:
         r = pm.qpadm(f2, m["left"], m["right"], m["target"], constrained=m["constrained"])
         label = f"target={m['target']} left={','.join(m['left'])} constrained={m['constrained']}"
-        for w, se, row in zip(r.weights, r.weight_std_errors, m["weights"]):
+        for w, se, row in zip(r.weights, r.weight_se, m["weights"]):
             if not np.isclose(w, row["weight"], rtol=SE_RTOL, atol=SE_ATOL):
                 mismatches.append(f"{label} {row['left']}: weight {w!r} != {row['weight']!r}")
             if not np.isclose(se, row["se"], rtol=SE_RTOL, atol=SE_ATOL):
@@ -256,12 +256,12 @@ def _check_qpadm_fit(name: str):
         r = pm.qpadm(f2, m["left"], m["right"], m["target"], constrained=m["constrained"])
         label = f"target={m['target']} left={','.join(m['left'])}"
         row = next(x for x in m["rankdrop"] if x["f4rank"] == len(m["left"]) - 1)
-        if r.df != row["dof"]:
-            mismatches.append(f"{label}: df {r.df} != {row['dof']}")
-        if not np.isclose(r.chi_sq, row["chisq"], rtol=SE_RTOL, atol=0):
-            mismatches.append(f"{label}: chisq {r.chi_sq!r} != {row['chisq']!r}")
-        if "p" in row and not np.isclose(r.p_value, row["p"], rtol=P_RTOL, atol=0):
-            mismatches.append(f"{label}: p {r.p_value!r} != {row['p']!r}")
+        if r.dof != row["dof"]:
+            mismatches.append(f"{label}: df {r.dof} != {row['dof']}")
+        if not np.isclose(r.chisq, row["chisq"], rtol=SE_RTOL, atol=0):
+            mismatches.append(f"{label}: chisq {r.chisq!r} != {row['chisq']!r}")
+        if "p" in row and not np.isclose(r.p, row["p"], rtol=P_RTOL, atol=0):
+            mismatches.append(f"{label}: p {r.p!r} != {row['p']!r}")
     assert not mismatches, "\n".join(mismatches)
 
 
@@ -291,10 +291,10 @@ def _check_qpadm_popdrop(name: str):
                                   ("feasible", row["feasible"]), ("best", row.get("best", False))):
                 if getattr(x, field) != theirs:
                     mismatches.append(f"{where}: {field} {getattr(x, field)!r} != {theirs!r}")
-            if not np.isclose(x.chi_sq, row["chisq"], rtol=SE_RTOL, atol=0):
-                mismatches.append(f"{where}: chisq {x.chi_sq!r} != {row['chisq']!r}")
-            if "p" in row and not np.isclose(x.p_value, row["p"], rtol=P_RTOL, atol=0):
-                mismatches.append(f"{where}: p {x.p_value!r} != {row['p']!r}")
+            if not np.isclose(x.chisq, row["chisq"], rtol=SE_RTOL, atol=0):
+                mismatches.append(f"{where}: chisq {x.chisq!r} != {row['chisq']!r}")
+            if "p" in row and not np.isclose(x.p, row["p"], rtol=P_RTOL, atol=0):
+                mismatches.append(f"{where}: p {x.p!r} != {row['p']!r}")
             for source, w in zip(m["left"], x.weights):
                 theirs = row.get(source)
                 if (w is None) != (theirs is None) or (
@@ -346,7 +346,7 @@ def _check_qpadm_popdrop_corrected(name: str):
                           compat="admixtools2-2.0.10")
         label = f"target={m['target']} left={','.join(m['left'])} constrained={m['constrained']}"
         for x, y in zip(r.popdrop, compat.popdrop):
-            for field in ("pattern", "wt", "dof", "chi_sq", "p_value", "f4rank", "weights",
+            for field in ("pattern", "wt", "dof", "chisq", "p", "f4rank", "weights",
                           "feasible"):
                 a, b = getattr(x, field), getattr(y, field)
                 both_na = isinstance(a, float) and isinstance(b, float) and math.isnan(a) and math.isnan(b)
@@ -387,8 +387,8 @@ def _check_f4ratio(name: str):
         label = ",".join(row[f"pop{i}"] for i in range(1, 6))
         if not np.isclose(r.alpha, row["alpha"], rtol=SE_RTOL, atol=0):
             mismatches.append(f"{label}: alpha {r.alpha!r} != {row['alpha']!r}")
-        if not np.isclose(r.std_err, row["se"], rtol=SE_RTOL, atol=0):
-            mismatches.append(f"{label}: se {r.std_err!r} != {row['se']!r}")
+        if not np.isclose(r.se, row["se"], rtol=SE_RTOL, atol=0):
+            mismatches.append(f"{label}: se {r.se!r} != {row['se']!r}")
     assert not mismatches, "\n".join(mismatches)
 
 
@@ -545,10 +545,10 @@ def _check_fst_estimates(name: str):
     for row in ref["fst"]:
         got = f2.fst(row["pop1"], row["pop2"])
         label = f"{row['pop1']}|{row['pop2']}"
-        if not np.isclose(got["estimate"], row["est"], rtol=F_RTOL, atol=F_ATOL):
-            mismatches.append(f"{label}: est {got['estimate']!r} != {row['est']!r}")
-        if not np.isclose(got["std_err"], row["se"], rtol=SE_RTOL, atol=0):
-            mismatches.append(f"{label}: se {got['std_err']!r} != {row['se']!r}")
+        if not np.isclose(got["est"], row["est"], rtol=F_RTOL, atol=F_ATOL):
+            mismatches.append(f"{label}: est {got['est']!r} != {row['est']!r}")
+        if not np.isclose(got["se"], row["se"], rtol=SE_RTOL, atol=0):
+            mismatches.append(f"{label}: se {got['se']!r} != {row['se']!r}")
     assert not mismatches, "\n".join(mismatches)
 
 

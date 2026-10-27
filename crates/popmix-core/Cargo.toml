@@ -17,6 +17,8 @@ rustfft = "6.2"  # FFT for O(N log N) LD computation in DATES
 nalgebra = "0.33"
 faer = "0.24"
 statrs = "0.18"
+# erfc to the last bit (musl's), for p-values as R and Python give them
+libm = "0.2.16"
 # only for the bindings: From<PopmixError> for PyErr (feature "python")
 pyo3 = { workspace = true, optional = true }
 

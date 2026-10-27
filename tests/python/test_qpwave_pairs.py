@@ -39,12 +39,12 @@ def test_clades_and_the_best_clade_follow_the_p_values():
     pairs = res.pairs
     assert len(pairs) + res.n_skipped == 3
     for threshold in (0.0, 0.05, 0.5):
-        want = [(p.pop_a, p.pop_b) for p in pairs if p.p_value > threshold]
+        want = [(p.pop_a, p.pop_b) for p in pairs if p.p > threshold]
         assert [(p.pop_a, p.pop_b) for p in res.clades(threshold)] == want
-    candidates = [p for p in pairs if not math.isnan(p.p_value)]
+    candidates = [p for p in pairs if not math.isnan(p.p)]
     best = res.best_clade()
     if candidates:
-        top = max(candidates, key=lambda p: p.p_value)
-        assert (best.pop_a, best.pop_b, best.p_value) == (top.pop_a, top.pop_b, top.p_value)
+        top = max(candidates, key=lambda p: p.p)
+        assert (best.pop_a, best.pop_b, best.p) == (top.pop_a, top.pop_b, top.p)
     else:
         assert best is None

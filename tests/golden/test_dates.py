@@ -136,9 +136,8 @@ def test_dates_chr20_22_subset():
     result = pm.dates(data_path, "Simulation", ["French", "Yoruba"])
 
     # Verify basic result structure
-    assert result.test_pop == "Simulation"
-    assert result.source1 == "French"
-    assert result.source2 == "Yoruba"
+    assert result.admixed == "Simulation"
+    assert result.sources == ["French", "Yoruba"]
 
     # Verify LD bins were computed
     assert len(result.ld_bins) > 0

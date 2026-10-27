@@ -56,3 +56,31 @@ def test_qpadm_models_are_left_right_target(name):
 @pytest.mark.parametrize("name", ["dates", "rolloff"])
 def test_admixture_dates_take_a_prefix_the_admixed_and_its_sources(name):
     assert list(inspect.signature(getattr(pm, name)).parameters)[:3] == ["prefix", "admixed", "sources"]
+
+
+# J2: statistics are named as in admixtools2's tables everywhere: est, se, z,
+# p, chisq, dof; these older names are gone from every result
+OLD_NAMES = {"estimate", "std_err", "std_errors", "z_score", "p_value", "chi_sq", "df",
+             "weight_std_errors", "is_feasible", "left_pops", "right_pops", "test_pop", "source1",
+             "source2"}
+
+
+def _result_classes():
+    import popmix._core as core
+    for name in dir(core):
+        cls = getattr(core, name)
+        if isinstance(cls, type) and name.startswith("Py"):
+            yield name, cls
+
+
+@pytest.mark.parametrize("name,cls", list(_result_classes()), ids=lambda x: x if isinstance(x, str) else "")
+def test_results_use_admixtools2_names(name, cls):
+    attributes = {a for a in dir(cls) if not a.startswith("_")}
+    assert attributes & OLD_NAMES == set()
+
+
+def test_admixture_dates_name_their_populations_as_their_inputs():
+    r = pm.dates("tests/golden/dates/family_chr20_22", "Simulation.1", ["French", "Yoruba"], jackknife=False)
+    assert (r.admixed, r.sources) == ("Simulation.1", ["French", "Yoruba"])
+    assert list(r.to_ld_dataframe().columns)[:2] == ["distance_cm", "n_pairs"]
+    assert "se" in r.to_ld_dataframe().columns

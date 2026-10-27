@@ -301,7 +301,7 @@ def _from_f2(combs: list[tuple], cols: list[str], stat) -> pd.DataFrame:
     rows = []
     for c in combs:
         r = stat(c)
-        est, se = r["estimate"], r["std_err"]
+        est, se = r["est"], r["se"]
         z = est / se if se > 0 else float("nan")
         p = 2 * NormalDist().cdf(-abs(z)) if np.isfinite(z) else float("nan")
         rows.append((*c, est, se, z, p))

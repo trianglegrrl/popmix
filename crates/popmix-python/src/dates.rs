@@ -14,7 +14,7 @@ pub(crate) struct PyLdBin {
     distance_cm: f64,
     #[pyo3(get)]
     weighted_ld: f64,
-    #[pyo3(get)]
+    #[pyo3(get, name = "z")]
     z_score: f64,
     #[pyo3(get)]
     correlation: f64,
@@ -22,7 +22,7 @@ pub(crate) struct PyLdBin {
     regression_coef: f64,
     #[pyo3(get)]
     n_pairs: usize,
-    #[pyo3(get)]
+    #[pyo3(get, name = "se")]
     std_err: f64,
 }
 
@@ -74,11 +74,9 @@ impl From<&popmix_core::DecayFit> for PyDecayFit {
 /// Result of DATES admixture dating analysis.
 #[pyclass]
 pub(crate) struct PyDatesResult {
-    #[pyo3(get)]
+    #[pyo3(get, name = "admixed")]
     test_pop: String,
-    #[pyo3(get)]
     source1: String,
-    #[pyo3(get)]
     source2: String,
     #[pyo3(get)]
     generations: f64,
@@ -122,26 +120,35 @@ impl PyDatesResult {
     }
 
     /// Get LD decay data as a list of dictionaries for easy pandas conversion.
-    fn to_ld_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyDict>>> {
-        self.ld_bins
+    /// The two source populations.
+    #[getter]
+    fn sources(&self) -> Vec<String> {
+        vec![self.source1.clone(), self.source2.clone()]
+    }
+
+    /// The LD bins as a pandas DataFrame, one row per bin.
+    fn to_ld_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let rows = self
+            .ld_bins
             .iter()
             .map(|b| {
                 let d = PyDict::new(py);
                 d.set_item("distance_cm", b.distance_cm)?;
+                d.set_item("n_pairs", b.n_pairs)?;
                 d.set_item("weighted_ld", b.weighted_ld)?;
-                d.set_item("z_score", b.z_score)?;
+                d.set_item("se", b.std_err)?;
+                d.set_item("z", b.z_score)?;
                 d.set_item("correlation", b.correlation)?;
                 d.set_item("regression_coef", b.regression_coef)?;
-                d.set_item("n_pairs", b.n_pairs as f64)?;
-                d.set_item("std_err", b.std_err)?;
                 Ok(d)
             })
-            .collect()
+            .collect::<PyResult<Vec<_>>>()?;
+        py.import("pandas")?.getattr("DataFrame")?.call1((rows,))
     }
 
     fn __repr__(&self) -> String {
         format!(
-            "DatesResult(test_pop='{}', generations={:.1}±{:.1}, years_bp={:.0}±{:.0}, n_snps={})",
+            "DatesResult(admixed='{}', generations={:.1}±{:.1}, years_bp={:.0}±{:.0}, n_snps={})",
             self.test_pop,
             self.generations,
             self.generations_se,

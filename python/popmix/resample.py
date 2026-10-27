@@ -89,14 +89,14 @@ def _run(fun: Callable[[Any], dict], data: Sequence, sel: Sequence) -> pd.DataFr
 def _qpadm_fit(target, left, right, args):
     def fit(d):
         r = _core.qpadm(d, list(left), list(right), target, **args)
-        return {"weights": list(r.weights), "chisq": r.chi_sq, "p": r.p_value, "result": r}
+        return {"weights": list(r.weights), "chisq": r.chisq, "p": r.p, "result": r}
     return fit
 
 
 def _qpwave_fit(left, right, args):
     def fit(d):
         r = _core.qpwave(d, list(left), list(right), **args)
-        rankdrop = [{"f4rank": t.rank, "dof": t.df, "chisq": t.chi_sq, "p": t.p_value}
+        rankdrop = [{"f4rank": t.rank, "dof": t.dof, "chisq": t.chisq, "p": t.p}
                     for t in sorted(r.rank_tests, key=lambda t: -t.rank) if t.rank < len(left) - 1]
         return {"rankdrop": rankdrop, "result": r}
     return fit

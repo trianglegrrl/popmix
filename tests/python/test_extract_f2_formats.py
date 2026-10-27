@@ -53,12 +53,14 @@ def test_a_one_sample_population_matches_across_formats(tmp_path):
 
 
 def test_statistic_dicts_have_a_fixed_key_order():
-    """The result dicts (and so the CLI's JSON) do not depend on hash order."""
+    """The result dicts (and so the CLI's JSON) have the keys of a table row,
+    in its order (TASKS.md J2), whatever the hash order."""
     f2 = pm.extract_f2(SMALL, POPS)
-    results = [f2.f2("French", "Yoruba"), f2.f3("Simulation", "French", "Yoruba"),
-               f2.f4("Simulation", "Simulation.1", "French", "Yoruba"), f2.fst("French", "Yoruba")]
-    for r in results:
-        assert list(r) == sorted(r)
+    assert list(f2.f2("French", "Yoruba")) == ["est", "se", "z", "p", "n_snps"]
+    assert list(f2.f3("Simulation", "French", "Yoruba")) == ["est", "se", "z", "p", "n_blocks"]
+    assert list(f2.f4("Simulation", "Simulation.1", "French", "Yoruba")) == ["est", "se", "z", "p", "n_blocks"]
+    assert list(f2.fst("French", "Yoruba")) == ["est", "se", "n_snps"]
+    assert isinstance(f2.f2("French", "Yoruba")["n_snps"], int)
 
 
 def test_cli_json_is_byte_identical_across_runs():
@@ -143,10 +145,10 @@ def test_pseudohaploid_samples_are_detected_in_every_format(pseudohaploid, tmp_p
 def test_pseudohaploid_samples_are_detected_when_reading_genotypes(pseudohaploid, tmp_path):
     """README "Method 1": read_genotypes, allele_frequencies, f2_from_frequencies."""
     packed = _from(pseudohaploid, tmp_path, "packedancestrymap")
-    want = pm.extract_f2(packed, POPS).f2("Simulation.1", "French")["estimate"]
+    want = pm.extract_f2(packed, POPS).f2("Simulation.1", "French")["est"]
     for prefix in (packed, pseudohaploid):
         af = pm.read_genotypes(prefix).allele_frequencies(populations=POPS)
-        got = pm.f2_from_frequencies(af).f2("Simulation.1", "French")["estimate"]
+        got = pm.f2_from_frequencies(af).f2("Simulation.1", "French")["est"]
         np.testing.assert_allclose(got, want, rtol=1e-12, err_msg=prefix)
 
 
@@ -179,7 +181,7 @@ def test_a_sample_with_any_het_call_is_diploid(late_hets, tmp_path, fmt):
     diploid = pm.extract_f2(prefix, POPS, pseudohaploid="diploid")
     compat = pm.extract_f2(prefix, POPS, pseudohaploid="admixtools2")
     _assert_same_blocks(default, diploid)
-    assert compat.f2("French", "Yoruba")["estimate"] != default.f2("French", "Yoruba")["estimate"]
+    assert compat.f2("French", "Yoruba")["est"] != default.f2("French", "Yoruba")["est"]
     # isolation: statistics without French are unaffected, once the SNP set
     # does not depend on French's frequencies (poly_only keeps SNPs whose
     # frequencies differ, and recounting French moves them)
@@ -198,7 +200,7 @@ def test_cli_pseudohaploid_option(late_hets):
     def f2(*extra):
         out = subprocess.run(["popmix", "f2", "--input", late_hets, "--pop1", "French", "--pop2", "Yoruba",
                               "--format", "json", *extra], check=True, capture_output=True, text=True)
-        return json.loads(out.stdout)["estimate"]
+        return json.loads(out.stdout)["est"]
 
     assert f2() == f2("--pseudohaploid", "diploid")
     assert f2() != f2("--pseudohaploid", "admixtools2")

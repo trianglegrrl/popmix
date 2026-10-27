@@ -62,7 +62,7 @@ def test_isolation_only_its_population_changes(sample):
         for b in OTHERS[i + 1:]:
             assert detect.f2(a, b) == compat.f2(a, b), (a, b)
     for other in OTHERS:
-        assert detect.f2(CASES[sample], other)["estimate"] != compat.f2(CASES[sample], other)["estimate"], other
+        assert detect.f2(CASES[sample], other)["est"] != compat.f2(CASES[sample], other)["est"], other
 
 
 @pytest.mark.parametrize("sample", CASES)

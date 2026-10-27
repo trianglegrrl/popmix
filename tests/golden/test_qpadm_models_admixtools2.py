@@ -135,9 +135,9 @@ def test_qpadm_multi_full_results(f2_blocks):
         assert res.sources == m["left"]
         np.testing.assert_allclose(res.weights, [float(w["weight"]) for w in full["weights"]], rtol=WEIGHT_RTOL)
         # a lone source has weight 1 and SE 0, up to rounding
-        np.testing.assert_allclose(res.weight_std_errors, [float(w["se"]) for w in full["weights"]], rtol=1e-6,
+        np.testing.assert_allclose(res.weight_se, [float(w["se"]) for w in full["weights"]], rtol=1e-6,
                                    atol=1e-12)
-        assert res.chi_sq == pytest.approx(float(full["popdrop"][0]["chisq"]), rel=CHISQ_RTOL)
+        assert res.chisq == pytest.approx(float(full["popdrop"][0]["chisq"]), rel=CHISQ_RTOL)
         assert [r.pattern for r in res.popdrop] == [r["pat"] for r in full["popdrop"]]
 
 

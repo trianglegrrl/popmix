@@ -1137,6 +1137,7 @@ dependencies = [
  "criterion",
  "faer",
  "itertools 0.13.0",
+ "libm",
  "nalgebra",
  "ndarray",
  "petgraph",

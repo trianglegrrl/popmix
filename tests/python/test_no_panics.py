@@ -63,10 +63,9 @@ def test_f2_statistics(f2, a, b, c, d):
     survive(f2.fst, a, b)
     survive(f2.f3, a, b, c)
     survive(f2.f4, a, b, c, d)
-    survive(f2.d_stat, a, b, c, d)
     survive(f2.f2_per_block, a, b)
     survive(f2.subset, [a, b, c])
-    survive(pm.suggest_populations, SMALL, a, 5)
+    survive(pm.suggest_populations, SMALL, a, limit=5)
 
 
 @SETTINGS

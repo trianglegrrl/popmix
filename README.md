@@ -605,7 +605,7 @@ f2 = pm.f2_from_frequencies(af)
 
 # Compute statistics
 result = f2.f2("French", "Yoruba")
-print(f"f2 = {result['estimate']:.6f} ± {result['std_err']:.6f}")
+print(f"f2 = {result['est']:.6f} ± {result['se']:.6f}")  # also z, p, n_snps
 
 # Method 2: extract_f2 (recommended; PACKEDANCESTRYMAP input is streamed,
 # other formats are read into memory first)
@@ -622,12 +622,12 @@ f2 = pm.read_f2("f2_blocks/")
 # qpAdm
 result = pm.qpadm(
     f2,
+    left=["Yamnaya", "Anatolia_N"],  # the sources, as admixtools2's left
+    right=["Mbuti", "Han", "Papuan"],
     target="French",
-    sources=["Yamnaya", "Anatolia_N"],
-    right=["Mbuti", "Han", "Papuan"]
 )
 print(f"Weights: {dict(zip(result.sources, result.weights))}")
-print(f"P-value: {result.p_value}")
+print(f"chisq = {result.chisq:.3f}, dof = {result.dof}, p = {result.p:.3g}")
 
 # qpWave
 result = pm.qpwave(
@@ -641,13 +641,7 @@ print(f"Estimated rank: {result.estimated_rank}")
 ### DATES (Admixture Dating)
 
 ```python
-geno = pm.read_genotypes("/path/to/data")
-result = pm.dates(
-    geno,
-    test_pop="French",
-    source1="Yamnaya",
-    source2="Anatolia_N"
-)
+result = pm.dates("/path/to/data", "French", ["Yamnaya", "Anatolia_N"])
 print(f"Admixture: {result.generations:.0f} generations ago")
 print(f"Years BP: {result.years_bp:.0f} ± {result.years_bp_se:.0f}")
 ```

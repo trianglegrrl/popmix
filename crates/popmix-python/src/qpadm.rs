@@ -13,11 +13,11 @@ use pyo3::types::PyDict;
 pub(crate) struct PyRankTest {
     #[pyo3(get)]
     rank: usize,
-    #[pyo3(get)]
+    #[pyo3(get, name = "chisq")]
     chi_sq: f64,
-    #[pyo3(get)]
+    #[pyo3(get, name = "dof")]
     df: usize,
-    #[pyo3(get)]
+    #[pyo3(get, name = "p")]
     p_value: f64,
 }
 
@@ -28,9 +28,9 @@ pub(crate) struct PyQpWaveResult {
     rank_tests: Vec<PyRankTest>,
     #[pyo3(get)]
     estimated_rank: usize,
-    #[pyo3(get)]
+    #[pyo3(get, name = "left")]
     left_pops: Vec<String>,
-    #[pyo3(get)]
+    #[pyo3(get, name = "right")]
     right_pops: Vec<String>,
     /// f4(left[i+1], left[0]; right[j+1], right[0]), as rows i, columns j.
     #[pyo3(get)]
@@ -71,9 +71,9 @@ pub(crate) struct PyF4RatioResult {
     reference: String,
     #[pyo3(get)]
     alpha: f64,
-    #[pyo3(get)]
+    #[pyo3(get, name = "se")]
     std_err: f64,
-    #[pyo3(get)]
+    #[pyo3(get, name = "z")]
     z_score: f64,
     #[pyo3(get)]
     n_blocks: usize,
@@ -159,13 +159,13 @@ pub(crate) struct PyQpAdmResult {
     sources: Vec<String>,
     #[pyo3(get)]
     weights: Vec<f64>,
-    #[pyo3(get)]
+    #[pyo3(get, name = "weight_se")]
     weight_std_errors: Vec<f64>,
-    #[pyo3(get)]
+    #[pyo3(get, name = "chisq")]
     chi_sq: f64,
-    #[pyo3(get)]
+    #[pyo3(get, name = "dof")]
     df: usize,
-    #[pyo3(get)]
+    #[pyo3(get, name = "p")]
     p_value: f64,
     #[pyo3(get)]
     constrained: bool,
@@ -191,9 +191,9 @@ pub(crate) struct PyPopDropRow {
     wt: usize,
     #[pyo3(get)]
     dof: usize,
-    #[pyo3(get)]
+    #[pyo3(get, name = "chisq")]
     chi_sq: f64,
-    #[pyo3(get)]
+    #[pyo3(get, name = "p")]
     p_value: f64,
     #[pyo3(get)]
     f4rank: usize,
@@ -256,8 +256,9 @@ impl PyQpAdmResult {
         self.p_value > p_threshold
     }
 
-    /// Check if all weights are feasible (in [0, 1]).
-    fn is_feasible(&self) -> bool {
+    /// Whether every weight is feasible (in [0, 1]).
+    #[getter]
+    fn feasible(&self) -> bool {
         self.weights.iter().all(|&w| (0.0..=1.0).contains(&w))
     }
 
@@ -279,15 +280,15 @@ pub(crate) struct PyRotationModel {
     sources: Vec<String>,
     #[pyo3(get)]
     weights: Vec<f64>,
-    #[pyo3(get)]
+    #[pyo3(get, name = "weight_se")]
     weight_std_errors: Vec<f64>,
-    #[pyo3(get)]
+    #[pyo3(get, name = "p")]
     p_value: f64,
-    #[pyo3(get)]
+    #[pyo3(get, name = "chisq")]
     chi_sq: f64,
-    #[pyo3(get)]
+    #[pyo3(get, name = "dof")]
     df: usize,
-    #[pyo3(get)]
+    #[pyo3(get, name = "feasible")]
     is_feasible: bool,
 }
 
@@ -517,11 +518,11 @@ pub(crate) struct PyQpWavePairResult {
     pop_a: String,
     #[pyo3(get)]
     pop_b: String,
-    #[pyo3(get)]
+    #[pyo3(get, name = "p")]
     p_value: f64,
-    #[pyo3(get)]
+    #[pyo3(get, name = "chisq")]
     chi_sq: f64,
-    #[pyo3(get)]
+    #[pyo3(get, name = "dof")]
     df: usize,
 }
 

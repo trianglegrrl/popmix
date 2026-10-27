@@ -622,12 +622,23 @@ thread count.
   `rolloff` take `--admixed` and `--sources A,B`. The qpAdm family is
   `left, right, target` throughout (admixtools2's `qpadm` order).
   `tests/python/test_api_conventions.py` holds the rules.
-- [ ] **J2. One result convention:** dicts (`f2`), pyclasses, DataFrames with
+- [x] **J2. One result convention:** dicts (`f2`), pyclasses, DataFrames with
   admixtools column names (`est`/`se`); counts as ints, not floats
   (`n_snps: 21077.0`). PD, AI
   Also: `pm.qpwave_pairs` is the Python, admixtools2-shaped table; the
   Rust `_core.qpwave_pairs` and the exported `QpWavePairsResult` are
   returned by no public function. Keep one.
+  *Done in COMMIT:* statistics carry admixtools2's names everywhere in
+  Python and in the CLI's JSON and TSV: `est, se, z, p, chisq, dof`
+  (`weight_se`, `feasible`; qpWave's `left`, `right`; DATES's `admixed`,
+  `sources`). Tables are DataFrames; one statistic is a dict with the keys
+  of its table row in order (`f2.f3(...)` reads as a row of `qp3pop`),
+  now with `p`, counts as ints, z NaN without an SE (null in JSON);
+  analyses are result objects. `DatesResult.to_ld_dataframe()` returns
+  a DataFrame (it returned a list). The F2Blocks methods `qpdstat`,
+  `qp3pop` and `d_stat`, copies of `pm.qpdstat`/`pm.qp3pop` under other
+  names, are gone. p-values use musl's erfc, to the last bit of R's.
+  Tested in `test_api_conventions.py`.
 - [ ] **J3. Type hints and NumPy-format docstrings** on the raw PyO3
   functions (CLAUDE.md rule). PD
 - [ ] **J4. pyclass `module="popmix._core"`, names, `frozen` where possible,

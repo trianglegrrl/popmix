@@ -26,7 +26,7 @@ popmix qpadm --target T --left S1,S2,... --right R1,R2,... (--input PREFIX | --f
 | `--maxmiss` | number (0 to 1) | 0 | With `--input`: keep SNPs missing in at most this fraction of the populations. |
 | `--all-chromosomes` | flag | off | With `--input`: use every chromosome, not only autosomes 1-22. |
 | `--pseudohaploid` | `detect`, `admixtools2`, `diploid` | `detect` | With `--input`: which samples count one allele per SNP (see [SKILL.md](../SKILL.md#things-every-command-shares); `admixtools2` reproduces ADMIXTOOLS2-0007). |
-| `--format` | `text`, `json`, `tsv` | `text` | `json`: target, sources, weights and std_errors (by source), chi_sq, df, p_value (null when untestable), feasible. `tsv`: one row per source with weight, chi_sq, df, p_value. |
+| `--format` | `text`, `json`, `tsv` | `text` | `json`: target, sources, weights and se (by source), chisq, dof, p (null when untestable), feasible. `tsv`: one row per source with weight, chisq, dof, p. |
 
 ## Inputs and outputs
 
@@ -72,12 +72,12 @@ popmix qpadm --f2-dir f2_eu --target Spain_EN --left Turkey_N,Serbia_IronGates_M
 - **p > 0.05** (`=> Good model fit`): the target's f4 relations to the
   right populations are explained by the sources; the model is not
   rejected. p <= 0.05 rejects it. Report p with the weights.
-- **df** is the number of right populations minus the number of sources.
-  With df = 0 (as many right as left) there is nothing to test: p is `NA`
+- **dof** is the number of right populations minus the number of sources.
+  With dof = 0 (as many right as left) there is nothing to test: p is `NA`
   in text and tsv, `null` in JSON, and the output says the model is not
   tested.
 - Weight standard errors (block jackknife) are only in the JSON output
-  (`std_errors`).
+  (`se`).
 
 ## Caveats
 

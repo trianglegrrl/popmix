@@ -23,7 +23,7 @@ popmix qpwave --left L1,L2,... --right R1,R2,... (--input PREFIX | --f2-dir DIR)
 | `--maxmiss` | number (0 to 1) | 0 | With `--input`: keep SNPs missing in at most this fraction of the populations. |
 | `--all-chromosomes` | flag | off | With `--input`: use every chromosome, not only autosomes 1-22. |
 | `--pseudohaploid` | `detect`, `admixtools2`, `diploid` | `detect` | With `--input`: which samples count one allele per SNP (see [SKILL.md](../SKILL.md#things-every-command-shares); `admixtools2` reproduces ADMIXTOOLS2-0007). |
-| `--format` | `text`, `json`, `tsv` | `text` | `json`: left, right, estimated_rank, rank_tests (rank, chi_sq, df, p_value), is_clade. `tsv`: one row per rank test. |
+| `--format` | `text`, `json`, `tsv` | `text` | `json`: left, right, estimated_rank, rank_tests (rank, chisq, dof, p), is_clade. `tsv`: one row per rank test. |
 
 ## Inputs and outputs
 

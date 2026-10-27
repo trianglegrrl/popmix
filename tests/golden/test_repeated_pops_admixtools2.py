@@ -33,8 +33,8 @@ def _cases(stat: str):
 
 
 def _check(got: dict, want: dict) -> None:
-    np.testing.assert_allclose(got["estimate"], float(want["est"]), rtol=1e-10, atol=1e-15)
-    np.testing.assert_allclose(got["std_err"], float(want["se"]), rtol=1e-6, atol=1e-15)
+    np.testing.assert_allclose(got["est"], float(want["est"]), rtol=1e-10, atol=1e-15)
+    np.testing.assert_allclose(got["se"], float(want["se"]), rtol=1e-6, atol=1e-15)
 
 
 @pytest.mark.parametrize("want", _cases("f3"))

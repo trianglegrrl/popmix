@@ -21,6 +21,11 @@ def _json_number(x: float) -> float | None:
     return None if math.isnan(x) else x
 
 
+def _json_row(row: dict) -> dict:
+    """A statistic's dict for JSON: NaN (z without an SE) as null."""
+    return {k: _json_number(v) if isinstance(v, float) else v for k, v in row.items()}
+
+
 def parse_population_list(ctx, param, value: str) -> list:
     """Parse comma-separated population list."""
     if not value:

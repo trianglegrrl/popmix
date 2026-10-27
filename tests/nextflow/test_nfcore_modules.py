@@ -119,15 +119,15 @@ def _json(run, process: str) -> dict:
 
 def test_f2(run):
     row, out = _ref("f2.json")["f2"][0], _json(run, "f2")
-    assert out["estimate"] == pytest.approx(row["est"], rel=1e-10, abs=1e-15)
-    assert out["std_err"] == pytest.approx(row["se"], rel=1e-6)
+    assert out["est"] == pytest.approx(row["est"], rel=1e-10, abs=1e-15)
+    assert out["se"] == pytest.approx(row["se"], rel=1e-6)
 
 
 @pytest.mark.parametrize("stat,n", [("f3", 3), ("f4", 4)])
 def test_f3_f4(run, stat, n):
     row, out = _ref("f3_f4.json")[stat][0], _json(run, stat)
-    assert out["estimate"] == pytest.approx(row["est"], rel=1e-10, abs=1e-15)
-    assert out["std_err"] == pytest.approx(row["se"], rel=1e-6)
+    assert out["est"] == pytest.approx(row["est"], rel=1e-10, abs=1e-15)
+    assert out["se"] == pytest.approx(row["se"], rel=1e-6)
 
 
 def test_qpwave(run):
@@ -236,12 +236,12 @@ def test_subworkflow_f3_and_f4(subworkflow):
     f3 = _json(subworkflow, "f3")
     ref = next(r for r in json.loads((FAMILY / "f3_f4.json").read_text())["f3"]
                if (r["pop1"], r["pop2"], r["pop3"]) == ("Simulation", "French", "Yoruba"))
-    assert f3["estimate"] == pytest.approx(ref["est"], rel=1e-10)
-    assert f3["std_err"] == pytest.approx(ref["se"], rel=1e-6)
+    assert f3["est"] == pytest.approx(ref["est"], rel=1e-10)
+    assert f3["se"] == pytest.approx(ref["se"], rel=1e-6)
     est, se = _f4_reference(("Simulation.1", "Simulation", "French", "Yoruba"))
     f4 = _json(subworkflow, "f4")
-    assert f4["estimate"] == pytest.approx(est, rel=1e-10)
-    assert f4["std_err"] == pytest.approx(se, rel=1e-6)
+    assert f4["est"] == pytest.approx(est, rel=1e-10)
+    assert f4["se"] == pytest.approx(se, rel=1e-6)
 
 
 def test_subworkflow_runs_every_step(subworkflow):

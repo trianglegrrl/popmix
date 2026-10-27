@@ -4,11 +4,11 @@
 use crate::genotypes::PyAlleleFrequencies;
 use crate::{compute, require_populations};
 use numpy::{IntoPyArray, PyArray1, PyArray2};
+use popmix_core::fstats::{p_from_z, z_score};
 use popmix_core::{BlockDefinition, F2Blocks};
 use popmix_io::{read_f2_blocks, write_f2_blocks};
 use pyo3::prelude::*;
-use pyo3::IntoPyObjectExt;
-use std::collections::{BTreeMap, HashMap};
+use pyo3::types::PyDict;
 
 /// Load precomputed F2 blocks from a directory.
 ///
@@ -141,221 +141,86 @@ impl PyF2Blocks {
             .collect()
     }
 
-    /// Compute f2(A, B) statistic.
-    ///
-    /// Args:
-    ///     pop_a: First population name
-    ///     pop_b: Second population name
+    /// f2(A, B).
     ///
     /// Returns:
-    ///     Dictionary with keys: estimate, std_err, z_score, n_snps
-    fn f2(&self, pop_a: &str, pop_b: &str) -> PyResult<Option<BTreeMap<String, f64>>> {
+    ///     dict with keys est, se, z, p, n_snps (as a row of a table), or
+    ///     None if the pair has no data
+    fn f2<'py>(
+        &self,
+        py: Python<'py>,
+        pop_a: &str,
+        pop_b: &str,
+    ) -> PyResult<Option<Bound<'py, PyDict>>> {
         require_populations(&self.inner, &[pop_a, pop_b])?;
-        match self.inner.f2(pop_a, pop_b) {
-            Some((estimate, std_err, n_snps)) => {
-                let mut result = BTreeMap::new();
-                result.insert("estimate".to_string(), estimate);
-                result.insert("std_err".to_string(), std_err);
-                result.insert(
-                    "z_score".to_string(),
-                    if std_err > 0.0 {
-                        estimate / std_err
-                    } else {
-                        0.0
-                    },
-                );
-                result.insert("n_snps".to_string(), n_snps as f64);
-                Ok(Some(result))
-            }
-            None => Ok(None),
-        }
+        self.inner
+            .f2(pop_a, pop_b)
+            .map(|(est, se, n_snps)| stat_dict(py, est, se, ("n_snps", n_snps)))
+            .transpose()
     }
 
-    /// Compute f3(A; B, C) statistic (admixture test).
-    ///
-    /// A negative f3 indicates that A is admixed between B and C.
-    ///
-    /// Args:
-    ///     pop_a: Target population (potentially admixed)
-    ///     pop_b: Source population 1
-    ///     pop_c: Source population 2
+    /// f3(A; B, C) (admixture test): negative when A is admixed between B
+    /// and C.
     ///
     /// Returns:
-    ///     Dictionary with keys: estimate, std_err, z_score, n_blocks
-    fn f3(&self, pop_a: &str, pop_b: &str, pop_c: &str) -> PyResult<Option<BTreeMap<String, f64>>> {
+    ///     dict with keys est, se, z, p, n_blocks, or None
+    fn f3<'py>(
+        &self,
+        py: Python<'py>,
+        pop_a: &str,
+        pop_b: &str,
+        pop_c: &str,
+    ) -> PyResult<Option<Bound<'py, PyDict>>> {
         require_populations(&self.inner, &[pop_a, pop_b, pop_c])?;
-        match self.inner.f3(pop_a, pop_b, pop_c) {
-            Some(result) => {
-                let mut out = BTreeMap::new();
-                out.insert("estimate".to_string(), result.estimate);
-                out.insert("std_err".to_string(), result.std_err);
-                out.insert("z_score".to_string(), result.z_score);
-                out.insert("n_blocks".to_string(), result.n_blocks as f64);
-                Ok(Some(out))
-            }
-            None => Ok(None),
-        }
+        self.inner
+            .f3(pop_a, pop_b, pop_c)
+            .map(|r| stat_dict(py, r.estimate, r.std_err, ("n_blocks", r.n_blocks)))
+            .transpose()
     }
 
-    /// Compute f4(A, B; C, D) statistic (D-statistic).
-    ///
-    /// Tests for gene flow between (A,B) and (C,D) branches.
-    ///
-    /// Args:
-    ///     pop_a, pop_b: First pair of populations
-    ///     pop_c, pop_d: Second pair of populations
+    /// f4(A, B; C, D): tests for gene flow between the (A, B) and (C, D)
+    /// branches.
     ///
     /// Returns:
-    ///     Dictionary with keys: estimate, std_err, z_score, n_blocks
-    fn f4(
+    ///     dict with keys est, se, z, p, n_blocks, or None
+    fn f4<'py>(
         &self,
+        py: Python<'py>,
         pop_a: &str,
         pop_b: &str,
         pop_c: &str,
         pop_d: &str,
-    ) -> PyResult<Option<BTreeMap<String, f64>>> {
+    ) -> PyResult<Option<Bound<'py, PyDict>>> {
         require_populations(&self.inner, &[pop_a, pop_b, pop_c, pop_d])?;
-        match self.inner.f4(pop_a, pop_b, pop_c, pop_d) {
-            Some(result) => {
-                let mut out = BTreeMap::new();
-                out.insert("estimate".to_string(), result.estimate);
-                out.insert("std_err".to_string(), result.std_err);
-                out.insert("z_score".to_string(), result.z_score);
-                out.insert("n_blocks".to_string(), result.n_blocks as f64);
-                Ok(Some(out))
-            }
-            None => Ok(None),
-        }
+        self.inner
+            .f4(pop_a, pop_b, pop_c, pop_d)
+            .map(|r| stat_dict(py, r.estimate, r.std_err, ("n_blocks", r.n_blocks)))
+            .transpose()
     }
 
-    /// f4(A, B; C, D) from the f2 blocks, under its old name.
+    /// FST (Hudson's fixation index) between two populations, as
+    /// admixtools2's ``fst``: 0 for identical populations, 1 for fixed
+    /// differences.
     ///
-    /// This is f4, not Patterson's D: D is normalized per SNP and needs the
-    /// genotypes (``popmix.qpdstat(prefix, ..., f4mode=False)``).
-    fn d_stat(
+    /// Returns:
+    ///     dict with keys est, se, n_snps, or None
+    fn fst<'py>(
         &self,
+        py: Python<'py>,
         pop_a: &str,
         pop_b: &str,
-        pop_c: &str,
-        pop_d: &str,
-    ) -> PyResult<Option<BTreeMap<String, f64>>> {
-        self.f4(pop_a, pop_b, pop_c, pop_d)
-    }
-
-    /// Compute FST (Hudson's fixation index) between two populations.
-    ///
-    /// FST measures population differentiation on a scale of 0 to 1:
-    /// - FST = 0: No differentiation (populations are identical)
-    /// - FST = 1: Complete fixation (populations share no alleles)
-    ///
-    /// Args:
-    ///     pop_a: First population name
-    ///     pop_b: Second population name
-    ///
-    /// Returns:
-    ///     Dictionary with keys: estimate, std_err, n_snps
-    fn fst(&self, pop_a: &str, pop_b: &str) -> PyResult<Option<BTreeMap<String, f64>>> {
+    ) -> PyResult<Option<Bound<'py, PyDict>>> {
         require_populations(&self.inner, &[pop_a, pop_b])?;
-        match self.inner.fst(pop_a, pop_b) {
-            Some(result) => {
-                let mut out = BTreeMap::new();
-                out.insert("estimate".to_string(), result.estimate);
-                out.insert("std_err".to_string(), result.std_err);
-                out.insert("n_snps".to_string(), result.n_snps as f64);
-                Ok(Some(out))
-            }
-            None => Ok(None),
-        }
-    }
-
-    /// Compute D-statistics (qpdstat) for multiple population combinations.
-    ///
-    /// This tests for gene flow between population pairs. D(A, B; C, D) is
-    /// positive if there's more gene flow from D to A (or C to B).
-    ///
-    /// Args:
-    ///     pop1: First population set (list of population names)
-    ///     pop2: Second population set (list of population names)
-    ///     pop3: Third population set (list of population names)
-    ///     pop4: Fourth population set (list of population names)
-    ///
-    /// Returns:
-    ///     List of dictionaries with keys: pop1, pop2, pop3, pop4, estimate, std_err, z_score
-    fn qpdstat(
-        &self,
-        pop1: Vec<String>,
-        pop2: Vec<String>,
-        pop3: Vec<String>,
-        pop4: Vec<String>,
-    ) -> PyResult<Vec<HashMap<String, Py<PyAny>>>> {
-        let pop1_refs: Vec<&str> = pop1.iter().map(std::string::String::as_str).collect();
-        let pop2_refs: Vec<&str> = pop2.iter().map(std::string::String::as_str).collect();
-        let pop3_refs: Vec<&str> = pop3.iter().map(std::string::String::as_str).collect();
-        let pop4_refs: Vec<&str> = pop4.iter().map(std::string::String::as_str).collect();
-        Python::attach(|py| {
-            self.inner
-                .qpdstat(&pop1_refs, &pop2_refs, &pop3_refs, &pop4_refs)
-                .into_iter()
-                .map(|(p1, p2, p3, p4, result)| {
-                    let mut out = HashMap::new();
-                    out.insert("pop1".to_string(), p1.into_py_any(py)?);
-                    out.insert("pop2".to_string(), p2.into_py_any(py)?);
-                    out.insert("pop3".to_string(), p3.into_py_any(py)?);
-                    out.insert("pop4".to_string(), p4.into_py_any(py)?);
-                    out.insert("estimate".to_string(), result.estimate.into_py_any(py)?);
-                    out.insert("std_err".to_string(), result.std_err.into_py_any(py)?);
-                    out.insert("z_score".to_string(), result.z_score.into_py_any(py)?);
-                    out.insert(
-                        "n_blocks".to_string(),
-                        (result.n_blocks as f64).into_py_any(py)?,
-                    );
-                    Ok(out)
-                })
-                .collect()
-        })
-    }
-
-    /// Compute f3 outgroup statistics (qp3pop) for multiple population combinations.
-    ///
-    /// f3(Target; Source1, Source2) tests if Target is admixed between Source1
-    /// and Source2. A significantly negative f3 indicates admixture.
-    ///
-    /// Args:
-    ///     targets: Target populations to test for admixture
-    ///     source1: First source population set
-    ///     source2: Second source population set
-    ///
-    /// Returns:
-    ///     List of dictionaries with keys: target, source1, source2, estimate, std_err, z_score
-    fn qp3pop(
-        &self,
-        targets: Vec<String>,
-        source1: Vec<String>,
-        source2: Vec<String>,
-    ) -> PyResult<Vec<HashMap<String, Py<PyAny>>>> {
-        let targets_refs: Vec<&str> = targets.iter().map(std::string::String::as_str).collect();
-        let source1_refs: Vec<&str> = source1.iter().map(std::string::String::as_str).collect();
-        let source2_refs: Vec<&str> = source2.iter().map(std::string::String::as_str).collect();
-        Python::attach(|py| {
-            self.inner
-                .qp3pop(&targets_refs, &source1_refs, &source2_refs)
-                .into_iter()
-                .map(|(target, s1, s2, result)| {
-                    let mut out = HashMap::new();
-                    out.insert("target".to_string(), target.into_py_any(py)?);
-                    out.insert("source1".to_string(), s1.into_py_any(py)?);
-                    out.insert("source2".to_string(), s2.into_py_any(py)?);
-                    out.insert("estimate".to_string(), result.estimate.into_py_any(py)?);
-                    out.insert("std_err".to_string(), result.std_err.into_py_any(py)?);
-                    out.insert("z_score".to_string(), result.z_score.into_py_any(py)?);
-                    out.insert(
-                        "n_blocks".to_string(),
-                        (result.n_blocks as f64).into_py_any(py)?,
-                    );
-                    Ok(out)
-                })
-                .collect()
-        })
+        self.inner
+            .fst(pop_a, pop_b)
+            .map(|r| {
+                let d = PyDict::new(py);
+                d.set_item("est", r.estimate)?;
+                d.set_item("se", r.std_err)?;
+                d.set_item("n_snps", r.n_snps)?;
+                Ok(d)
+            })
+            .transpose()
     }
 
     /// Get the f2 matrix as a numpy array.
@@ -424,3 +289,21 @@ pub(crate) fn f2_from_frequencies(
 // ============================================================================
 // qpWave/qpAdm wrappers
 // ============================================================================
+
+/// A statistic as a dict with the keys of its table row, in order: est, se,
+/// z and p (z NaN without an SE), then the count it rests on.
+fn stat_dict<'py>(
+    py: Python<'py>,
+    est: f64,
+    se: f64,
+    count: (&str, usize),
+) -> PyResult<Bound<'py, PyDict>> {
+    let d = PyDict::new(py);
+    let z = z_score(est, se);
+    d.set_item("est", est)?;
+    d.set_item("se", se)?;
+    d.set_item("z", z)?;
+    d.set_item("p", p_from_z(z))?;
+    d.set_item(count.0, count.1)?;
+    Ok(d)
+}
