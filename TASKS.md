@@ -474,7 +474,7 @@ thread count.
 - [x] **G13. Warn on the combinations users get wrong without noticing:**
   generalize the above into a warnings channel (Rust → Python → CLI), today
   almost absent.
-  *Done in COMMIT (the channel; the warnings themselves are G4-G11):*
+  *Done in 5baf897 (the channel; the warnings themselves are G4-G11):*
   `popmix_core::Warning` and a `warn: &mut dyn FnMut(Warning)` sink in Rust
   (since e309932); in Python each is a `popmix.PopmixWarning` (a
   UserWarning, filterable by class); the CLI prints each as one
