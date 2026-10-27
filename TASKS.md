@@ -524,7 +524,7 @@ thread count.
   `Validation(String)` (31 uses) and `Numerical(String)` (40); remove the ten
   never-constructed variants; NPY format errors as `InvalidFileFormat`. RS
   [reviewer-verified]
-  *Done in COMMIT:* `#[non_exhaustive]`; `PathBuf` paths; `Io { path,
+  *Done in 7a6d65e:* `#[non_exhaustive]`; `PathBuf` paths; `Io { path,
   source }` with the io error as `#[source]` and no `From<io::Error>`, so a
   bare `?` cannot drop the path (`IoResultExt::with_path`); `Validation`
   and `Numerical` replaced by `TooFew`, `IndexOutOfRange`,
