@@ -392,12 +392,25 @@ impl SnpMajor {
         populations: &[&str],
         auto_only: bool,
     ) -> AlleleFrequencies {
+        self.allele_frequencies_at(samples, snps, 0, populations, auto_only)
+    }
+
+    /// [`allele_frequencies`](Self::allele_frequencies) of a run of SNPs,
+    /// `snps` being the file's SNPs `first..first + snps.len()`.
+    pub fn allele_frequencies_at(
+        &self,
+        samples: &[Sample],
+        snps: &[Snp],
+        first: usize,
+        populations: &[&str],
+        auto_only: bool,
+    ) -> AlleleFrequencies {
         let n_pops = populations.len();
         let (snp_indices, filtered_snps): (Vec<usize>, Vec<Snp>) = snps
             .iter()
             .enumerate()
             .filter(|(_, snp)| !auto_only || snp.is_autosomal())
-            .map(|(idx, snp)| (idx, snp.clone()))
+            .map(|(idx, snp)| (first + idx, snp.clone()))
             .unzip();
         let pop_to_col: HashMap<&str, usize> = populations
             .iter()

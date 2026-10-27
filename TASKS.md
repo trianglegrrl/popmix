@@ -329,7 +329,7 @@ thread count.
   (admixtools2's `maxmem`). Measured: 25 pops 13.4 s / 1.17 GB, 100 pops
   55.7 s / 3.48 GB; ~1,000 pops extrapolates to ~35 GB. PD
   [reviewer-verified]
-  Progress: block sums are matrix products and the kept SNPs are indexed in place (10dd2f5): `--maxmiss 1`, 4 threads, 128 populations 47.7 s to 15.7 s, 497 populations 676 s / 19.8 GB to 158 s / 13.8 GB; no block value differs from admixtools2 (16-256 populations). Left: pair chunking with a memory limit; the frequency table (6.9 GB at 497 populations) and the assembled blocks dominate memory.
+  Progress: block sums are matrix products and the kept SNPs are indexed in place (10dd2f5): `--maxmiss 1`, 4 threads, 128 populations 47.7 s to 15.7 s, 497 populations 676 s / 19.8 GB to 158 s / 13.8 GB; no block value differs from admixtools2 (16-256 populations). Then a chromosome at a time (F2Blocks::from_parts; blocks never span chromosomes, the map-or-base-pairs choice made from every SNP and checked against the kept ones at the end), block sums written in place: 497 populations 8.5 GB to 2.2 GB (1.5 GB of it the mapped input), with --maxmiss 1 13.8 GB / 158 s to 8.8 GB / 121 s, the same bytes. Left: past about 1,000 populations the blocks themselves (pairs x blocks) dominate; writing them to disk by pair chunks, as admixtools2's maxmem, would bound that.
 - [x] **F5. PCA eigensolver.** nalgebra `SymmetricEigen` is dense,
   single-threaded, O(n³), rerun every outlier iteration (n = 2000: 9.9 s;
   ~20 min per iteration at 10k). Use a parallel solver (faer) or a partial

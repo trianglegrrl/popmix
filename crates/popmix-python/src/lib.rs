@@ -1868,9 +1868,35 @@ fn extract_f2(
             require_sample_populations(&samples, &populations)?;
             let pop_refs: Vec<&str> = populations.iter().map(|s| s.as_str()).collect();
             rule.apply_mapped(&file, &mut samples, &pop_refs);
-            let af = file.allele_frequencies(&samples, &snps, &pop_refs, auto_only);
-            let f2_blocks =
-                F2Blocks::from_allele_frequencies_with_options(&af, &block_def, &f2_options);
+            // a chromosome at a time: only one chromosome's frequency table
+            // is held (blocks never span chromosomes)
+            let mut runs: Vec<std::ops::Range<usize>> = Vec::new();
+            for (i, snp) in snps.iter().enumerate() {
+                match runs.last_mut() {
+                    Some(r) if snps[r.start].chromosome == snp.chromosome => r.end = i + 1,
+                    _ => runs.push(i..i + 1),
+                }
+            }
+            let mut evidence = popmix_core::CoordinateEvidence::default();
+            for snp in snps.iter().filter(|s| !auto_only || s.is_autosomal()) {
+                evidence.observe(std::slice::from_ref(snp));
+            }
+            let parts = runs.iter().map(|r| {
+                file.allele_frequencies_at(
+                    &samples,
+                    &snps[r.clone()],
+                    r.start,
+                    &pop_refs,
+                    auto_only,
+                )
+            });
+            let f2_blocks = match F2Blocks::from_parts(parts, &evidence, &block_def, &f2_options) {
+                Some(blocks) => blocks,
+                None => {
+                    let af = file.allele_frequencies(&samples, &snps, &pop_refs, auto_only);
+                    F2Blocks::from_allele_frequencies_with_options(&af, &block_def, &f2_options)
+                }
+            };
             return Ok(PyF2Blocks { inner: f2_blocks });
         }
 

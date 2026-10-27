@@ -37,10 +37,30 @@ impl BlockDefinition {
         }
     }
 
+    /// The coordinate blocks of SNPs with this `evidence` are measured in.
+    pub fn coordinate(&self, evidence: &CoordinateEvidence) -> BlockCoordinate {
+        if self.block_size >= 100.0 {
+            BlockCoordinate::BasePairs(self.block_size)
+        } else if evidence.morgans_differ == 0 && evidence.bp_differ >= 2 {
+            BlockCoordinate::BasePairs(NO_MAP_BLOCK_SIZE_BP)
+        } else {
+            BlockCoordinate::Morgans(self.block_size)
+        }
+    }
+
     /// Assign SNPs to blocks based on their genetic map positions.
     ///
     /// Returns a BlockAssignment that maps each SNP index to a block index.
     pub fn assign_blocks(&self, snps: &[Snp]) -> BlockAssignment {
+        let mut evidence = CoordinateEvidence::default();
+        evidence.observe(snps);
+        self.assign_blocks_in(snps, self.coordinate(&evidence))
+    }
+
+    /// [`assign_blocks`](Self::assign_blocks) in the coordinate given. A
+    /// block never spans two chromosomes, so the blocks of a run of whole
+    /// chromosomes are those of the run on its own.
+    pub fn assign_blocks_in(&self, snps: &[Snp], coordinate: BlockCoordinate) -> BlockAssignment {
         if snps.is_empty() {
             return BlockAssignment {
                 snp_to_block: Vec::new(),
@@ -49,20 +69,11 @@ impl BlockDefinition {
                 n_blocks: 0,
             };
         }
-
-        // admixtools2: a size of 100 or more is base pairs; no map, 2 Mb
-        let distinct = |f: &dyn Fn(&Snp) -> f64| {
-            let first = f(&snps[0]);
-            snps.iter().filter(|s| f(s) != first).take(2).count()
-        };
         let bp = |s: &Snp| s.position_bp as f64;
         let morgans = |s: &Snp| s.position_morgans;
-        let (size, coord): (f64, &dyn Fn(&Snp) -> f64) = if self.block_size >= 100.0 {
-            (self.block_size, &bp)
-        } else if distinct(&morgans) == 0 && distinct(&bp) >= 2 {
-            (NO_MAP_BLOCK_SIZE_BP, &bp)
-        } else {
-            (self.block_size, &morgans)
+        let (size, coord): (f64, &dyn Fn(&Snp) -> f64) = match coordinate {
+            BlockCoordinate::BasePairs(size) => (size, &bp),
+            BlockCoordinate::Morgans(size) => (size, &morgans),
         };
 
         let mut snp_to_block = Vec::with_capacity(snps.len());
@@ -111,6 +122,43 @@ impl BlockDefinition {
             block_starts,
             block_lengths,
             n_blocks: current_block + 1,
+        }
+    }
+}
+
+/// The coordinate blocks are measured in, with their size in it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum BlockCoordinate {
+    BasePairs(f64),
+    Morgans(f64),
+}
+
+/// What decides the coordinate (admixtools2: base pairs when there is no
+/// genetic map, fewer than two distinct map positions), gathered over runs of
+/// SNPs in order: how many SNPs differ from the first one's map and base-pair
+/// positions, up to two.
+#[derive(Debug, Clone, Default)]
+pub struct CoordinateEvidence {
+    first: Option<(f64, u32)>,
+    morgans_differ: usize,
+    bp_differ: usize,
+}
+
+impl CoordinateEvidence {
+    /// Take the next run of SNPs into account.
+    pub fn observe(&mut self, snps: &[Snp]) {
+        let Some(snp) = snps.first() else { return };
+        let (morgans, bp) = *self
+            .first
+            .get_or_insert((snp.position_morgans, snp.position_bp));
+        let more = |have: usize, differs: &dyn Fn(&Snp) -> bool| {
+            have + snps.iter().filter(|s| differs(s)).take(2 - have).count()
+        };
+        if self.morgans_differ < 2 {
+            self.morgans_differ = more(self.morgans_differ, &|s| s.position_morgans != morgans);
+        }
+        if self.bp_differ < 2 {
+            self.bp_differ = more(self.bp_differ, &|s| s.position_bp != bp);
         }
     }
 }

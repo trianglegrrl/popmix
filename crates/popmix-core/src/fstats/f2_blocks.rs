@@ -11,7 +11,7 @@
 use ndarray::{linalg::general_mat_mul, Array2, Axis, ShapeBuilder};
 use rayon::prelude::*;
 
-use crate::fstats::blocks::BlockDefinition;
+use crate::fstats::blocks::{BlockCoordinate, BlockDefinition, CoordinateEvidence};
 use crate::fstats::jackknife::block_jackknife;
 use crate::genotype_matrix::AlleleFrequencies;
 use crate::genotypes::PopulationId;
@@ -79,7 +79,15 @@ pub struct FstBlocks {
 }
 
 impl FstBlocks {
-    fn compute(af: &AlleleFrequencies, block_def: &BlockDefinition, max_missing: f64) -> Self {
+    /// FST blocks of `af`, in `coordinate` (None: as the kept SNPs decide),
+    /// the kept SNPs observed into `evidence`.
+    fn compute_in(
+        af: &AlleleFrequencies,
+        block_def: &BlockDefinition,
+        max_missing: f64,
+        coordinate: Option<BlockCoordinate>,
+        evidence: &mut CoordinateEvidence,
+    ) -> Self {
         let keep = kept_snps(
             af,
             &F2Options {
@@ -88,23 +96,25 @@ impl FstBlocks {
             },
         );
         let snps: Vec<_> = keep.iter().map(|&i| af.snps[i].clone()).collect();
-        let assignment = block_def.assign_blocks(&snps);
+        evidence.observe(&snps);
+        let assignment = match coordinate {
+            Some(c) => block_def.assign_blocks_in(&snps, c),
+            None => block_def.assign_blocks(&snps),
+        };
         let n_pops = af.populations.len();
         let n_pairs = n_pops * (n_pops + 1) / 2;
 
-        let blocks: Vec<(Vec<f64>, Vec<f64>)> = (0..assignment.n_blocks)
+        let mut num = Array2::zeros((assignment.n_blocks, n_pairs));
+        let mut den = Array2::zeros((assignment.n_blocks, n_pairs));
+        num.axis_iter_mut(Axis(0))
             .into_par_iter()
-            .map(|b| fst_block(af, &keep[assignment.block_range(b)]))
-            .collect();
-
-        let mut num = Array2::zeros((blocks.len(), n_pairs));
-        let mut den = Array2::zeros((blocks.len(), n_pairs));
-        for (b, (bn, bd)) in blocks.iter().enumerate() {
-            for pair in 0..n_pairs {
-                num[[b, pair]] = bn[pair];
-                den[[b, pair]] = bd[pair];
-            }
-        }
+            .zip(den.axis_iter_mut(Axis(0)))
+            .enumerate()
+            .for_each(|(b, (mut num, mut den))| {
+                let (bn, bd) = fst_block(af, &keep[assignment.block_range(b)]);
+                num.assign(&ndarray::ArrayView1::from(&bn));
+                den.assign(&ndarray::ArrayView1::from(&bd));
+            });
         FstBlocks {
             block_lengths: assignment.block_lengths,
             num,
@@ -185,15 +195,89 @@ impl F2Blocks {
         block_def: &BlockDefinition,
         opts: &F2Options,
     ) -> Self {
-        let fst = Some(FstBlocks::compute(af, block_def, opts.max_missing));
+        let mut evidence = (CoordinateEvidence::default(), CoordinateEvidence::default());
+        Self::build(af, block_def, opts, None, &mut evidence)
+    }
+
+    /// As [`from_allele_frequencies_with_options`] over the concatenation of
+    /// `parts`, the frequencies of consecutive runs of whole chromosomes in
+    /// SNP order, built one part at a time so that only one part's table is
+    /// held. Blocks never span chromosomes, so the parts' blocks are the
+    /// whole's, in the coordinate (map or base pairs) chosen from
+    /// `all_snps`, the evidence of every SNP the parts hold. None if the
+    /// SNPs kept would choose another: the caller builds the whole at once.
+    ///
+    /// [`from_allele_frequencies_with_options`]: Self::from_allele_frequencies_with_options
+    pub fn from_parts(
+        parts: impl Iterator<Item = AlleleFrequencies>,
+        all_snps: &CoordinateEvidence,
+        block_def: &BlockDefinition,
+        opts: &F2Options,
+    ) -> Option<Self> {
+        let guess = block_def.coordinate(all_snps);
+        let mut evidence = (CoordinateEvidence::default(), CoordinateEvidence::default());
+        let built: Vec<F2Blocks> = parts
+            .map(|af| Self::build(&af, block_def, opts, Some(guess), &mut evidence))
+            .collect();
+        if block_def.coordinate(&evidence.0) != guess || block_def.coordinate(&evidence.1) != guess
+        {
+            return None;
+        }
+        let first = built.first()?;
+        let rows = |f: fn(&F2Blocks) -> &Array2<f64>| {
+            let views: Vec<_> = built.iter().map(|b| f(b).view()).collect();
+            ndarray::concatenate(Axis(0), &views).expect("parts of the same populations")
+        };
+        let fsts: Vec<&FstBlocks> = built.iter().filter_map(|b| b.fst.as_ref()).collect();
+        let fst_rows = |f: fn(&FstBlocks) -> &Array2<f64>| {
+            let views: Vec<_> = fsts.iter().map(|b| f(b).view()).collect();
+            ndarray::concatenate(Axis(0), &views).expect("parts of the same populations")
+        };
+        Some(F2Blocks {
+            block_sums: rows(|b| &b.block_sums),
+            block_raw_sums: rows(|b| &b.block_raw_sums),
+            block_weights: rows(|b| &b.block_weights),
+            block_het_sums: rows(|b| &b.block_het_sums),
+            block_het_weights: rows(|b| &b.block_het_weights),
+            populations: first.populations.clone(),
+            n_blocks: built.iter().map(|b| b.n_blocks).sum(),
+            block_lengths: built.iter().flat_map(|b| b.block_lengths.clone()).collect(),
+            fst: Some(FstBlocks {
+                block_lengths: fsts.iter().flat_map(|b| b.block_lengths.clone()).collect(),
+                num: fst_rows(|b| &b.num),
+                den: fst_rows(|b| &b.den),
+            }),
+        })
+    }
+
+    /// The blocks of `af` in `coordinate` (None: as its kept SNPs decide),
+    /// the SNPs kept for f2 and for FST observed into `evidence`.
+    fn build(
+        af: &AlleleFrequencies,
+        block_def: &BlockDefinition,
+        opts: &F2Options,
+        coordinate: Option<BlockCoordinate>,
+        evidence: &mut (CoordinateEvidence, CoordinateEvidence),
+    ) -> Self {
+        let fst = Some(FstBlocks::compute_in(
+            af,
+            block_def,
+            opts.max_missing,
+            coordinate,
+            &mut evidence.1,
+        ));
         let keep = kept_snps(af, opts);
         let kept_snps: Vec<_> = keep.iter().map(|&i| af.snps[i].clone()).collect();
+        evidence.0.observe(&kept_snps);
         let populations = af.populations.clone();
         let n_pops = populations.len();
         let n_pairs = n_pops * (n_pops + 1) / 2; // Including self-pairs for verification
 
         // Assign SNPs to blocks
-        let block_assignment = block_def.assign_blocks(&kept_snps);
+        let block_assignment = match coordinate {
+            Some(c) => block_def.assign_blocks_in(&kept_snps, c),
+            None => block_def.assign_blocks(&kept_snps),
+        };
         let n_blocks = block_assignment.n_blocks;
 
         if n_blocks == 0 {
@@ -210,35 +294,29 @@ impl F2Blocks {
             };
         }
 
-        // Compute f2 and heterozygosity for each block in parallel
-        let block_results: Vec<BlockResult> = (0..n_blocks)
-            .into_par_iter()
-            .map(|block_idx| f2_block(af, &keep[block_assignment.block_range(block_idx)]))
-            .collect();
-
-        // Assemble into arrays
+        // f2 and heterozygosity of each block, in parallel, each written
+        // straight into its rows (no second copy of every block's sums)
         let mut block_sums = Array2::zeros((n_blocks, n_pairs));
         let mut block_raw_sums = Array2::zeros((n_blocks, n_pairs));
         let mut block_weights = Array2::zeros((n_blocks, n_pairs));
         let mut block_het_sums = Array2::zeros((n_blocks, n_pops));
         let mut block_het_weights = Array2::zeros((n_blocks, n_pops));
-
-        for (block_idx, result) in block_results.into_iter().enumerate() {
-            for pair_idx in 0..n_pairs {
-                block_sums[[block_idx, pair_idx]] = result.f2_sums[pair_idx];
-                block_raw_sums[[block_idx, pair_idx]] = result.f2_raw_sums[pair_idx];
-                block_weights[[block_idx, pair_idx]] = result.f2_weights[pair_idx];
-            }
-            for (pop_idx, (het_sum, het_weight)) in result
-                .het_sums
-                .into_iter()
-                .zip(result.het_weights)
-                .enumerate()
-            {
-                block_het_sums[[block_idx, pop_idx]] = het_sum;
-                block_het_weights[[block_idx, pop_idx]] = het_weight;
-            }
-        }
+        block_sums
+            .axis_iter_mut(Axis(0))
+            .into_par_iter()
+            .zip(block_raw_sums.axis_iter_mut(Axis(0)))
+            .zip(block_weights.axis_iter_mut(Axis(0)))
+            .zip(block_het_sums.axis_iter_mut(Axis(0)))
+            .zip(block_het_weights.axis_iter_mut(Axis(0)))
+            .enumerate()
+            .for_each(|(b, ((((mut f2, mut raw), mut w), mut het), mut het_w))| {
+                let r = f2_block(af, &keep[block_assignment.block_range(b)]);
+                f2.assign(&ndarray::ArrayView1::from(&r.f2_sums));
+                raw.assign(&ndarray::ArrayView1::from(&r.f2_raw_sums));
+                w.assign(&ndarray::ArrayView1::from(&r.f2_weights));
+                het.assign(&ndarray::ArrayView1::from(&r.het_sums));
+                het_w.assign(&ndarray::ArrayView1::from(&r.het_weights));
+            });
 
         // f2_from_geno(remove_na = TRUE): drop blocks where some pair (or a
         // population on its own) has no SNP with data, for every pair. Only
@@ -251,12 +329,20 @@ impl F2Blocks {
             .map(|&b| block_assignment.block_lengths[b])
             .collect();
 
+        // usually every block is kept: no copy then
+        let select = |a: Array2<f64>| {
+            if keep_blocks.len() == n_blocks {
+                a
+            } else {
+                a.select(Axis(0), &keep_blocks)
+            }
+        };
         F2Blocks {
-            block_sums: block_sums.select(Axis(0), &keep_blocks),
-            block_raw_sums: block_raw_sums.select(Axis(0), &keep_blocks),
-            block_weights: block_weights.select(Axis(0), &keep_blocks),
-            block_het_sums: block_het_sums.select(Axis(0), &keep_blocks),
-            block_het_weights: block_het_weights.select(Axis(0), &keep_blocks),
+            block_sums: select(block_sums),
+            block_raw_sums: select(block_raw_sums),
+            block_weights: select(block_weights),
+            block_het_sums: select(block_het_sums),
+            block_het_weights: select(block_het_weights),
             populations,
             n_blocks: keep_blocks.len(),
             block_lengths,
@@ -952,6 +1038,80 @@ mod tests {
         let (want_num, want_den) = direct_fst_block(&af, &rows);
         assert_close(&num, &want_num, "fst num");
         assert_close(&den, &want_den, "fst den");
+    }
+
+    /// `af` cut into its chromosomes' runs of SNPs.
+    fn by_chromosome(af: &AlleleFrequencies) -> Vec<AlleleFrequencies> {
+        let mut runs: Vec<std::ops::Range<usize>> = Vec::new();
+        for (i, snp) in af.snps.iter().enumerate() {
+            match runs.last_mut() {
+                Some(r) if af.snps[r.start].chromosome == snp.chromosome => r.end = i + 1,
+                _ => runs.push(i..i + 1),
+            }
+        }
+        runs.into_iter()
+            .map(|r| AlleleFrequencies {
+                frequencies: af.frequencies.slice(ndarray::s![r.clone(), ..]).to_owned(),
+                counts: af.counts.slice(ndarray::s![r.clone(), ..]).to_owned(),
+                populations: af.populations.clone(),
+                snps: af.snps[r].to_vec(),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn blocks_a_chromosome_at_a_time_are_the_blocks_of_the_whole() {
+        let mut af = random_af(6_000, 5);
+        for (i, snp) in af.snps.iter_mut().enumerate() {
+            snp.chromosome = Chromosome::Autosome(1 + (i / 2_000) as u8);
+        }
+        for max_missing in [0.0, 1.0] {
+            let opts = F2Options {
+                max_missing,
+                poly_only: true,
+            };
+            let def = BlockDefinition::new(0.05);
+            let whole = F2Blocks::from_allele_frequencies_with_options(&af, &def, &opts);
+            let mut evidence = CoordinateEvidence::default();
+            evidence.observe(&af.snps);
+            let parts =
+                F2Blocks::from_parts(by_chromosome(&af).into_iter(), &evidence, &def, &opts)
+                    .expect("the coordinate guessed from every SNP is right");
+            assert_eq!(parts.block_sums, whole.block_sums);
+            assert_eq!(parts.block_raw_sums, whole.block_raw_sums);
+            assert_eq!(parts.block_weights, whole.block_weights);
+            assert_eq!(parts.block_het_sums, whole.block_het_sums);
+            assert_eq!(parts.block_lengths, whole.block_lengths);
+            assert_eq!(parts.n_blocks, whole.n_blocks);
+            let (a, b) = (parts.fst.unwrap(), whole.fst.unwrap());
+            assert_eq!(
+                (a.num, a.den, a.block_lengths),
+                (b.num, b.den, b.block_lengths)
+            );
+        }
+    }
+
+    #[test]
+    fn a_wrong_coordinate_guess_is_reported() {
+        // no genetic map, and one polymorphic SNP: every SNP says base pairs,
+        // the f2 SNPs (one) say the map
+        let mut af = random_af(400, 3);
+        for (i, snp) in af.snps.iter_mut().enumerate() {
+            snp.position_morgans = 0.0;
+            snp.chromosome = Chromosome::Autosome(1 + (i / 200) as u8);
+            let f = if i == 7 { [0.1, 0.5, 0.9] } else { [0.5; 3] };
+            for (p, &x) in f.iter().enumerate() {
+                af.frequencies[[i, p]] = x;
+                af.counts[[i, p]] = 20;
+            }
+        }
+        let mut evidence = CoordinateEvidence::default();
+        evidence.observe(&af.snps);
+        let opts = F2Options::default();
+        let def = BlockDefinition::default();
+        assert!(
+            F2Blocks::from_parts(by_chromosome(&af).into_iter(), &evidence, &def, &opts).is_none()
+        );
     }
 
     #[test]
