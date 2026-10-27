@@ -46,6 +46,12 @@ def read_admixtools2_f2(f2_dir: str | os.PathLike, populations: Sequence[str] | 
     remove_na
         Leave out blocks where some pair has no data, as admixtools2
         ``read_f2`` does.
+
+    Returns
+    -------
+    F2Blocks
+        f2 blocks of ``populations``, with each pair's SNP counts per block
+        (the stored fraction times the block length).
     """
     f2_dir = os.fspath(f2_dir)
     pops = list(populations) if populations is not None else sorted(
@@ -86,8 +92,24 @@ def read_admixtools2_f2(f2_dir: str | os.PathLike, populations: Sequence[str] | 
 
 
 def write_admixtools2_f2(f2_blocks: _core.F2Blocks, outdir: str | os.PathLike, *, overwrite: bool = False) -> None:
-    """Write f2 blocks as an admixtools2 f2 directory (admixtools2 ``write_f2``),
-    which admixtools2 reads with ``f2_from_precomp`` or ``read_f2``."""
+    """Write f2 blocks as an admixtools2 f2 directory (admixtools2 ``write_f2``).
+
+    admixtools2 reads the directory with ``f2_from_precomp`` or ``read_f2``.
+
+    Parameters
+    ----------
+    f2_blocks
+        f2 blocks to write.
+    outdir
+        Directory to write to; created if missing.
+    overwrite
+        Replace the files of a directory that already holds
+        ``block_lengths_f2.rds`` (otherwise ``FileExistsError``).
+
+    Returns
+    -------
+    None
+    """
     outdir = os.fspath(outdir)
     os.makedirs(outdir, exist_ok=True)
     lengths_file = os.path.join(outdir, "block_lengths_f2.rds")
@@ -106,5 +128,18 @@ def write_admixtools2_f2(f2_blocks: _core.F2Blocks, outdir: str | os.PathLike, *
 
 
 def extract_f2_subset(f2_blocks: _core.F2Blocks, populations: Sequence[str]) -> _core.F2Blocks:
-    """These populations' f2 blocks (admixtools2 ``extract_f2_subset``)."""
+    """These populations' f2 blocks (admixtools2 ``extract_f2_subset``).
+
+    Parameters
+    ----------
+    f2_blocks
+        f2 blocks holding every population.
+    populations
+        Populations to keep, in this order.
+
+    Returns
+    -------
+    F2Blocks
+        f2 blocks of ``populations`` only.
+    """
     return f2_blocks.subset(list(populations))

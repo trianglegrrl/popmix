@@ -165,6 +165,29 @@ def f4blockdat_from_geno(
     with data in all four populations; NaN if none), ``den`` (mean D
     denominator; NaN in f4 mode), ``n`` (SNPs used) and ``length`` (SNPs in
     the block).
+
+    Parameters
+    ----------
+    prefix
+        Genotype prefix.
+    popcombs
+        Population quadruples (pop1, pop2, pop3, pop4).
+    f4mode
+        f4 numerators; ``False`` for D numerators and denominators.
+    block_size
+        Jackknife block size in Morgans.
+    auto_only
+        Use only autosomes.
+    pseudohaploid
+        Which samples count one allele per SNP: "detect", "admixtools2" or
+        "diploid" (see ``sample_ploidy``).
+
+    Returns
+    -------
+    pandas.DataFrame
+        ``pop1``, ``pop2``, ``pop3``, ``pop4``, ``block`` (numbered from 1),
+        ``est``, ``den``, ``n`` and ``length``, one row per combination and
+        block.
     """
     combs = [tuple(c) for c in popcombs]
     pops, quads = _index(combs)
@@ -189,6 +212,33 @@ def f3blockdat_from_geno(
     One row per combination and block: ``numer`` (mean bias-corrected
     ``(a-b)(a-c)``), ``denom`` (mean twice the target's heterozygosity, or 1
     in outgroup mode), ``est`` (their ratio), ``n`` and ``length``.
+
+    Parameters
+    ----------
+    prefix
+        Genotype prefix.
+    popcombs
+        Population triples (pop1, pop2, pop3), pop1 the target.
+    outgroupmode
+        Outgroup mode: a denominator of 1 instead of the target's
+        heterozygosity.
+    apply_corr
+        Apply the bias correction to the numerator.
+    block_size
+        Jackknife block size in Morgans.
+    auto_only
+        Use only autosomes.
+    pseudohaploid
+        Which samples count one allele per SNP: "detect", "admixtools2" or
+        "diploid" (see ``sample_ploidy``).
+
+    Returns
+    -------
+    pandas.DataFrame
+        ``pop1``, ``pop2``, ``pop3``, ``block`` (numbered from 1),
+        ``numer``, ``denom``, ``n``, ``length`` and ``est`` (NaN for blocks
+        with no SNPs or a non-finite ratio), one row per combination and
+        block.
     """
     combs = [tuple(c) for c in popcombs]
     pops, triples = _index(combs)
@@ -315,6 +365,20 @@ def sample_ploidy(prefix: str | os.PathLike[str], populations: Sequence[str],
     ``pseudohaploid="detect"``: pseudo-haploid when the sample has no
     heterozygous genotype at any SNP; ``"admixtools2"``: none among the first
     1000 SNPs, as admixtools2 assigns it (ADMIXTOOLS2-0007); ``"diploid"``.
+
+    Parameters
+    ----------
+    prefix
+        Genotype prefix.
+    populations
+        Populations whose samples are classified.
+    pseudohaploid
+        "detect", "admixtools2" or "diploid", as above.
+
+    Returns
+    -------
+    dict of str to int
+        Sample ID to ploidy (1 or 2).
     """
     return dict(_core.sample_ploidy(os.fspath(prefix), list(populations), pseudohaploid))
 

@@ -47,11 +47,29 @@ class QpWaveResult:
     f4_covariance: np.ndarray
 
     def is_clade(self, p_threshold: float = 0.05) -> bool:
-        """Whether rank 0 is not rejected at ``p_threshold``."""
+        """Whether rank 0 is not rejected at ``p_threshold``.
+
+        Parameters
+        ----------
+        p_threshold
+            Significance level.
+
+        Returns
+        -------
+        bool
+            True when the rank-0 test's ``p`` exceeds ``p_threshold``;
+            False when it does not or there are no rank tests.
+        """
         return bool(self.rank_tests) and self.rank_tests[0].p > p_threshold
 
     def full_rank(self) -> RankTest | None:
-        """The test of the highest rank."""
+        """The test of the highest rank.
+
+        Returns
+        -------
+        RankTest or None
+            The last of ``rank_tests``, or None if there are none.
+        """
         return self.rank_tests[-1] if self.rank_tests else None
 
 
@@ -95,7 +113,13 @@ class QpAdmResult:
         return all(0.0 <= w <= 1.0 for w in self.weights)
 
     def weights_dict(self) -> dict[str, float]:
-        """The weights by source, in source order."""
+        """The weights by source, in source order.
+
+        Returns
+        -------
+        dict of str to float
+            Source population to its weight.
+        """
         return dict(zip(self.sources, self.weights))
 
 
@@ -234,7 +258,15 @@ class DatesResult:
     fit: DecayFit
 
     def to_ld_dataframe(self):
-        """The LD bins as a pandas DataFrame, one row per bin."""
+        """The LD bins as a pandas DataFrame, one row per bin.
+
+        Returns
+        -------
+        pandas.DataFrame
+            ``distance_cm``, ``n_pairs``, ``weighted_ld``, ``se``, ``z``,
+            ``correlation`` and ``regression_coef`` (the ``LdBin`` fields),
+            one row per bin in ``ld_bins`` order.
+        """
         import dataclasses
 
         import pandas as pd

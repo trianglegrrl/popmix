@@ -44,6 +44,13 @@ class AdmixtureResult:
         return self.P.shape[1]
 
     def q_matrix(self) -> np.ndarray:
+        """The ancestry proportions as a matrix.
+
+        Returns
+        -------
+        numpy.ndarray
+            Samples x K: columns Q1..QK of ``Q``, rows in the order of ``Q``.
+        """
         return self.Q[[f"Q{j + 1}" for j in range(self.k)]].to_numpy()
 
 
@@ -131,6 +138,26 @@ def admixture_loglik(
 
     The samples and SNPs are those ``admixture`` would use with the same
     ``populations`` and ``chromosomes``.
+
+    Parameters
+    ----------
+    prefix
+        Genotype prefix.
+    q
+        Ancestry proportions, samples x K.
+    p
+        Allele frequencies, SNPs x K, as ``AdmixtureResult.P``.
+    populations
+        Populations whose samples are used; all if None.
+    chromosomes
+        Use only SNPs on these chromosomes.
+    snps
+        Use exactly these SNPs (IDs; in file order).
+
+    Returns
+    -------
+    float
+        The log-likelihood, as ADMIXTURE reports it.
     """
     if populations is None:
         populations = [pp for pp, _ in _core.list_populations(os.fspath(prefix)) if pp != "Ignore"]

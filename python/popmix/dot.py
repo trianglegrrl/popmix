@@ -105,7 +105,20 @@ def write_dot(graph: Any, path: str | os.PathLike | None = None, *, title: str =
 
 def parse_dot(source: str | os.PathLike) -> list[tuple[str, str]]:
     """The edges of a DOT file or text (admixtools2 ``parse_dot``): each
-    "a -> b" line, names unquoted."""
+    "a -> b" line, names unquoted.
+
+    Parameters
+    ----------
+    source
+        Path to a DOT file, or DOT text (a string containing "->" is read as
+        text).
+
+    Returns
+    -------
+    list of tuple of str
+        (from, to) for each edge line, in file order; labels and other
+        attributes are dropped.
+    """
     text = source
     if isinstance(source, os.PathLike) or (isinstance(source, str) and "->" not in source and os.path.exists(source)):
         with open(source) as fh:

@@ -11,18 +11,21 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
 use pyo3::IntoPyObjectExt;
 
-/// Load precomputed F2 blocks from a directory.
+/// Load f2 blocks saved by ``F2Blocks.save``.
 ///
-/// The directory should contain files created by F2Blocks.save():
-/// - metadata.json: Population names and block info
-/// - block_sums.npy: NumPy array of F2 sums
-/// - block_weights.npy: NumPy array of weights
+/// Directories of every storage version are read; those before version 4
+/// hold no FST blocks, so ``fst`` is approximated from the f2 blocks.
 ///
-/// Args:
-///     path: Directory path containing the F2 block files
+/// Parameters
+/// ----------
+/// path
+///     The directory, holding ``metadata.json`` and the ``block_*.npy``
+///     arrays.
 ///
-/// Returns:
-///     F2Blocks object ready for computing f-statistics
+/// Returns
+/// -------
+/// F2Blocks
+///     The f2 blocks, ready for f-statistics.
 #[pyfunction]
 pub(crate) fn read_f2(py: Python<'_>, path: &str) -> PyResult<PyF2Blocks> {
     compute(py, move || {
@@ -31,10 +34,11 @@ pub(crate) fn read_f2(py: Python<'_>, path: &str) -> PyResult<PyF2Blocks> {
     })
 }
 
-/// Precomputed F2 statistics for all population pairs.
+/// Per-block f2 statistics for every pair of populations.
 ///
-/// This is the main data structure for computing f-statistics.
-/// Create using `extract_f2()` or from allele frequencies.
+/// The data structure f-statistics are computed from, with block jackknife
+/// standard errors. Made by ``extract_f2``, ``f2_from_frequencies``,
+/// ``read_f2`` or ``F2Blocks.from_block_means``.
 #[pyclass(name = "F2Blocks", module = "popmix._core", frozen)]
 pub(crate) struct PyF2Blocks {
     pub(crate) inner: F2Blocks,
@@ -93,8 +97,18 @@ impl PyF2Blocks {
         self.inner.n_blocks()
     }
 
-    /// These populations only, in this order (admixtools2
-    /// ``extract_f2_subset``); FST blocks are kept.
+    /// Keep only some populations (admixtools2 ``extract_f2_subset``).
+    ///
+    /// Parameters
+    /// ----------
+    /// populations
+    ///     The populations to keep, in the order wanted. An unknown one
+    ///     raises ``PopulationNotFoundError``.
+    ///
+    /// Returns
+    /// -------
+    /// F2Blocks
+    ///     New f2 blocks of those populations, FST blocks kept.
     fn subset(&self, populations: Vec<String>) -> PyResult<PyF2Blocks> {
         let refs: Vec<&str> = populations
             .iter()
@@ -105,17 +119,45 @@ impl PyF2Blocks {
         })
     }
 
-    /// SNPs with data for both populations in each block (the counts
-    /// admixtools2 stores with its f2 blocks), or None for unknown
-    /// populations.
+    /// SNPs with data for both populations in each block.
+    ///
+    /// These are the counts admixtools2 stores with its f2 blocks.
+    ///
+    /// Parameters
+    /// ----------
+    /// pop_a, pop_b
+    ///     The two populations.
+    ///
+    /// Returns
+    /// -------
+    /// list of float or None
+    ///     One count per block, or None if a population is unknown.
     fn counts_per_block(&self, pop_a: &str, pop_b: &str) -> Option<Vec<f64>> {
         self.inner.block_counts(pop_a, pop_b)
     }
 
-    /// F2 blocks from each pair's per-block f2 mean and SNP count, as
-    /// admixtools2 stores them: ``means[i][j]`` and ``counts[i][j]`` are the
-    /// blocks of populations i and j (only i <= j is read). FST is not
-    /// available from these.
+    /// F2 blocks from each pair's per-block f2 mean and SNP count.
+    ///
+    /// This is how admixtools2 stores them. FST is not available from
+    /// these (its sums are NaN).
+    ///
+    /// Parameters
+    /// ----------
+    /// populations
+    ///     The population names, in index order.
+    /// block_lengths
+    ///     Number of SNPs in each block (the jackknife weights).
+    /// means
+    ///     ``means[i][j]``: the per-block f2 means of populations i and j
+    ///     (only i <= j is read).
+    /// counts
+    ///     ``counts[i][j]``: the per-block SNP counts of populations i and j,
+    ///     likewise. Shapes that do not match raise ``InputError``.
+    ///
+    /// Returns
+    /// -------
+    /// F2Blocks
+    ///     The f2 blocks.
     #[staticmethod]
     fn from_block_means(
         populations: Vec<String>,
@@ -132,8 +174,21 @@ impl PyF2Blocks {
         })
     }
 
-    /// These blocks, in this order and with repeats, as admixtools2
-    /// ``f2_blocks[, , blocks]`` (0-based). FST blocks are not carried over.
+    /// Select blocks, as admixtools2 ``f2_blocks[, , blocks]``.
+    ///
+    /// For resampling such as the bootstrap. FST blocks are not carried
+    /// over.
+    ///
+    /// Parameters
+    /// ----------
+    /// blocks
+    ///     Block indices from 0, in the order wanted; repeats allowed. An
+    ///     empty list or an index out of range raises ``InputError``.
+    ///
+    /// Returns
+    /// -------
+    /// F2Blocks
+    ///     New f2 blocks with those blocks.
     fn select_blocks(&self, blocks: Vec<usize>) -> PyResult<PyF2Blocks> {
         Ok(PyF2Blocks {
             inner: self.inner.select_blocks(&blocks)?,
@@ -157,7 +212,19 @@ impl PyF2Blocks {
             .unwrap_or_default()
     }
 
-    /// Per-block FST for a pair of populations, or None if unavailable.
+    /// Per-block FST of a pair of populations, on the FST blocks.
+    ///
+    /// Parameters
+    /// ----------
+    /// pop_a, pop_b
+    ///     The two populations.
+    ///
+    /// Returns
+    /// -------
+    /// numpy.ndarray or None
+    ///     float64 array of shape (len(fst_block_lengths),), NaN for a block
+    ///     without data; None if a population is unknown or the blocks carry
+    ///     no FST data.
     fn fst_per_block<'py>(
         &self,
         py: Python<'py>,
@@ -181,11 +248,21 @@ impl PyF2Blocks {
             .collect()
     }
 
-    /// f2(A, B).
+    /// f2(A, B), with a weighted block jackknife standard error.
     ///
-    /// Returns:
-    ///     dict with keys est, se, z, p, n_snps (as a row of a table), or
-    ///     None if the pair has no data
+    /// f2(A, A) is 0. An unknown population raises
+    /// ``PopulationNotFoundError``.
+    ///
+    /// Parameters
+    /// ----------
+    /// pop_a, pop_b
+    ///     The two populations.
+    ///
+    /// Returns
+    /// -------
+    /// dict or None
+    ///     ``est``, ``se``, ``z``, ``p`` (z is NaN without an SE) and
+    ///     ``n_snps`` (a row of a table), or None if no block has data.
     fn f2<'py>(
         &self,
         py: Python<'py>,
@@ -199,11 +276,23 @@ impl PyF2Blocks {
             .transpose()
     }
 
-    /// f3(A; B, C) (admixture test): negative when A is admixed between B
-    /// and C.
+    /// f3(A; B, C), the admixture test: negative when A is admixed
+    /// between B and C.
     ///
-    /// Returns:
-    ///     dict with keys est, se, z, p, n_blocks, or None
+    /// An unknown population raises ``PopulationNotFoundError``.
+    ///
+    /// Parameters
+    /// ----------
+    /// pop_a
+    ///     The target A.
+    /// pop_b, pop_c
+    ///     The sources B and C.
+    ///
+    /// Returns
+    /// -------
+    /// dict or None
+    ///     ``est``, ``se``, ``z``, ``p`` (z is NaN without an SE) and
+    ///     ``n_blocks`` (blocks with data), or None if no block has data.
     fn f3<'py>(
         &self,
         py: Python<'py>,
@@ -221,8 +310,18 @@ impl PyF2Blocks {
     /// f4(A, B; C, D): tests for gene flow between the (A, B) and (C, D)
     /// branches.
     ///
-    /// Returns:
-    ///     dict with keys est, se, z, p, n_blocks, or None
+    /// An unknown population raises ``PopulationNotFoundError``.
+    ///
+    /// Parameters
+    /// ----------
+    /// pop_a, pop_b, pop_c, pop_d
+    ///     The populations A, B, C and D.
+    ///
+    /// Returns
+    /// -------
+    /// dict or None
+    ///     ``est``, ``se``, ``z``, ``p`` (z is NaN without an SE) and
+    ///     ``n_blocks`` (blocks with data), or None if no block has data.
     fn f4<'py>(
         &self,
         py: Python<'py>,
@@ -238,12 +337,22 @@ impl PyF2Blocks {
             .transpose()
     }
 
-    /// FST (Hudson's fixation index) between two populations, as
-    /// admixtools2's ``fst``: 0 for identical populations, 1 for fixed
-    /// differences.
+    /// FST (Hudson's fixation index) between two populations.
     ///
-    /// Returns:
-    ///     dict with keys est, se, n_snps, or None
+    /// As admixtools2's ``fst``: 0 for identical populations, 1 for fixed
+    /// differences, from the FST blocks; f2 blocks saved before storage
+    /// version 4 have none, and FST is then approximated from the f2
+    /// blocks. An unknown population raises ``PopulationNotFoundError``.
+    ///
+    /// Parameters
+    /// ----------
+    /// pop_a, pop_b
+    ///     The two populations.
+    ///
+    /// Returns
+    /// -------
+    /// dict or None
+    ///     ``est``, ``se`` and ``n_snps``, or None if no block has data.
     fn fst<'py>(
         &self,
         py: Python<'py>,
@@ -263,18 +372,31 @@ impl PyF2Blocks {
             .transpose()
     }
 
-    /// Get the f2 matrix as a numpy array.
+    /// Get the f2 estimates of every pair as a matrix.
     ///
-    /// Returns:
-    ///     2D numpy array of shape (n_pops, n_pops) with f2 values.
+    /// Returns
+    /// -------
+    /// numpy.ndarray
+    ///     Symmetric float64 array of shape (n_populations, n_populations),
+    ///     in ``populations`` order: the ``f2`` estimates, 0 on the diagonal,
+    ///     NaN where a pair has no SNPs.
     fn f2_matrix<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
         self.inner.f2_matrix().into_pyarray(py)
     }
 
-    /// Get per-block f2 values for a pair of populations.
+    /// Get the per-block f2 means of a pair of populations.
     ///
-    /// Returns:
-    ///     1D numpy array of shape (n_blocks,) with f2 values for each block.
+    /// Parameters
+    /// ----------
+    /// pop_a, pop_b
+    ///     The two populations.
+    ///
+    /// Returns
+    /// -------
+    /// numpy.ndarray or None
+    ///     float64 array of shape (n_blocks,), NaN for a block without
+    ///     SNPs and all 0 for a population with itself; None if a population
+    ///     is unknown.
     fn f2_per_block<'py>(
         &self,
         py: Python<'py>,
@@ -286,16 +408,23 @@ impl PyF2Blocks {
             .map(|values| values.into_pyarray(py))
     }
 
-    /// Save F2 blocks to a directory.
+    /// Save the f2 blocks to a directory, for ``read_f2``.
     ///
-    /// Creates a directory with:
-    /// - metadata.json: Population names, block info
-    /// - block_sums.npy: NumPy format array of F2 sums
-    /// - block_weights.npy: NumPy format array of weights
+    /// Writes ``metadata.json`` (populations, block lengths, storage
+    /// version) and the ``block_*.npy`` arrays: f2 and raw sums, weights,
+    /// heterozygosity sums and weights, and the FST blocks when present.
     ///
-    /// Args:
-    ///     path: Directory path to write to (will be created if needed)
-    ///     source: Optional source file path for metadata
+    /// Parameters
+    /// ----------
+    /// path
+    ///     The directory, created if needed.
+    /// source
+    ///     Path of the genotype data, recorded in the metadata, or None (the
+    ///     default).
+    ///
+    /// Returns
+    /// -------
+    /// None
     #[pyo3(signature = (path, source=None))]
     fn save(&self, path: &str, source: Option<&str>) -> PyResult<()> {
         write_f2_blocks(&self.inner, std::path::Path::new(path), source).map_err(PyErr::from)
@@ -306,19 +435,32 @@ impl PyF2Blocks {
 // F-statistics functions
 // ============================================================================
 
-/// Compute F2 blocks from allele frequencies.
+/// Compute f2 blocks from allele frequencies.
+///
+/// SNPs are chosen as ``extract_f2`` does by default (no missing data,
+/// polymorphic only).
+///
+/// Parameters
+/// ----------
+/// af
+///     The allele frequencies (``AlleleFrequencies``).
+/// block_size
+///     Jackknife block size in Morgans (default 0.05, 5 cM).
+///
+/// Returns
+/// -------
+/// F2Blocks
+///     The f2 blocks of the populations of ``af``. FST is approximated
+///     from these, as for f2 blocks without FST blocks.
 #[pyfunction]
-#[pyo3(signature = (af, *, block_size=None))]
+#[pyo3(signature = (af, *, block_size=0.05))]
 pub(crate) fn f2_from_frequencies(
     py: Python<'_>,
     af: &PyAlleleFrequencies,
-    block_size: Option<f64>,
+    block_size: f64,
 ) -> PyResult<PyF2Blocks> {
     compute(py, move || {
-        let block_def = match block_size {
-            Some(size) => BlockDefinition::new(size),
-            None => BlockDefinition::default(),
-        };
+        let block_def = BlockDefinition::new(block_size);
 
         let f2_blocks = F2Blocks::from_allele_frequencies(&af.inner, &block_def);
 

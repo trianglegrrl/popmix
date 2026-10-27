@@ -11,40 +11,50 @@ use pyo3::prelude::*;
 
 /// Extract F2 blocks from genotype data.
 ///
-/// This is the main entry point for computing f-statistics.
-/// Uses a streaming approach (like admixtools2) to avoid loading all genotype
-/// data into memory. Reads SNPs one at a time and computes allele frequencies
-/// incrementally.
+/// This is the main entry point for computing f-statistics. It streams the
+/// SNPs one at a time (like admixtools2), computing allele frequencies
+/// incrementally rather than loading all genotypes into memory.
 ///
-/// Args:
-///     prefix: Path prefix for the genotype dataset
-///     populations: List of populations to compute F2 for (REQUIRED)
-///     auto_only: If True (default), only use autosomal SNPs (chr 1-22)
-///     block_size: Block size in Morgans (default: 0.05 = 5 cM)
-///     maxmiss: Drop SNPs missing in more than this fraction of populations,
-///         as admixtools2 ``maxmiss`` (default: 0, every population needs data)
-///     poly_only: Use only SNPs whose frequency differs between populations,
-///         as admixtools2 ``poly_only = "f2"`` (default: True)
-///     inds, pops: Use only these samples, each in the population given in
-///         ``pops`` (same length) instead of its ``.ind`` label, as
-///         admixtools2 ``f2_from_geno(inds, pops)``
-///     pseudohaploid: Which samples count one allele per SNP: "detect"
-///         (default: those with no heterozygous call at any SNP),
-///         "admixtools2" (no heterozygous call among the first 1,000 SNPs,
-///         which also catches some diploid genomes; ADMIXTOOLS2-0007) or
-///         "diploid" (none)
+/// Parameters
+/// ----------
+/// prefix
+///     Path prefix of the genotype dataset.
+/// populations
+///     Populations to compute f2 for (required).
+/// auto_only
+///     If True (default), use only autosomal SNPs (chromosomes 1-22).
+/// block_size
+///     Jackknife block size in Morgans (default 0.05, 5 cM).
+/// maxmiss
+///     Drop SNPs missing in more than this fraction of populations, as
+///     admixtools2 ``maxmiss`` (default 0: every population needs data).
+/// poly_only
+///     Use only SNPs whose frequency differs between populations, as
+///     admixtools2 ``poly_only = "f2"`` (default True).
+/// inds, pops
+///     Use only these samples, each in the population given in ``pops``
+///     (same length) instead of its ``.ind`` label, as admixtools2
+///     ``f2_from_geno(inds, pops)``. Give both or neither (``InputError``).
+/// pseudohaploid
+///     Which samples count one allele per SNP: "detect" (default: those with
+///     no heterozygous call at any SNP), "admixtools2" (no heterozygous call
+///     among the first 1,000 SNPs, which also catches some diploid genomes;
+///     ADMIXTOOLS2-0007) or "diploid" (none).
 ///
-/// Returns:
-///     PyF2Blocks object for computing f2, f3, f4 statistics
+/// Returns
+/// -------
+/// F2Blocks
+///     The per-block f2 statistics of the populations, for f2, f3, f4 and
+///     FST. Problems met while reading are issued as ``PopmixWarning``.
 #[pyfunction]
-#[pyo3(signature = (prefix, populations, *, auto_only=true, block_size=None, maxmiss=0.0, poly_only=true, inds=None, pops=None, pseudohaploid="detect"))]
+#[pyo3(signature = (prefix, populations, *, auto_only=true, block_size=0.05, maxmiss=0.0, poly_only=true, inds=None, pops=None, pseudohaploid="detect"))]
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn extract_f2(
     py: Python<'_>,
     prefix: &str,
     populations: Vec<String>,
     auto_only: bool,
-    block_size: Option<f64>,
+    block_size: f64,
     maxmiss: f64,
     poly_only: bool,
     inds: Option<Vec<String>>,
@@ -58,9 +68,7 @@ pub(crate) fn extract_f2(
     };
     let mut opts = ExtractOptions::new(populations);
     opts.auto_only = auto_only;
-    if let Some(size) = block_size {
-        opts.blocks = BlockDefinition::new(size);
-    }
+    opts.blocks = BlockDefinition::new(block_size);
     opts.f2 = {
         let mut o = F2Options::default();
         o.max_missing = maxmiss;

@@ -52,19 +52,44 @@ class Sfs:
         return _core.sfs_summary(self.data.tolist(), self.mask.tolist())
 
     def S(self) -> float:  # noqa: N802 (dadi's name)
-        """Segregating sites."""
+        """Segregating sites.
+
+        Returns
+        -------
+        float
+            Number of segregating sites in the spectrum.
+        """
         return self._summary()[0]
 
     def pi(self) -> float:
-        """Expected pairwise differences (per SNP set), as dadi ``pi()``."""
+        """Expected pairwise differences (per SNP set), as dadi ``pi()``.
+
+        Returns
+        -------
+        float
+            Mean pairwise differences over the SNP set.
+        """
         return self._summary()[1]
 
     def watterson_theta(self) -> float:
-        """Watterson's theta, S over the harmonic number."""
+        """Watterson's theta, S over the harmonic number.
+
+        Returns
+        -------
+        float
+            ``S()`` divided by the sum of 1/i for i from 1 to n - 1 (n
+            alleles).
+        """
         return self._summary()[2]
 
     def tajima_d(self) -> float:
-        """Tajima's D."""
+        """Tajima's D.
+
+        Returns
+        -------
+        float
+            Tajima's D, from ``pi()`` and ``watterson_theta()``.
+        """
         return self._summary()[3]
 
 

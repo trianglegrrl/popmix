@@ -46,6 +46,12 @@ def test_options_are_keyword_only(name, func):
 
 
 
+@pytest.mark.parametrize("name", ["extract_f2", "f2_from_frequencies"])
+def test_block_size_defaults_to_its_value(name):
+    """The signature shows the 5 cM blocks used, not None standing for them."""
+    assert inspect.signature(getattr(pm, name)).parameters["block_size"].default == 0.05
+
+
 @pytest.mark.parametrize("name", ["qpadm", "qpadm_p", "qpadm_resample_snps", "qpadm_resample_inds"])
 def test_qpadm_models_are_left_right_target(name):
     params = list(inspect.signature(getattr(pm, name)).parameters)

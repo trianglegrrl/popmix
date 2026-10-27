@@ -104,7 +104,25 @@ def qpadm_p(
 def test_cladality(
     f2_blocks: _core.F2Blocks, left: Sequence[str], right: Sequence[str], *, fudge: float = 1e-4
 ) -> dict[str, Any]:
-    """Whether ``left`` forms a clade with respect to ``right``: ``qpadm_p`` at rank 0."""
+    """Whether ``left`` forms a clade with respect to ``right``: ``qpadm_p`` at rank 0.
+
+    As admixtools2 ``test_cladality``.
+
+    Parameters
+    ----------
+    f2_blocks
+        f2 blocks with every population.
+    left, right
+        Left and right populations.
+    fudge
+        As for ``qpadm``.
+
+    Returns
+    -------
+    dict
+        As ``qpadm_p``: ``f4rank``, ``dof``, ``chisq``, ``p`` and
+        ``feasible``; a small ``p`` rejects cladality.
+    """
     return qpadm_p(f2_blocks, left, right, rnk=0, fudge=fudge)
 
 
@@ -117,6 +135,17 @@ def qpwave_pairs(
 ) -> pd.DataFrame:
     """Test every pair of ``left`` populations for cladality with respect to
     ``right`` (admixtools2 ``qpwave_pairs``): qpWave at rank 0.
+
+    Parameters
+    ----------
+    f2_blocks
+        f2 blocks with every population.
+    left
+        Populations to test in pairs.
+    right
+        Right populations.
+    fudge
+        As for ``qpadm``.
 
     Returns
     -------
@@ -145,6 +174,15 @@ def rotate_models(
     ``leftright`` followed by ``rightfix``. Smaller left sets come first,
     and left sets of one size in the order of their positions in
     ``leftright`` (the order of admixtools2's ``qpadm_rotate`` details).
+
+    Parameters
+    ----------
+    leftright
+        Populations distributed between left and right.
+    target
+        Target population, the same in every model.
+    rightfix
+        Populations on the right in every model.
 
     Returns
     -------

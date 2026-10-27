@@ -21,21 +21,30 @@ use crate::warnings::{open_vcf, with_warnings};
 
 /// Convert genotype data between file formats.
 ///
-/// Supported formats:
-/// - ancestrymap: Sparse text format (.ancestrymapgeno, .snp, .ind)
-/// - eigenstrat: Dense text format (.geno, .snp, .ind)
-/// - packedancestrymap: Binary format (.geno, .snp, .ind)
-/// - plink/packedped: Binary PLINK format (.bed, .bim, .fam)
-/// - ped: Text PLINK format (.ped, .map, .pedind)
+/// When the input can be read in place (packed .geno, PLINK .bed, text
+/// EIGENSTRAT, VCF) the output is written without holding every genotype
+/// in memory; otherwise the input is read whole first.
 ///
-/// Args:
-///     input_prefix: Path prefix for the input dataset
-///     output_prefix: Path prefix for the output dataset
-///     output_format: Output format name (see above)
-///     input_format: Optional input format (auto-detected if not specified)
+/// Parameters
+/// ----------
+/// input_prefix
+///     Path prefix of the input dataset (the full path of a VCF file).
+/// output_prefix
+///     Path prefix of the output dataset.
+/// output_format
+///     Output format: "ancestrymap", "eigenstrat", "packedancestrymap", "packedped" (or
+///     "plink", "bed"), "ped" (or "pedmap") or "tgeno" (or
+///     "transpose_packed"), in any case.
+///     "vcf" raises ``InputError``.
+/// input_format
+///     Input format, by the same names or "vcf"; None (the default) to
+///     detect it from the files.
 ///
-/// Returns:
-///     Dictionary with conversion info (n_samples, n_snps, output_format)
+/// Returns
+/// -------
+/// dict
+///     ``n_samples`` and ``n_snps`` (int) written, and ``input_format`` and
+///     ``output_format`` (str, the canonical names, such as "PACKEDPED").
 #[pyfunction]
 #[pyo3(signature = (input_prefix, output_prefix, output_format, *, input_format=None))]
 pub(crate) fn convertf(
@@ -255,31 +264,41 @@ fn convertf_files(
 
 /// Merge two genotype datasets.
 ///
-/// Merges two genotype files by SNP intersection. SNPs are matched by
-/// chromosome and position (and by name where several share one). Alleles
-/// are reconciled as AdmixTools mergeit does: swapped alleles are recoded,
-/// a SNP on the other strand is complemented, the unknown allele of a
-/// monomorphic SNP is filled in, and A/T, C/G and third-allele SNPs are left
-/// out and counted.
+/// Keeps the SNPs in both files. SNPs are matched by chromosome and
+/// position (and by name where several share one). Alleles are reconciled
+/// as AdmixTools mergeit does: swapped alleles are recoded, a SNP on the
+/// other strand is complemented, the unknown allele of a monomorphic SNP
+/// is filled in, and A/T, C/G and third-allele SNPs are left out and
+/// counted. The samples of A come first, then those of B.
 ///
-/// Args:
-///     file_a: Path prefix for first dataset
-///     file_b: Path prefix for second dataset
-///     output: Path prefix for output dataset
-///     output_format: Output format ("plink", "eigenstrat", "packedancestrymap", etc.)
-///     input_format_a: Optional input format for file_a (auto-detected if not specified)
-///     input_format_b: Optional input format for file_b (auto-detected if not specified)
+/// Parameters
+/// ----------
+/// file_a
+///     Path prefix of the first dataset.
+/// file_b
+///     Path prefix of the second dataset.
+/// output
+///     Path prefix of the merged dataset.
+/// output_format
+///     Output format: "ancestrymap", "eigenstrat", "packedancestrymap", "packedped" (or
+///     "plink", "bed"), "ped" (or "pedmap") or "tgeno" (or
+///     "transpose_packed"), in any case.
+///     "vcf" raises ``InputError``.
+/// input_format_a, input_format_b
+///     Format of ``file_a`` / ``file_b``, by the same names or "vcf"; None
+///     (the default) to detect it from the files.
 ///
-/// Returns:
-///     Dictionary with merge statistics:
-///     - snps_only_a: SNPs only in file A
-///     - snps_only_b: SNPs only in file B
-///     - snps_identical: SNPs with identical alleles
-///     - snps_flipped: SNPs with flipped alleles (recoded)
-///     - snps_strand_ambiguous: SNPs skipped due to A/T or C/G ambiguity
-///     - snps_mismatch: SNPs with mismatched alleles
-///     - samples_total: Total samples in merged output
-///     - snps_merged: Total SNPs in merged output
+/// Returns
+/// -------
+/// dict
+///     Counts (int): ``snps_a``, ``snps_b``, ``samples_a``, ``samples_b``
+///     (the inputs); ``snps_merged``, ``samples_merged`` (the output);
+///     ``snps_identical`` (same alleles), ``flipped_snps`` (swapped alleles,
+///     recoded), ``strand_ambiguous_snps`` (A/T or C/G, left out),
+///     ``snps_mismatch`` (other alleles, left out), ``other_strand_snps``
+///     (kept, complemented from file B) and ``duplicate_position_snps``
+///     (SNPs of A left out because several SNPs of B share their position
+///     and none has their name).
 #[pyfunction]
 #[pyo3(signature = (file_a, file_b, output, output_format, *, input_format_a=None, input_format_b=None))]
 pub(crate) fn merge(

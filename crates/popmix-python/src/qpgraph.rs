@@ -6,7 +6,8 @@ use crate::f2::PyF2Blocks;
 use popmix_core::python::input_error;
 use pyo3::prelude::*;
 
-/// An admixture graph representing population relationships.
+/// An admixture graph: populations as leaves, joined by drift edges and
+/// admixture nodes. Made by ``build_tree``.
 #[pyclass(name = "AdmixGraph", module = "popmix._core", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct PyAdmixGraph {
@@ -39,26 +40,56 @@ impl PyAdmixGraph {
         self.inner.num_drift_edges()
     }
 
-    /// Get edge weights.
+    /// Get the weights of every edge.
+    ///
+    /// Returns
+    /// -------
+    /// list of float
+    ///     One weight per edge (drift length, or admixture weight), in the
+    ///     order the edges were added.
     fn get_edge_weights(&self) -> Vec<f64> {
         self.inner.get_edge_weights()
     }
 
-    /// Compute expected f2 between two populations.
+    /// Compute the f2 between two populations that the graph predicts.
+    ///
+    /// The drift on the edges not shared by their paths from the root,
+    /// summed over every pair of paths weighted by the admixture weights.
+    ///
+    /// Parameters
+    /// ----------
+    /// pop_a, pop_b
+    ///     Names of two nodes of the graph. An unknown name raises
+    ///     ``PopulationNotFoundError``.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///     The expected f2.
     fn expected_f2(&self, pop_a: &str, pop_b: &str) -> PyResult<f64> {
         self.inner.expected_f2(pop_a, pop_b).map_err(PyErr::from)
     }
 }
 
-/// Build a simple tree graph using the builder pattern.
+/// Build a tree (a graph with no admixture) from its nodes.
 ///
-/// Args:
-///     root_name: Name of the root node
-///     leaves: List of (name, parent, drift) tuples for leaf nodes
-///     internals: Optional list of (name, parent, drift) tuples for internal nodes
+/// The tree is not validated.
 ///
-/// Returns:
-///     PyAdmixGraph
+/// Parameters
+/// ----------
+/// root_name
+///     Name of the root node.
+/// leaves
+///     ``(name, parent, drift)`` tuples, one per leaf: the leaf's name, the
+///     name of its parent node and the drift length of the edge to it.
+/// internals
+///     ``(name, parent, drift)`` tuples for the internal nodes, added before
+///     the leaves, or None (the default) for none.
+///
+/// Returns
+/// -------
+/// AdmixGraph
+///     The tree.
 #[pyfunction]
 #[pyo3(signature = (root_name, leaves, *, internals=None))]
 pub(crate) fn build_tree(
@@ -118,22 +149,33 @@ impl PyScoredGraph {
 /// admixture nodes and is fitted with qpgraph(); ``populations[0]`` is the f3
 /// base population of every fit.
 ///
-/// Args:
-///     f2_blocks: Precomputed F2 blocks containing every population
-///     populations: The graph's leaves
-///     nadmix: Number of admixture nodes (default: 0)
-///     outgroup: Only graphs whose root has this population as a direct child
-///     method: "stepwise" (default): add the populations, then the admixture
-///         edges, one at a time, keeping the ``beam_width`` best graphs after
-///         each step. "exhaustive": every graph admixtools2
-///         generate_all_graphs() returns (feasible for about 5 populations
-///         with 1 admixture, or 4 with 2).
-///     beam_width: Graphs kept after each stepwise step (default: 20)
-///     numstart, seed, diag, diag_f3, constrained: as for qpgraph()
+/// Parameters
+/// ----------
+/// f2_blocks
+///     F2 blocks containing every population.
+/// populations
+///     The graph's leaves.
+/// nadmix
+///     Number of admixture nodes (default 0).
+/// outgroup
+///     Only graphs whose root has this population as a direct child, or
+///     None (the default) for any.
+/// method
+///     "stepwise" (default): add the populations, then the admixture edges,
+///     one at a time, keeping the ``beam_width`` best graphs after each
+///     step. "exhaustive": every graph admixtools2 generate_all_graphs()
+///     returns (feasible for about 5 populations with 1 admixture, or 4
+///     with 2). Anything else raises ``InputError``.
+/// beam_width
+///     Graphs kept after each stepwise step (default 20).
+/// numstart, seed, diag, diag_f3, constrained
+///     As for qpgraph().
 ///
-/// Returns:
-///     (graphs, n_evaluated): the graphs of the last step, best first, and
-///     the number of qpgraph fits made
+/// Returns
+/// -------
+/// tuple
+///     ``(graphs, n_evaluated)``: the graphs of the last step, best first,
+///     as a list of ``PyScoredGraph``, and the number of qpgraph fits made.
 #[pyfunction]
 #[pyo3(signature = (f2_blocks, populations, nadmix=0, outgroup=None, method="stepwise", beam_width=20, numstart=10, seed=1, diag=1e-4, diag_f3=1e-5, constrained=true))]
 #[allow(clippy::too_many_arguments)]
@@ -196,11 +238,23 @@ pub(crate) fn find_graphs(
     })
 }
 
-/// Every admixture graph with these leaves and ``nadmix`` admixture nodes,
-/// as admixtools2 generate_all_graphs() returns them, in its order.
+/// Every admixture graph with these leaves and ``nadmix`` admixture nodes.
 ///
-/// Each graph is a list of (from, to) pairs whose path from the root to
-/// ``leaves[0]`` comes first.
+/// The same set as admixtools2 generate_all_graphs() returns, in its
+/// order.
+///
+/// Parameters
+/// ----------
+/// leaves
+///     The leaf populations.
+/// nadmix
+///     Number of admixture nodes (default 0).
+///
+/// Returns
+/// -------
+/// list of list of tuple
+///     Each graph as a list of ``(from, to)`` edges whose path from the root
+///     to ``leaves[0]`` comes first.
 #[pyfunction]
 #[pyo3(signature = (leaves, *, nadmix=0))]
 pub(crate) fn all_graphs(
@@ -214,8 +268,22 @@ pub(crate) fn all_graphs(
     })
 }
 
-/// The value admixtools2 graph_hash() digests for a simplified graph: two
-/// graphs are the same graph to admixtools2 exactly when their keys are equal.
+/// The value admixtools2 graph_hash() digests for a simplified graph.
+///
+/// Two graphs are the same graph to admixtools2 exactly when their keys are
+/// equal.
+///
+/// Parameters
+/// ----------
+/// edges
+///     The graph as ``(from, to)`` pairs, already simplified (no node with
+///     one parent and one child), as ``all_graphs`` and ``find_graphs``
+///     return them. An invalid or unsimplified graph raises ``InputError``.
+///
+/// Returns
+/// -------
+/// list of str
+///     The graph's key.
 #[pyfunction]
 pub(crate) fn graph_key(edges: Vec<(String, String)>) -> PyResult<Vec<String>> {
     popmix_core::graph_key(&edges).map_err(PyErr::from)
@@ -336,24 +404,37 @@ impl PyQpGraphResult {
 /// graph's leaves in order of first appearance in ``edges``; the first is the
 /// f3 base population.
 ///
-/// Args:
-///     f2_blocks: Precomputed F2 blocks containing every leaf
-///     edges: The graph as (from, to) pairs. A node with two incoming edges is
-///         an admixture node.
-///     admix_weights: Fit at these weights instead of optimizing them, one
-///         per admixture node in order of first appearance: the weight of the
-///         incoming edge whose source node appears first.
-///     numstart: Random starts for the admixture weights (default: 10)
-///     seed: Seed for the random starts, as R's ``set.seed`` (default: 1);
-///         with the same seed the starts are admixtools2's
-///     diag: Regularization of the edge-length fit (default: 1e-4)
-///     diag_f3: Regularization of the f3 covariance (default: 1e-5)
-///     constrained: Lengths >= 0 and weights in [0, 1] (default: True)
-///     f2_blocks_test: Also score the fit against these blocks' f3
-///         statistics (``score_test``), for an out-of-sample score
+/// Parameters
+/// ----------
+/// f2_blocks
+///     F2 blocks containing every leaf.
+/// edges
+///     The graph as ``(from, to)`` pairs. A node with two incoming edges is
+///     an admixture node.
+/// admix_weights
+///     Fit at these weights instead of optimizing them, one per admixture
+///     node in order of first appearance: the weight of the incoming edge
+///     whose source node appears first. None (the default) to optimize.
+/// numstart
+///     Random starts for the admixture weights (default 10).
+/// seed
+///     Seed for the random starts, as R's ``set.seed`` (default 1); with
+///     the same seed the starts are admixtools2's.
+/// diag
+///     Regularization of the edge-length fit (default 1e-4).
+/// diag_f3
+///     Regularization of the f3 covariance (default 1e-5).
+/// constrained
+///     Lengths >= 0 and weights in [0, 1] (default True).
+/// f2_blocks_test
+///     Also score the fit against these blocks' f3 statistics
+///     (``score_test``), for an out-of-sample score; None (the default)
+///     for none.
 ///
-/// Returns:
-///     PyQpGraphResult with fitted edges, score, f3 fits and the random starts
+/// Returns
+/// -------
+/// PyQpGraphResult
+///     The fitted edges, score, f3 fits and the random starts.
 #[pyfunction]
 #[pyo3(signature = (f2_blocks, edges, *, admix_weights=None, numstart=10, seed=1, diag=1e-4, diag_f3=1e-5, constrained=true, f2_blocks_test=None))]
 #[allow(clippy::too_many_arguments)]

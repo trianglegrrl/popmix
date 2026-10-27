@@ -16,24 +16,37 @@ use std::collections::HashMap;
 
 /// Detect the genotype file format at a given prefix.
 ///
-/// Args:
-///     prefix: Path prefix for the dataset (or full path for VCF files)
+/// Parameters
+/// ----------
+/// prefix
+///     Path prefix of the dataset, or the full path of a VCF file.
 ///
-/// Returns:
-///     Format name: "ANCESTRYMAP", "EIGENSTRAT", "PED", "PACKEDPED", "PACKEDANCESTRYMAP", or "VCF"
+/// Returns
+/// -------
+/// str
+///     The format's name: "VCF", "PACKEDPED" (PLINK .bed), "PED",
+///     "ANCESTRYMAP", "TGENO", "PACKEDANCESTRYMAP" or "EIGENSTRAT", checked
+///     in that order. No genotype files raises ``MissingFileError``.
 #[pyfunction]
 pub(crate) fn detect_format(prefix: &str) -> PyResult<String> {
     let format = GenoFormat::detect(prefix)?;
     Ok(format.name().to_string())
 }
 
-/// Get information about a genotype dataset without reading all data.
+/// Describe a genotype dataset without reading its genotypes.
 ///
-/// Args:
-///     prefix: Path prefix for the dataset
+/// Parameters
+/// ----------
+/// prefix
+///     Path prefix of the dataset, or the full path of a VCF file.
 ///
-/// Returns:
-///     Dictionary with keys: format, n_samples, n_snps, populations
+/// Returns
+/// -------
+/// dict
+///     ``format`` ("vcf", "plink", "tgeno", "packedancestrymap" or
+///     "eigenstrat"), ``n_samples`` and ``n_snps`` (int), and
+///     ``populations`` (list of str, each once; sorted for a VCF, otherwise
+///     in no fixed order). No genotype files raises ``MissingFileError``.
 #[pyfunction]
 pub(crate) fn dataset_info(prefix: &str) -> PyResult<HashMap<String, Py<PyAny>>> {
     use std::path::Path;
@@ -147,13 +160,20 @@ pub(crate) fn dataset_info(prefix: &str) -> PyResult<HashMap<String, Py<PyAny>>>
     })
 }
 
-/// List all populations in a dataset with sample counts.
+/// List the populations of a dataset with their numbers of samples.
 ///
-/// Args:
-///     prefix: Path prefix for the dataset
+/// Only the sample file is read (.fam, .ind, or the VCF header).
 ///
-/// Returns:
-///     List of (population_name, sample_count) tuples, sorted by count descending
+/// Parameters
+/// ----------
+/// prefix
+///     Path prefix of the dataset, or the full path of a VCF file.
+///
+/// Returns
+/// -------
+/// list of tuple
+///     ``(population, n_samples)`` pairs, most samples first, ties by name.
+///     No genotype files raises ``MissingFileError``.
 #[pyfunction]
 pub(crate) fn list_populations(py: Python<'_>, prefix: &str) -> PyResult<Vec<(String, usize)>> {
     compute(py, move || {
@@ -199,20 +219,28 @@ pub(crate) fn list_populations(py: Python<'_>, prefix: &str) -> PyResult<Vec<(St
     })
 }
 
-/// Suggest similar population names for typos/errors.
+/// Suggest population names of a dataset close to a mistyped one.
 ///
-/// Uses simple string similarity:
-/// 1. Case-insensitive prefix match (highest priority)
-/// 2. Case-insensitive substring match
-/// 3. Levenshtein distance for typos
+/// Matches are ranked, ignoring case: the same name in another case, then
+/// names starting with the query, names containing it, names containing
+/// its first three characters, and names within Levenshtein distance 3.
+/// Within a rank, populations with more samples come first. The query
+/// itself, when it is a population, is not suggested.
 ///
-/// Args:
-///     prefix: Path prefix for the dataset
-///     query: The population name to find suggestions for
-///     limit: Maximum number of suggestions to return (default: 5)
+/// Parameters
+/// ----------
+/// prefix
+///     Path prefix of the dataset, or the full path of a VCF file.
+/// query
+///     The population name to find suggestions for.
+/// limit
+///     Maximum number of suggestions (default 5).
 ///
-/// Returns:
-///     List of (population_name, sample_count) tuples, most similar first
+/// Returns
+/// -------
+/// list of tuple
+///     ``(population, n_samples)`` pairs, closest first; empty if none is
+///     close.
 #[pyfunction]
 #[pyo3(signature = (prefix, query, *, limit=5))]
 pub(crate) fn suggest_populations(

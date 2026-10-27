@@ -6,9 +6,10 @@ use crate::{compute, require_sample_populations};
 use crate::{geno_fstats, ploidy};
 use numpy::{IntoPyArray, PyArray2};
 use popmix_core::python::{input_error, missing_file};
-use popmix_core::{AlleleFrequencies, GenotypeMatrix, Ploidy};
+use popmix_core::{AlleleFrequencies, GenotypeMatrix, Ploidy, PopmixError};
 use popmix_io::tgeno::{is_tgeno_format, TgenoReader};
 use popmix_io::{is_packed_format, EigenstratReader, PackedAncestryMapReader, PlinkReader};
+use pyo3::exceptions::PyIndexError;
 use pyo3::prelude::*;
 
 /// What `__reduce__` returns: the callable that rebuilds an object, and its
@@ -293,14 +294,13 @@ impl PyGenotypeMatrix {
             .collect()
     }
 
-    /// Get genotypes as a numpy array.
+    /// Get the genotypes as a numpy array (a copy).
     ///
-    /// Returns:
-    ///     2D numpy array of shape (n_snps, n_samples) with values:
-    ///     - 0 = Homozygous reference
-    ///     - 1 = Heterozygous
-    ///     - 2 = Homozygous alternate
-    ///     - 3 = Missing
+    /// Returns
+    /// -------
+    /// numpy.ndarray
+    ///     uint8 array of shape (n_snps, n_samples): 0, 1 or 2 copies of the
+    ///     counted allele, 3 for missing.
     fn to_numpy<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<u8>> {
         // one copy of the contiguous matrix
         PyArray2::from_array(py, &self.inner.data())
@@ -308,12 +308,20 @@ impl PyGenotypeMatrix {
 
     /// Compute allele frequencies per population.
     ///
-    /// Args:
-    ///     populations: Optional list of population names to compute frequencies for.
-    ///                  If None, computes for all populations (slow for large datasets).
+    /// A pseudohaploid sample's call counts as one allele.
     ///
-    /// Returns:
-    ///     PyAlleleFrequencies with frequency data for the specified populations.
+    /// Parameters
+    /// ----------
+    /// populations
+    ///     Populations to compute frequencies for, each once; None (the
+    ///     default) for every population, which is slow for large datasets.
+    ///     A population with no samples raises ``PopulationNotFoundError``,
+    ///     a repeated one ``InputError``.
+    ///
+    /// Returns
+    /// -------
+    /// AlleleFrequencies
+    ///     The frequencies of the given populations, in that order.
     #[pyo3(signature = (populations=None))]
     fn allele_frequencies(
         &self,
@@ -406,39 +414,69 @@ impl PyAlleleFrequencies {
             .collect()
     }
 
-    /// Get allele frequencies as a numpy array.
+    /// Get the allele frequencies as a numpy array (a copy).
     ///
-    /// Returns:
-    ///     2D numpy array of shape (n_snps, n_populations) with frequency values.
-    ///     NaN indicates missing data.
+    /// Returns
+    /// -------
+    /// numpy.ndarray
+    ///     float64 array of shape (n_snps, n_populations); NaN where a
+    ///     population has no observed allele.
     fn to_numpy<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
         self.inner.frequencies().clone().into_pyarray(py)
     }
 
-    /// Get observation counts as a numpy array.
+    /// Get the numbers of observed alleles as a numpy array (a copy).
     ///
-    /// Returns:
-    ///     2D numpy array of shape (n_snps, n_populations) with observation counts.
+    /// Returns
+    /// -------
+    /// numpy.ndarray
+    ///     uint32 array of shape (n_snps, n_populations).
     fn counts_to_numpy<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<u32>> {
         self.inner.counts().clone().into_pyarray(py)
     }
 
-    /// Get allele frequency for a specific SNP and population.
-    fn get(&self, snp_idx: usize, pop_name: &str) -> Option<f64> {
-        let pop_idx = self.inner.pop_index(pop_name)?;
-        self.inner.get(snp_idx, pop_idx)
+    /// Get the allele frequency of one SNP in one population.
+    ///
+    /// Parameters
+    /// ----------
+    /// snp_idx
+    ///     Index of the SNP, from 0 to ``n_snps - 1``; another raises
+    ///     ``IndexError``.
+    /// pop_name
+    ///     Name of the population; an unknown one raises
+    ///     ``PopulationNotFoundError``.
+    ///
+    /// Returns
+    /// -------
+    /// float or None
+    ///     The frequency, or None if the population has no observed allele
+    ///     at the SNP.
+    fn get(&self, snp_idx: usize, pop_name: &str) -> PyResult<Option<f64>> {
+        let pop_idx = self
+            .inner
+            .pop_index(pop_name)
+            .ok_or_else(|| PopmixError::PopulationNotFound(pop_name.to_string()))?;
+        if snp_idx >= self.inner.n_snps() {
+            return Err(PyIndexError::new_err(format!(
+                "SNP index {snp_idx} out of range: there are {} SNPs",
+                self.inner.n_snps()
+            )));
+        }
+        Ok(self.inner.get(snp_idx, pop_idx))
     }
 
-    /// Filter to only include specified populations.
+    /// Keep only the given populations.
     ///
-    /// Returns a new AlleleFrequencies with only the specified populations;
-    /// an unknown or repeated population is a ValueError.
+    /// Parameters
+    /// ----------
+    /// populations
+    ///     Populations to keep, in the order wanted. An unknown population
+    ///     raises ``PopulationNotFoundError``, a repeated one ``InputError``.
     ///
-    /// Args:
-    ///     populations: List of population names to include
-    ///
-    /// Returns:
-    ///     PyAlleleFrequencies with only the specified populations
+    /// Returns
+    /// -------
+    /// AlleleFrequencies
+    ///     A new object with only those populations, in that order.
     fn filter_populations(&self, populations: Vec<String>) -> PyResult<Self> {
         let pop_refs: Vec<&str> = populations
             .iter()
@@ -454,14 +492,20 @@ impl PyAlleleFrequencies {
 // I/O functions
 // ============================================================================
 
-/// Read genotypes from PLINK binary format files.
+/// Read a PLINK .bed/.bim/.fam dataset.
 ///
-/// Args:
-///     prefix: Path prefix for the dataset (without .bed/.bim/.fam extension)
-///     snp_range: Optional tuple (start, end) to read only a range of SNPs
+/// Parameters
+/// ----------
+/// prefix
+///     Path of the dataset without the .bed/.bim/.fam extension.
+/// snp_range
+///     Only SNPs ``start:end`` (indices from 0), as a tuple
+///     ``(start, end)``, or None (the default) for all.
 ///
-/// Returns:
-///     PyGenotypeMatrix containing the genotype data and metadata
+/// Returns
+/// -------
+/// GenotypeMatrix
+///     The genotypes, SNPs by samples, with the samples and SNPs.
 #[pyfunction]
 #[pyo3(signature = (prefix, *, snp_range=None))]
 pub(crate) fn read_plink(
@@ -481,14 +525,20 @@ pub(crate) fn read_plink(
     })
 }
 
-/// Read genotypes from EIGENSTRAT text format files.
+/// Read a EIGENSTRAT .geno/.snp/.ind dataset.
 ///
-/// Args:
-///     prefix: Path prefix for the dataset (without .geno/.snp/.ind extension)
-///     snp_range: Optional tuple (start, end) to read only a range of SNPs
+/// Parameters
+/// ----------
+/// prefix
+///     Path of the dataset without the .geno/.snp/.ind extension.
+/// snp_range
+///     Only SNPs ``start:end`` (indices from 0), as a tuple
+///     ``(start, end)``, or None (the default) for all.
 ///
-/// Returns:
-///     PyGenotypeMatrix containing the genotype data and metadata
+/// Returns
+/// -------
+/// GenotypeMatrix
+///     The genotypes, SNPs by samples, with the samples and SNPs.
 #[pyfunction]
 #[pyo3(signature = (prefix, *, snp_range=None))]
 pub(crate) fn read_eigenstrat(
@@ -508,14 +558,20 @@ pub(crate) fn read_eigenstrat(
     })
 }
 
-/// Read genotypes from PACKEDANCESTRYMAP binary format files.
+/// Read a PACKEDANCESTRYMAP .geno/.snp/.ind dataset.
 ///
-/// Args:
-///     prefix: Path prefix for the dataset (without .geno/.snp/.ind extension)
-///     snp_range: Optional tuple (start, end) to read only a range of SNPs
+/// Parameters
+/// ----------
+/// prefix
+///     Path of the dataset without the .geno/.snp/.ind extension.
+/// snp_range
+///     Only SNPs ``start:end`` (indices from 0), as a tuple
+///     ``(start, end)``, or None (the default) for all.
 ///
-/// Returns:
-///     PyGenotypeMatrix containing the genotype data and metadata
+/// Returns
+/// -------
+/// GenotypeMatrix
+///     The genotypes, SNPs by samples, with the samples and SNPs.
 #[pyfunction]
 #[pyo3(signature = (prefix, *, snp_range=None))]
 pub(crate) fn read_packedancestrymap(
@@ -535,19 +591,21 @@ pub(crate) fn read_packedancestrymap(
     })
 }
 
-/// Read genotypes from VCF (Variant Call Format) files.
+/// Read a VCF file, plain (.vcf) or gzip-compressed (.vcf.gz).
 ///
-/// Supports both plain text (.vcf) and gzip-compressed (.vcf.gz) files.
+/// Records that are not biallelic SNPs are left out, with a
+/// ``PopmixWarning``. A VCF has no populations, so each sample's population
+/// is its sample ID.
 ///
-/// Args:
-///     path: Path to the VCF file (including .vcf or .vcf.gz extension)
+/// Parameters
+/// ----------
+/// path
+///     Path of the VCF file, with its .vcf or .vcf.gz extension.
 ///
-/// Returns:
-///     PyGenotypeMatrix containing the genotype data and metadata
-///
-/// Note:
-///     VCF files don't include population information. Each sample's
-///     population is set to its sample ID by default.
+/// Returns
+/// -------
+/// GenotypeMatrix
+///     The genotypes, SNPs by samples, with the samples and SNPs.
 #[pyfunction]
 pub(crate) fn read_vcf(py: Python<'_>, path: &str) -> PyResult<PyGenotypeMatrix> {
     compute(py, move || {
@@ -557,18 +615,30 @@ pub(crate) fn read_vcf(py: Python<'_>, path: &str) -> PyResult<PyGenotypeMatrix>
     })
 }
 
-/// Auto-detect file format and read genotypes.
+/// Read a genotype dataset in any format, detected from its files.
 ///
-/// Detects whether the dataset is PLINK, EIGENSTRAT, PACKEDANCESTRYMAP, or VCF format
-/// and reads it accordingly.
+/// The format is VCF (.vcf, .vcf.gz), PLINK (.bed, or .ped when reading
+/// all SNPs), or a .geno file in TGENO, PACKEDANCESTRYMAP or EIGENSTRAT
+/// format. No genotype files raises ``MissingFileError``.
 ///
-/// Args:
-///     prefix: Path prefix for the dataset
-///     snp_range: Optional tuple (start, end) to read only a range of SNPs
+/// Parameters
+/// ----------
+/// prefix
+///     Path prefix of the dataset (or the path of a VCF file).
+/// snp_range
+///     Only SNPs ``start:end`` (indices from 0), as a tuple
+///     ``(start, end)``, or None (the default) for all. A VCF is read whole
+///     and then cut.
+/// populations
+///     Only the samples of these populations, with every SNP, or None (the
+///     default) for every sample. Cannot be given with ``snp_range``
+///     (``InputError``).
 ///
-/// Returns:
-///     PyGenotypeMatrix containing the genotype data and metadata; samples
-///     with no heterozygous call among the SNPs read are pseudohaploid
+/// Returns
+/// -------
+/// GenotypeMatrix
+///     The genotypes, SNPs by samples, with the samples and SNPs; samples
+///     with no heterozygous call among the SNPs read are pseudohaploid.
 #[pyfunction]
 #[pyo3(signature = (prefix, *, snp_range=None, populations=None))]
 pub(crate) fn read_genotypes(

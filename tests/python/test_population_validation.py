@@ -109,3 +109,11 @@ def test_allele_frequencies_of_an_unknown_population_are_an_error():
     af = geno.allele_frequencies(populations=["French", "Yoruba"])
     with pytest.raises(ValueError, match="Nope"):
         af.filter_populations(["Nope", "French"])
+
+
+def test_a_frequency_of_an_unknown_population_or_snp_is_an_error():
+    af = pm.read_genotypes(SMALL).allele_frequencies(populations=["French", "Yoruba"])
+    with pytest.raises(pm.PopulationNotFoundError, match="Nope"):
+        af.get(0, "Nope")
+    with pytest.raises(IndexError, match=str(af.n_snps)):
+        af.get(af.n_snps, "French")

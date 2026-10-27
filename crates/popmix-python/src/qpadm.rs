@@ -250,12 +250,6 @@ impl From<popmix_core::QpAdmResult> for PyQpAdmResult {
 
 #[pymethods]
 impl PyQpAdmResult {
-    /// Check if the model is a good fit (p > threshold).
-    #[pyo3(signature = (p_threshold=0.05))]
-    fn is_good_fit(&self, p_threshold: f64) -> bool {
-        self.p_value > p_threshold
-    }
-
     /// Whether every weight is feasible (in [0, 1]).
     #[getter]
     fn feasible(&self) -> bool {

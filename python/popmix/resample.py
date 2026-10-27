@@ -31,7 +31,18 @@ from popmix.dstats import qp3pop, qpdstat
 
 
 def loo_list(f2_blocks: _core.F2Blocks) -> list[_core.F2Blocks]:
-    """The f2 blocks with each block left out in turn (admixtools2 ``loo_list``)."""
+    """The f2 blocks with each block left out in turn (admixtools2 ``loo_list``).
+
+    Parameters
+    ----------
+    f2_blocks
+        f2 blocks to resample.
+
+    Returns
+    -------
+    list of F2Blocks
+        One per block: every block but that one, in block order.
+    """
     n = f2_blocks.n_blocks
     return [f2_blocks.select_blocks([b for b in range(n) if b != i]) for i in range(n)]
 
@@ -150,6 +161,19 @@ def qpgraph_resample_multi(
     blocks its resample left out (admixtools2 ``qpgraph_resample_multi``);
     compare two with ``compare_fits(fits[0].score_test, fits[1].score_test)``.
 
+    Parameters
+    ----------
+    f2_blocks
+        f2 blocks holding every population of the graphs.
+    graphs
+        Graphs, each a list of (from, to) edges.
+    nboot
+        Number of bootstrap resamples.
+    boot_seed
+        R seed for the bootstrap draws.
+    **qpgraph_args
+        Passed to ``qpgraph``.
+
     Returns
     -------
     list of pandas.DataFrame
@@ -242,6 +266,22 @@ def qpadm_resample_snps(
 ) -> pd.DataFrame:
     """qpAdm on each resample of the blocks (admixtools2 ``qpadm_resample_snps``).
 
+    Parameters
+    ----------
+    f2_blocks
+        f2 blocks holding every population.
+    left, right
+        Left (sources) and right populations.
+    target
+        Target population.
+    boot
+        False (default): leave out each block in turn. True: as many
+        bootstrap resamples as blocks; an integer: that many.
+    boot_seed
+        R seed for the bootstrap draws.
+    **qpadm_args
+        Passed to ``qpadm``.
+
     Returns
     -------
     pandas.DataFrame
@@ -261,6 +301,20 @@ def qpwave_resample_snps(
     **qpwave_args: Any,
 ) -> pd.DataFrame:
     """qpWave on each resample of the blocks (admixtools2 ``qpwave_resample_snps``).
+
+    Parameters
+    ----------
+    f2_blocks
+        f2 blocks holding every population.
+    left, right
+        Left and right populations.
+    boot
+        False (default): leave out each block in turn. True: as many
+        bootstrap resamples as blocks; an integer: that many.
+    boot_seed
+        R seed for the bootstrap draws.
+    **qpwave_args
+        Passed to ``qpwave``.
 
     Returns
     -------
@@ -295,7 +349,29 @@ def qpdstat_resample_snps(
 ) -> pd.DataFrame:
     """f4-statistics on each resample of the blocks (admixtools2
     ``qpdstat_resample_snps``): ``qpdstat``'s rows for each resample, with its
-    ``id`` and ``sel``."""
+    ``id`` and ``sel``.
+
+    Parameters
+    ----------
+    f2_blocks
+        f2 blocks holding every population.
+    pop1, pop2, pop3, pop4
+        Populations, as for ``qpdstat``.
+    boot
+        False (default): leave out each block in turn. True: as many
+        bootstrap resamples as blocks; an integer: that many.
+    boot_seed
+        R seed for the bootstrap draws.
+    **qpdstat_args
+        Passed to ``qpdstat``.
+
+    Returns
+    -------
+    pandas.DataFrame
+        ``id`` (resample, from 1), ``sel`` (blocks used, 0-based) and
+        ``qpdstat``'s columns (``pop1``..``pop4``, ``est``, ``se``, ``z``,
+        ``p``), one row per resample and population quadruple.
+    """
     return _fstat_resample(qpdstat, f2_blocks, boot, boot_seed,
                            {"pop1": pop1, "pop2": pop2, "pop3": pop3, "pop4": pop4}, qpdstat_args)
 
@@ -311,7 +387,29 @@ def qp3pop_resample_snps(
 ) -> pd.DataFrame:
     """f3-statistics on each resample of the blocks (admixtools2
     ``qp3pop_resample_snps``): ``qp3pop``'s rows for each resample, with its
-    ``id`` and ``sel``."""
+    ``id`` and ``sel``.
+
+    Parameters
+    ----------
+    f2_blocks
+        f2 blocks holding every population.
+    pop1, pop2, pop3
+        Populations, as for ``qp3pop``.
+    boot
+        False (default): leave out each block in turn. True: as many
+        bootstrap resamples as blocks; an integer: that many.
+    boot_seed
+        R seed for the bootstrap draws.
+    **qp3pop_args
+        Passed to ``qp3pop``.
+
+    Returns
+    -------
+    pandas.DataFrame
+        ``id`` (resample, from 1), ``sel`` (blocks used, 0-based) and
+        ``qp3pop``'s columns (``pop1``..``pop3``, ``est``, ``se``, ``z``,
+        ``p``), one row per resample and population triple.
+    """
     return _fstat_resample(qp3pop, f2_blocks, boot, boot_seed, {"pop1": pop1, "pop2": pop2, "pop3": pop3},
                            qp3pop_args)
 

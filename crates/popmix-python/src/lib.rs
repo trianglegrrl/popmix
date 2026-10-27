@@ -76,14 +76,20 @@ fn require_sample_populations(samples: &[popmix_core::Sample], pops: &[String]) 
 // Thread pool functions
 // ============================================================================
 
-/// Set the number of threads popmix computes with (4 until set); it can be
-/// changed at any time.
+/// Set the number of threads popmix computes with (4 until set).
 ///
-/// Args:
-///     threads: Number of threads to use. Defaults to 4 if not specified.
+/// It can be changed at any time.
 ///
-/// Returns:
-///     True.
+/// Parameters
+/// ----------
+/// threads
+///     Number of threads, from 1 to 1024; None (the default) means 4.
+///
+/// Returns
+/// -------
+/// bool
+///     True. Raises ``InputError`` for a count outside 1 to 1024, and
+///     ``FileError`` if the threads cannot be started.
 #[pyfunction]
 #[pyo3(signature = (threads=None))]
 fn init_threads(threads: Option<usize>) -> PyResult<bool> {
@@ -95,13 +101,23 @@ pub(crate) fn compute<T: Send>(py: Python<'_>, f: impl FnOnce() -> T + Send) -> 
     py.detach(|| popmix_core::threading::install(f))
 }
 
-/// Get the current number of threads.
+/// Get the number of threads popmix computes with.
+///
+/// Returns
+/// -------
+/// int
+///     The count set by ``init_threads``, or 4 if it has not been called.
 #[pyfunction]
 fn get_threads() -> usize {
     popmix_core::threading::current_threads()
 }
 
 /// Get the popmix version.
+///
+/// Returns
+/// -------
+/// str
+///     The version of the compiled extension, such as ``"1.0.0"``.
 #[pyfunction]
 fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")

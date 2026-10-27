@@ -77,6 +77,21 @@ def qpf4ratio(f2_blocks: _core.F2Blocks, test: str, source_a: str, source_b: str
     f4(A, O; X, C) / f4(A, O; B, C) for test X, sources A and B, outgroup O
     and reference C.
 
+    Parameters
+    ----------
+    f2_blocks
+        f2 blocks holding all five populations.
+    test
+        The admixed population X.
+    source_a
+        The source A whose share is estimated.
+    source_b
+        The other source B.
+    outgroup
+        The outgroup O.
+    reference
+        The reference C.
+
     Returns
     -------
     F4RatioResult
