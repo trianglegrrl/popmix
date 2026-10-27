@@ -450,10 +450,14 @@ thread count.
   *Done in 43da0b9:* `alpha` option (Rust, Python, `--alpha`), in the result
   and JSON; `is_clade` removed; the CLI calls the rank a lower bound and
   says rank 0 not rejected is not a clade.
-- [ ] **G3. DATES/ALDER dates:** "years BP" is generations × 29 before the
+- [x] **G3. DATES/ALDER dates:** "years BP" is generations × 29 before the
   sample lived (`dates/dating.rs:254`, `cli/__init__.py:1254`): take the
   sample age, make generation time an option with uncertainty, and stop
   presenting R² as evidence of a single pulse. PR, AI
+  *Done in 0e72ab3:* `sample_age(_se)` and `generation_time_se` (Rust,
+  Python, CLI) enter the years and their SE; the CLI says "before the
+  admixed samples lived" without a sample age, and that R² is not evidence
+  of a single pulse.
 - [ ] **G4. Warn on few blocks or chromosomes:** leave-one-chromosome-out
   jackknife on 3 chromosomes; `f4_matrix.rs:120` accepts 2 blocks; qpAdm's
   χ² treats the jackknife covariance as known, inflated when (nl−1)(nr−1)
