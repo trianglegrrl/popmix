@@ -1,4 +1,3 @@
-
 use super::*;
 
 fn problem<'a>(l: &'a [f64], u: &'a [f64], nbd: &'a [u8], m: usize) -> Problem<'a> {

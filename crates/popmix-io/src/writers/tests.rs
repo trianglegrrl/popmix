@@ -1,4 +1,3 @@
-
 use super::*;
 use ndarray::array;
 use popmix_core::genotypes::{Chromosome, Sex};

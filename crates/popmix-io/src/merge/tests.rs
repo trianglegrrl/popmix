@@ -1,4 +1,3 @@
-
 use super::*;
 use popmix_core::genotypes::{Chromosome, Ploidy, PopulationId};
 

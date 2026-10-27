@@ -1,4 +1,3 @@
-
 use super::*;
 use crate::genotypes::{PopulationId, Sample, Snp};
 use ndarray::Array2;

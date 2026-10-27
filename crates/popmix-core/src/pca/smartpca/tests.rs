@@ -1,4 +1,3 @@
-
 use super::*;
 use crate::fstats::MatrixRows;
 use crate::genotype_matrix::GenotypeMatrix;
