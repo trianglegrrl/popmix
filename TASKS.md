@@ -504,8 +504,12 @@ thread count.
   `0.0000`, not `.6f`). PG, PR
 - [ ] **H5. Strand-ambiguous SNPs kept on request** when both files share a
   strand (two AADR releases). PG
-- [ ] **H6. qpadm `--compat`** on the CLI, as DEVIATIONS.md step 2 promises.
+- [x] **H6. qpadm `--compat`** on the CLI, as DEVIATIONS.md step 2 promises.
   AI
+  *Done in 6caf8ca:* `popmix qpadm` prints the popdrop table (text,
+  JSON) and takes `--compat admixtools2-2.0.10`; `qpgraph --dot` takes it
+  for the DOT text. `test_every_compat_switch_is_on_the_cli` holds every
+  public function with `compat` to its command.
 - [ ] **H7. Calibration by simulation:** a command giving the false-positive
   rate and power of a qpAdm or f4 design on msprime simulations. PR
   Decided: popmix reads simulated genotypes the user makes with msprime
