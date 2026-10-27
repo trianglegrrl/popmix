@@ -385,6 +385,30 @@ impl GenotypeRows for MergedRows<'_> {
     }
 }
 
+impl crate::writers::SampleGenotypes for MergedRows<'_> {
+    fn fill_samples(&self, samples: std::ops::Range<usize>, n_snps: usize, out: &mut [u8]) {
+        let na = self.a.n_samples();
+        let split = samples.end.clamp(samples.start, na.max(samples.start));
+        let (out_a, out_b) = out.split_at_mut((split - samples.start) * n_snps);
+        let snps = self.snps;
+        if split > samples.start {
+            self.a
+                .fill_samples_of(samples.start..split, n_snps, out_a, &|j| {
+                    (snps[j].file_a_idx, false)
+                });
+        }
+        if samples.end > split {
+            self.b
+                .fill_samples_of(split - na..samples.end - na, n_snps, out_b, &|j| {
+                    (
+                        snps[j].file_b_idx,
+                        snps[j].allele_match == AlleleMatch::Flipped,
+                    )
+                });
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -766,6 +790,16 @@ mod tests {
             assert_eq!(row, expected, "SNP {s}");
         }
         assert!(rows.next_row(&mut row).is_err());
+
+        // and a block of samples at a time, across the two files
+        use crate::writers::SampleGenotypes;
+        let n = merged.n_snps();
+        let mut block = vec![9u8; 4 * n];
+        rows.fill_samples(3..7, n, &mut block);
+        for (k, s) in (3..7).enumerate() {
+            let expected: Vec<u8> = (0..n).map(|j| merged.get(j, s) as u8).collect();
+            assert_eq!(&block[k * n..(k + 1) * n], &expected[..], "sample {s}");
+        }
     }
 
     #[test]

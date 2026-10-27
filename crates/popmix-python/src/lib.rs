@@ -702,6 +702,33 @@ pub(crate) fn mapped_input(prefix: &str, format: GenoFormat) -> PyResult<Option<
     })
 }
 
+/// Can `format` be written from a file read in place: one SNP at a time, or
+/// (PED, TGENO) a block of samples at a time?
+fn written_streamed(format: GenoFormat) -> bool {
+    written_by_rows(format) || by_samples(format)
+}
+
+/// Is `format` stored sample by sample (written by [`write_samples`])?
+fn by_samples(format: GenoFormat) -> bool {
+    matches!(format, GenoFormat::Ped | GenoFormat::Tgeno)
+}
+
+/// Write PED or TGENO from genotypes read a block of samples at a time.
+fn write_samples(
+    format: GenoFormat,
+    output_prefix: &str,
+    samples: &[Sample],
+    snps: &[Snp],
+    genotypes: &dyn popmix_io::SampleGenotypes,
+) -> PyResult<()> {
+    if format == GenoFormat::Ped {
+        popmix_io::write_ped_samples(output_prefix, samples, snps, genotypes)
+    } else {
+        popmix_io::write_tgeno_samples(output_prefix, samples, snps, genotypes)
+    }
+    .map_err(to_py_err)
+}
+
 /// Can `format` be written one SNP at a time?
 fn written_by_rows(format: GenoFormat) -> bool {
     matches!(
@@ -749,19 +776,23 @@ fn convertf_streamed(
     in_format: GenoFormat,
     out_format: GenoFormat,
 ) -> PyResult<Option<(usize, usize)>> {
-    if !written_by_rows(out_format) {
+    if !written_streamed(out_format) {
         return Ok(None);
     }
     let Some((file, samples, snps)) = mapped_input(input_prefix, in_format)? else {
         return Ok(None);
     };
-    let mut rows = popmix_io::SnpMajorRows::from_file(
-        file,
-        vec![true; snps.len()],
-        (0..samples.len()).collect(),
-    )
-    .map_err(to_py_err)?;
-    write_rows(out_format, output_prefix, &samples, &snps, &mut rows)?;
+    if by_samples(out_format) {
+        write_samples(out_format, output_prefix, &samples, &snps, &file)?;
+    } else {
+        let mut rows = popmix_io::SnpMajorRows::from_file(
+            file,
+            vec![true; snps.len()],
+            (0..samples.len()).collect(),
+        )
+        .map_err(to_py_err)?;
+        write_rows(out_format, output_prefix, &samples, &snps, &mut rows)?;
+    }
     Ok(Some((samples.len(), snps.len())))
 }
 
@@ -940,7 +971,7 @@ fn merge(
 
         // Both inputs read in place and an output written SNP by SNP: stream,
         // without holding either file's genotypes in memory
-        if written_by_rows(out_format) {
+        if written_streamed(out_format) {
             let in_a = mapped_input(file_a, format_of(file_a, input_format_a)?)?;
             let in_b = mapped_input(file_b, format_of(file_b, input_format_b)?)?;
             if let (Some((fa, samples_a, snps_a)), Some((fb, samples_b, snps_b))) = (in_a, in_b) {
@@ -949,7 +980,11 @@ fn merge(
                         .map_err(to_py_err)?;
                 let snps: Vec<Snp> = merged_snps.iter().map(|m| m.snp.clone()).collect();
                 let mut rows = popmix_io::merge::MergedRows::new(&fa, &fb, &merged_snps);
-                write_rows(out_format, output, &samples, &snps, &mut rows)?;
+                if by_samples(out_format) {
+                    write_samples(out_format, output, &samples, &snps, &rows)?;
+                } else {
+                    write_rows(out_format, output, &samples, &snps, &mut rows)?;
+                }
                 return Ok((
                     snps_a.len(),
                     snps_b.len(),

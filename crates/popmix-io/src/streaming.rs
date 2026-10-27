@@ -449,6 +449,60 @@ impl SnpMajor {
     }
 }
 
+impl SnpMajor {
+    /// [`SampleGenotypes::fill_samples`] for `n_snps` SNPs, SNP `j` being
+    /// this file's SNP `snp_of(j).0`, its alleles swapped (0 <-> 2) if
+    /// `snp_of(j).1`.
+    ///
+    /// [`SampleGenotypes::fill_samples`]: crate::writers::SampleGenotypes::fill_samples
+    pub fn fill_samples_of(
+        &self,
+        samples: std::ops::Range<usize>,
+        n_snps: usize,
+        out: &mut [u8],
+        snp_of: &(dyn Fn(usize) -> (usize, bool) + Sync),
+    ) {
+        // tiles of SNPs in parallel, each record read once for the block
+        const TILE: usize = 4096;
+        let width = samples.len();
+        let tiles: Vec<(usize, Vec<u8>)> = (0..n_snps)
+            .step_by(TILE)
+            .collect::<Vec<_>>()
+            .into_par_iter()
+            .map(|lo| {
+                let hi = (lo + TILE).min(n_snps);
+                let mut tile = vec![0u8; width * (hi - lo)];
+                for j in lo..hi {
+                    let (snp, flipped) = snp_of(j);
+                    let record = self.record(snp);
+                    for (k, s) in samples.clone().enumerate() {
+                        let g = self.code(record, s);
+                        tile[k * (hi - lo) + j - lo] = if flipped && g != 1 && g != 3 {
+                            2 - g
+                        } else {
+                            g
+                        };
+                    }
+                }
+                (lo, tile)
+            })
+            .collect();
+        for (lo, tile) in tiles {
+            let len = tile.len() / width.max(1);
+            for k in 0..width {
+                out[k * n_snps + lo..k * n_snps + lo + len]
+                    .copy_from_slice(&tile[k * len..(k + 1) * len]);
+            }
+        }
+    }
+}
+
+impl crate::writers::SampleGenotypes for SnpMajor {
+    fn fill_samples(&self, samples: std::ops::Range<usize>, n_snps: usize, out: &mut [u8]) {
+        self.fill_samples_of(samples, n_snps, out, &|j| (j, false));
+    }
+}
+
 /// Genotype rows streamed from a [`SnpMajor`] file: the SNPs marked in
 /// `keep`, in file order, for the given samples (by index in the file).
 pub struct SnpMajorRows {

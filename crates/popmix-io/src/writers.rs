@@ -115,20 +115,136 @@ pub fn write_eigenstrat_rows(
 ///
 /// PED format uses allele codes (A/C/G/T or 1/2) with 0 for missing.
 pub fn write_ped(prefix: impl AsRef<Path>, matrix: &GenotypeMatrix) -> Result<()> {
+    write_ped_samples(prefix, matrix.samples(), matrix.snps(), matrix)
+}
+
+/// [`write_ped`] from genotypes read a block of samples at a time, so that
+/// at most [`BLOCK_BYTES`] of them are held at once.
+pub fn write_ped_samples(
+    prefix: impl AsRef<Path>,
+    samples: &[Sample],
+    snps: &[Snp],
+    genotypes: &dyn SampleGenotypes,
+) -> Result<()> {
+    write_ped_blocks(prefix, samples, snps, genotypes, block_size(snps.len()))
+}
+
+fn write_ped_blocks(
+    prefix: impl AsRef<Path>,
+    samples: &[Sample],
+    snps: &[Snp],
+    genotypes: &dyn SampleGenotypes,
+    block: usize,
+) -> Result<()> {
+    use rayon::prelude::*;
     let prefix = prefix.as_ref();
+    let mut writer = BufWriter::new(File::create(format!("{}.ped", prefix.display()))?);
+    let n_snps = snps.len();
+    // a line is about 4 bytes per SNP: build a few at a time, in parallel
+    let at_once = 2 * rayon::current_num_threads();
+    for_sample_blocks(samples.len(), n_snps, block, genotypes, |lo, codes| {
+        let rows: Vec<&[u8]> = codes.chunks(n_snps.max(1)).collect();
+        for (c, chunk) in rows.chunks(at_once).enumerate() {
+            let lines: Vec<Vec<u8>> = chunk
+                .par_iter()
+                .enumerate()
+                .map(|(k, codes)| ped_line(&samples[lo + c * at_once + k], snps, codes))
+                .collect();
+            for line in lines {
+                writer.write_all(&line)?;
+            }
+        }
+        Ok(())
+    })?;
+    writer.flush()?;
+    // .map, as PLINK names it, and .pedind
+    write_map_file(&format!("{}.map", prefix.display()), snps)?;
+    write_pedind_file(&format!("{}.pedind", prefix.display()), samples)?;
+    Ok(())
+}
 
-    // Write .ped file
-    let ped_path = format!("{}.ped", prefix.display());
-    write_ped_file(&ped_path, matrix)?;
+/// A sample's line of a .ped: FID (the population), IID, no parents, sex,
+/// the population again as phenotype (for convertf's outputgroup), then two
+/// alleles per SNP, `0 0` when missing.
+fn ped_line(sample: &Sample, snps: &[Snp], codes: &[u8]) -> Vec<u8> {
+    let mut line = format!(
+        "{}\t{}\t0\t0\t{}\t{}\t1",
+        sample.population,
+        sample.id,
+        sample.sex.fam_code(),
+        sample.population
+    )
+    .into_bytes();
+    line.reserve(4 * snps.len() + 1);
+    let mut buf = [0u8; 4];
+    for (snp, &code) in snps.iter().zip(codes) {
+        let (a1, a2) = match code {
+            0 => (snp.allele_ref, snp.allele_ref),
+            1 => (snp.allele_ref, snp.allele_alt),
+            2 => (snp.allele_alt, snp.allele_alt),
+            _ => ('0', '0'),
+        };
+        for allele in [a1, a2] {
+            line.push(b'\t');
+            line.extend_from_slice(allele.encode_utf8(&mut buf).as_bytes());
+        }
+    }
+    line.push(b'\n');
+    line
+}
 
-    // Write .map file (PLINK uses .map extension)
-    let map_path = format!("{}.map", prefix.display());
-    write_map_file(&map_path, matrix.snps())?;
+// ============================================================================
+// Formats stored sample by sample (PED, TGENO)
+// ============================================================================
 
-    // Write .pedind file (optional but useful)
-    let ind_path = format!("{}.pedind", prefix.display());
-    write_pedind_file(&ind_path, matrix.samples())?;
+/// Genotypes read a block of samples at a time, for the formats stored
+/// sample by sample.
+pub trait SampleGenotypes: Sync {
+    /// The genotype codes (0, 1, 2; 3 missing) of samples `samples` at each
+    /// of `n_snps` SNPs, sample-major: `out[(s - samples.start) * n_snps + snp]`.
+    fn fill_samples(&self, samples: std::ops::Range<usize>, n_snps: usize, out: &mut [u8]);
+}
 
+impl SampleGenotypes for GenotypeMatrix {
+    fn fill_samples(&self, samples: std::ops::Range<usize>, n_snps: usize, out: &mut [u8]) {
+        use rayon::prelude::*;
+        let data = self.data();
+        out.par_chunks_mut(n_snps.max(1))
+            .zip(samples)
+            .for_each(|(row, s)| {
+                for (snp, g) in row.iter_mut().enumerate() {
+                    *g = data[[snp, s]];
+                }
+            });
+    }
+}
+
+/// Genotypes held at once by the sample-major writers: 256 MB.
+pub const BLOCK_BYTES: usize = 256 << 20;
+
+/// Samples per block for `n_snps` SNPs.
+fn block_size(n_snps: usize) -> usize {
+    (BLOCK_BYTES / n_snps.max(1)).max(1)
+}
+
+/// Call `write(first sample, codes)` for each block of up to `block` samples,
+/// in order, with their codes sample-major.
+fn for_sample_blocks(
+    n_samples: usize,
+    n_snps: usize,
+    block: usize,
+    genotypes: &dyn SampleGenotypes,
+    mut write: impl FnMut(usize, &[u8]) -> Result<()>,
+) -> Result<()> {
+    let mut codes = vec![0u8; block.min(n_samples) * n_snps];
+    let mut lo = 0;
+    while lo < n_samples {
+        let hi = (lo + block).min(n_samples);
+        let out = &mut codes[..(hi - lo) * n_snps];
+        genotypes.fill_samples(lo..hi, n_snps, out);
+        write(lo, out)?;
+        lo = hi;
+    }
     Ok(())
 }
 
@@ -246,22 +362,32 @@ fn genotype(code: u8) -> Genotype {
 /// stored individual by individual, as AdmixTools 8 and AADR v66 write it
 /// (see [`crate::tgeno`]).
 pub fn write_tgeno(prefix: impl AsRef<Path>, matrix: &GenotypeMatrix) -> Result<()> {
-    let prefix = prefix.as_ref();
-    write_tgeno_geno(&format!("{}.geno", prefix.display()), matrix)?;
-    write_snp_file(&format!("{}.snp", prefix.display()), matrix.snps())?;
-    write_ind_file(&format!("{}.ind", prefix.display()), matrix.samples())?;
-    Ok(())
+    write_tgeno_samples(prefix, matrix.samples(), matrix.snps(), matrix)
 }
 
-// ============================================================================
-// Internal helper functions - Genotype files
-// ============================================================================
+/// [`write_tgeno`] from genotypes read a block of samples at a time.
+pub fn write_tgeno_samples(
+    prefix: impl AsRef<Path>,
+    samples: &[Sample],
+    snps: &[Snp],
+    genotypes: &dyn SampleGenotypes,
+) -> Result<()> {
+    write_tgeno_blocks(prefix, samples, snps, genotypes, block_size(snps.len()))
+}
 
-fn write_tgeno_geno(path: &str, matrix: &GenotypeMatrix) -> Result<()> {
-    let mut writer = BufWriter::new(File::create(path)?);
-    let (n_samples, n_snps) = (matrix.n_samples(), matrix.n_snps());
-    let ind_ids: Vec<&str> = matrix.samples().iter().map(|s| s.id.as_str()).collect();
-    let snp_ids: Vec<&str> = matrix.snps().iter().map(|s| s.id.as_str()).collect();
+fn write_tgeno_blocks(
+    prefix: impl AsRef<Path>,
+    samples: &[Sample],
+    snps: &[Snp],
+    genotypes: &dyn SampleGenotypes,
+    block: usize,
+) -> Result<()> {
+    use rayon::prelude::*;
+    let prefix = prefix.as_ref();
+    let mut writer = BufWriter::new(File::create(format!("{}.geno", prefix.display()))?);
+    let (n_samples, n_snps) = (samples.len(), snps.len());
+    let ind_ids: Vec<&str> = samples.iter().map(|s| s.id.as_str()).collect();
+    let snp_ids: Vec<&str> = snps.iter().map(|s| s.id.as_str()).collect();
     let header_text = format!(
         "TGENO {} {} {:x} {:x}",
         n_samples,
@@ -274,16 +400,24 @@ fn write_tgeno_geno(path: &str, matrix: &GenotypeMatrix) -> Result<()> {
     writer.write_all(&header)?;
 
     // one record per individual: SNP 0 in the high bits of byte 0
-    let mut record = vec![0u8; n_snps.div_ceil(4)];
-    for sample_idx in 0..n_samples {
-        record.fill(0);
-        for snp_idx in 0..n_snps {
-            let bits = matrix.get(snp_idx, sample_idx).to_packed_bits();
-            record[snp_idx / 4] |= bits << (6 - (snp_idx % 4) * 2);
-        }
-        writer.write_all(&record)?;
-    }
+    let record_len = n_snps.div_ceil(4);
+    for_sample_blocks(n_samples, n_snps, block, genotypes, |_, codes| {
+        let n = codes.len() / n_snps.max(1);
+        let mut records = vec![0u8; n * record_len];
+        records
+            .par_chunks_mut(record_len.max(1))
+            .zip(codes.par_chunks(n_snps.max(1)))
+            .for_each(|(record, codes)| {
+                for (snp, &code) in codes.iter().enumerate() {
+                    record[snp / 4] |= code << (6 - (snp % 4) * 2);
+                }
+            });
+        writer.write_all(&records)?;
+        Ok(())
+    })?;
     writer.flush()?;
+    write_snp_file(&format!("{}.snp", prefix.display()), snps)?;
+    write_ind_file(&format!("{}.ind", prefix.display()), samples)?;
     Ok(())
 }
 
@@ -331,45 +465,6 @@ fn write_eigenstrat_geno(
         writer.write_all(&line)?;
     }
     writer.flush()?;
-    Ok(())
-}
-
-fn write_ped_file(path: &str, matrix: &GenotypeMatrix) -> Result<()> {
-    let file = File::create(path)?;
-    let mut writer = BufWriter::new(file);
-
-    for sample_idx in 0..matrix.n_samples() {
-        let sample = &matrix.samples()[sample_idx];
-
-        // First 7 columns: FID IID PID MID SEX PHENO 1
-        // Using population as FID, sample ID as IID
-        // PID/MID = 0 (unknown parents)
-        // PHENO = population label (for outputgroup=YES compatibility)
-        write!(
-            writer,
-            "{}\t{}\t0\t0\t{}\t{}\t1",
-            sample.population,
-            sample.id,
-            sample.sex.fam_code(),
-            sample.population
-        )?;
-
-        // Two allele columns per SNP
-        for snp_idx in 0..matrix.n_snps() {
-            let snp = &matrix.snps()[snp_idx];
-            let geno = matrix.get(snp_idx, sample_idx);
-
-            let (a1, a2) = match geno {
-                Genotype::HomRef => (snp.allele_ref, snp.allele_ref),
-                Genotype::Het => (snp.allele_ref, snp.allele_alt),
-                Genotype::HomAlt => (snp.allele_alt, snp.allele_alt),
-                Genotype::Missing => ('0', '0'),
-            };
-            write!(writer, "\t{}\t{}", a1, a2)?;
-        }
-        writeln!(writer)?;
-    }
-
     Ok(())
 }
 
@@ -595,6 +690,48 @@ mod tests {
     use ndarray::array;
     use popmix_core::genotypes::{Chromosome, Sex};
     use tempfile::TempDir;
+
+    #[test]
+    fn ped_and_tgeno_written_by_sample_blocks_are_the_matrix_writes() {
+        let family = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/golden/dates/family_chr20_22"
+        );
+        let geno = crate::PackedAncestryMapReader::new(family)
+            .unwrap()
+            .read_all()
+            .unwrap();
+        let file = crate::SnpMajor::open_packed(
+            &format!("{family}.geno"),
+            geno.n_samples(),
+            geno.n_snps(),
+        )
+        .unwrap();
+        let dir = TempDir::new().unwrap();
+        let p = |name: &str| dir.path().join(name).to_string_lossy().to_string();
+        write_ped(p("matrix"), &geno).unwrap();
+        write_tgeno(p("matrix_t"), &geno).unwrap();
+        // 54 samples in blocks of 7: the last block is short
+        for block in [7, 1000] {
+            let (ped, tgeno) = (p(&format!("file{block}")), p(&format!("file_t{block}")));
+            write_ped_blocks(&ped, geno.samples(), geno.snps(), &file, block).unwrap();
+            write_tgeno_blocks(&tgeno, geno.samples(), geno.snps(), &file, block).unwrap();
+            for ext in ["ped", "map", "pedind"] {
+                assert_eq!(
+                    std::fs::read(format!("{}.{ext}", p("matrix"))).unwrap(),
+                    std::fs::read(format!("{ped}.{ext}")).unwrap(),
+                    "{ext}, blocks of {block}"
+                );
+            }
+            for ext in ["geno", "snp", "ind"] {
+                assert_eq!(
+                    std::fs::read(format!("{}.{ext}", p("matrix_t"))).unwrap(),
+                    std::fs::read(format!("{tgeno}.{ext}")).unwrap(),
+                    "{ext}, blocks of {block}"
+                );
+            }
+        }
+    }
 
     #[test]
     fn streamed_writes_are_the_matrix_writes() {

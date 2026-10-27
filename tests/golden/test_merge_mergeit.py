@@ -46,12 +46,12 @@ def test_merge_streamed_from_packed_and_plink_writes_the_same(tmp_path):
     pm.convertf(str(HERE / "b"), str(tmp_path / "b"), "plink")
     text = pm.merge(file_a=str(HERE / "a"), file_b=str(HERE / "b"), output=str(tmp_path / "text"),
                     output_format="eigenstrat")
-    for fmt in ("eigenstrat", "packedancestrymap"):
+    for fmt in ("eigenstrat", "packedancestrymap", "ped", "tgeno"):
         out = tmp_path / f"streamed_{fmt}"
         streamed = pm.merge(file_a=str(tmp_path / "a"), file_b=str(tmp_path / "b"), output=str(out),
                             output_format=fmt)
         assert streamed == text
         if fmt != "eigenstrat":
-            pm.convertf(str(out), str(tmp_path / "back"), "eigenstrat")
-            out = tmp_path / "back"
+            pm.convertf(str(out), str(tmp_path / f"back_{fmt}"), "eigenstrat")
+            out = tmp_path / f"back_{fmt}"
         assert _eigenstrat(out) == _eigenstrat(HERE / "reference")
