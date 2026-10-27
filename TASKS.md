@@ -772,8 +772,12 @@ thread count.
   pedantic (casts of counts, doc style, `must_use` on getters) stays off.
   Found doing it: a VCF given with an upper-case extension was not taken
   for one, and a SNP range of a VCF was ignored (fixed before this).
-- [ ] **M3. Document why graph search is split across Rust and Python** (or
+- [x] **M3. Document why graph search is split across Rust and Python** (or
   resolve it with F9). AI
+  *Resolved:* it is no longer split. The Python evolutionary search left
+  1.0 with C2, so both searches, exhaustive and stepwise, are Rust
+  (`qpgraph/graph_search.rs`); `popmix/graph_search.py` only checks the
+  method and turns results into `ScoredGraph`s, as its module doc says.
 - [x] **M4. CLI consistency** (found writing the skill, N): `sfs` with one
   population prints S/pi/Watterson/Tajima lines to stdout before its TSV
   (even with `-o`), and lacks `--pseudohaploid`; qpadm prints weight SEs
