@@ -1,13 +1,13 @@
 //! Bindings for kinship estimators.
 
 use numpy::IntoPyArray;
+use popmix_core::python::input_error;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
 use popmix_core::{king_robust, read_kinship, BitGenotypes, ReadCompat, ReadNorm, ReadOptions};
 
 use crate::geno_fstats::{open_source, rows_of};
-use crate::to_py_err;
 
 /// KING-robust kinship for every pair of samples of ``populations``, as
 /// PLINK 2 ``--make-king-table counts``.
@@ -29,8 +29,7 @@ pub fn king(
         let mut rows = rows_of(&mut source);
         let g = BitGenotypes::read(rows.as_mut(), n, snps.len())?;
         Ok::<_, popmix_core::PopmixError>(king_robust(&g))
-    })
-    .map_err(to_py_err)?;
+    })?;
     let d = PyDict::new(py);
     let id = |k: usize| samples[k].id.clone();
     d.set_item("id1", pairs.iter().map(|p| id(p.i)).collect::<Vec<_>>())?;
@@ -76,7 +75,7 @@ pub fn read_kinship_py(
     compat: Option<&str>,
     auto_only: bool,
 ) -> PyResult<Py<PyAny>> {
-    let bad = |msg: String| PyErr::new::<pyo3::exceptions::PyValueError, _>(msg);
+    let bad = |msg: String| input_error(msg);
     let norm = match (norm, norm_value) {
         (_, Some(v)) => ReadNorm::Value(v),
         ("median", None) => ReadNorm::Median,
@@ -129,8 +128,7 @@ pub fn read_kinship_py(
         let mut rows = rows_of(&mut source);
         let g = BitGenotypes::read(rows.as_mut(), n, snps.len())?;
         read_kinship(&g, &positions, &chroms, &options)
-    })
-    .map_err(to_py_err)?;
+    })?;
     let d = PyDict::new(py);
     let p = &out.pairs;
     let id = |k: usize| samples[k].id.clone();

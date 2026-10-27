@@ -6,12 +6,10 @@ use std::path::Path;
 
 use pyo3::prelude::*;
 
-use crate::to_py_err;
-
 /// Open a VCF, warning (UserWarning) about the records skipped because they
 /// are not biallelic SNPs: popmix's formats hold two single-base alleles.
 pub(crate) fn open_vcf(path: &str) -> PyResult<VcfReader> {
-    let reader = VcfReader::new(path).map_err(to_py_err)?;
+    let reader = VcfReader::new(path)?;
     let k = reader.skipped();
     if k.total() > 0 {
         Python::attach(|py| {

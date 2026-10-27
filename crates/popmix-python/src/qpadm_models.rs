@@ -3,7 +3,7 @@
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-use crate::{to_py_err, PyF2Blocks};
+use crate::PyF2Blocks;
 
 /// admixtools2 ``qpadm_p``: one qpAdm model's fit at rank ``rnk``.
 ///
@@ -33,8 +33,7 @@ fn qpadm_p<'py>(
         rnk,
         fudge,
         constrained,
-    )
-    .map_err(to_py_err)?;
+    )?;
     let d = PyDict::new(py);
     d.set_item("f4rank", r.f4rank)?;
     d.set_item("dof", r.dof)?;

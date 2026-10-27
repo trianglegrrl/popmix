@@ -1,13 +1,13 @@
 //! Bindings for ADMIXTURE-style ancestry estimation.
 
 use numpy::{IntoPyArray, PyReadonlyArray2};
+use popmix_core::python::{input_error, internal_error};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
 use popmix_core::{AdmixtureOptions, PackedGenotypes, Sample, Snp};
 
 use crate::geno_fstats::{open_source_filtered, rows_of};
-use crate::to_py_err;
 
 /// Genotypes of the samples of `populations`, with those samples and the
 /// SNPs used: the SNPs in `snp_ids` (in file order), or else the SNPs on
@@ -36,11 +36,10 @@ fn load(
     let geno = crate::compute(py, || {
         let mut rows = rows_of(&mut source);
         PackedGenotypes::read(rows.as_mut(), n, snps.len())
-    })
-    .map_err(to_py_err)?;
+    })?;
     if let Some(w) = &wanted {
         if snps.len() != w.len() {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+            return Err(input_error(format!(
                 "{} of the {} SNPs given are in {prefix}",
                 snps.len(),
                 w.len()
@@ -63,8 +62,7 @@ fn result(
     let d = PyDict::new(py);
     let k = fit.k;
     let as2d = |v: Vec<f64>, rows: usize| {
-        ndarray::Array2::from_shape_vec((rows, k), v)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+        ndarray::Array2::from_shape_vec((rows, k), v).map_err(|e| internal_error(e.to_string()))
     };
     d.set_item(
         "ids",
@@ -155,8 +153,7 @@ pub fn admixture_py(
             None => None,
         };
         Ok((fit, cv_error))
-    })
-    .map_err(to_py_err)?;
+    })?;
     result(py, fit, &snps, &samples, cv_error)
 }
 
@@ -176,7 +173,7 @@ pub fn admixture_loglik(
     let k = q.as_array().ncols();
     let q: Vec<f64> = q.as_array().iter().copied().collect();
     let p: Vec<f64> = p.as_array().iter().copied().collect();
-    popmix_core::admixture_loglik(&geno, &q, &p, k).map_err(to_py_err)
+    popmix_core::admixture_loglik(&geno, &q, &p, k).map_err(PyErr::from)
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

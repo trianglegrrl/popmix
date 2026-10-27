@@ -1,6 +1,7 @@
 //! Bindings for f4-, D- and f3-statistics computed from genotype files.
 
 use numpy::{IntoPyArray, PyArray2};
+use popmix_core::python::{internal_error, popmix_exception};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
@@ -11,7 +12,7 @@ use popmix_core::{
 use popmix_io::{PackedRows, SnpMajorRows};
 
 use crate::ploidy::{mapped, ploidy_rule, PloidyRule};
-use crate::{read_genotypes_of, to_py_err};
+use crate::read_genotypes_of;
 
 /// The SNPs, samples and row source for statistics on `populations`.
 pub(crate) enum Source {
@@ -75,7 +76,7 @@ fn open_source_filtered_with(
             Some(geno),
         )
     };
-    popmix_core::genotypes::check_sorted(&snps).map_err(to_py_err)?;
+    popmix_core::genotypes::check_sorted(&snps)?;
 
     let mut selected = Vec::new();
     let mut selected_samples = Vec::new();
@@ -95,10 +96,10 @@ fn open_source_filtered_with(
         .map(|p| p.as_str())
         .collect();
     if !missing.is_empty() {
-        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-            "populations not in {prefix}: {}",
-            missing.join(", ")
-        )));
+        return Err(popmix_exception(
+            "PopulationNotFoundError",
+            format!("populations not in {prefix}: {}", missing.join(", ")),
+        ));
     }
 
     let keep: Vec<bool> = snps.iter().map(keep_snp).collect();
@@ -109,9 +110,7 @@ fn open_source_filtered_with(
         .map(|(s, _)| s)
         .collect();
     let source = match (file, matrix) {
-        (Some(file), _) => {
-            Source::Packed(SnpMajorRows::from_file(file, keep, selected).map_err(to_py_err)?)
-        }
+        (Some(file), _) => Source::Packed(SnpMajorRows::from_file(file, keep, selected)?),
         (None, Some(m)) => {
             let rows = (0..keep.len()).filter(|&i| keep[i]).collect();
             Source::Matrix(m, rows, selected)
@@ -155,7 +154,7 @@ where
         Source::Packed(mut rows) => f(&mut rows),
         Source::Matrix(m, snps, samples) => f(&mut MatrixRows::new(&m, snps, samples)),
     }
-    .map_err(to_py_err)
+    .map_err(PyErr::from)
 }
 
 fn to_dict(py: Python<'_>, out: GenoStats) -> PyResult<Py<PyAny>> {
@@ -181,7 +180,7 @@ fn to_dict(py: Python<'_>, out: GenoStats) -> PyResult<Py<PyAny>> {
             let rows: Vec<Vec<f64>> = out.stats.iter().map(f).collect();
             let flat: Vec<f64> = rows.into_iter().flatten().collect();
             let arr = ndarray::Array2::from_shape_vec((out.stats.len(), n_blocks), flat)
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+                .map_err(|e| internal_error(e.to_string()))?;
             Ok(arr.into_pyarray(py))
         };
     d.set_item("block_num", blocks(&|s| s.blocks.num.clone())?)?;

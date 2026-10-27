@@ -534,10 +534,18 @@ thread count.
   `InvalidFileFormat` naming the file. `PopmixError::kind()` (a closed
   `ErrorKind`) is what the bindings map to Python exceptions. The
   seven files that grew moved their tests to `tests.rs` (I7).
-- [ ] **I2. Typed Python exceptions:** `FileNotFoundError`, `OSError`,
+- [x] **I2. Typed Python exceptions:** `FileNotFoundError`, `OSError`,
   `KeyError`/`ValueError` for populations and validation, popmix exception
   subclasses; `From<PopmixError> for PyErr` so `.map_err(to_py_err)` becomes
   `?` (everything is `RuntimeError` today, `lib.rs:36`). RS, PD
+  *Done in COMMIT:* `popmix.errors`: `PopmixError` and `InputError`,
+  `PopulationNotFoundError`, `MissingFileError`, `FileError`,
+  `ComputationError`, `InternalError`, each also the built-in it was
+  (`ValueError`, ...), so no `except` breaks; not `KeyError`, whose
+  `str()` quotes the message. `From<PopmixError> for PyErr` in core behind
+  the `python` feature: the 146 `.map_err(to_py_err)` are `?`; the
+  bindings' own 33 errors raise the same classes. The CLI keeps the
+  traceback of an `InternalError`. README "Errors".
 - [ ] **I3. Deliberate public API:** private fields with accessors on
   `F2Blocks`/`AlleleFrequencies`; `#[non_exhaustive]` options and results;
   `&Options` not `Option<Options>`; consistent `impl AsRef<Path>`; `impl

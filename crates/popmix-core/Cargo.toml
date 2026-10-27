@@ -9,7 +9,6 @@ description = "Core algorithms for population genetics F-statistics and admixtur
 
 [dependencies]
 ndarray = { workspace = true }
-# ndarray-linalg will be added when implementing qpAdm/qpGraph
 rayon = { workspace = true }
 thiserror = { workspace = true }
 petgraph = { workspace = true }
@@ -18,6 +17,11 @@ rustfft = "6.2"  # FFT for O(N log N) LD computation in DATES
 nalgebra = "0.33"
 faer = "0.24"
 statrs = "0.18"
+# only for the bindings: From<PopmixError> for PyErr (feature "python")
+pyo3 = { workspace = true, optional = true }
+
+[features]
+python = ["dep:pyo3"]
 
 [dev-dependencies]
 serde_json = "1.0"

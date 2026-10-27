@@ -34,16 +34,14 @@ from __future__ import annotations
 
 import json
 import math
-import os
-import signal
 import sys
-from typing import NoReturn
 
 import click
 
 import popmix as pm
 
-from ._population_checks import EXPECTED_ERRORS, validate_populations
+from ._errors import EXPECTED_ERRORS, fail
+from ._population_checks import validate_populations
 
 
 def _p_text(p: float, digits: int = 4) -> str:
@@ -63,21 +61,6 @@ def parse_population_list(ctx, param, value: str) -> list:
     return [p.strip() for p in value.split(",") if p.strip()]
 
 
-
-
-def fail(error: Exception) -> NoReturn:
-    """Report an expected error and exit 1; with --debug, raise it."""
-    if isinstance(error, BrokenPipeError):
-        # `popmix ... | head`: the reader closed the pipe. Exit as a process
-        # killed by SIGPIPE, without a message, with stdout on /dev/null so
-        # the interpreter's final flush cannot fail again.
-        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
-        sys.exit(128 + signal.SIGPIPE)
-    ctx = click.get_current_context(silent=True)
-    if ctx is not None and (ctx.find_root().obj or {}).get("debug"):
-        raise error
-    click.echo(f"Error: {error}", err=True)
-    sys.exit(1)
 
 
 def parse_snp_range(ctx, param, value: str | None) -> tuple[int, int] | None:

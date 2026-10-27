@@ -2,13 +2,13 @@
 
 use ndarray::Array2;
 use numpy::IntoPyArray;
+use popmix_core::python::{input_error, internal_error, popmix_exception};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
 use popmix_core::{joint_sfs, projected_sfs, AlleleFrequencies, JointSfsCompat, Spectrum};
 
 use crate::ploidy::{ploidy_rule, PloidyRule};
-use crate::to_py_err;
 
 /// Allele frequencies and counts of `populations`, in that order, with
 /// pseudo-haploid samples (found by `rule`) counting one allele.
@@ -27,7 +27,7 @@ fn allele_frequencies(
         let mut geno = crate::read_genotypes_of(prefix, populations)?;
         rule.apply(&mut geno);
         let geno = if auto_only {
-            geno.filter_autosomal().map_err(to_py_err)?
+            geno.filter_autosomal()?
         } else {
             geno
         };
@@ -40,9 +40,10 @@ fn allele_frequencies(
             .pop_index(p)
             .filter(|&k| af.counts.column(k).iter().any(|&c| c > 0));
         cols.push(k.ok_or_else(|| {
-            PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                "population {p} not in {prefix}"
-            ))
+            popmix_exception(
+                "PopulationNotFoundError",
+                format!("population {p} not in {prefix}"),
+            )
         })?);
     }
     let n = af.frequencies.nrows();
@@ -59,9 +60,9 @@ fn spectrum_dict<'py>(py: Python<'py>, sfs: Spectrum) -> PyResult<Bound<'py, PyD
     let dims = sfs.dims.clone();
     d.set_item("dims", dims.clone())?;
     let data = ndarray::ArrayD::from_shape_vec(dims.clone(), sfs.data)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        .map_err(|e| internal_error(e.to_string()))?;
     let mask = ndarray::ArrayD::from_shape_vec(dims, sfs.mask)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        .map_err(|e| internal_error(e.to_string()))?;
     d.set_item("data", data.into_pyarray(py))?;
     d.set_item("mask", mask.into_pyarray(py))?;
     Ok(d)
@@ -85,7 +86,7 @@ pub fn joint_sfs_py(
         None => JointSfsCompat::CORRECTED,
         Some("admixtools2-2.0.10") => JointSfsCompat::ADMIXTOOLS2_2_0_10,
         Some(other) => {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+            return Err(input_error(format!(
                 "unknown compat {other:?} for joint_sfs; expected None or \"admixtools2-2.0.10\""
             )))
         }
@@ -126,7 +127,7 @@ pub fn projected_sfs_py(
         .map(|p| af.counts.column(p).iter().copied().max().unwrap_or(0) as usize)
         .collect();
     let sizes = if sizes.is_empty() { max } else { sizes };
-    let (sfs, not_integer) = projected_sfs(&af, &sizes, folded).map_err(to_py_err)?;
+    let (sfs, not_integer) = projected_sfs(&af, &sizes, folded)?;
     let d = spectrum_dict(py, sfs)?;
     d.set_item("not_integer", not_integer)?;
     Ok(d.into())
@@ -141,7 +142,7 @@ pub fn sfs_summary(data: Vec<f64>, mask: Vec<bool>) -> PyResult<(f64, f64, f64, 
         data,
         mask,
     };
-    let s = popmix_core::SfsSummary::of(&sfs).map_err(to_py_err)?;
+    let s = popmix_core::SfsSummary::of(&sfs)?;
     Ok((s.s, s.pi, s.watterson_theta, s.tajima_d))
 }
 

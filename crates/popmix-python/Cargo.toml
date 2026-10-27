@@ -14,7 +14,7 @@ name = "_core"
 crate-type = ["cdylib"]
 
 [dependencies]
-popmix-core = { path = "../popmix-core", version = "=1.0.0" }
+popmix-core = { path = "../popmix-core", version = "=1.0.0", features = ["python"] }
 popmix-io = { path = "../popmix-io", version = "=1.0.0" }
 pyo3 = { workspace = true }
 numpy = { workspace = true }

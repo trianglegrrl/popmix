@@ -1,12 +1,12 @@
 //! Bindings for smartpca-style PCA.
 
 use numpy::{IntoPyArray, PyArray2};
+use popmix_core::python::{input_error, internal_error};
 use pyo3::prelude::*;
 
 use popmix_core::{smartpca, EigensoftCompat, PackedGenotypes, PcaOptions, SampleRole};
 
 use crate::geno_fstats::{open_source, rows_of};
-use crate::to_py_err;
 
 /// (eigenvalue, twstat, p, neff) of one Tracy-Widom row.
 type TwRow = (f64, Option<f64>, Option<f64>, Option<f64>);
@@ -53,7 +53,7 @@ impl PyPcaResult {
         let k = self.coords.first().map_or(0, |c| c.len());
         let flat: Vec<f64> = self.coords.iter().flatten().copied().collect();
         let arr = ndarray::Array2::from_shape_vec((self.coords.len(), k), flat)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            .map_err(|e| internal_error(e.to_string()))?;
         Ok(arr.into_pyarray(py))
     }
 }
@@ -96,13 +96,13 @@ pub fn smartpca_py(
         None => EigensoftCompat::CORRECTED,
         Some("eigensoft-7.2.1") => EigensoftCompat::V7_2_1,
         Some(other) => {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+            return Err(input_error(format!(
                 "unknown compat {other:?} for smartpca; expected None or \"eigensoft-7.2.1\""
             )))
         }
     };
     if let Some(p) = pca_pops.iter().find(|p| project_pops.contains(p)) {
-        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+        return Err(input_error(format!(
             "{p} is both a PCA and a projected population"
         )));
     }
@@ -133,8 +133,7 @@ pub fn smartpca_py(
         let mut rows = rows_of(&mut source);
         let geno = PackedGenotypes::read(rows.as_mut(), n_samples, snps.len())?;
         smartpca(&geno, &roles, &options)
-    })
-    .map_err(to_py_err)?;
+    })?;
 
     let id = |s: usize| samples[s].id.clone();
     let pop = |s: usize| samples[s].population.as_str().to_string();

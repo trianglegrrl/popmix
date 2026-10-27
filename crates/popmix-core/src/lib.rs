@@ -20,6 +20,8 @@ pub mod genotypes;
 pub mod kinship;
 mod options;
 pub mod pca;
+#[cfg(feature = "python")]
+pub mod python;
 pub mod qpadm;
 pub mod qpgraph;
 pub mod rcompat;

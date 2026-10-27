@@ -1,12 +1,12 @@
 //! Bindings for ROLLOFF.
 
+use popmix_core::python::input_error;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
 use popmix_core::{PackedGenotypes, RolloffBins, RolloffOptions, Snp};
 
 use crate::geno_fstats::{open_source_filtered, rows_of};
-use crate::to_py_err;
 
 fn bins_dict<'py>(py: Python<'py>, b: &RolloffBins) -> PyResult<Bound<'py, PyDict>> {
     let d = PyDict::new(py);
@@ -47,13 +47,13 @@ pub fn rolloff_py(
     hval: f64,
 ) -> PyResult<Py<PyAny>> {
     if refs.len() != 2 {
-        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+        return Err(input_error(format!(
             "rolloff takes two reference populations, got {}",
             refs.len()
         )));
     }
     if refs.contains(&admixed) {
-        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+        return Err(input_error(
             "the admixed population cannot also be a reference",
         ));
     }
@@ -67,8 +67,7 @@ pub fn rolloff_py(
     let populations = vec![admixed.clone(), refs[0].clone(), refs[1].clone()];
     let (mut source, snps, pops, samples) = open_source_filtered(prefix, &populations, &keep)?;
     // jackknife weights: the SNPs of each chromosome in the .snp file
-    let all_snps =
-        popmix_io::eigenstrat::read_snp_file(&format!("{prefix}.snp")).map_err(to_py_err)?;
+    let all_snps = popmix_io::eigenstrat::read_snp_file(&format!("{prefix}.snp"))?;
     let options = RolloffOptions {
         binsize,
         maxdis,
@@ -90,8 +89,7 @@ pub fn rolloff_py(
             &snps,
             &options,
         )
-    })
-    .map_err(to_py_err)?;
+    })?;
     let d_cm = |b: &RolloffBins| b.d.iter().map(|x| 100.0 * x).collect::<Vec<f64>>();
     let fit = popmix_core::fit_rolloff(&d_cm(&out.bins), &out.bins.corr, lval, hval);
     let jfits: Vec<popmix_core::RolloffFit> = out
@@ -111,7 +109,7 @@ pub fn rolloff_py(
         .zip(&jfits)
         .map(|(c, f)| (weight(c), f.decay))
         .collect();
-    let jack = popmix_core::dates::weighted_jackknife(fit.decay, &blocks).map_err(to_py_err)?;
+    let jack = popmix_core::dates::weighted_jackknife(fit.decay, &blocks)?;
 
     let d = PyDict::new(py);
     d.set_item("chromosomes", out.chromosomes.clone())?;

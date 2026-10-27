@@ -4,6 +4,7 @@
 
 use std::collections::HashMap;
 
+use popmix_core::python::{input_error, internal_error};
 use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
 
@@ -15,8 +16,8 @@ use popmix_io::{
     PackedAncestryMapReader, PedReader, PlinkReader,
 };
 
+use crate::compute;
 use crate::vcf_input::{open_vcf, vcf_path};
-use crate::{compute, to_py_err};
 
 /// Convert genotype data between file formats.
 ///
@@ -79,27 +80,20 @@ pub(crate) fn mapped_input(prefix: &str, format: GenoFormat) -> PyResult<Option<
             None => None,
         },
         GenoFormat::Eigenstrat => {
-            let samples = popmix_io::eigenstrat::read_ind_file(&format!("{prefix}.ind"))
-                .map_err(to_py_err)?;
-            let snps = popmix_io::eigenstrat::read_snp_file(&format!("{prefix}.snp"))
-                .map_err(to_py_err)?;
-            SnpMajor::open_text(&format!("{prefix}.geno"), samples.len(), snps.len())
-                .map_err(to_py_err)?
+            let samples = popmix_io::eigenstrat::read_ind_file(&format!("{prefix}.ind"))?;
+            let snps = popmix_io::eigenstrat::read_snp_file(&format!("{prefix}.snp"))?;
+            SnpMajor::open_text(&format!("{prefix}.geno"), samples.len(), snps.len())?
                 .map(|file| (file, samples, snps))
         }
         GenoFormat::PackedAncestrymap => {
-            let samples = popmix_io::eigenstrat::read_ind_file(&format!("{prefix}.ind"))
-                .map_err(to_py_err)?;
-            let snps = popmix_io::eigenstrat::read_snp_file(&format!("{prefix}.snp"))
-                .map_err(to_py_err)?;
-            let file = SnpMajor::open_packed(&format!("{prefix}.geno"), samples.len(), snps.len())
-                .map_err(to_py_err)?;
+            let samples = popmix_io::eigenstrat::read_ind_file(&format!("{prefix}.ind"))?;
+            let snps = popmix_io::eigenstrat::read_snp_file(&format!("{prefix}.snp"))?;
+            let file = SnpMajor::open_packed(&format!("{prefix}.geno"), samples.len(), snps.len())?;
             Some((file, samples, snps))
         }
         GenoFormat::PackedPed => {
-            let (samples, snps) = PlinkReader::new(prefix).map_err(to_py_err)?.into_parts();
-            let file = SnpMajor::open_bed(&format!("{prefix}.bed"), samples.len(), snps.len())
-                .map_err(to_py_err)?;
+            let (samples, snps) = PlinkReader::new(prefix)?.into_parts();
+            let file = SnpMajor::open_bed(&format!("{prefix}.bed"), samples.len(), snps.len())?;
             Some((file, samples, snps))
         }
         _ => None,
@@ -130,7 +124,7 @@ fn write_samples(
     } else {
         popmix_io::write_tgeno_samples(output_prefix, samples, snps, genotypes)
     }
-    .map_err(to_py_err)
+    .map_err(PyErr::from)
 }
 
 /// Can `format` be written one SNP at a time?
@@ -163,13 +157,13 @@ fn write_rows(
         GenoFormat::PackedAncestrymap => write_packedancestrymap_rows(out, samples, snps, rows),
         GenoFormat::PackedPed => write_packedped_rows(out, samples, snps, rows),
         other => {
-            return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+            return Err(internal_error(format!(
                 "{} is not written SNP by SNP",
                 other.name()
             )))
         }
     }
-    .map_err(to_py_err)
+    .map_err(PyErr::from)
 }
 
 /// `convertf` one SNP at a time, when the input is read in place and the
@@ -193,8 +187,7 @@ fn convertf_streamed(
             file,
             vec![true; snps.len()],
             (0..samples.len()).collect(),
-        )
-        .map_err(to_py_err)?;
+        )?;
         write_rows(out_format, output_prefix, &samples, &snps, &mut rows)?;
     }
     Ok(Some((samples.len(), snps.len())))
@@ -211,12 +204,12 @@ fn convertf_files(
 
     // Detect or parse input format
     let in_format = match input_format {
-        Some(fmt) => GenoFormat::from_str(fmt).map_err(to_py_err)?,
-        None => GenoFormat::detect(input_prefix).map_err(to_py_err)?,
+        Some(fmt) => GenoFormat::from_str(fmt)?,
+        None => GenoFormat::detect(input_prefix)?,
     };
 
     // Parse output format
-    let out_format = GenoFormat::from_str(output_format).map_err(to_py_err)?;
+    let out_format = GenoFormat::from_str(output_format)?;
 
     // From a packed .geno or a PLINK .bed to a format written SNP by SNP:
     // stream, without holding the genotypes in memory
@@ -227,32 +220,30 @@ fn convertf_files(
     // Read the input data
     let geno = match in_format {
         GenoFormat::PackedPed => {
-            let reader = PlinkReader::new(input_prefix).map_err(to_py_err)?;
-            reader.read_all().map_err(to_py_err)?
+            let reader = PlinkReader::new(input_prefix)?;
+            reader.read_all()?
         }
         GenoFormat::PackedAncestrymap => {
-            let reader = PackedAncestryMapReader::new(input_prefix).map_err(to_py_err)?;
-            reader.read_all().map_err(to_py_err)?
+            let reader = PackedAncestryMapReader::new(input_prefix)?;
+            reader.read_all()?
         }
         GenoFormat::Eigenstrat => {
-            let reader = EigenstratReader::new(input_prefix).map_err(to_py_err)?;
-            reader.read_all().map_err(to_py_err)?
+            let reader = EigenstratReader::new(input_prefix)?;
+            reader.read_all()?
         }
         GenoFormat::Ped => {
-            let reader = PedReader::new(input_prefix).map_err(to_py_err)?;
-            reader.read_all().map_err(to_py_err)?
+            let reader = PedReader::new(input_prefix)?;
+            reader.read_all()?
         }
         GenoFormat::Ancestrymap => {
-            let reader = AncestryMapReader::new(input_prefix).map_err(to_py_err)?;
-            reader.read_all().map_err(to_py_err)?
+            let reader = AncestryMapReader::new(input_prefix)?;
+            reader.read_all()?
         }
         GenoFormat::Vcf => {
             let reader = open_vcf(input_prefix)?;
-            reader.read_all().map_err(to_py_err)?
+            reader.read_all()?
         }
-        GenoFormat::Tgeno => TgenoReader::new(input_prefix)
-            .and_then(|r| r.read_all())
-            .map_err(to_py_err)?,
+        GenoFormat::Tgeno => TgenoReader::new(input_prefix).and_then(|r| r.read_all())?,
     };
 
     let n_samples = geno.n_samples();
@@ -262,25 +253,25 @@ fn convertf_files(
     let out_path = Path::new(output_prefix);
     match out_format {
         GenoFormat::Ancestrymap => {
-            write_ancestrymap(out_path, &geno).map_err(to_py_err)?;
+            write_ancestrymap(out_path, &geno)?;
         }
         GenoFormat::Eigenstrat => {
-            write_eigenstrat(out_path, &geno).map_err(to_py_err)?;
+            write_eigenstrat(out_path, &geno)?;
         }
         GenoFormat::PackedAncestrymap => {
-            write_packedancestrymap(out_path, &geno).map_err(to_py_err)?;
+            write_packedancestrymap(out_path, &geno)?;
         }
         GenoFormat::PackedPed => {
-            write_packedped(out_path, &geno).map_err(to_py_err)?;
+            write_packedped(out_path, &geno)?;
         }
         GenoFormat::Ped => {
-            write_ped(out_path, &geno).map_err(to_py_err)?;
+            write_ped(out_path, &geno)?;
         }
         GenoFormat::Tgeno => {
-            write_tgeno(out_path, &geno).map_err(to_py_err)?;
+            write_tgeno(out_path, &geno)?;
         }
         GenoFormat::Vcf => {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+            return Err(input_error(
                 "VCF output format is not supported. Use plink, eigenstrat, or packedancestrymap.",
             ));
         }
@@ -332,46 +323,46 @@ pub(crate) fn merge(
         // Helper to read genotypes from a prefix
         fn read_geno(prefix: &str, format: Option<&str>) -> PyResult<GenotypeMatrix> {
             let fmt = match format {
-                Some(f) => GenoFormat::from_str(f).map_err(to_py_err)?,
-                None => GenoFormat::detect(prefix).map_err(to_py_err)?,
+                Some(f) => GenoFormat::from_str(f)?,
+                None => GenoFormat::detect(prefix)?,
             };
 
             match fmt {
                 GenoFormat::PackedPed => {
-                    let reader = PlinkReader::new(prefix).map_err(to_py_err)?;
-                    reader.read_all().map_err(to_py_err)
+                    let reader = PlinkReader::new(prefix)?;
+                    reader.read_all().map_err(PyErr::from)
                 }
                 GenoFormat::PackedAncestrymap => {
-                    let reader = PackedAncestryMapReader::new(prefix).map_err(to_py_err)?;
-                    reader.read_all().map_err(to_py_err)
+                    let reader = PackedAncestryMapReader::new(prefix)?;
+                    reader.read_all().map_err(PyErr::from)
                 }
                 GenoFormat::Eigenstrat => {
-                    let reader = EigenstratReader::new(prefix).map_err(to_py_err)?;
-                    reader.read_all().map_err(to_py_err)
+                    let reader = EigenstratReader::new(prefix)?;
+                    reader.read_all().map_err(PyErr::from)
                 }
                 GenoFormat::Ped => {
-                    let reader = PedReader::new(prefix).map_err(to_py_err)?;
-                    reader.read_all().map_err(to_py_err)
+                    let reader = PedReader::new(prefix)?;
+                    reader.read_all().map_err(PyErr::from)
                 }
                 GenoFormat::Ancestrymap => {
-                    let reader = AncestryMapReader::new(prefix).map_err(to_py_err)?;
-                    reader.read_all().map_err(to_py_err)
+                    let reader = AncestryMapReader::new(prefix)?;
+                    reader.read_all().map_err(PyErr::from)
                 }
                 GenoFormat::Vcf => {
                     let reader = open_vcf(prefix)?;
-                    reader.read_all().map_err(to_py_err)
+                    reader.read_all().map_err(PyErr::from)
                 }
                 GenoFormat::Tgeno => TgenoReader::new(prefix)
                     .and_then(|r| r.read_all())
-                    .map_err(to_py_err),
+                    .map_err(PyErr::from),
             }
         }
 
         let format_of = |prefix: &str, format: Option<&str>| match format {
-            Some(f) => GenoFormat::from_str(f).map_err(to_py_err),
-            None => GenoFormat::detect(prefix).map_err(to_py_err),
+            Some(f) => GenoFormat::from_str(f).map_err(PyErr::from),
+            None => GenoFormat::detect(prefix).map_err(PyErr::from),
         };
-        let out_format = GenoFormat::from_str(output_format).map_err(to_py_err)?;
+        let out_format = GenoFormat::from_str(output_format)?;
 
         // Both inputs read in place and an output written SNP by SNP: stream,
         // without holding either file's genotypes in memory
@@ -380,8 +371,7 @@ pub(crate) fn merge(
             let in_b = mapped_input(file_b, format_of(file_b, input_format_b)?)?;
             if let (Some((fa, samples_a, snps_a)), Some((fb, samples_b, snps_b))) = (in_a, in_b) {
                 let (merged_snps, samples, stats) =
-                    popmix_io::merge::plan_merge(&samples_a, &snps_a, &samples_b, &snps_b)
-                        .map_err(to_py_err)?;
+                    popmix_io::merge::plan_merge(&samples_a, &snps_a, &samples_b, &snps_b)?;
                 let snps: Vec<Snp> = merged_snps.iter().map(|m| m.snp.clone()).collect();
                 let mut rows = popmix_io::merge::MergedRows::new(&fa, &fb, &merged_snps);
                 if by_samples(out_format) {
@@ -412,32 +402,32 @@ pub(crate) fn merge(
         let samples_b = geno_b.n_samples();
 
         // Merge
-        let (merged, stats) = merge_genotypes(&geno_a, &geno_b).map_err(to_py_err)?;
+        let (merged, stats) = merge_genotypes(&geno_a, &geno_b)?;
 
         // Write output
         let out_path = Path::new(output);
 
         match out_format {
             GenoFormat::Ancestrymap => {
-                write_ancestrymap(out_path, &merged).map_err(to_py_err)?;
+                write_ancestrymap(out_path, &merged)?;
             }
             GenoFormat::Eigenstrat => {
-                write_eigenstrat(out_path, &merged).map_err(to_py_err)?;
+                write_eigenstrat(out_path, &merged)?;
             }
             GenoFormat::PackedAncestrymap => {
-                write_packedancestrymap(out_path, &merged).map_err(to_py_err)?;
+                write_packedancestrymap(out_path, &merged)?;
             }
             GenoFormat::PackedPed => {
-                write_packedped(out_path, &merged).map_err(to_py_err)?;
+                write_packedped(out_path, &merged)?;
             }
             GenoFormat::Ped => {
-                write_ped(out_path, &merged).map_err(to_py_err)?;
+                write_ped(out_path, &merged)?;
             }
             GenoFormat::Tgeno => {
-                write_tgeno(out_path, &merged).map_err(to_py_err)?;
+                write_tgeno(out_path, &merged)?;
             }
             GenoFormat::Vcf => {
-                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                return Err(input_error(
                 "VCF output format is not supported. Use plink, eigenstrat, or packedancestrymap.",
             ));
             }

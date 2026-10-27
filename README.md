@@ -687,7 +687,32 @@ fmt = pm.detect_format("/path/to/plink_data")
 print(f"Format: {fmt}")  # "PACKEDPED"
 ```
 
+### Errors
+
+Every error popmix raises is a `popmix.PopmixError`, and also the built-in
+exception the same failure would be in plain Python, so `except ValueError`
+keeps working:
+
+| Exception | Also a | Raised for |
+|---|---|---|
+| `InputError` | `ValueError` | a bad argument, a malformed file |
+| `PopulationNotFoundError` | `ValueError` (an `InputError`) | a population not in the data |
+| `MissingFileError` | `FileNotFoundError` | a file that is not there |
+| `FileError` | `OSError` | reading or writing a file failed |
+| `ComputationError` | `RuntimeError` | valid input, failed computation (a singular system) |
+| `InternalError` | `RuntimeError` | a bug in popmix: please report it |
+
+```python
+try:
+    f2 = pm.extract_f2("data/aadr", ["French", "Frnech"])
+except pm.PopulationNotFoundError as e:
+    print(e)  # Population not found: 'Frnech'
+    print(pm.suggest_populations("data/aadr", "Frnech"))  # [('French', 28), ...]
+
+```
+
 ## Output Formats
+
 
 Commands that report a few statistics (`f2`, `f3`, `f4`, `qpadm`, `qpwave`,
 `dates`, `qpgraph`, ...) print text by default and take `--format json` or

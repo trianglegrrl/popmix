@@ -6,10 +6,7 @@ import click
 
 import popmix as pm
 
-# Failures of the input (bad names or values, missing or malformed files) or
-# of the computation (a singular system): reported in one line. Anything else
-# is a bug and keeps its traceback.
-EXPECTED_ERRORS = (ValueError, OSError, RuntimeError)
+from ._errors import EXPECTED_ERRORS
 
 
 def format_population_error(invalid_pop: str, prefix: str) -> str:

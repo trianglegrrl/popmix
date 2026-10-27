@@ -62,6 +62,15 @@ from popmix._core import (
     suggest_populations,
     version,
 )
+from popmix.errors import (
+    ComputationError,
+    FileError,
+    InputError,
+    InternalError,
+    MissingFileError,
+    PopmixError,
+    PopulationNotFoundError,
+)
 
 # Python submodules load on first use: most import pandas, which takes
 # longer to import than the rest of popmix, and `popmix --help` needs none.
@@ -210,6 +219,14 @@ DecayFit = PyDecayFit
 DatesResult = PyDatesResult
 
 __all__ = [
+    # Errors
+    "PopmixError",
+    "InputError",
+    "PopulationNotFoundError",
+    "MissingFileError",
+    "FileError",
+    "ComputationError",
+    "InternalError",
     # Threading
     "init_threads",
     "get_threads",

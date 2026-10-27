@@ -1,12 +1,11 @@
 //! How samples are found to be pseudo-haploid (counted as one allele per
 //! SNP), shared by every command that reads genotypes.
 
+use popmix_core::python::input_error;
 use pyo3::prelude::*;
 
 use popmix_core::{GenotypeMatrix, Ploidy, Sample, Snp};
 use popmix_io::{is_packed_format, GenoFormat, SnpMajor};
-
-use crate::to_py_err;
 
 /// The `pseudohaploid` option.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -73,9 +72,7 @@ pub(crate) struct Mapped {
 /// the readers choose: packed .geno first, then as `GenoFormat::detect`).
 pub(crate) fn mapped(prefix: &str) -> PyResult<Option<Mapped>> {
     let geno_path = format!("{prefix}.geno");
-    let format = if std::path::Path::new(&geno_path).exists()
-        && is_packed_format(&geno_path).map_err(to_py_err)?
-    {
+    let format = if std::path::Path::new(&geno_path).exists() && is_packed_format(&geno_path)? {
         GenoFormat::PackedAncestrymap
     } else {
         // no recognised files: the reader that follows says so
@@ -99,7 +96,7 @@ pub(crate) fn ploidy_rule(name: &str) -> PyResult<PloidyRule> {
         "admixtools2" => Ok(PloidyRule::First1000),
         "detect" => Ok(PloidyRule::Genome),
         "diploid" => Ok(PloidyRule::Diploid),
-        other => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+        other => Err(input_error(format!(
             "pseudohaploid must be \"detect\", \"admixtools2\" or \"diploid\", got {other:?}"
         ))),
     }

@@ -6,8 +6,6 @@ use pyo3::types::PyDict;
 use popmix_core::rcompat::{optim_lbfgsb, LbfgsbOptions, RRng};
 use popmix_core::PopmixError;
 
-use crate::to_py_err;
-
 /// R's ``set.seed(seed); runif(n)``.
 #[pyfunction(name = "r_runif")]
 fn r_runif(seed: i32, n: usize) -> Vec<f64> {
@@ -56,7 +54,7 @@ fn r_optim_lbfgsb<'py>(
         fnscale,
         ndeps,
     };
-    let r = optim_lbfgsb(&mut f, None, &par, &lower, &upper, &opts).map_err(to_py_err)?;
+    let r = optim_lbfgsb(&mut f, None, &par, &lower, &upper, &opts)?;
     let d = PyDict::new(py);
     d.set_item("par", r.par)?;
     d.set_item("value", r.value)?;
