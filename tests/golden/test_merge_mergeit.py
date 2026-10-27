@@ -38,3 +38,20 @@ def test_cli_says_what_was_left_out(tmp_path):
     assert "Left out, A/T or C/G (strand unknown): 1" in run.stdout
     assert "Left out, allele mismatch: 1" in run.stdout
     assert "On the other strand (complemented): 2" in run.stdout
+
+
+def test_merge_streamed_from_packed_and_plink_writes_the_same(tmp_path):
+    # packed .geno and PLINK .bed inputs are merged SNP by SNP, read in place
+    pm.convertf(str(HERE / "a"), str(tmp_path / "a"), "packedancestrymap")
+    pm.convertf(str(HERE / "b"), str(tmp_path / "b"), "plink")
+    text = pm.merge(file_a=str(HERE / "a"), file_b=str(HERE / "b"), output=str(tmp_path / "text"),
+                    output_format="eigenstrat")
+    for fmt in ("eigenstrat", "packedancestrymap"):
+        out = tmp_path / f"streamed_{fmt}"
+        streamed = pm.merge(file_a=str(tmp_path / "a"), file_b=str(tmp_path / "b"), output=str(out),
+                            output_format=fmt)
+        assert streamed == text
+        if fmt != "eigenstrat":
+            pm.convertf(str(out), str(tmp_path / "back"), "eigenstrat")
+            out = tmp_path / "back"
+        assert _eigenstrat(out) == _eigenstrat(HERE / "reference")

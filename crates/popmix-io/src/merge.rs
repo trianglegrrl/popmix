@@ -14,6 +14,9 @@ use std::collections::{HashMap, HashSet};
 use popmix_core::error::{PopmixError, Result};
 use popmix_core::genotype_matrix::GenotypeMatrix;
 use popmix_core::genotypes::{Chromosome, Genotype, Sample, Snp};
+use popmix_core::GenotypeRows;
+
+use crate::streaming::SnpMajor;
 
 /// Key for matching SNPs between files (chromosome + position)
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
@@ -253,6 +256,34 @@ pub fn find_duplicate_samples(samples_a: &[Sample], samples_b: &[Sample]) -> Vec
         .collect()
 }
 
+/// What a merge of files A and B keeps: the SNPs both have and can be
+/// reconciled, and the samples of A then B, with the merge's counts. Fails if
+/// a sample is in both files or no SNP is.
+pub fn plan_merge(
+    samples_a: &[Sample],
+    snps_a: &[Snp],
+    samples_b: &[Sample],
+    snps_b: &[Snp],
+) -> Result<(Vec<MergedSnp>, Vec<Sample>, MergeStats)> {
+    let duplicates = find_duplicate_samples(samples_a, samples_b);
+    if !duplicates.is_empty() {
+        return Err(PopmixError::Validation(format!(
+            "Duplicate sample IDs found in both files: {}",
+            duplicates.join(", ")
+        )));
+    }
+    let (merged_snps, mut stats) = build_snp_intersection(snps_a, snps_b);
+    if merged_snps.is_empty() {
+        return Err(PopmixError::Validation(
+            "No overlapping SNPs found between the two files".to_string(),
+        ));
+    }
+    let mut samples = samples_a.to_vec();
+    samples.extend(samples_b.iter().cloned());
+    stats.samples_total = samples.len();
+    Ok((merged_snps, samples, stats))
+}
+
 /// Merge two genotype matrices
 ///
 /// Returns the merged matrix and statistics about the merge. Strand-ambiguous
@@ -261,28 +292,12 @@ pub fn merge_genotypes(
     matrix_a: &GenotypeMatrix,
     matrix_b: &GenotypeMatrix,
 ) -> Result<(GenotypeMatrix, MergeStats)> {
-    // Check for duplicate samples
-    let duplicates = find_duplicate_samples(matrix_a.samples(), matrix_b.samples());
-    if !duplicates.is_empty() {
-        return Err(PopmixError::Validation(format!(
-            "Duplicate sample IDs found in both files: {}",
-            duplicates.join(", ")
-        )));
-    }
-
-    // Build SNP intersection
-    let (merged_snps, mut stats) = build_snp_intersection(matrix_a.snps(), matrix_b.snps());
-
-    if merged_snps.is_empty() {
-        return Err(PopmixError::Validation(
-            "No overlapping SNPs found between the two files".to_string(),
-        ));
-    }
-
-    // Merge samples
-    let mut merged_samples: Vec<Sample> = matrix_a.samples().to_vec();
-    merged_samples.extend(matrix_b.samples().iter().cloned());
-    stats.samples_total = merged_samples.len();
+    let (merged_snps, merged_samples, stats) = plan_merge(
+        matrix_a.samples(),
+        matrix_a.snps(),
+        matrix_b.samples(),
+        matrix_b.snps(),
+    )?;
 
     // Build merged genotype matrix
     let n_snps = merged_snps.len();
@@ -319,6 +334,55 @@ pub fn merge_genotypes(
         GenotypeMatrix::new(merged_data, merged_samples, merged_snp_metadata)?,
         stats,
     ))
+}
+
+/// The merged genotypes, read in place from two SNP-major files one SNP at a
+/// time: for each SNP of `snps`, the samples of file A then those of file B,
+/// B's genotypes recoded where its alleles are swapped.
+pub struct MergedRows<'a> {
+    a: &'a SnpMajor,
+    b: &'a SnpMajor,
+    snps: &'a [MergedSnp],
+    next: usize,
+}
+
+impl<'a> MergedRows<'a> {
+    pub fn new(a: &'a SnpMajor, b: &'a SnpMajor, snps: &'a [MergedSnp]) -> Self {
+        MergedRows {
+            a,
+            b,
+            snps,
+            next: 0,
+        }
+    }
+}
+
+impl GenotypeRows for MergedRows<'_> {
+    fn next_row(&mut self, out: &mut [u8]) -> Result<()> {
+        let snp = self
+            .snps
+            .get(self.next)
+            .ok_or_else(|| PopmixError::Validation("read past the last merged SNP".to_string()))?;
+        self.next += 1;
+        let (na, nb) = (self.a.n_samples(), self.b.n_samples());
+        let (out_a, out_b) = out[..na + nb].split_at_mut(na);
+        let record = self.a.record(snp.file_a_idx);
+        for (s, o) in out_a.iter_mut().enumerate() {
+            *o = self.a.code(record, s);
+        }
+        let record = self.b.record(snp.file_b_idx);
+        let flipped = snp.allele_match == AlleleMatch::Flipped;
+        for (s, o) in out_b.iter_mut().enumerate() {
+            let g = self.b.code(record, s);
+            // 0 <-> 2; heterozygous and missing (1, 3) stay
+            *o = if flipped && g != 1 && g != 3 {
+                2 - g
+            } else {
+                g
+            };
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -650,6 +714,58 @@ mod tests {
         assert_eq!(merged.get(1, 2), Genotype::HomAlt); // B1 (was 0, recoded to 2)
         assert_eq!(merged.get(1, 3), Genotype::Het); // B2 (was 1, stays 1)
         assert_eq!(merged.get(1, 4), Genotype::HomRef); // B3 (was 2, recoded to 0)
+    }
+
+    #[test]
+    fn merged_rows_read_in_place_equal_the_merged_matrix() {
+        use crate::writers::{write_packedancestrymap, write_packedped};
+
+        // A: 5 samples (a record of 2 bytes, padded), B: 3 samples, B's SNPs
+        // in another order, one swapped, one only in each file
+        let samples_a: Vec<Sample> = (0..5)
+            .map(|i| make_sample(&format!("A{i}"), "PopA"))
+            .collect();
+        let snps_a = vec![
+            make_snp(1, 100, 'A', 'G'),
+            make_snp(1, 200, 'C', 'T'),
+            make_snp(1, 300, 'G', 'A'),
+            make_snp(2, 50, 'A', 'C'),
+        ];
+        let data_a = ndarray::array![
+            [0u8, 1, 2, 3, 0],
+            [1, 2, 3, 0, 1],
+            [2, 3, 0, 1, 2],
+            [3, 0, 1, 2, 3],
+        ];
+        let samples_b: Vec<Sample> = (0..3)
+            .map(|i| make_sample(&format!("B{i}"), "PopB"))
+            .collect();
+        let snps_b = vec![
+            make_snp(2, 50, 'A', 'C'),
+            make_snp(1, 300, 'A', 'G'),
+            make_snp(1, 400, 'T', 'C'),
+            make_snp(1, 200, 'C', 'T'),
+        ];
+        let data_b = ndarray::array![[0u8, 1, 2], [0, 2, 3], [1, 0, 3], [2, 1, 0]];
+        let a = GenotypeMatrix::new(data_a, samples_a, snps_a).unwrap();
+        let b = GenotypeMatrix::new(data_b, samples_b, snps_b).unwrap();
+        let (merged, _) = merge_genotypes(&a, &b).unwrap();
+
+        let dir = tempfile::tempdir().unwrap();
+        let (pa, pb) = (dir.path().join("a"), dir.path().join("b"));
+        write_packedancestrymap(&pa, &a).unwrap();
+        write_packedped(&pb, &b).unwrap();
+        let fa = SnpMajor::open_packed(&format!("{}.geno", pa.display()), 5, 4).unwrap();
+        let fb = SnpMajor::open_bed(&format!("{}.bed", pb.display()), 3, 4).unwrap();
+        let (snps, _) = build_snp_intersection(a.snps(), b.snps());
+        let mut rows = MergedRows::new(&fa, &fb, &snps);
+        let mut row = vec![9u8; 8];
+        for s in 0..merged.n_snps() {
+            rows.next_row(&mut row).unwrap();
+            let expected: Vec<u8> = (0..8).map(|i| merged.get(s, i) as u8).collect();
+            assert_eq!(row, expected, "SNP {s}");
+        }
+        assert!(rows.next_row(&mut row).is_err());
     }
 
     #[test]

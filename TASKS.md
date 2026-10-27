@@ -321,7 +321,7 @@ thread count.
 - [ ] **F3. Streaming `merge` and `convertf`** (row iterators; today both
   inputs plus output are in memory, ~65 GB for two AADR-sized files).
   PD, PG
-  Progress: convertf from packed .geno or .bed to EIGENSTRAT, ANCESTRYMAP, PACKEDANCESTRYMAP or PLINK streams one SNP at a time (0bcf74c): 3,970 samples 15 s, 1.3 GB resident (mostly the mapped input) instead of the 4.9 GB matrix. Left: merge, and PED/TGENO output (stored sample by sample).
+  Progress: convertf from packed .geno or .bed to EIGENSTRAT, ANCESTRYMAP, PACKEDANCESTRYMAP or PLINK streams one SNP at a time (0bcf74c): 3,970 samples 15 s, 1.3 GB resident (mostly the mapped input) instead of the 4.9 GB matrix. `merge` of two packed .geno or .bed inputs streams too (MergedRows, read in place): 2 x 1,201 samples 22.7 s / 6.3 GB to 8.7 s / 1.3 GB, byte-identical. Left: PED/TGENO output (stored sample by sample), and text or VCF inputs (F1).
 - [ ] **F4. f2 extraction:** no copy of the frequency table (index through
   `keep`, `f2_blocks.rs:216-222`); one pass for f2 and FST; write block
   results in place; GEMM formulation (Σp² + Σq² − 2pq plus bias terms) for

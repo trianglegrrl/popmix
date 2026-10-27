@@ -227,6 +227,10 @@ impl SnpMajor {
         self.n_snps
     }
 
+    pub fn n_samples(&self) -> usize {
+        self.n_samples
+    }
+
     /// The bytes of SNP `snp`.
     #[inline]
     pub fn record(&self, snp: usize) -> &[u8] {

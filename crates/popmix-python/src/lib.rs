@@ -21,7 +21,9 @@ use numpy::{IntoPyArray, PyArray1, PyArray2};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-use popmix_core::{AlleleFrequencies, BlockDefinition, F2Blocks, GenotypeMatrix, Ploidy, Sample};
+use popmix_core::{
+    AlleleFrequencies, BlockDefinition, F2Blocks, GenotypeMatrix, Ploidy, Sample, Snp,
+};
 use popmix_io::tgeno::{is_tgeno_format, TgenoReader};
 use popmix_io::{
     is_packed_format, merge::merge_genotypes, read_f2_blocks, write_ancestrymap, write_eigenstrat,
@@ -642,6 +644,73 @@ fn convertf(
     Ok(result)
 }
 
+/// A genotype file mapped to be read in place, with its samples and SNPs.
+type MappedInput = (popmix_io::SnpMajor, Vec<Sample>, Vec<Snp>);
+
+/// A packed .geno or PLINK .bed input, mapped to be read in place; None for
+/// the other formats.
+fn mapped_input(prefix: &str, format: GenoFormat) -> PyResult<Option<MappedInput>> {
+    use popmix_io::SnpMajor;
+    Ok(match format {
+        GenoFormat::PackedAncestrymap => {
+            let samples = popmix_io::eigenstrat::read_ind_file(&format!("{prefix}.ind"))
+                .map_err(to_py_err)?;
+            let snps = popmix_io::eigenstrat::read_snp_file(&format!("{prefix}.snp"))
+                .map_err(to_py_err)?;
+            let file = SnpMajor::open_packed(&format!("{prefix}.geno"), samples.len(), snps.len())
+                .map_err(to_py_err)?;
+            Some((file, samples, snps))
+        }
+        GenoFormat::PackedPed => {
+            let reader = PlinkReader::new(prefix).map_err(to_py_err)?;
+            let (samples, snps) = (reader.samples().to_vec(), reader.snps().to_vec());
+            let file = SnpMajor::open_bed(&format!("{prefix}.bed"), samples.len(), snps.len())
+                .map_err(to_py_err)?;
+            Some((file, samples, snps))
+        }
+        _ => None,
+    })
+}
+
+/// Can `format` be written one SNP at a time?
+fn written_by_rows(format: GenoFormat) -> bool {
+    matches!(
+        format,
+        GenoFormat::Eigenstrat
+            | GenoFormat::Ancestrymap
+            | GenoFormat::PackedAncestrymap
+            | GenoFormat::PackedPed
+    )
+}
+
+/// Write `rows` (one per SNP of `snps`) in a format of [`written_by_rows`].
+fn write_rows(
+    format: GenoFormat,
+    output_prefix: &str,
+    samples: &[Sample],
+    snps: &[Snp],
+    rows: &mut dyn popmix_core::GenotypeRows,
+) -> PyResult<()> {
+    use popmix_io::{
+        write_ancestrymap_rows, write_eigenstrat_rows, write_packedancestrymap_rows,
+        write_packedped_rows,
+    };
+    let out = std::path::Path::new(output_prefix);
+    match format {
+        GenoFormat::Eigenstrat => write_eigenstrat_rows(out, samples, snps, rows),
+        GenoFormat::Ancestrymap => write_ancestrymap_rows(out, samples, snps, rows),
+        GenoFormat::PackedAncestrymap => write_packedancestrymap_rows(out, samples, snps, rows),
+        GenoFormat::PackedPed => write_packedped_rows(out, samples, snps, rows),
+        other => {
+            return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                "{} is not written SNP by SNP",
+                other.name()
+            )))
+        }
+    }
+    .map_err(to_py_err)
+}
+
 /// `convertf` one SNP at a time, when the input is read in place and the
 /// output written SNP by SNP: the sample and SNP counts, or None.
 fn convertf_streamed(
@@ -650,53 +719,19 @@ fn convertf_streamed(
     in_format: GenoFormat,
     out_format: GenoFormat,
 ) -> PyResult<Option<(usize, usize)>> {
-    use popmix_io::{
-        write_ancestrymap_rows, write_eigenstrat_rows, write_packedancestrymap_rows,
-        write_packedped_rows, SnpMajor, SnpMajorRows,
-    };
-    if !matches!(
-        out_format,
-        GenoFormat::Eigenstrat
-            | GenoFormat::Ancestrymap
-            | GenoFormat::PackedAncestrymap
-            | GenoFormat::PackedPed
-    ) {
+    if !written_by_rows(out_format) {
         return Ok(None);
     }
-    let (file, samples, snps) = match in_format {
-        GenoFormat::PackedAncestrymap => {
-            let samples = popmix_io::eigenstrat::read_ind_file(&format!("{input_prefix}.ind"))
-                .map_err(to_py_err)?;
-            let snps = popmix_io::eigenstrat::read_snp_file(&format!("{input_prefix}.snp"))
-                .map_err(to_py_err)?;
-            let file =
-                SnpMajor::open_packed(&format!("{input_prefix}.geno"), samples.len(), snps.len())
-                    .map_err(to_py_err)?;
-            (file, samples, snps)
-        }
-        GenoFormat::PackedPed => {
-            let reader = PlinkReader::new(input_prefix).map_err(to_py_err)?;
-            let (samples, snps) = (reader.samples().to_vec(), reader.snps().to_vec());
-            let file =
-                SnpMajor::open_bed(&format!("{input_prefix}.bed"), samples.len(), snps.len())
-                    .map_err(to_py_err)?;
-            (file, samples, snps)
-        }
-        _ => return Ok(None),
+    let Some((file, samples, snps)) = mapped_input(input_prefix, in_format)? else {
+        return Ok(None);
     };
-    let mut rows =
-        SnpMajorRows::from_file(file, vec![true; snps.len()], (0..samples.len()).collect())
-            .map_err(to_py_err)?;
-    let out = std::path::Path::new(output_prefix);
-    match out_format {
-        GenoFormat::Eigenstrat => write_eigenstrat_rows(out, &samples, &snps, &mut rows),
-        GenoFormat::Ancestrymap => write_ancestrymap_rows(out, &samples, &snps, &mut rows),
-        GenoFormat::PackedAncestrymap => {
-            write_packedancestrymap_rows(out, &samples, &snps, &mut rows)
-        }
-        _ => write_packedped_rows(out, &samples, &snps, &mut rows),
-    }
+    let mut rows = popmix_io::SnpMajorRows::from_file(
+        file,
+        vec![true; snps.len()],
+        (0..samples.len()).collect(),
+    )
     .map_err(to_py_err)?;
+    write_rows(out_format, output_prefix, &samples, &snps, &mut rows)?;
     Ok(Some((samples.len(), snps.len())))
 }
 
@@ -867,6 +902,36 @@ fn merge(
             }
         }
 
+        let format_of = |prefix: &str, format: Option<&str>| match format {
+            Some(f) => GenoFormat::from_str(f).map_err(to_py_err),
+            None => GenoFormat::detect(prefix).map_err(to_py_err),
+        };
+        let out_format = GenoFormat::from_str(output_format).map_err(to_py_err)?;
+
+        // Both inputs read in place and an output written SNP by SNP: stream,
+        // without holding either file's genotypes in memory
+        if written_by_rows(out_format) {
+            let in_a = mapped_input(file_a, format_of(file_a, input_format_a)?)?;
+            let in_b = mapped_input(file_b, format_of(file_b, input_format_b)?)?;
+            if let (Some((fa, samples_a, snps_a)), Some((fb, samples_b, snps_b))) = (in_a, in_b) {
+                let (merged_snps, samples, stats) =
+                    popmix_io::merge::plan_merge(&samples_a, &snps_a, &samples_b, &snps_b)
+                        .map_err(to_py_err)?;
+                let snps: Vec<Snp> = merged_snps.iter().map(|m| m.snp.clone()).collect();
+                let mut rows = popmix_io::merge::MergedRows::new(&fa, &fb, &merged_snps);
+                write_rows(out_format, output, &samples, &snps, &mut rows)?;
+                return Ok((
+                    snps_a.len(),
+                    snps_b.len(),
+                    samples_a.len(),
+                    samples_b.len(),
+                    snps.len(),
+                    samples.len(),
+                    stats,
+                ));
+            }
+        }
+
         // Read both input files
         let geno_a = read_geno(file_a, input_format_a)?;
         let geno_b = read_geno(file_b, input_format_b)?;
@@ -881,7 +946,6 @@ fn merge(
         let (merged, stats) = merge_genotypes(&geno_a, &geno_b).map_err(to_py_err)?;
 
         // Write output
-        let out_format = GenoFormat::from_str(output_format).map_err(to_py_err)?;
         let out_path = Path::new(output);
 
         match out_format {
