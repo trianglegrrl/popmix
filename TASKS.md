@@ -579,7 +579,7 @@ thread count.
   requested (TGENO and PED gave other `populations` than packed input);
   both follow the request now. `QpWavePairsResult` methods call core's.
 - [x] **I5. One linear-algebra library** in public types and hot paths. RS
-  *Done in COMMIT:* decided and recorded in popmix-core's crate docs:
+  *Done in e6d564d:* decided and recorded in popmix-core's crate docs:
   ndarray is the only array type in public signatures (a test keeps it
   so); nalgebra does the small dense solves inside qpAdm, qpGraph and
   ADMIXTURE, faer only PCA's eigendecomposition, measured four times
