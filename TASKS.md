@@ -439,9 +439,12 @@ thread count.
   "Good model fit" from p alone (`cli/__init__.py:974-975`); report the
   number of models tested in rotations and model sets (multiple testing,
   Harney et al. 2021). PR, PG
-- [ ] **G2. qpWave wording:** rank is a lower bound limited by the right
+- [x] **G2. qpWave wording:** rank is a lower bound limited by the right
   set; not rejecting rank 0 is not "Populations form a clade"
   (`qpwave.rs:103-108` hard-codes 0.05; `cli/__init__.py:1038-1040`). PR
+  *Done in 43da0b9:* `alpha` option (Rust, Python, `--alpha`), in the result
+  and JSON; `is_clade` removed; the CLI calls the rank a lower bound and
+  says rank 0 not rejected is not a clade.
 - [ ] **G3. DATES/ALDER dates:** "years BP" is generations × 29 before the
   sample lived (`dates/dating.rs:254`, `cli/__init__.py:1254`): take the
   sample age, make generation time an option with uncertainty, and stop
