@@ -43,6 +43,13 @@ pub struct PyPcaResult {
     n_snps_used: usize,
     #[pyo3(get)]
     n_snps_killed: usize,
+    /// With shrink, each component's shrinkage factor (NaN where not
+    /// corrected); empty without.
+    #[pyo3(get)]
+    shrinkage: Vec<f64>,
+    /// Each sample's share of the PCA's SNPs it misses, as sample_ids.
+    #[pyo3(get)]
+    missing_fraction: Vec<f64>,
 }
 
 #[pymethods]
@@ -71,12 +78,13 @@ impl PyPcaResult {
 ///     outlier_sigma: Outlier threshold in standard deviations
 ///     lsqproject: Project by least squares on observed genotypes
 ///     min_tw_eigs: Fewest eigenvalues for a Tracy-Widom statistic (nostatslim)
+///     shrink: Correct projected samples' shrinkage on significant components
 ///     compat: None (corrected) or "eigensoft-7.2.1"
 ///     auto_only: Use only autosomes 1-22, as smartpca
 #[pyfunction(name = "smartpca")]
 #[pyo3(signature = (prefix, pca_pops, project_pops=vec![], n_components=10, outlier_iterations=5,
                     outlier_components=10, outlier_sigma=6.0, lsqproject=false, min_tw_eigs=10,
-                    compat=None, auto_only=true))]
+                    compat=None, auto_only=true, shrink=false))]
 #[allow(clippy::too_many_arguments)]
 pub fn smartpca_py(
     py: Python<'_>,
@@ -91,6 +99,7 @@ pub fn smartpca_py(
     min_tw_eigs: usize,
     compat: Option<&str>,
     auto_only: bool,
+    shrink: bool,
 ) -> PyResult<PyPcaResult> {
     let compat = match compat {
         None => EigensoftCompat::CORRECTED,
@@ -127,6 +136,7 @@ pub fn smartpca_py(
         o.outlier_sigma = outlier_sigma;
         o.lsq_project = lsqproject;
         o.min_tw_eigs = min_tw_eigs;
+        o.shrink = shrink;
         o.compat = compat;
         o
     };
@@ -137,6 +147,16 @@ pub fn smartpca_py(
         smartpca(&geno, &roles, &options)
     })?;
 
+    if !lsqproject {
+        let projected: Vec<f64> = out
+            .samples
+            .iter()
+            .zip(&out.missing_fraction)
+            .filter(|(&s, _)| roles[s] == SampleRole::Project)
+            .map(|(_, &f)| f)
+            .collect();
+        crate::warnings::emit(|w| popmix_core::warnings::check_projection_missing(&projected, w))?;
+    }
     let id = |s: usize| samples[s].id.clone();
     let pop = |s: usize| samples[s].population.as_str().to_string();
     Ok(PyPcaResult {
@@ -173,6 +193,8 @@ pub fn smartpca_py(
         no_data: out.no_data.iter().map(|&s| id(s)).collect(),
         n_pca_samples: out.n_pca_samples,
         n_snps_used: out.n_snps_used,
+        shrinkage: out.shrinkage,
+        missing_fraction: out.missing_fraction,
         n_snps_killed: out.n_snps_killed,
     })
 }

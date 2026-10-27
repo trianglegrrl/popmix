@@ -25,6 +25,7 @@ popmix pca --input PREFIX --output-prefix PREFIX [--pca-pops A,B,...] [--project
 | `--outlier-components` | integer | 10 | Eigenvectors examined for outliers (smartpca `numoutlierevec`). |
 | `--outlier-sigma` | number | 6 | A PCA sample more than this many standard deviations out on one examined eigenvector is removed (smartpca `outliersigmathresh`). |
 | `--lsqproject` | flag | off | Project by least squares on each sample's observed genotypes (smartpca `lsqproject: YES`); use it for samples with missing data, such as ancient ones. |
+| `--shrink` | flag | off | Correct the projected samples' shrinkage toward the origin on the significant (Tracy-Widom p < 0.05) components. popmix's own correction, not smartpca's `shrinkmode`. |
 | `--compat` | `eigensoft-7.2.1` | none (corrected) | Reproduce smartpca exactly, including its Tracy-Widom p-values beyond the table (EIGENSOFT-0001). |
 | `--output-prefix`, `-o` | text (path) | required | Write PREFIX.coords.tsv, PREFIX.eval, PREFIX.tracy_widom.tsv and PREFIX.outliers.tsv. |
 | `--plot` | text (path) | none | Also plot PC1 against PC2 to this image file (needs `popmix[plot]`). |
@@ -71,6 +72,15 @@ keep everyone.
 - Pseudo-haploid samples are read as called (0/2), as smartpca does; that
   is why ancient samples should be projected, not used to build the axes.
 - Only autosomal SNPs polymorphic in the PCA samples are used.
+- Projected samples sit closer to the origin than PCA samples of the same
+  population, whose own noise fitted the axes: on the small test data a
+  projected half of French and Yoruba spans 82% of the PC1 gap of the half
+  in the PCA. `--shrink` divides the projected samples' coordinates on each
+  significant component by its shrinkage factor (in Python,
+  `PcaResult.shrinkage`); noise components are left as they are.
+- Without `--lsqproject` a missing genotype counts as 0, which pulls a
+  sample toward the origin by its missing share; popmix warns when a
+  projected sample misses more than 10% of the SNPs.
 - The default corrects smartpca's Tracy-Widom p-values for statistics
   beyond its table (they were too large by sqrt(TW))
   ([EIGENSOFT-0001](https://github.com/trianglegrrl/popmix/blob/main/DEVIATIONS.md#eigensoft-0001-tracy-widom-density-reported-as-the-p-value-beyond-the-table));

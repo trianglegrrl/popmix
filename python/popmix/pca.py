@@ -32,6 +32,12 @@ class PcaResult:
         1) and score (standard deviations).
     no_data
         Samples left out for lack of data.
+    shrinkage
+        With ``shrink``, each component's shrinkage factor, by which the
+        projected samples' coordinates were divided (NaN where the component
+        is not significant and was left as it is); empty without.
+    missing_fraction
+        Each sample's share of the PCA's SNPs it misses, in ``coords`` order.
     """
 
     eigenvalues: np.ndarray
@@ -42,6 +48,8 @@ class PcaResult:
     n_pca_samples: int = 0
     n_snps_used: int = 0
     n_snps_killed: int = 0
+    shrinkage: np.ndarray = field(default_factory=lambda: np.zeros(0))
+    missing_fraction: np.ndarray = field(default_factory=lambda: np.zeros(0))
 
 
 def smartpca(
@@ -56,6 +64,7 @@ def smartpca(
     lsqproject: bool = False,
     min_tw_eigs: int = 10,
     compat: str | None = None,
+    shrink: bool = False,
 ) -> PcaResult:
     """PCA computed on ``pca_pops``, with ``project_pops`` projected onto it.
 
@@ -69,7 +78,16 @@ def smartpca(
     eigenvalues. Projected samples are placed by the dot product of their
     normalized genotypes with the SNP loadings, or with ``lsqproject`` by
     least squares on their observed genotypes (recommended for ancient
-    samples with missing data).
+    samples with missing data: by dot product a missing genotype counts as
+    0, which pulls a sample toward the origin, and a projected sample
+    missing more than 10% of the SNPs warns).
+
+    Projected samples are also shrunk toward the origin relative to the
+    PCA samples, whose own noise helped make the axes: two halves of one
+    population, one in the PCA and one projected, do not coincide.
+    ``shrink=True`` corrects this on the components the Tracy-Widom test
+    finds significant (``shrinkage`` gives the factors). It is popmix's own
+    correction, not smartpca's ``shrinkmode``.
 
     Parameters
     ----------
@@ -90,6 +108,8 @@ def smartpca(
     compat
         None for popmix's corrections, or "eigensoft-7.2.1" to reproduce
         smartpca exactly (EIGENSOFT-0001 in DEVIATIONS.md).
+    shrink
+        Correct the projected samples' shrinkage (see above).
 
     Returns
     -------
@@ -102,7 +122,7 @@ def smartpca(
     else:
         pca = list(pca_pops)
     r = _core.smartpca(os.fspath(prefix), pca, project, n_components, outlier_iterations, outlier_components,
-                       outlier_sigma, lsqproject, min_tw_eigs, compat)
+                       outlier_sigma, lsqproject, min_tw_eigs, compat, shrink=shrink)
     coords = np.asarray(r.coords)
     df = pd.DataFrame({"id": r.sample_ids, "pop": r.populations, "role": r.roles})
     for j in range(coords.shape[1] if coords.ndim == 2 else 0):
@@ -119,4 +139,6 @@ def smartpca(
         n_pca_samples=r.n_pca_samples,
         n_snps_used=r.n_snps_used,
         n_snps_killed=r.n_snps_killed,
+        shrinkage=np.asarray(r.shrinkage, dtype=float),
+        missing_fraction=np.asarray(r.missing_fraction, dtype=float),
     )

@@ -54,6 +54,29 @@ pub enum Warning {
     /// READ normalized by the median or mean of few pairs, which its fixed
     /// thresholds take to be unrelated (TASKS.md G11).
     ReadFewPairs { pairs: usize },
+    /// Projected samples with much missing data placed by dot product,
+    /// which counts a missing genotype as 0 (TASKS.md G6).
+    ProjectionMissingData { samples: usize, max_fraction: f64 },
+}
+
+/// Largest share of missing SNPs for a sample projected by dot product
+/// before [`Warning::ProjectionMissingData`].
+pub const MAX_PROJECTION_MISSING: f64 = 0.1;
+
+/// Warn when samples projected by dot product miss more than
+/// [`MAX_PROJECTION_MISSING`] of the SNPs; `fractions` are theirs.
+pub fn check_projection_missing(fractions: &[f64], warn: &mut dyn FnMut(Warning)) {
+    let over: Vec<f64> = fractions
+        .iter()
+        .copied()
+        .filter(|&f| f > MAX_PROJECTION_MISSING)
+        .collect();
+    if !over.is_empty() {
+        warn(Warning::ProjectionMissingData {
+            samples: over.len(),
+            max_fraction: over.iter().copied().fold(0.0, f64::max),
+        });
+    }
 }
 
 /// Fewest pairs for READ's median or mean normalization before
@@ -232,6 +255,17 @@ impl fmt::Display for Warning {
                  take the norm to be unrelated pairs, so with this few, or with many relatives, the \
                  degrees are unreliable (give a norm value from a larger set)"
             ),
+            Warning::ProjectionMissingData {
+                samples,
+                max_fraction,
+            } => write!(
+                f,
+                "{samples} projected sample(s) miss more than 10% of the PCA's SNPs (up to {:.0}%): \
+                 projection by dot product counts a missing genotype as 0, which pulls a sample \
+                 toward the origin in proportion; project by least squares (lsqproject, \
+                 --lsqproject)",
+                max_fraction * 100.0
+            ),
             Warning::NoGeneticMap => write!(
                 f,
                 "no genetic map (every SNP at the same map position): jackknife blocks are 2 Mb of \
@@ -369,6 +403,21 @@ mod tests {
         assert_eq!(
             collect(|w| check_read_pairs(3, w)),
             vec![Warning::ReadFewPairs { pairs: 3 }]
+        );
+    }
+
+    #[test]
+    fn projection_with_missing_data_warns_past_ten_percent() {
+        assert_eq!(
+            collect(|w| check_projection_missing(&[0.1, 0.05], w)),
+            vec![]
+        );
+        assert_eq!(
+            collect(|w| check_projection_missing(&[0.3, 0.05, 0.2], w)),
+            vec![Warning::ProjectionMissingData {
+                samples: 2,
+                max_fraction: 0.3
+            }]
         );
     }
 

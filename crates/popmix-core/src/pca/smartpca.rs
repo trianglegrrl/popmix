@@ -133,6 +133,10 @@ pub struct PcaOptions {
     pub lsq_project: bool,
     /// Fewest eigenvalues for a Tracy-Widom statistic (`nostatslim`).
     pub min_tw_eigs: usize,
+    /// Correct projected samples' shrinkage toward the origin on the
+    /// significant components (see the `shrink` module; not smartpca's
+    /// `shrinkmode`).
+    pub shrink: bool,
     pub compat: EigensoftCompat,
 }
 
@@ -145,6 +149,7 @@ impl Default for PcaOptions {
             outlier_sigma: 6.0,
             lsq_project: false,
             min_tw_eigs: 10,
+            shrink: false,
             compat: EigensoftCompat::CORRECTED,
         }
     }
@@ -183,6 +188,12 @@ pub struct PcaResult {
     pub n_snps_used: usize,
     /// SNPs dropped as monomorphic or without data, over all passes.
     pub n_snps_killed: usize,
+    /// With `shrink`: each component's shrinkage factor ρ, by which the
+    /// projected samples' coordinates were divided (NaN, left as they are,
+    /// beyond the significant components). Empty without `shrink`.
+    pub shrinkage: Vec<f64>,
+    /// Each sample's share of the PCA's SNPs it is missing, as `samples`.
+    pub missing_fraction: Vec<f64>,
 }
 
 /// One SNP's normalization over the PCA samples: the values of genotypes
@@ -414,7 +425,7 @@ pub fn smartpca(
     let mut outliers = Vec::new();
     let mut n_killed = 0usize;
     let mut pass = 0;
-    let (lambda, evecs, used, snps, norms) = loop {
+    let (lambda, evecs, used, snps, norms, diag) = loop {
         pass += 1;
         let used: Vec<usize> = pca.iter().copied().filter(|&s| !ignored[s]).collect();
         if used.len() < 2 {
@@ -450,15 +461,16 @@ pub fn smartpca(
             ));
         }
         xtx.mapv_inplace(|x| x / trace);
+        let diag: Vec<f64> = (0..used.len()).map(|i| xtx[[i, i]]).collect();
         let (lambda, evecs) = eigen(&xtx);
 
         if pass >= numoutiter || options.outlier_iterations == 0 {
-            break (lambda, evecs, used, snps, norms);
+            break (lambda, evecs, used, snps, norms, diag);
         }
         let neigs = options.outlier_components.min(used.len() - 1);
         let bad = find_outliers(&evecs, neigs, options.outlier_sigma);
         if bad.is_empty() {
-            break (lambda, evecs, used, snps, norms);
+            break (lambda, evecs, used, snps, norms, diag);
         }
         for (row, component, score) in bad {
             ignored[used[row]] = true;
@@ -486,6 +498,10 @@ pub fn smartpca(
         }
     }
     let (flat, sums) = project(geno, &kept, &snps, &norms, &v, options.lsq_project);
+    let mut missing = vec![f64::NAN; n_samples];
+    for (r, &s) in kept.iter().enumerate() {
+        missing[s] = sums.n_missing[r] as f64 / snps.len() as f64;
+    }
     let row_of_used: Vec<usize> = used
         .iter()
         .map(|s| kept.binary_search(s).expect("PCA sample kept"))
@@ -545,7 +561,7 @@ pub fn smartpca(
         kept.retain(|&s| !ignored[s]);
     }
 
-    let coords = if options.lsq_project {
+    let mut coords: Vec<Vec<f64>> = if options.lsq_project {
         // rescale each component so the PCA samples' fits match their
         // projections: y = <a, b> / <a, a> over the PCA samples
         let pos = |s: usize| kept.binary_search(&s).ok();
@@ -572,8 +588,28 @@ pub fn smartpca(
     };
 
     no_data.sort_unstable();
+    let tracy_widom = tracy_widom_table(&lambda, options.min_tw_eigs, options.compat);
+    let shrinkage = if options.shrink {
+        let signal = super::shrink::signal_components(&tracy_widom);
+        let rho = super::shrink::shrink_factors(&diag, &lambda, &evecs, k, signal);
+        for (c, &s) in coords.iter_mut().zip(&kept) {
+            if roles[s] == SampleRole::Project {
+                for (x, r) in c.iter_mut().zip(&rho) {
+                    if r.is_finite() && *r > 0.0 {
+                        *x /= r;
+                    }
+                }
+            }
+        }
+        rho
+    } else {
+        Vec::new()
+    };
+    let missing_fraction = kept.iter().map(|&s| missing[s]).collect();
     Ok(PcaResult {
-        tracy_widom: tracy_widom_table(&lambda, options.min_tw_eigs, options.compat),
+        tracy_widom,
+        shrinkage,
+        missing_fraction,
         eigenvalues: lambda,
         samples: kept,
         coords,
@@ -679,7 +715,11 @@ fn project(
         let count = per_sample.iter().map(|p| p.1).collect();
         (per_sample.into_iter().flat_map(|p| p.0).collect(), count)
     } else {
-        (Vec::new(), vec![0; n])
+        let count = samples
+            .par_iter()
+            .map(|&s| snps.iter().filter(|&&snp| geno.get(snp, s) > 2).count())
+            .collect();
+        (Vec::new(), count)
     };
     let sums = SampleSums {
         dot: dot.iter().copied().collect(),

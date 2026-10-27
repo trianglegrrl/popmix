@@ -36,12 +36,14 @@ from ._population_checks import validate_populations
               help="Project by least squares on observed genotypes (for samples with missing data)")
 @click.option("--compat", type=click.Choice(["eigensoft-7.2.1"]), default=None,
               help="Reproduce EIGENSOFT 7.2.1 smartpca exactly (see DEVIATIONS.md)")
+@click.option("--shrink", is_flag=True, default=False,
+              help="Correct projected samples' shrinkage toward the origin on significant components")
 @click.option("--output-prefix", "-o", required=True,
               help="Writes PREFIX.coords.tsv, .eval, .tracy_widom.tsv and .outliers.tsv")
 @click.option("--plot", default=None, help="Also plot PC1 against PC2 to this image file (needs popmix[plot])")
 def pca(input_prefix: str, pca_pops: list, project_pops: list, components: int, outlier_iterations: int,
         outlier_components: int, outlier_sigma: float, lsqproject: bool, compat: str | None,
-        output_prefix: str, plot: str | None):
+        shrink: bool, output_prefix: str, plot: str | None):
     """Principal component analysis as EIGENSOFT smartpca, with projection.
 
     The PCA is computed on --pca-pops and the samples of --project-pops are
@@ -52,7 +54,7 @@ def pca(input_prefix: str, pca_pops: list, project_pops: list, components: int, 
         validate_populations(input_prefix, pca_pops + project_pops)
         r = pm.smartpca(input_prefix, pca_pops or None, project_pops, n_components=components,
                         outlier_iterations=outlier_iterations, outlier_components=outlier_components,
-                        outlier_sigma=outlier_sigma, lsqproject=lsqproject, compat=compat)
+                        outlier_sigma=outlier_sigma, lsqproject=lsqproject, compat=compat, shrink=shrink)
         r.coords.to_csv(f"{output_prefix}.coords.tsv", sep="\t", index=False, float_format="%.12g")
         with open(f"{output_prefix}.eval", "w") as f:
             f.write("".join(f"{x:.12g}\n" for x in r.eigenvalues))
