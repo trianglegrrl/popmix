@@ -467,8 +467,10 @@ thread count.
   chi-squared inflated past 10% by (g − 1)/(g − p − 2) (Hotelling; or
   g <= p + 2), and for DATES/ROLLOFF jackknives over fewer than 10
   chromosomes; documented, no correction applied.
-- [ ] **G5. Warn when there is no genetic map** (2 Mb blocks,
+- [x] **G5. Warn when there is no genetic map** (2 Mb blocks,
   `fstats/blocks.rs:63`, shorter than 5 cM; SEs slightly small). PR
+  *Done in afdd936:* `Warning::NoGeneticMap` from extract_f2, genotype-path
+  statistics and f2_from_frequencies.
 - [ ] **G6. Projected ancient samples:** default to lsqproject when
   projected samples have much missing data, or warn; implement shrinkage
   correction (PLAN.md A2 listed it; `pca/smartpca.rs:145`). PR
