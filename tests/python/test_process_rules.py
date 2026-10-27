@@ -18,11 +18,9 @@ TEST_DIRS = [ROOT / "tests"]
 SOURCE_DIRS = [ROOT / d for d in ("crates", "python", "tests", "benchmarks")]
 MAX_LINES = 800
 
-# over MAX_LINES when the rule came in (2026-10-27), with their sizes now:
-# lower each as the file shrinks (TASKS.md I7)
-TOO_LONG = {
-    "benchmarks/cases.py": 1064,
-}
+# files over MAX_LINES allowed to stay so, with their sizes, which may only
+# go down: none since TASKS.md I7 split the 13 there were (2026-10-27)
+TOO_LONG: dict[str, int] = {}
 
 
 def _files(dirs: list[Path], suffixes: tuple[str, ...]) -> list[Path]:

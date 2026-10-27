@@ -136,7 +136,7 @@ rules for adding one.
 
 - **DATES:** Source allele frequencies count every sample as diploid: a
   call of 0 or 2 from a pseudo-haploid sample is two copies of one allele.
-  Established black-box (benchmarks/cases.py's DATES case, French =
+  Established black-box (benchmarks/cases/dating.py's DATES case, French =
   Sardinian + Russia_Samara_EBA_Yamnaya on AADR v66.p1): popmix counted
   0.046% more pairs than DATES and fit 153.8 generations against 152.9.
   Russia_Samara_EBA_Yamnaya holds 45 pseudo-haploid samples and one diploid
@@ -668,7 +668,7 @@ rexpfit.r's method and its weighted jackknife by dowtjack, as expfit.sh.
 ## ADMIXTOOLS 7.0.2 (qpAdm)
 
 popmix's qpAdm follows admixtools2 (`qpadm()`), which is what its goldens
-check. The benchmark case `classic_qpadm` (benchmarks/cases.py) runs
+check. The benchmark case `classic_qpadm` (benchmarks/cases/classic.py) runs
 classic qpAdm (version 1520, `allsnps: NO`, `inbreed: NO`) on the same
 genotypes, with `--pseudohaploid diploid`, and the two differ beyond
 qpAdm's printed precision. This is a difference of method, not a bug in

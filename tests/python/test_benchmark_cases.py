@@ -1,4 +1,4 @@
-"""Agreement checks of the benchmark cases (benchmarks/cases.py)."""
+"""Agreement checks of the benchmark cases (benchmarks/cases/)."""
 
 import sys
 from pathlib import Path

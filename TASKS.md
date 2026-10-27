@@ -571,7 +571,7 @@ thread count.
 - [ ] **I5. One linear-algebra library** in public types and hot paths. RS
 - [ ] **I6. Don't promise a stable Rust API at 1.0** until I1-I4 are done
   (Python package 1.0 is separate). RS
-- [ ] **I7. No source file past about 800 lines,** split by concern, enforced
+- [x] **I7. No source file past about 800 lines,** split by concern, enforced
   by a test. Over it on 2026-10-27: `popmix-python/src/lib.rs` 3,628 (I4),
   `rcompat/lbfgsb.rs` 2,127, `cli/__init__.py` 1,580, `f2_blocks.rs` 1,527,
   `admixture.rs` 1,159, `writers.rs` 1,117, `benchmarks/cases.py` 1,064,
@@ -579,6 +579,12 @@ thread count.
   `qpgraph_fit.rs` 922, `merge.rs` 848, `qpadm/fit.rs` 845. First move inline
   `mod tests` blocks into sibling `tests.rs` files, then split what is
   still long.
+  *Done (2026-10-27):* test modules moved to `tests.rs` (d68dc3d's rule,
+  7a6d65e, 97f0764); the bindings' `lib.rs` by domain (e389bb0); L-BFGS-B
+  into driver, memory, Cauchy point, subspace and line search (910b747);
+  ADMIXTURE into fit, Newton steps and quadratic programs (b9b8d6e); the
+  CLI by domain (c0484a7); `benchmarks/cases.py` into a package by area
+  (COMMIT). `test_process_rules.py` keeps every source file under 800.
 
 ## J. Python API consistency (P2)
 
