@@ -25,11 +25,18 @@ pub fn king(
 ) -> PyResult<Py<PyAny>> {
     let (mut source, snps, _, samples) = open_source(prefix, &populations, auto_only)?;
     let n = samples.len();
-    let pairs = crate::compute(py, || {
+    let (pairs, no_het) = crate::compute(py, || {
         let mut rows = rows_of(&mut source);
         let g = BitGenotypes::read(rows.as_mut(), n, snps.len())?;
-        Ok::<_, popmix_core::PopmixError>(king_robust(&g))
+        let no_het: Vec<usize> = (0..n).filter(|&s| g.n_heterozygous(s) == 0).collect();
+        Ok::<_, popmix_core::PopmixError>((king_robust(&g), no_het))
     })?;
+    if !no_het.is_empty() {
+        let names = no_het.iter().map(|&s| samples[s].id.clone()).collect();
+        crate::warnings::emit(|w| {
+            w(popmix_core::Warning::KingWithoutHeterozygotes { samples: names });
+        })?;
+    }
     let d = PyDict::new(py);
     let id = |k: usize| samples[k].id.clone();
     d.set_item("id1", pairs.iter().map(|p| id(p.i)).collect::<Vec<_>>())?;
@@ -130,6 +137,9 @@ pub fn read_kinship_py(
         let g = BitGenotypes::read(rows.as_mut(), n, snps.len())?;
         read_kinship(&g, &positions, &chroms, &options)
     })?;
+    if matches!(norm, ReadNorm::Median | ReadNorm::Mean) {
+        crate::warnings::emit(|w| popmix_core::warnings::check_read_pairs(out.pairs.len(), w))?;
+    }
     let d = PyDict::new(py);
     let p = &out.pairs;
     let id = |k: usize| samples[k].id.clone();

@@ -68,10 +68,20 @@ popmix kinship -i aadr_v66p1 --populations France_Gurgy_MN --method read -o gurg
 ## Caveats
 
 - KING needs heterozygous calls: a pseudo-haploid sample gives kinship minus
-  infinity, as in PLINK 2; use `--method read`.
+  infinity, as in PLINK 2, and popmix warns; use `--method read`.
 - READ normalizes within the group given, so compare samples of one
   population, with enough unrelated pairs for the median (or give
-  `--norm-value`).
+  `--norm-value`): its thresholds are fixed and take the median to be an
+  unrelated pair's, so popmix warns below 10 pairs. A population with much
+  background relatedness or inbreeding shifts every class.
+- Coverage: pairs with few overlapping SNPs (`overlap_snps`) have wide
+  intervals and READ may not call third degree; low-coverage genomes
+  called pseudo-haploid compare one random allele each, which READ is
+  built for, while KING-robust on low-coverage diploid calls is biased by
+  genotyping error (hets missed or false) toward unrelated or related.
+- Contamination adds alleles from another individual: in READ it raises
+  P0, so relatives look more distant; in KING it adds false heterozygotes.
+  Check contamination estimates before calling a pair unrelated.
 - `--norm`, `--norm-value`, `--window-size` and `--compat` apply only with
   `--method read`.
 - PLINK 2 labels its het-hom columns the wrong way round; popmix's

@@ -21,7 +21,9 @@ def king(prefix: str | os.PathLike[str], populations: Sequence[str] | None = Non
     (4 min(het1, het2)). About 0.5 for duplicates or monozygotic twins, 0.25
     first-degree, 0.125 second-degree, 0 unrelated. It needs diploid calls: a
     sample with no heterozygous call (such as a pseudo-haploid ancient
-    sample) gives minus infinity, as in PLINK 2.
+    sample) gives minus infinity, as in PLINK 2, with a ``PopmixWarning``.
+    Genotyping error at low coverage and contamination (false heterozygotes)
+    bias it.
 
     Parameters
     ----------
@@ -71,7 +73,10 @@ def read_kinship(
     unrelated (use ``norm="max"`` for a trio, or ``norm_value`` from another
     sample of the population). Normalized P0 is about 1 for unrelated pairs,
     0.75 first degree, 0.875 second, 0.9375 third and 0.5 for the same
-    individual; the kinship coefficient is 1 minus it.
+    individual; the kinship coefficient is 1 minus it. The class thresholds
+    are fixed, so a norm from fewer than 10 pairs warns; background
+    relatedness or inbreeding shifts every class, and contamination raises P0
+    (relatives look more distant).
 
     Parameters
     ----------

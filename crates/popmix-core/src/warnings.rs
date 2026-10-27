@@ -48,6 +48,24 @@ pub enum Warning {
     /// A DATES source with few observed alleles per SNP used: its
     /// frequencies, the SNP weights, are noisy (TASKS.md G10).
     FewSourceAlleles { source: String, mean_alleles: f64 },
+    /// Samples without a heterozygous call in KING-robust, whose kinship
+    /// is minus infinity (TASKS.md G11).
+    KingWithoutHeterozygotes { samples: Vec<String> },
+    /// READ normalized by the median or mean of few pairs, which its fixed
+    /// thresholds take to be unrelated (TASKS.md G11).
+    ReadFewPairs { pairs: usize },
+}
+
+/// Fewest pairs for READ's median or mean normalization before
+/// [`Warning::ReadFewPairs`].
+pub const MIN_READ_PAIRS: usize = 10;
+
+/// Warn when READ normalizes by the median or mean of fewer than
+/// [`MIN_READ_PAIRS`] pairs.
+pub fn check_read_pairs(pairs: usize, warn: &mut dyn FnMut(Warning)) {
+    if pairs < MIN_READ_PAIRS {
+        warn(Warning::ReadFewPairs { pairs });
+    }
 }
 
 /// Fewest mean observed alleles per SNP in a DATES source before
@@ -196,6 +214,24 @@ impl fmt::Display for Warning {
                  than {MIN_SOURCE_ALLELES}; a SNP needs only one called sample): its frequencies, the \
                  SNP weights, are noisy, which weakens the signal and widens the SE"
             ),
+            Warning::KingWithoutHeterozygotes { samples } => {
+                let shown: Vec<&str> = samples.iter().take(5).map(String::as_str).collect();
+                let more = if samples.len() > 5 { ", ..." } else { "" };
+                write!(
+                    f,
+                    "KING-robust needs heterozygous calls: {} sample(s) have none (pseudo-haploid?), \
+                     so their kinship is minus infinity, as in PLINK 2 ({}{more}); use READ \
+                     (--method read) for pseudo-haploid data",
+                    samples.len(),
+                    shown.join(", ")
+                )
+            }
+            Warning::ReadFewPairs { pairs } => write!(
+                f,
+                "READ: normalized by {pairs} pairs (fewer than {MIN_READ_PAIRS}); its thresholds \
+                 take the norm to be unrelated pairs, so with this few, or with many relatives, the \
+                 degrees are unreliable (give a norm value from a larger set)"
+            ),
             Warning::NoGeneticMap => write!(
                 f,
                 "no genetic map (every SNP at the same map position): jackknife blocks are 2 Mb of \
@@ -311,6 +347,28 @@ mod tests {
             "DATES: source French has 3.2 observed alleles per SNP used (fewer than 10; a SNP needs \
              only one called sample): its frequencies, the SNP weights, are noisy, which weakens the \
              signal and widens the SE"
+        );
+    }
+
+    #[test]
+    fn king_names_the_samples_without_heterozygotes() {
+        let w = Warning::KingWithoutHeterozygotes {
+            samples: (1..=6).map(|i| format!("S{i}")).collect(),
+        };
+        assert_eq!(
+            w.to_string(),
+            "KING-robust needs heterozygous calls: 6 sample(s) have none (pseudo-haploid?), so their \
+             kinship is minus infinity, as in PLINK 2 (S1, S2, S3, S4, S5, ...); use READ (--method \
+             read) for pseudo-haploid data"
+        );
+    }
+
+    #[test]
+    fn read_with_few_pairs_warns() {
+        assert_eq!(collect(|w| check_read_pairs(10, w)), vec![]);
+        assert_eq!(
+            collect(|w| check_read_pairs(3, w)),
+            vec![Warning::ReadFewPairs { pairs: 3 }]
         );
     }
 

@@ -103,6 +103,14 @@ impl BitGenotypes {
         )
     }
 
+    /// Heterozygous calls of sample `s`.
+    pub fn n_heterozygous(&self, s: usize) -> u64 {
+        self.sample(&self.het, s)
+            .iter()
+            .map(|w| u64::from(w.count_ones()))
+            .sum()
+    }
+
     fn sample<'a>(&self, v: &'a [u64], s: usize) -> &'a [u64] {
         &v[s * self.words..(s + 1) * self.words]
     }
