@@ -37,7 +37,7 @@ use crate::warnings::{open_vcf, with_warnings};
 /// Returns:
 ///     Dictionary with conversion info (n_samples, n_snps, output_format)
 #[pyfunction]
-#[pyo3(signature = (input_prefix, output_prefix, output_format, input_format=None))]
+#[pyo3(signature = (input_prefix, output_prefix, output_format, *, input_format=None))]
 pub(crate) fn convertf(
     py: Python<'_>,
     input_prefix: &str,
@@ -281,7 +281,7 @@ fn convertf_files(
 ///     - samples_total: Total samples in merged output
 ///     - snps_merged: Total SNPs in merged output
 #[pyfunction]
-#[pyo3(signature = (file_a, file_b, output, output_format, input_format_a=None, input_format_b=None))]
+#[pyo3(signature = (file_a, file_b, output, output_format, *, input_format_a=None, input_format_b=None))]
 pub(crate) fn merge(
     py: Python<'_>,
     file_a: &str,

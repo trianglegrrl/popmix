@@ -31,7 +31,7 @@ def commands(out: Path) -> dict[str, list[str]]:
                     "--pop4", "Simulation"],
         "pca": ["pca", "-i", i, "-o", str(out / "pca")],
         "kinship": ["kinship", "-i", i, "--method", "king", "-o", str(out / "king.tsv")],
-        "dates": ["dates", "-i", i, "--test-pop", "Simulation.1", "--source1", "French", "--source2", "Yoruba"],
+        "dates": ["dates", "-i", i, "--admixed", "Simulation.1", "--sources", "French,Yoruba"],
     }
 
 

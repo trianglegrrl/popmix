@@ -19,7 +19,7 @@ def test_detected_and_read():
     assert pm.detect_format(TGENO) == "TGENO"
     assert pm.dataset_info(TGENO)["format"] == "tgeno"
     np.testing.assert_array_equal(pm.read_genotypes(TGENO).to_numpy(), pm.read_genotypes(TEXT).to_numpy())
-    assert pm.read_genotypes(TGENO, (1, 4)).n_snps == 3
+    assert pm.read_genotypes(TGENO, snp_range=(1, 4)).n_snps == 3
     assert dict(pm.list_populations(TGENO)) == dict(pm.list_populations(TEXT))
 
 

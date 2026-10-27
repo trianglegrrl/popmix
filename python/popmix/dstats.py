@@ -309,7 +309,7 @@ def _from_f2(combs: list[tuple], cols: list[str], stat) -> pd.DataFrame:
 
 
 def sample_ploidy(prefix: str | os.PathLike[str], populations: Sequence[str],
-                  pseudohaploid: str = "detect") -> dict[str, int]:
+                  *, pseudohaploid: str = "detect") -> dict[str, int]:
     """Ploidy of each sample of ``populations``: pseudo-haploid (1) or diploid (2).
 
     ``pseudohaploid="detect"``: pseudo-haploid when the sample has no

@@ -42,7 +42,7 @@ def _boot_draws(n: int, nboot: int, seed: int | None) -> list[list[int]]:
     return _core.r_sample_replace(seed, n, n, nboot)
 
 
-def boo_list(f2_blocks: _core.PyF2Blocks, nboot: int | None = None, seed: int | None = None) -> dict[str, list]:
+def boo_list(f2_blocks: _core.PyF2Blocks, *, nboot: int | None = None, seed: int | None = None) -> dict[str, list]:
     """Bootstrap resamples of the f2 blocks (admixtools2 ``boo_list``).
 
     Parameters
@@ -69,7 +69,7 @@ def boo_list(f2_blocks: _core.PyF2Blocks, nboot: int | None = None, seed: int | 
 def _resamples(f2_blocks: _core.PyF2Blocks, boot: bool | int, boot_seed: int | None) -> tuple[list, list]:
     if boot:
         nboot = f2_blocks.n_blocks if boot is True or boot == 1 else int(boot)
-        b = boo_list(f2_blocks, nboot, boot_seed)
+        b = boo_list(f2_blocks, nboot=nboot, seed=boot_seed)
         return b["boo"], b["sel"]
     n = f2_blocks.n_blocks
     return loo_list(f2_blocks), [[b for b in range(n) if b != i] for i in range(n)]
@@ -88,7 +88,7 @@ def _run(fun: Callable[[Any], dict], data: Sequence, sel: Sequence) -> pd.DataFr
 
 def _qpadm_fit(target, left, right, args):
     def fit(d):
-        r = _core.qpadm(d, target, list(left), list(right), **args)
+        r = _core.qpadm(d, list(left), list(right), target, **args)
         return {"weights": list(r.weights), "chisq": r.chi_sq, "p": r.p_value, "result": r}
     return fit
 
@@ -110,7 +110,7 @@ def _qpgraph_row(r: _core.PyQpGraphResult) -> dict:
 def qpgraph_resample_snps(
     f2_blocks: _core.PyF2Blocks,
     edges: Sequence[tuple[str, str]],
-    boot: bool | int = False,
+    *, boot: bool | int = False,
     boot_seed: int | None = None,
     **qpgraph_args: Any,
 ) -> pd.DataFrame:
@@ -143,7 +143,7 @@ def qpgraph_resample_multi(
     f2_blocks: _core.PyF2Blocks,
     graphs: Sequence[Sequence[tuple[str, str]]],
     nboot: int,
-    boot_seed: int | None = None,
+    *, boot_seed: int | None = None,
     **qpgraph_args: Any,
 ) -> list[pd.DataFrame]:
     """Fit several graphs on the same bootstrap resamples, each scored on the
@@ -156,7 +156,7 @@ def qpgraph_resample_multi(
         One per graph, one row per resample: as ``qpgraph_resample_snps``,
         with ``score_test``.
     """
-    b = boo_list(f2_blocks, nboot, boot_seed)
+    b = boo_list(f2_blocks, nboot=nboot, seed=boot_seed)
 
     def fit(edges: Sequence[tuple[str, str]]) -> pd.DataFrame:
         it = iter(b["test"])
@@ -233,10 +233,10 @@ def compare_fits(scores1: Sequence[float], scores2: Sequence[float]) -> dict[str
 
 def qpadm_resample_snps(
     f2_blocks: _core.PyF2Blocks,
-    target: str,
     left: Sequence[str],
     right: Sequence[str],
-    boot: bool | int = False,
+    target: str,
+    *, boot: bool | int = False,
     boot_seed: int | None = None,
     **qpadm_args: Any,
 ) -> pd.DataFrame:
@@ -256,7 +256,7 @@ def qpwave_resample_snps(
     f2_blocks: _core.PyF2Blocks,
     left: Sequence[str],
     right: Sequence[str],
-    boot: bool | int = False,
+    *, boot: bool | int = False,
     boot_seed: int | None = None,
     **qpwave_args: Any,
 ) -> pd.DataFrame:
@@ -289,7 +289,7 @@ def qpdstat_resample_snps(
     pop2: Any = None,
     pop3: Any = None,
     pop4: Any = None,
-    boot: bool | int = False,
+    *, boot: bool | int = False,
     boot_seed: int | None = None,
     **qpdstat_args: Any,
 ) -> pd.DataFrame:
@@ -305,7 +305,7 @@ def qp3pop_resample_snps(
     pop1: Any = None,
     pop2: Any = None,
     pop3: Any = None,
-    boot: bool | int = False,
+    *, boot: bool | int = False,
     boot_seed: int | None = None,
     **qp3pop_args: Any,
 ) -> pd.DataFrame:
@@ -363,19 +363,20 @@ _INDS_DOC = """
     """
 
 
-def qpadm_resample_inds(prefix: str, inds: Sequence[str], pops: Sequence[str], target: str,
-                        left: Sequence[str], right: Sequence[str], f2_args: dict | None = None,
+def qpadm_resample_inds(prefix: str, inds: Sequence[str], pops: Sequence[str], left: Sequence[str],
+                        right: Sequence[str], target: str, *, f2_args: dict | None = None,
+
                         **qpadm_args: Any) -> pd.DataFrame:
     return _run_inds(_qpadm_fit(target, left, right, qpadm_args), prefix, inds, pops, f2_args)
 
 
 def qpwave_resample_inds(prefix: str, inds: Sequence[str], pops: Sequence[str], left: Sequence[str],
-                         right: Sequence[str], f2_args: dict | None = None, **qpwave_args: Any) -> pd.DataFrame:
+                         right: Sequence[str], *, f2_args: dict | None = None, **qpwave_args: Any) -> pd.DataFrame:
     return _run_inds(_qpwave_fit(left, right, qpwave_args), prefix, inds, pops, f2_args)
 
 
 def qpgraph_resample_inds(prefix: str, inds: Sequence[str], pops: Sequence[str],
-                          edges: Sequence[tuple[str, str]], f2_args: dict | None = None,
+                          edges: Sequence[tuple[str, str]], *, f2_args: dict | None = None,
                           **qpgraph_args: Any) -> pd.DataFrame:
     return _run_inds(lambda d: _qpgraph_row(_core.qpgraph(d, list(edges), **qpgraph_args)), prefix, inds, pops,
                      f2_args)
@@ -391,14 +392,14 @@ def _fstat_inds(fun, prefix, inds, pops, f2_args, pop_args, args) -> pd.DataFram
 
 
 def qpdstat_resample_inds(prefix: str, inds: Sequence[str], pops: Sequence[str], pop1: Any = None,
-                          pop2: Any = None, pop3: Any = None, pop4: Any = None, f2_args: dict | None = None,
+                          pop2: Any = None, pop3: Any = None, pop4: Any = None, *, f2_args: dict | None = None,
                           **qpdstat_args: Any) -> pd.DataFrame:
     return _fstat_inds(qpdstat, prefix, inds, pops, f2_args,
                        {"pop1": pop1, "pop2": pop2, "pop3": pop3, "pop4": pop4}, qpdstat_args)
 
 
 def qp3pop_resample_inds(prefix: str, inds: Sequence[str], pops: Sequence[str], pop1: Any = None,
-                         pop2: Any = None, pop3: Any = None, f2_args: dict | None = None,
+                         pop2: Any = None, pop3: Any = None, *, f2_args: dict | None = None,
                          **qp3pop_args: Any) -> pd.DataFrame:
     return _fstat_inds(qp3pop, prefix, inds, pops, f2_args, {"pop1": pop1, "pop2": pop2, "pop3": pop3},
                        qp3pop_args)

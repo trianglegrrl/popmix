@@ -369,9 +369,8 @@ class TestDatesCommand:
         result = run_cli(
             "dates",
             "--input", self.DATES_TEST_PREFIX,
-            "--test-pop", "Simulation",
-            "--source1", "French",
-            "--source2", "Yoruba",
+            "--admixed", "Simulation",
+            "--sources", "French,Yoruba",
             timeout=120,
         )
 
@@ -390,9 +389,8 @@ class TestDatesCommand:
         result = run_cli(
             "dates",
             "--input", self.DATES_TEST_PREFIX,
-            "--test-pop", "Simulation",
-            "--source1", "French",
-            "--source2", "Yoruba",
+            "--admixed", "Simulation",
+            "--sources", "French,Yoruba",
             "--format", "json",
             timeout=120,
         )
@@ -413,9 +411,8 @@ class TestDatesCommand:
         result = run_cli(
             "dates",
             "--input", self.DATES_TEST_PREFIX,
-            "--test-pop", "Simulation",
-            "--source1", "French",
-            "--source2", "Yoruba",
+            "--admixed", "Simulation",
+            "--sources", "French,Yoruba",
             "--format", "tsv",
             timeout=120,
         )
@@ -443,9 +440,8 @@ class TestDatesCommand:
         result = run_cli(
             "dates",
             "--input", self.DATES_TEST_PREFIX,
-            "--test-pop", "Simulation",
-            "--source1", "French",
-            "--source2", "Yoruba",
+            "--admixed", "Simulation",
+            "--sources", "French,Yoruba",
             "--qbin", "10",
             "--min-distance", "0.45",
             "--compat", "dates-v753",
@@ -467,9 +463,8 @@ class TestDatesCommand:
         result = run_cli(
             "dates",
             "--input", "/nonexistent/path",
-            "--test-pop", "Test",
-            "--source1", "Source1",
-            "--source2", "Source2",
+            "--admixed", "Test",
+            "--sources", "Source1,Source2",
             check=False
         )
         assert result.returncode != 0

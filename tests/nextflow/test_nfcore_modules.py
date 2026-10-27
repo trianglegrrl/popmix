@@ -165,8 +165,8 @@ def test_findgraphs(run):
 
 def test_dates(run):
     out = _json(run, "dates")
-    direct = subprocess.run(["popmix", "dates", "--input", str(SMALL), "--test-pop", "Simulation", "--source1",
-                             "French", "--source2", "Yoruba", "--format", "json"],
+    direct = subprocess.run(["popmix", "dates", "--input", str(SMALL), "--admixed", "Simulation", "--sources",
+                             "French,Yoruba", "--format", "json"],
                             capture_output=True, text=True, check=True)
     assert out == json.loads(direct.stdout)
 

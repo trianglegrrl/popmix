@@ -68,8 +68,8 @@ ANALYSES = {
     "read": lambda: pm.read_kinship(SMALL, ["French"]),
     "admixture": lambda: pm.admixture(SMALL, 2, ["French", "Yoruba"]),
     "rolloff": lambda: pm.rolloff(SMALL, "Simulation.1", ["French", "Yoruba"]),
-    "dates": lambda: pm.dates(pm.read_genotypes(SMALL, populations=["Simulation.1", "French", "Yoruba"]),
-                              "Simulation.1", "French", "Yoruba"),
+    "dates": lambda: pm.dates(SMALL, "Simulation.1", ["French", "Yoruba"]),
+
     "f2_blocks": _f2_blocks,
 }
 

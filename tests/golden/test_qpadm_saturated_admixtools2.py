@@ -34,7 +34,7 @@ def f2():
 
 @pytest.fixture(scope="module")
 def result(f2):
-    return pm.qpadm(f2, REF["target"], REF["left"], REF["right"])
+    return pm.qpadm(f2, REF["left"], REF["right"], REF["target"])
 
 
 def test_weights_match_admixtools2(result):

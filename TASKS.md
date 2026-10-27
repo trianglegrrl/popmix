@@ -610,8 +610,18 @@ thread count.
 
 ## J. Python API consistency (P2)
 
-- [ ] **J1. One input convention:** `dates()` takes a matrix while `alder`,
+- [x] **J1. One input convention:** `dates()` takes a matrix while `alder`,
   `smartpca`, `king` take a prefix; `qpadm` `sources` vs `qpwave` `left`. PD
+  *Done in COMMIT:* every option of every public function is
+  keyword-only, with its real default in the signature (`fudge=1e-4`, not
+  `None`), so 1.x can add options without breaking calls; only the
+  populations of a statistic may be given in order, as in admixtools2.
+  `dates(prefix, admixed, sources, ...)` reads the populations it needs,
+  as every genotype analysis does; `rolloff(prefix, admixed, sources,
+  ...)` names its references the same way, and the CLI's `dates` and
+  `rolloff` take `--admixed` and `--sources A,B`. The qpAdm family is
+  `left, right, target` throughout (admixtools2's `qpadm` order).
+  `tests/python/test_api_conventions.py` holds the rules.
 - [ ] **J2. One result convention:** dicts (`f2`), pyclasses, DataFrames with
   admixtools column names (`est`/`se`); counts as ints, not floats
   (`n_snps: 21077.0`). PD, AI
@@ -693,6 +703,8 @@ thread count.
 
 ## M. Minor cleanups (P2)
 
+  Note (J1): the modules call `popmix dates --test-pop/--source1/--source2`
+  and `popmix rolloff --refs`; 1.0 takes `--admixed` and `--sources A,B`.
 - [x] **M1. Duplicated logic:** three confidence-interval implementations
   (`formatters.py:34`, `rich_output.py:27`, `statistics.py:26`; go with D1).
   AI

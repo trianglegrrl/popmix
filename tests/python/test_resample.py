@@ -37,8 +37,8 @@ def test_boo_list_is_reproducible_from_its_seed(f2):
 
 
 def test_qpadm_resample_snps_jackknife(f2):
-    full = pm.qpadm(f2, "Simulation.1", ["French"], RIGHT)
-    t = pm.qpadm_resample_snps(f2, "Simulation.1", ["French"], RIGHT)
+    full = pm.qpadm(f2, ["French"], RIGHT, "Simulation.1")
+    t = pm.qpadm_resample_snps(f2, ["French"], RIGHT, "Simulation.1")
     assert list(t.id) == list(range(1, f2.n_blocks + 1))
     assert t.error.isna().all()
     assert all(w == [1.0] for w in t.weights)
@@ -56,7 +56,7 @@ def test_bootstrap_count_and_seed(f2):
 
 
 def test_failures_are_recorded_per_resample(f2):
-    t = pm.qpadm_resample_snps(f2, "Simulation.1", ["French"], ["Simulation", "Nowhere"], boot=2, boot_seed=1)
+    t = pm.qpadm_resample_snps(f2, ["French"], ["Simulation", "Nowhere"], "Simulation.1", boot=2, boot_seed=1)
     assert len(t) == 2
     assert all(isinstance(e, Exception) for e in t.error)
 
@@ -85,9 +85,9 @@ def test_resample_inds_leaves_out_each_individual_of_a_larger_population():
 
     rows = first("French", 3) + first("Simulation.1", 2) + first("Simulation", 1) + first("Yoruba", 2)
     inds, pops = [r[0] for r in rows], [r[2] for r in rows]
-    t = pm.qpadm_resample_inds(PREFIX, inds, pops, "Simulation.1", ["French"], RIGHT, f2_args={"auto_only": False})
+    t = pm.qpadm_resample_inds(PREFIX, inds, pops, ["French"], RIGHT, "Simulation.1", f2_args={"auto_only": False})
     singles = [i for i, p in zip(inds, pops) if pops.count(p) == 1]  # noqa: B905
     assert list(t.ind) == [i for i in inds if i not in singles]
     assert t.error.isna().all()
     with pytest.raises(ValueError, match="same length"):
-        pm.qpadm_resample_inds(PREFIX, inds, pops[:-1], "Simulation.1", ["French"], RIGHT)
+        pm.qpadm_resample_inds(PREFIX, inds, pops[:-1], ["French"], RIGHT, "Simulation.1")

@@ -148,7 +148,7 @@ def test_qpgraph_resample_snps_bootstrap(f2_blocks):
 
 def test_qpadm_resample_snps(f2_blocks):
     t = _ref()["qpadm_resample_snps"]
-    ours = pm.qpadm_resample_snps(f2_blocks, t["target"], t["left"], t["right"])
+    ours = pm.qpadm_resample_snps(f2_blocks, t["left"], t["right"], t["target"])
     assert len(ours) == len(t["rows"])
     for (_, o), r in zip(ours.iterrows(), t["rows"]):  # noqa: B905
         np.testing.assert_allclose(o["weights"], [float(w) for w in r["weights"]], rtol=0, atol=WEIGHT_TOL)
@@ -205,7 +205,7 @@ def test_resample_inds(inds_ref):
     ref = inds_ref
     args = (ref["prefix"], ref["inds"], ref["pops"])
     f2a = _f2_args(ref)
-    qa = pm.qpadm_resample_inds(*args, ref["qpadm"]["target"], ref["qpadm"]["left"], ref["qpadm"]["right"],
+    qa = pm.qpadm_resample_inds(*args, ref["qpadm"]["left"], ref["qpadm"]["right"], ref["qpadm"]["target"],
                                 f2_args=f2a)
     qw = pm.qpwave_resample_inds(*args, ref["qpwave"]["left"], ref["qpwave"]["right"], f2_args=f2a)
     qd = pm.qpdstat_resample_inds(*args, *ref["qpdstat"], f2_args=f2a)

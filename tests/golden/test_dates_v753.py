@@ -153,20 +153,13 @@ EXACT_MODE_ORACLE = {
 }
 
 
-_genotypes = {}
-
-
 def _run_popmix(ref: DatesReference, compat: Optional[str]):
     if not os.path.exists(f"{ref.prefix}.geno"):
         pytest.skip(f"genotype data not available: {ref.prefix}")
-    if ref.prefix not in _genotypes:
-        _genotypes.clear()
-        _genotypes[ref.prefix] = pm.read_genotypes(ref.prefix)
     return pm.dates(
-        _genotypes[ref.prefix],
-        test_pop=ref.test_pop,
-        source1=ref.source1,
-        source2=ref.source2,
+        ref.prefix,
+        ref.test_pop,
+        [ref.source1, ref.source2],
         bin_width_cm=ref.binsize * 100.0,
         max_distance_cm=ref.maxdis * 100.0,
         min_distance_cm=ref.lovalfit,

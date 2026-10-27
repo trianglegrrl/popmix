@@ -33,7 +33,7 @@ def _vector(x) -> list:
 
 
 def read_admixtools2_f2(f2_dir: str | os.PathLike, populations: Sequence[str] | None = None,
-                        remove_na: bool = True) -> _core.PyF2Blocks:
+                        *, remove_na: bool = True) -> _core.PyF2Blocks:
     """Read an admixtools2 f2 directory (``extract_f2`` output).
 
     Parameters
@@ -85,7 +85,7 @@ def read_admixtools2_f2(f2_dir: str | os.PathLike, populations: Sequence[str] | 
     return _core.PyF2Blocks.from_block_means(pops, [lengths[k] for k in keep], sel, cnt)
 
 
-def write_admixtools2_f2(f2_blocks: _core.PyF2Blocks, outdir: str | os.PathLike, overwrite: bool = False) -> None:
+def write_admixtools2_f2(f2_blocks: _core.PyF2Blocks, outdir: str | os.PathLike, *, overwrite: bool = False) -> None:
     """Write f2 blocks as an admixtools2 f2 directory (admixtools2 ``write_f2``),
     which admixtools2 reads with ``f2_from_precomp`` or ``read_f2``."""
     outdir = os.fspath(outdir)

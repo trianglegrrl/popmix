@@ -21,7 +21,7 @@ def f2():
 
 def test_unknown_compat_is_rejected(f2):
     with pytest.raises(ValueError, match="admixtools2-2.0.10"):
-        pm.qpadm(f2, "Simulation", ["French"], ["Yoruba", "Simulation.1"], compat="admixtools2-9")
+        pm.qpadm(f2, ["French"], ["Yoruba", "Simulation.1"], "Simulation", compat="admixtools2-9")
     with pytest.raises(ValueError, match="admixtools2-2.0.10"):
         pm._core.qpadm_multi(f2, ["Simulation"], ["French"], ["Yoruba", "Simulation.1"],
                        compat="dates-v753")
@@ -30,7 +30,7 @@ def test_unknown_compat_is_rejected(f2):
 def test_compat_leaves_a_one_source_model_unchanged(f2):
     """With one source there is no nested path, so only `best` on the full
     model can differ (popmix puts it on the path; admixtools2 marks nothing)."""
-    args = (f2, "Simulation", ["French"], ["Yoruba", "Simulation.1"])
+    args = (f2, ["French"], ["Yoruba", "Simulation.1"], "Simulation")
     fixed, compat = pm.qpadm(*args), pm.qpadm(*args, compat="admixtools2-2.0.10")
     assert fixed.weights == compat.weights
     assert fixed.chi_sq == compat.chi_sq

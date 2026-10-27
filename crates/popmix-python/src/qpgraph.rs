@@ -60,7 +60,7 @@ impl PyAdmixGraph {
 /// Returns:
 ///     PyAdmixGraph
 #[pyfunction]
-#[pyo3(signature = (root_name, leaves, internals=None))]
+#[pyo3(signature = (root_name, leaves, *, internals=None))]
 pub(crate) fn build_tree(
     py: Python<'_>,
     root_name: &str,
@@ -202,7 +202,7 @@ pub(crate) fn find_graphs(
 /// Each graph is a list of (from, to) pairs whose path from the root to
 /// ``leaves[0]`` comes first.
 #[pyfunction]
-#[pyo3(signature = (leaves, nadmix=0))]
+#[pyo3(signature = (leaves, *, nadmix=0))]
 pub(crate) fn all_graphs(
     py: Python<'_>,
     leaves: Vec<String>,
@@ -355,7 +355,7 @@ impl PyQpGraphResult {
 /// Returns:
 ///     PyQpGraphResult with fitted edges, score, f3 fits and the random starts
 #[pyfunction]
-#[pyo3(signature = (f2_blocks, edges, admix_weights=None, numstart=10, seed=1, diag=1e-4, diag_f3=1e-5, constrained=true, f2_blocks_test=None))]
+#[pyo3(signature = (f2_blocks, edges, *, admix_weights=None, numstart=10, seed=1, diag=1e-4, diag_f3=1e-5, constrained=true, f2_blocks_test=None))]
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn qpgraph(
     py: Python<'_>,

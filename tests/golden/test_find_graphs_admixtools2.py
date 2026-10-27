@@ -71,7 +71,7 @@ def _close(ours: float, theirs: float, rtol: float, atol: float = 1e-15) -> bool
 @pytest.mark.parametrize("i", _cases())
 def test_same_graphs(i):
     case = _reference()["cases"][i]
-    ours = pm.all_graphs(case["leaves"], case["nadmix"])
+    ours = pm.all_graphs(case["leaves"], nadmix=case["nadmix"])
     assert len(ours) == len(case["graphs"])
     ours_keys = {tuple(pm.graph_key(g)) for g in ours}
     assert len(ours_keys) == len(ours), "duplicate graphs"
@@ -82,7 +82,7 @@ def test_same_graphs(i):
 @pytest.mark.parametrize("i", _cases())
 def test_same_order(i):
     case = _reference()["cases"][i]
-    ours = [pm.graph_key(g) for g in pm.all_graphs(case["leaves"], case["nadmix"])]
+    ours = [pm.graph_key(g) for g in pm.all_graphs(case["leaves"], nadmix=case["nadmix"])]
     assert ours == [g["key"] for g in case["graphs"]]
 
 
@@ -92,7 +92,7 @@ def test_popmix_edge_lists_at_admixtools2_weights(f2_blocks, i):
     """popmix's own edge list of each graph, at admixtools2's weights, scores
     what admixtools2 scores: the same vertex order and admixture edges."""
     case = _reference()["cases"][i]
-    ours = pm.all_graphs(case["leaves"], case["nadmix"])
+    ours = pm.all_graphs(case["leaves"], nadmix=case["nadmix"])
     bad = []
     for k, (edges, g) in enumerate(zip(ours, case["graphs"])):  # noqa: B905
         score = pm.qpgraph(f2_blocks, edges, admix_weights=g["weights"] or None).score

@@ -403,7 +403,7 @@ impl PyF2Blocks {
 
 /// Compute F2 blocks from allele frequencies.
 #[pyfunction]
-#[pyo3(signature = (af, block_size=None))]
+#[pyo3(signature = (af, *, block_size=None))]
 pub(crate) fn f2_from_frequencies(
     py: Python<'_>,
     af: &PyAlleleFrequencies,

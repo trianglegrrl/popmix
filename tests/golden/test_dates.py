@@ -103,18 +103,9 @@ def test_dates_function_signature():
     sig = inspect.signature(pm.dates)
     params = list(sig.parameters.keys())
 
-    # Check required parameters
-    assert "geno" in params
-    assert "test_pop" in params
-    assert "source1" in params
-    assert "source2" in params
-
-    # Check optional parameters
-    assert "generation_time" in params
-    assert "min_distance_cm" in params
-    assert "max_distance_cm" in params
-    assert "bin_width_cm" in params
-    assert "run_jackknife" in params
+    assert params[:3] == ["prefix", "admixed", "sources"]
+    for option in ("generation_time", "min_distance_cm", "max_distance_cm", "bin_width_cm", "jackknife"):
+        assert sig.parameters[option].kind is inspect.Parameter.KEYWORD_ONLY
 
 
 def test_dates_result_attributes():
@@ -142,16 +133,7 @@ def test_dates_chr20_22_subset():
     if not os.path.exists(f"{data_path}.geno"):
         pytest.skip("Chr20-22 subset data not available")
 
-    # Load data
-    geno = pm.read_packedancestrymap(data_path)
-
-    # Run DATES
-    result = pm.dates(
-        geno,
-        test_pop="Simulation",
-        source1="French",
-        source2="Yoruba",
-    )
+    result = pm.dates(data_path, "Simulation", ["French", "Yoruba"])
 
     # Verify basic result structure
     assert result.test_pop == "Simulation"
@@ -200,14 +182,9 @@ def test_dates_vs_reference():
 
     ref_bins = ref["ld_decay_bins"]
 
-    # Load data and run DATES
-    geno = pm.read_packedancestrymap(data_path)
-    result = pm.dates(
-        geno,
-        test_pop="Simulation",
-        source1="French",
-        source2="Yoruba",
-    )
+    # run DATES
+
+    result = pm.dates(data_path, "Simulation", ["French", "Yoruba"])
 
     # Compare each bin
     total_pair_diff = 0

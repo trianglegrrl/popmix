@@ -49,7 +49,7 @@ def _frame(b: dict) -> pd.DataFrame:
 def rolloff(
     prefix: str | os.PathLike[str],
     admixed: str,
-    refs: Sequence[str],
+    sources: Sequence[str],
     *,
     binsize: float = 0.0005,
     maxdis: float = 0.05,
@@ -79,7 +79,7 @@ def rolloff(
         Genotype prefix with a genetic map.
     admixed
         The admixed population.
-    refs
+    sources
         The two reference populations.
     binsize, maxdis
         Distance bin and largest distance (Morgans).
@@ -99,7 +99,7 @@ def rolloff(
     RolloffResult
     """
     chroms = None if chromosomes is None else [str(c) for c in chromosomes]
-    r = _core.rolloff(os.fspath(prefix), admixed, list(refs), binsize, maxdis, runmode, zdipcorr, chithresh,
+    r = _core.rolloff(os.fspath(prefix), admixed, list(sources), binsize, maxdis, runmode, zdipcorr, chithresh,
                       mincount, minparentcount, chroms, lval, hval)
     c, a, m = r["fit"]
     return RolloffResult(bins=_frame(r["bins"]), decay=m, affine=c, amplitude=a, decay_jackknife=tuple(r["jackknife"]),

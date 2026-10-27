@@ -43,7 +43,7 @@ def _rounded(x: float) -> str:
     return "NA" if x is None or math.isnan(x) else str(int(round(x)))
 
 
-def write_dot(graph: Any, path: str | os.PathLike | None = None, title: str = "",
+def write_dot(graph: Any, path: str | os.PathLike | None = None, *, title: str = "",
               size: tuple[float, float] = (7.5, 10), compat: str | None = None) -> str:
     """The graph in DOT format (admixtools2 ``write_dot``).
 

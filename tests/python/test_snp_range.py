@@ -1,6 +1,6 @@
 """A snp_range outside the file is a ValueError, never a panic or an abort.
 
-read_plink(prefix, (0, 10**9)) used to allocate for 10**9 SNPs and abort the
+read_plink(prefix, snp_range=(0, 10**9)) used to allocate for 10**9 SNPs and abort the
 interpreter.
 """
 
@@ -31,14 +31,14 @@ def prefixes(tmp_path_factory):
 def test_out_of_range(prefixes, fmt, snp_range):
     reader, prefix = prefixes[fmt]
     with pytest.raises(ValueError, match="SNP range"):
-        reader(prefix, snp_range)
+        reader(prefix, snp_range=snp_range)
 
 
 @pytest.mark.parametrize("fmt", ["eigenstrat", "plink", "packedancestrymap"])
 def test_in_range(prefixes, fmt):
     reader, prefix = prefixes[fmt]
     n = reader(prefix).n_snps
-    assert reader(prefix, (1, n)).n_snps == n - 1
+    assert reader(prefix, snp_range=(1, n)).n_snps == n - 1
 
 
 def _write_eigenstrat(prefix, chroms):

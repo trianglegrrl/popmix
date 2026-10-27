@@ -9,7 +9,7 @@ ancient samples.
 ## Synopsis
 
 ```text
-popmix dates --input PREFIX --test-pop T --source1 A --source2 B [--bin-width CM]
+popmix dates --input PREFIX --admixed T --sources A,B [--bin-width CM]
              [--max-distance CM] [--min-distance CM] [--qbin N] [--compat dates-v753]
              [--format text|json|tsv]
 ```
@@ -19,9 +19,8 @@ popmix dates --input PREFIX --test-pop T --source1 A --source2 B [--bin-width CM
 | Option | Type | Default | Meaning |
 |--------|------|---------|---------|
 | `--input`, `-i` | text (path) | required | Genotype prefix, with a genetic map in the `.snp` (or `.bim`). All genotypes are read into memory. |
-| `--test-pop` | text | required | The admixed population (one sample or more). |
-| `--source1` | text | required | A proxy for the first source. |
-| `--source2` | text | required | A proxy for the second source. |
+| `--admixed` | text | required | The admixed population (one sample or more): DATES's test population. |
+| `--sources` | text (comma-separated) | required | Proxies for its two sources. |
 | `--bin-width` | number | 0.1 | Distance bin width in cM (DATES `binsize` x 100). |
 | `--max-distance` | number | 100 | Largest SNP-pair distance in cM (DATES `maxdis` x 100). Smaller values (for example 50) are much faster. |
 | `--min-distance` | number | 0.45 | Fit only bins from this distance in cM (DATES `lovalfit`); shorter distances carry background LD. |
@@ -50,17 +49,17 @@ followed by the first LD bins.
 
 ```bash
 # runs
-popmix dates -i family --test-pop Simulation.1 --source1 French --source2 Yoruba
-popmix dates -i family --test-pop Simulation --source1 French --source2 Yoruba --qbin 10 --format json
-popmix dates -i family --test-pop Simulation.1 --source1 French --source2 Yoruba \
+popmix dates -i family --admixed Simulation.1 --sources French,Yoruba
+popmix dates -i family --admixed Simulation --sources French,Yoruba --qbin 10 --format json
+popmix dates -i family --admixed Simulation.1 --sources French,Yoruba \
   --max-distance 50 --format tsv > ld_decay.tsv
-popmix dates -i family --test-pop Simulation.1 --source1 French --source2 Yoruba --compat dates-v753
+popmix dates -i family --admixed Simulation.1 --sources French,Yoruba --compat dates-v753
 ```
 
 ```bash
 # not run: needs the AADR
-popmix --threads 8 dates -i /references/aadr/v62.0_1240k_public --test-pop French.DG \
-  --source1 Sardinian.DG --source2 Russia_Samara_EBA_Yamnaya --qbin 10 --max-distance 50
+popmix --threads 8 dates -i /references/aadr/v62.0_1240k_public --admixed French.DG \
+  --sources Sardinian.DG,Russia_Samara_EBA_Yamnaya --qbin 10 --max-distance 50
 ```
 
 ## Reading the result

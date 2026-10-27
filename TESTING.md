@@ -122,9 +122,8 @@ Tip: Specify populations with: --populations "PopA,PopB"
 ```bash
 popmix dates \
   --input tests/golden/dates/family_chr20_22 \
-  --test-pop Simulation \
-  --source1 French \
-  --source2 Yoruba
+  --admixed Simulation \
+  --sources French,Yoruba
 ```
 
 Expected output:

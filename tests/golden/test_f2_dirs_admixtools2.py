@@ -64,8 +64,8 @@ def test_matches_popmix_blocks(theirs, ours):
             # admixtools2 stores a population with itself as fully covered
             if a != b:
                 assert theirs.counts_per_block(a, b) == ours.counts_per_block(a, b), (a, b)
-    t, o = pm.qpadm(theirs, "French.DG", ["Han.DG", "Yoruba.DG"], ["Mbuti.DG", "Papuan.DG", "Chimp.REF"]), \
-        pm.qpadm(ours, "French.DG", ["Han.DG", "Yoruba.DG"], ["Mbuti.DG", "Papuan.DG", "Chimp.REF"])
+    t, o = pm.qpadm(theirs, ["Han.DG", "Yoruba.DG"], ["Mbuti.DG", "Papuan.DG", "Chimp.REF"], "French.DG"), \
+        pm.qpadm(ours, ["Han.DG", "Yoruba.DG"], ["Mbuti.DG", "Papuan.DG", "Chimp.REF"], "French.DG")
     np.testing.assert_allclose(t.weights, o.weights, rtol=1e-9)
 
 

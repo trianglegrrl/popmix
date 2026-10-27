@@ -69,7 +69,7 @@ ROLLOFF_CASE = Case(
                              f"{ROLLOFF['chromosomes'][-1]}, jackknife over them",
     reference="ADMIXTOOLS 7.0.2 rolloff (full-precision build)",
     popmix=lambda i, o, t: ["popmix", "--threads", str(t), "rolloff", "-i", str(i), "--admixed", ROLLOFF["admixed"],
-                            "--refs", ",".join(ROLLOFF["refs"]), "--binsize", str(ROLLOFF["binsize"]),
+                            "--sources", ",".join(ROLLOFF["refs"]), "--binsize", str(ROLLOFF["binsize"]),
                             "--maxdis", str(ROLLOFF["maxdis"]), "--chromosomes", ",".join(ROLLOFF["chromosomes"]),
                             "-o", str(o / "out")],
     ref=_rolloff, agree=_agree_rolloff, prepare=rolloff_badsnps,
@@ -172,8 +172,8 @@ def _agree_dates(ours: Path, theirs: Path) -> dict:
 
 def _popmix_dates(i: Path, o: Path, t: int) -> list[str]:
     p = DATES_POPS
-    return ["sh", "-c", f"popmix --threads {t} dates -i {i} --test-pop {p['test']} --source1 {p['source1']} "
-                        f"--source2 {p['source2']} --bin-width {DATES_BINSIZE * 100:g} "
+    return ["sh", "-c", f"popmix --threads {t} dates -i {i} --admixed {p['test']} "
+                        f"--sources {p['source1']},{p['source2']} --bin-width {DATES_BINSIZE * 100:g} "
                         f"--max-distance {DATES_MAXDIS * 100:g} --min-distance {DATES_LOVAL} --qbin {DATES_QBIN} "
                         f"--compat dates-v753 --format json > {o / 'dates.json'}"]
 

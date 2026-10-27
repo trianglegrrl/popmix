@@ -16,7 +16,7 @@ from popmix import _core
 METHODS = ("stepwise", "exhaustive")
 
 
-def find_graphs(f2_blocks: _core.PyF2Blocks, populations: Sequence[str], nadmix: int = 0,
+def find_graphs(f2_blocks: _core.PyF2Blocks, populations: Sequence[str], *, nadmix: int = 0,
                 outgroup: str | None = None, method: str = "stepwise", **kwargs: Any):
     """Search for the admixture graphs that best fit the data.
 

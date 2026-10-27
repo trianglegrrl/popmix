@@ -9,7 +9,7 @@ needs several admixed samples.
 ## Synopsis
 
 ```text
-popmix rolloff --input PREFIX --admixed T --refs A,B [--binsize M] [--maxdis M]
+popmix rolloff --input PREFIX --admixed T --sources A,B [--binsize M] [--maxdis M]
                [--runmode 0|1] [--chithresh X] [--chromosomes 1,2,...] [-o PREFIX]
 ```
 
@@ -19,7 +19,7 @@ popmix rolloff --input PREFIX --admixed T --refs A,B [--binsize M] [--maxdis M]
 |--------|------|---------|---------|
 | `--input`, `-i` | text (path) | required | Genotype prefix with a genetic map. |
 | `--admixed` | text | required | The admixed population. |
-| `--refs` | text (comma-separated) | required | The two reference populations. |
+| `--sources` | text (comma-separated) | required | The two source (reference) populations. |
 | `--binsize` | number | 0.0005 | Distance bin in Morgans (0.05 cM). |
 | `--maxdis` | number | 0.05 | Largest SNP-pair distance in Morgans (5 cM). |
 | `--runmode` | `0`, `1` | `1` | Weights: `1` pA - pB (recommended, the one tested against ROLLOFF); `0` divided by the square root of the mean frequency. |
@@ -42,13 +42,13 @@ ROLLOFF does.
 
 ```bash
 # runs
-popmix rolloff -i family --admixed Simulation.1 --refs French,Yoruba -o rolloff_sim
-popmix rolloff -i family --admixed Simulation.1 --refs French,Yoruba --chromosomes 20,21 --maxdis 0.02
+popmix rolloff -i family --admixed Simulation.1 --sources French,Yoruba -o rolloff_sim
+popmix rolloff -i family --admixed Simulation.1 --sources French,Yoruba --chromosomes 20,21 --maxdis 0.02
 ```
 
 ```bash
 # not run: needs the AADR
-popmix rolloff -i /references/aadr/v62.0_1240k_public --admixed ASW.DG --refs CEU.DG,YRI.DG -o asw
+popmix rolloff -i /references/aadr/v62.0_1240k_public --admixed ASW.DG --sources CEU.DG,YRI.DG -o asw
 ```
 
 ## Reading the result

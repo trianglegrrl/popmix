@@ -46,7 +46,7 @@ def test_rotate_models_puts_the_rest_then_rightfix_on_the_right():
 
 @needs_data
 def test_qpadm_p_matches_qpadm(f2):
-    full = pm.qpadm(f2, TARGET, ["French"], RIGHT)
+    full = pm.qpadm(f2, ["French"], RIGHT, TARGET)
     p = pm.qpadm_p(f2, ["French"], RIGHT, TARGET, weights=True)
     assert p["f4rank"] == 0
     assert p["dof"] == full.df

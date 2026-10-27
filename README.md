@@ -60,9 +60,8 @@ popmix qpadm \
 # Step 6: Date the admixture event
 popmix dates \
   -i merged_dataset \
-  --test-pop MySample \
-  --source1 French \
-  --source2 Han
+  --admixed MySample \
+  --sources French,Han
 ```
 
 You can also work directly with VCF files for quick analyses:
@@ -481,9 +480,8 @@ Estimate admixture timing using LD decay.
 ```bash
 popmix dates \
   -i /path/to/data \
-  --test-pop French \
-  --source1 Yamnaya \
-  --source2 Anatolia_N
+  --admixed French \
+  --sources Yamnaya,Anatolia_N
 ```
 
 **Output:**

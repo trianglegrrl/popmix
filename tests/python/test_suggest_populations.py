@@ -6,10 +6,10 @@ FIXTURE = "tests/fixtures/small_eigenstrat"
 
 
 def test_non_ascii_query():
-    assert isinstance(pm.suggest_populations(FIXTURE, "ééé", 5), list)
-    assert isinstance(pm.suggest_populations(FIXTURE, "Pöp1x", 5), list)
+    assert isinstance(pm.suggest_populations(FIXTURE, "ééé", limit=5), list)
+    assert isinstance(pm.suggest_populations(FIXTURE, "Pöp1x", limit=5), list)
 
 
 def test_three_character_match_counts_characters():
-    names = [p for p, _ in pm.suggest_populations(FIXTURE, "popzzzz", 5)]
+    names = [p for p, _ in pm.suggest_populations(FIXTURE, "popzzzz", limit=5)]
     assert names and all(n.lower().startswith("pop") for n in names[:1])

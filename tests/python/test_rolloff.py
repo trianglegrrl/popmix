@@ -38,7 +38,7 @@ def test_errors():
 
 def test_rolloff_command(tmp_path):
     out = tmp_path / "run"
-    subprocess.run(["popmix", "rolloff", "--input", SMALL, "--admixed", "Simulation.1", "--refs", "French,Yoruba",
+    subprocess.run(["popmix", "rolloff", "--input", SMALL, "--admixed", "Simulation.1", "--sources", "French,Yoruba",
                     "--maxdis", "0.02", "--output-prefix", str(out)], check=True, capture_output=True, text=True)
     bins = pd.read_csv(f"{out}.bins.tsv", sep="\t")
     api = pm.rolloff(SMALL, "Simulation.1", ["French", "Yoruba"], maxdis=0.02)

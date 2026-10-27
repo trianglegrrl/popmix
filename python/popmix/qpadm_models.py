@@ -102,7 +102,7 @@ def qpadm_p(
 
 
 def test_cladality(
-    f2_blocks: _core.PyF2Blocks, left: Sequence[str], right: Sequence[str], fudge: float = 1e-4
+    f2_blocks: _core.PyF2Blocks, left: Sequence[str], right: Sequence[str], *, fudge: float = 1e-4
 ) -> dict[str, Any]:
     """Whether ``left`` forms a clade with respect to ``right``: ``qpadm_p`` at rank 0."""
     return qpadm_p(f2_blocks, left, right, rnk=0, fudge=fudge)
@@ -113,7 +113,7 @@ test_cladality.__test__ = False  # type: ignore[attr-defined]
 
 
 def qpwave_pairs(
-    f2_blocks: _core.PyF2Blocks, left: Sequence[str], right: Sequence[str], fudge: float = 1e-4
+    f2_blocks: _core.PyF2Blocks, left: Sequence[str], right: Sequence[str], *, fudge: float = 1e-4
 ) -> pd.DataFrame:
     """Test every pair of ``left`` populations for cladality with respect to
     ``right`` (admixtools2 ``qpwave_pairs``): qpWave at rank 0.
@@ -160,7 +160,7 @@ def qpadm_rotate(
     leftright: Sequence[str],
     target: str,
     rightfix: str | Sequence[str] | None = None,
-    full_results: bool = False,
+    *, full_results: bool = False,
     fudge: float = 1e-4,
     constrained: bool = False,
 ) -> pd.DataFrame | list[_core.PyQpAdmResult]:
@@ -222,7 +222,7 @@ def _model_rows(models: pd.DataFrame | Mapping[str, Sequence] | Sequence[Mapping
 def qpadm_multi(
     f2_blocks: _core.PyF2Blocks,
     models: pd.DataFrame | Mapping[str, Sequence] | Sequence[Mapping[str, Any]],
-    full_results: bool = True,
+    *, full_results: bool = True,
     fudge: float = 1e-4,
     constrained: bool = False,
 ) -> pd.DataFrame | list[_core.PyQpAdmResult]:
@@ -250,7 +250,7 @@ def qpadm_multi(
         if target is None:
             target, left = left[0], left[1:]
         if full_results:
-            rows.append(_core.qpadm(f2_blocks, target, left, m["right"], constrained, fudge))
+            rows.append(_core.qpadm(f2_blocks, left, m["right"], target, constrained=constrained, fudge=fudge))
         else:
             rows.append({"left": left, "right": m["right"], "target": m["target"],
                          **qpadm_p(f2_blocks, left, m["right"], target, fudge=fudge, constrained=constrained)})
@@ -259,7 +259,7 @@ def qpadm_multi(
     return pd.DataFrame(rows, columns=["left", "right", "target", "f4rank", "dof", "chisq", "p", "feasible"])
 
 
-def qpadm_models(pops: Sequence[str], allpops: bool = True, more_right: bool = True) -> pd.DataFrame:
+def qpadm_models(pops: Sequence[str], *, allpops: bool = True, more_right: bool = True) -> pd.DataFrame:
     """Every split of ``pops`` into left and right populations (admixtools2
     ``qpadm_models``).
 

@@ -30,23 +30,19 @@ def test_rolloff_maxdis(maxdis):
         pm.rolloff(SMALL, "Simulation.1", ["French", "Yoruba"], maxdis=maxdis)
 
 
-@pytest.fixture(scope="module")
-def geno():
-    return pm.read_genotypes(SMALL)
-
 
 @pytest.mark.parametrize("width", [0.0, -0.1, math.nan, 1e-12])
-def test_dates_bin_width(geno, width):
+def test_dates_bin_width(width):
     with pytest.raises(ValueError, match="bin_width_cm"):
-        pm.dates(geno, "Simulation.1", "French", "Yoruba", bin_width_cm=width, run_jackknife=False)
+        pm.dates(SMALL, "Simulation.1", ["French", "Yoruba"], bin_width_cm=width, jackknife=False)
 
 
-def test_dates_qbin(geno):
+def test_dates_qbin():
     with pytest.raises(ValueError, match="qbin"):
-        pm.dates(geno, "Simulation.1", "French", "Yoruba", qbin=10**9, run_jackknife=False)
+        pm.dates(SMALL, "Simulation.1", ["French", "Yoruba"], qbin=10**9, jackknife=False)
 
 
 @pytest.mark.parametrize("years", [0.0, math.nan])
-def test_dates_generation_time(geno, years):
+def test_dates_generation_time(years):
     with pytest.raises(ValueError, match="generation_time"):
-        pm.dates(geno, "Simulation.1", "French", "Yoruba", generation_time=years, run_jackknife=False)
+        pm.dates(SMALL, "Simulation.1", ["French", "Yoruba"], generation_time=years, jackknife=False)

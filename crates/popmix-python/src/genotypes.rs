@@ -247,7 +247,7 @@ impl PyAlleleFrequencies {
 /// Returns:
 ///     PyGenotypeMatrix containing the genotype data and metadata
 #[pyfunction]
-#[pyo3(signature = (prefix, snp_range=None))]
+#[pyo3(signature = (prefix, *, snp_range=None))]
 pub(crate) fn read_plink(
     py: Python<'_>,
     prefix: &str,
@@ -274,7 +274,7 @@ pub(crate) fn read_plink(
 /// Returns:
 ///     PyGenotypeMatrix containing the genotype data and metadata
 #[pyfunction]
-#[pyo3(signature = (prefix, snp_range=None))]
+#[pyo3(signature = (prefix, *, snp_range=None))]
 pub(crate) fn read_eigenstrat(
     py: Python<'_>,
     prefix: &str,
@@ -301,7 +301,7 @@ pub(crate) fn read_eigenstrat(
 /// Returns:
 ///     PyGenotypeMatrix containing the genotype data and metadata
 #[pyfunction]
-#[pyo3(signature = (prefix, snp_range=None))]
+#[pyo3(signature = (prefix, *, snp_range=None))]
 pub(crate) fn read_packedancestrymap(
     py: Python<'_>,
     prefix: &str,
@@ -354,7 +354,7 @@ pub(crate) fn read_vcf(py: Python<'_>, path: &str) -> PyResult<PyGenotypeMatrix>
 ///     PyGenotypeMatrix containing the genotype data and metadata; samples
 ///     with no heterozygous call among the SNPs read are pseudohaploid
 #[pyfunction]
-#[pyo3(signature = (prefix, snp_range=None, populations=None))]
+#[pyo3(signature = (prefix, *, snp_range=None, populations=None))]
 pub(crate) fn read_genotypes(
     py: Python<'_>,
     prefix: &str,

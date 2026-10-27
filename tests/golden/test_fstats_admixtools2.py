@@ -237,7 +237,7 @@ def _check_qpadm_weights(name: str):
     _, f2 = _result_for(name)
     mismatches = []
     for m in load_reference(name, "qpadm.json")["models"]:
-        r = pm.qpadm(f2, m["target"], m["left"], m["right"], constrained=m["constrained"])
+        r = pm.qpadm(f2, m["left"], m["right"], m["target"], constrained=m["constrained"])
         label = f"target={m['target']} left={','.join(m['left'])} constrained={m['constrained']}"
         for w, se, row in zip(r.weights, r.weight_std_errors, m["weights"]):
             if not np.isclose(w, row["weight"], rtol=SE_RTOL, atol=SE_ATOL):
@@ -253,7 +253,7 @@ def _check_qpadm_fit(name: str):
     for m in load_reference(name, "qpadm.json")["models"]:
         if "rankdrop" not in m:
             continue
-        r = pm.qpadm(f2, m["target"], m["left"], m["right"], constrained=m["constrained"])
+        r = pm.qpadm(f2, m["left"], m["right"], m["target"], constrained=m["constrained"])
         label = f"target={m['target']} left={','.join(m['left'])}"
         row = next(x for x in m["rankdrop"] if x["f4rank"] == len(m["left"]) - 1)
         if r.df != row["dof"]:
@@ -276,7 +276,7 @@ def _check_qpadm_popdrop(name: str):
     for m in load_reference(name, "qpadm.json")["models"]:
         if "popdrop" not in m:
             continue
-        r = pm.qpadm(f2, m["target"], m["left"], m["right"], constrained=m["constrained"],
+        r = pm.qpadm(f2, m["left"], m["right"], m["target"], constrained=m["constrained"],
                      compat="admixtools2-2.0.10")
         label = f"target={m['target']} left={','.join(m['left'])} constrained={m['constrained']}"
         ours = r.popdrop
@@ -341,8 +341,8 @@ def _check_qpadm_popdrop_corrected(name: str):
     for m in load_reference(name, "qpadm.json")["models"]:
         if "popdrop" not in m:
             continue
-        r = pm.qpadm(f2, m["target"], m["left"], m["right"], constrained=m["constrained"])
-        compat = pm.qpadm(f2, m["target"], m["left"], m["right"], constrained=m["constrained"],
+        r = pm.qpadm(f2, m["left"], m["right"], m["target"], constrained=m["constrained"])
+        compat = pm.qpadm(f2, m["left"], m["right"], m["target"], constrained=m["constrained"],
                           compat="admixtools2-2.0.10")
         label = f"target={m['target']} left={','.join(m['left'])} constrained={m['constrained']}"
         for x, y in zip(r.popdrop, compat.popdrop):

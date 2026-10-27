@@ -37,7 +37,7 @@ use pyo3::prelude::*;
 /// Returns:
 ///     PyF2Blocks object for computing f2, f3, f4 statistics
 #[pyfunction]
-#[pyo3(signature = (prefix, populations, auto_only=true, block_size=None, maxmiss=0.0, poly_only=true, inds=None, pops=None, pseudohaploid="detect"))]
+#[pyo3(signature = (prefix, populations, *, auto_only=true, block_size=None, maxmiss=0.0, poly_only=true, inds=None, pops=None, pseudohaploid="detect"))]
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn extract_f2(
     py: Python<'_>,

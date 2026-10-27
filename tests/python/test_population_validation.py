@@ -73,12 +73,12 @@ def test_statistics_of_an_unknown_population_are_an_error(f2, stat, args):
 ])
 def test_qpadm_populations_must_be_distinct(dg6, target, sources, right, named):
     with pytest.raises(ValueError, match=named):
-        pm.qpadm(dg6, target, sources, right)
+        pm.qpadm(dg6, sources, right, target)
 
 
 def test_qpadm_with_an_unknown_population_is_an_error(dg6):
     with pytest.raises(ValueError, match="Nope"):
-        pm.qpadm(dg6, "French.DG", ["Han.DG", "Nope"], ["Mbuti.DG", "Papuan.DG", "Chimp.REF"])
+        pm.qpadm(dg6, ["Han.DG", "Nope"], ["Mbuti.DG", "Papuan.DG", "Chimp.REF"], "French.DG")
 
 
 def test_qpwave_left_and_right_must_be_distinct(dg6):

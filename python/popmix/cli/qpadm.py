@@ -47,7 +47,7 @@ def qpadm(target: str, left: list, right: list, constrained: bool, input_prefix:
     try:
         f2_blocks = load_f2_blocks(input_prefix, f2_dir, all_pops, block_size, maxmiss, all_chromosomes)
 
-        result = pm.qpadm(f2_blocks, target, left, right, constrained=constrained)
+        result = pm.qpadm(f2_blocks, left, right, target, constrained=constrained)
 
         if output_format == "json":
             output = {

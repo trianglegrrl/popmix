@@ -465,13 +465,13 @@ pub(crate) fn qpadm_rotate(
 /// Returns:
 ///     PyQpWaveResult with rank tests and estimated rank
 #[pyfunction]
-#[pyo3(signature = (f2_blocks, left, right, fudge=None))]
+#[pyo3(signature = (f2_blocks, left, right, *, fudge=1e-4))]
 pub(crate) fn qpwave(
     py: Python<'_>,
     f2_blocks: &PyF2Blocks,
     left: Vec<String>,
     right: Vec<String>,
-    fudge: Option<f64>,
+    fudge: f64,
 ) -> PyResult<PyQpWaveResult> {
     compute(py, move || {
         let left_refs: Vec<&str> = left.iter().map(std::string::String::as_str).collect();
@@ -479,7 +479,7 @@ pub(crate) fn qpwave(
 
         let opts = {
             let mut o = popmix_core::QpWaveOptions::default();
-            o.fudge = fudge.unwrap_or(1e-4);
+            o.fudge = fudge;
             o.max_rank = None;
             o
         };
@@ -671,9 +671,10 @@ pub(crate) fn admixtools2_compat(compat: Option<&str>) -> PyResult<popmix_core::
 ///
 /// Args:
 ///     f2_blocks: Precomputed F2 blocks
-///     target: Target population name
-///     sources: Source population names
+///     left: Source population names (admixtools2's ``left``, the target
+///         apart)
 ///     right: Right (outgroup) population names
+///     target: Target population name
 ///     constrained: Whether to constrain weights to [0, 1] (default: False)
 ///     fudge: Regularization factor (default: 1e-4)
 ///     compat: Reproduce admixtools2's known quirks instead of correcting
@@ -683,26 +684,26 @@ pub(crate) fn admixtools2_compat(compat: Option<&str>) -> PyResult<popmix_core::
 /// Returns:
 ///     PyQpAdmResult with estimated weights and model fit statistics
 #[pyfunction]
-#[pyo3(signature = (f2_blocks, target, sources, right, constrained=None, fudge=None, compat=None))]
+#[pyo3(signature = (f2_blocks, left, right, target, *, constrained=false, fudge=1e-4, compat=None))]
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn qpadm(
     py: Python<'_>,
     f2_blocks: &PyF2Blocks,
-    target: String,
-    sources: Vec<String>,
+    left: Vec<String>,
     right: Vec<String>,
-    constrained: Option<bool>,
-    fudge: Option<f64>,
+    target: String,
+    constrained: bool,
+    fudge: f64,
     compat: Option<&str>,
 ) -> PyResult<PyQpAdmResult> {
     compute(py, move || {
-        let sources_refs: Vec<&str> = sources.iter().map(std::string::String::as_str).collect();
+        let sources_refs: Vec<&str> = left.iter().map(std::string::String::as_str).collect();
         let right_refs: Vec<&str> = right.iter().map(std::string::String::as_str).collect();
 
         let opts = {
             let mut o = popmix_core::QpAdmOptions::default();
-            o.fudge = fudge.unwrap_or(1e-4);
-            o.constrained = constrained.unwrap_or(false);
+            o.fudge = fudge;
+            o.constrained = constrained;
             o.compat = admixtools2_compat(compat)?;
             o
         };

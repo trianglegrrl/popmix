@@ -214,7 +214,7 @@ pub(crate) fn list_populations(py: Python<'_>, prefix: &str) -> PyResult<Vec<(St
 /// Returns:
 ///     List of (population_name, sample_count) tuples, most similar first
 #[pyfunction]
-#[pyo3(signature = (prefix, query, limit=5))]
+#[pyo3(signature = (prefix, query, *, limit=5))]
 pub(crate) fn suggest_populations(
     py: Python<'_>,
     prefix: &str,

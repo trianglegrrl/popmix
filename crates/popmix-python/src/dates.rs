@@ -1,7 +1,7 @@
 //! DATES for Python: admixture dates from the decay of weighted LD.
 
 use crate::compute;
-use crate::genotypes::PyGenotypeMatrix;
+use crate::genotypes::read_populations;
 use popmix_core::python::input_error;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -160,15 +160,15 @@ impl PyDatesResult {
 /// to the number of generations since admixture.
 ///
 /// Args:
-///     geno: Genotype matrix with all relevant populations
-///     test_pop: Name of the test (admixed) population
-///     source1: Name of first source population
-///     source2: Name of second source population
+///     prefix: The genotype dataset (only the three populations' samples
+///         are used; their ploidy is detected as for every analysis)
+///     admixed: The admixed population (DATES's test population)
+///     sources: Its two source populations
 ///     generation_time: Generation time in years (default: 29)
 ///     min_distance_cm: Minimum distance for fitting, DATES lovalfit (default: 0.45)
 ///     max_distance_cm: Maximum distance, DATES maxdis x 100 (default: 100.0)
 ///     bin_width_cm: Width of distance bins, DATES binsize x 100 (default: 0.1)
-///     run_jackknife: Run jackknife for SE estimation (default: True)
+///     jackknife: Leave-one-chromosome-out jackknife for the SE (default: True)
 ///     qbin: DATES qbin. 0 visits every SNP pair; > 0 uses an FFT mesh of
 ///         qbin cells per bin, which is faster and slightly approximate
 ///         (default: 0, the DATES default)
@@ -183,27 +183,30 @@ impl PyDatesResult {
 ///     DATES reports; ``fit.decay_rate`` is the full-data fit.
 ///
 /// Example:
-///     >>> geno = pm.read_packedancestrymap("/path/to/data")
-///     >>> result = pm.dates(geno, "French", "Yamnaya", "Anatolia_N")
+///     >>> result = pm.dates("/path/to/data", "French", ["Yamnaya", "Anatolia_N"])
 ///     >>> print(f"Admixture time: {result.generations:.0f} generations")
-///     >>> print(f"Years BP: {result.years_bp:.0f}")
 #[pyfunction]
-#[pyo3(signature = (geno, test_pop, source1, source2, generation_time=None, min_distance_cm=None, max_distance_cm=None, bin_width_cm=None, run_jackknife=None, qbin=None, compat=None))]
+#[pyo3(signature = (prefix, admixed, sources, *, generation_time=29.0, min_distance_cm=0.45, max_distance_cm=100.0, bin_width_cm=0.1, jackknife=true, qbin=0, compat=None))]
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn dates(
     py: Python<'_>,
-    geno: &PyGenotypeMatrix,
-    test_pop: &str,
-    source1: &str,
-    source2: &str,
-    generation_time: Option<f64>,
-    min_distance_cm: Option<f64>,
-    max_distance_cm: Option<f64>,
-    bin_width_cm: Option<f64>,
-    run_jackknife: Option<bool>,
-    qbin: Option<usize>,
+    prefix: &str,
+    admixed: &str,
+    sources: Vec<String>,
+    generation_time: f64,
+    min_distance_cm: f64,
+    max_distance_cm: f64,
+    bin_width_cm: f64,
+    jackknife: bool,
+    qbin: usize,
     compat: Option<&str>,
 ) -> PyResult<PyDatesResult> {
+    let [source1, source2] = sources.as_slice() else {
+        return Err(input_error(format!(
+            "DATES takes two sources, got {}",
+            sources.len()
+        )));
+    };
     compute(py, move || {
         let compat = match compat {
             None => popmix_core::dates::DatesCompat::CORRECTED,
@@ -214,39 +217,26 @@ pub(crate) fn dates(
                 )))
             }
         };
-        let mut ld_options = popmix_core::LdOptions::default();
-        if let Some(q) = qbin {
-            ld_options.qbin = q;
+        let mut pops = vec![admixed.to_string()];
+        for p in [source1, source2] {
+            if !pops.contains(p) {
+                pops.push(p.clone());
+            }
         }
-        if let Some(bw) = bin_width_cm {
-            ld_options.bin_width_cm = bw;
-        }
-        if let Some(max_d) = max_distance_cm {
-            ld_options.max_distance_cm = max_d;
-        }
+        let geno = read_populations(prefix, &pops)?;
 
-        let mut fit_options = popmix_core::dates::DecayFitOptions::default();
-        if let Some(bw) = bin_width_cm {
-            fit_options.bin_size_cm = bw;
-        }
-        if let Some(min_d) = min_distance_cm {
-            fit_options.min_distance_cm = min_d;
-        }
-        if let Some(max_d) = max_distance_cm {
-            fit_options.max_distance_cm = max_d;
-        }
+        let mut opts = popmix_core::DatesOptions::default();
+        opts.ld_options.qbin = qbin;
+        opts.ld_options.bin_width_cm = bin_width_cm;
+        opts.ld_options.max_distance_cm = max_distance_cm;
+        opts.fit_options.bin_size_cm = bin_width_cm;
+        opts.fit_options.min_distance_cm = min_distance_cm;
+        opts.fit_options.max_distance_cm = max_distance_cm;
+        opts.generation_time = generation_time;
+        opts.run_jackknife = jackknife;
+        opts.compat = compat;
 
-        let opts = {
-            let mut o = popmix_core::DatesOptions::default();
-            o.ld_options = ld_options;
-            o.fit_options = fit_options;
-            o.generation_time = generation_time.unwrap_or(29.0);
-            o.run_jackknife = run_jackknife.unwrap_or(true);
-            o.compat = compat;
-            o
-        };
-
-        let result = popmix_core::dates(&geno.inner, None, test_pop, source1, source2, &opts)?;
+        let result = popmix_core::dates(&geno, None, admixed, source1, source2, &opts)?;
 
         Ok(PyDatesResult {
             test_pop: result.test_pop.to_string(),
