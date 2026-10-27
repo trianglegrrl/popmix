@@ -19,6 +19,7 @@ use crate::error::{PopmixError, Result};
 
 /// Which READv2 quirks to reproduce.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub struct ReadCompat {
     /// READV2-0001: each window after the first also counts the last SNP of
     /// the window before it.
@@ -60,6 +61,7 @@ pub enum ReadNorm {
 }
 
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct ReadOptions {
     /// Jackknife window, base pairs (READv2 `--window_size`).
     pub window_size: u64,
@@ -171,6 +173,7 @@ pub struct ReadPair {
 }
 
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct ReadResult {
     pub norm_value: f64,
     /// Pairs with at least one SNP called in both, `(0, 1), (0, 2), ...`.

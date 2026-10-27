@@ -116,10 +116,12 @@ pub fn admixture_py(
     max_iterations: usize,
 ) -> PyResult<Py<PyAny>> {
     let (geno, snps, samples) = load(py, prefix, &populations, &chromosomes, &snps)?;
-    let options = AdmixtureOptions {
-        tolerance,
-        max_iterations,
-        seed,
+    let options = {
+        let mut o = AdmixtureOptions::default();
+        o.tolerance = tolerance;
+        o.max_iterations = max_iterations;
+        o.seed = seed;
+        o
     };
     let p_fixed: Option<Vec<f64>> = fixed_p.map(|p| p.as_array().iter().copied().collect());
     let (fit, cv_error) = crate::compute(py, || -> popmix_core::Result<_> {

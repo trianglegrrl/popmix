@@ -31,6 +31,7 @@ pub struct RotationModel {
 
 /// Result of qpAdm rotation analysis.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct QpAdmRotateResult {
     /// Target population being modeled.
     pub target: PopulationId,
@@ -71,6 +72,7 @@ impl QpAdmRotateResult {
 
 /// Options for qpAdm rotation.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct QpAdmRotateOptions {
     /// Minimum number of sources to test (default: 1).
     pub min_sources: usize,
@@ -115,9 +117,9 @@ pub fn qpadm_rotate(
     target: &str,
     candidates: &[&str],
     outgroups: &[&str],
-    options: Option<QpAdmRotateOptions>,
+    options: &QpAdmRotateOptions,
 ) -> Result<QpAdmRotateResult> {
-    let opts = options.unwrap_or_default();
+    let opts = options;
     // checked once, so a model that fails below is numerical, not a typo
     crate::genotypes::check_populations(
         std::iter::once(target)
@@ -144,13 +146,7 @@ pub fn qpadm_rotate(
             }
 
             // Run qpAdm for this combination
-            match qpadm(
-                f2_blocks,
-                target,
-                &sources,
-                outgroups,
-                Some(opts.qpadm_opts.clone()),
-            ) {
+            match qpadm(f2_blocks, target, &sources, outgroups, &opts.qpadm_opts) {
                 Ok(result) => {
                     let is_feasible = result.weights.iter().all(|&w| (0.0..=1.0).contains(&w));
 
@@ -272,7 +268,7 @@ mod tests {
             "Target",
             &["Source1", "Source2", "Source3"],
             &["Out1", "Out2"],
-            None,
+            &Default::default(),
         )
         .unwrap();
 
@@ -307,7 +303,7 @@ mod tests {
             "Target",
             &["Source1", "Source2", "Source3"],
             &["Out1", "Out2"],
-            Some(opts),
+            &opts,
         )
         .unwrap();
 
@@ -334,7 +330,7 @@ mod tests {
             "Target",
             &["Source1", "Source2", "Source3"],
             &["Out1", "Out2"],
-            Some(opts),
+            &opts,
         )
         .unwrap();
 
@@ -359,7 +355,7 @@ mod tests {
             "Target",
             &["Source1", "Source2"],
             &["Out1", "Out2"],
-            None,
+            &Default::default(),
         )
         .unwrap();
 

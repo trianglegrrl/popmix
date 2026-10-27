@@ -51,6 +51,7 @@ use crate::error::{PopmixError, Result};
 
 /// Settings of `optim(method = "L-BFGS-B")`; [`Default`] gives R's defaults.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct LbfgsbOptions {
     /// Number of correction pairs kept (R's `lmm`, 5).
     pub lmm: usize,
@@ -81,6 +82,7 @@ impl Default for LbfgsbOptions {
 
 /// What `optim` returns.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct LbfgsbResult {
     pub par: Vec<f64>,
     /// The objective at `par`, not divided by `fnscale`.

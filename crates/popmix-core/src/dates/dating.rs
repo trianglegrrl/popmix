@@ -21,6 +21,7 @@ use crate::options::check_positive;
 
 /// Options of the analysis.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct DatesOptions {
     /// The LD table (its `compat` is replaced by [`DatesOptions::compat`]).
     pub ld_options: LdOptions,
@@ -62,6 +63,7 @@ pub struct JackknifeBlock {
 
 /// The result of [`dates`].
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct DatesResult {
     pub test_pop: PopulationId,
     pub source1: PopulationId,
@@ -100,9 +102,9 @@ fn fit_bins(bins: &[LdBin], options: &FitOptions, rounded: bool) -> Result<Decay
                 ..b.clone()
             })
             .collect();
-        fit_exponential(&r, Some(options.clone()))
+        fit_exponential(&r, options)
     } else {
-        fit_exponential(bins, Some(options.clone()))
+        fit_exponential(bins, options)
     }
 }
 
@@ -116,9 +118,9 @@ pub fn dates(
     test_pop: &str,
     source1: &str,
     source2: &str,
-    options: Option<DatesOptions>,
+    options: &DatesOptions,
 ) -> Result<DatesResult> {
-    let opts = options.unwrap_or_default();
+    let opts = options;
     check_positive("generation_time", opts.generation_time)?;
     let computed;
     let af = match af {
@@ -162,7 +164,7 @@ pub fn dates(
         &weights.weights,
         &p1,
         &p2,
-        Some(ld_options),
+        &ld_options,
     )?;
     if ld.bins.is_empty() {
         return Err(PopmixError::too_few("DATES", "LD bins", 1, 0));
@@ -302,7 +304,7 @@ mod tests {
         opts.ld_options.min_pairs_per_bin = 10; // Lower threshold for test
         opts.run_jackknife = false; // Skip jackknife for faster test
 
-        let result = dates(&geno, None, "test", "source1", "source2", Some(opts));
+        let result = dates(&geno, None, "test", "source1", "source2", &opts);
 
         // Should complete without error
         assert!(result.is_ok(), "DATES should complete: {:?}", result);
@@ -382,7 +384,7 @@ mod tests {
             "test",
             "source1",
             "source2",
-            Some(mixed_ploidy_options(flag)),
+            &mixed_ploidy_options(flag),
         )
         .unwrap();
         let as_diploid = dates(
@@ -391,7 +393,7 @@ mod tests {
             "test",
             "source1",
             "source2",
-            Some(mixed_ploidy_options(DatesCompat::CORRECTED)),
+            &mixed_ploidy_options(DatesCompat::CORRECTED),
         )
         .unwrap();
         let default = dates(
@@ -400,7 +402,7 @@ mod tests {
             "test",
             "source1",
             "source2",
-            Some(mixed_ploidy_options(DatesCompat::CORRECTED)),
+            &mixed_ploidy_options(DatesCompat::CORRECTED),
         )
         .unwrap();
 
@@ -425,7 +427,14 @@ mod tests {
     fn test_dates_missing_population() {
         let geno = create_test_genotypes();
 
-        let result = dates(&geno, None, "nonexistent", "source1", "source2", None);
+        let result = dates(
+            &geno,
+            None,
+            "nonexistent",
+            "source1",
+            "source2",
+            &Default::default(),
+        );
         assert!(result.is_err());
     }
 }

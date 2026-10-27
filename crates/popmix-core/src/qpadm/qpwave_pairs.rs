@@ -11,6 +11,7 @@ use itertools::Itertools;
 
 /// Result of qpWave test for a single population pair.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct QpWavePairResult {
     /// First population.
     pub pop_a: PopulationId,
@@ -27,6 +28,7 @@ pub struct QpWavePairResult {
 
 /// Result of pairwise qpWave analysis.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct QpWavePairsResult {
     /// Populations tested.
     pub populations: Vec<PopulationId>,
@@ -84,9 +86,9 @@ pub fn qpwave_pairs(
     f2_blocks: &F2Blocks,
     populations: &[&str],
     outgroups: &[&str],
-    options: Option<QpWaveOptions>,
+    options: &QpWaveOptions,
 ) -> Result<QpWavePairsResult> {
-    let opts = options.unwrap_or_default();
+    let opts = options;
     // checked once, so a pair that fails below is numerical, not a typo
     crate::genotypes::check_populations(populations.iter().chain(outgroups).copied(), |p| {
         f2_blocks.pop_index(p).is_some()
@@ -103,7 +105,7 @@ pub fn qpwave_pairs(
         // Run qpWave with left = [pop_a, pop_b]
         let left = vec![*pop_a, *pop_b];
 
-        match qpwave(f2_blocks, &left, outgroups, Some(opts.clone())) {
+        match qpwave(f2_blocks, &left, outgroups, opts) {
             Ok(result) => {
                 // Extract rank 0 test (cladality)
                 if let Some(rank0) = result.rank_tests.first() {
@@ -207,7 +209,7 @@ mod tests {
             &f2_blocks,
             &["PopA", "PopB", "PopC"],
             &["Out1", "Out2"],
-            None,
+            &Default::default(),
         )
         .unwrap();
 
@@ -230,7 +232,7 @@ mod tests {
             &f2_blocks,
             &["PopA", "PopB", "PopC"],
             &["Out1", "Out2"],
-            None,
+            &Default::default(),
         )
         .unwrap();
 

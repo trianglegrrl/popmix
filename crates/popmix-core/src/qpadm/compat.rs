@@ -9,6 +9,7 @@
 
 /// Which admixtools2 2.0.10 quirks to reproduce. Default: none (all corrected).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Admixtools2Compat {
     /// ADMIXTOOLS2-0001. qpAdm `popdrop` marks every model that drops
     /// exactly one source as `best` and compares those siblings with each

@@ -60,6 +60,7 @@ pub enum GraphSearchMethod {
 
 /// Options for [`find_graphs`].
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct GraphSearchOptions {
     /// Number of admixture nodes in each graph.
     pub nadmix: usize,
@@ -94,6 +95,7 @@ pub struct ScoredGraph {
 
 /// Result of [`find_graphs`].
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct GraphSearchResult {
     /// The graphs fitted in the last step, best first (ties keep the order
     /// the graphs were generated in).
@@ -488,11 +490,7 @@ fn score_all(
 ) -> Result<Ranked> {
     let scores: Vec<Option<f64>> = graphs
         .par_iter()
-        .map(|g| {
-            candidate_score(
-                qpgraph(f2_blocks, &g.edge_list(base), Some(options.clone())).map(|r| r.score),
-            )
-        })
+        .map(|g| candidate_score(qpgraph(f2_blocks, &g.edge_list(base), options).map(|r| r.score)))
         .collect::<Result<_>>()?;
     let mut ranked: Vec<(f64, usize)> = scores
         .into_iter()
@@ -516,9 +514,9 @@ fn score_all(
 pub fn find_graphs(
     f2_blocks: &F2Blocks,
     populations: &[&str],
-    options: Option<GraphSearchOptions>,
+    options: &GraphSearchOptions,
 ) -> Result<GraphSearchResult> {
-    let opts = options.unwrap_or_default();
+    let opts = options;
     check_leaves(populations)?;
     if populations.len() < 3 {
         return Err(PopmixError::too_few(

@@ -38,6 +38,7 @@ const MAX_MESH_CELLS: f64 = 1e7;
 
 /// Options of the LD table (DATES's binsize, maxdis and qbin, in cM).
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct LdOptions {
     /// Bin width (cM); DATES's `binsize` is this / 100 Morgans.
     pub bin_width_cm: f64,
@@ -213,7 +214,7 @@ pub fn compute_ld_decay(
     weights: &[f64],
     source1_freqs: &[f64],
     source2_freqs: &[f64],
-    options: Option<LdOptions>,
+    options: &LdOptions,
 ) -> Result<Vec<LdBin>> {
     Ok(compute_ld_decay_by_chromosome(
         geno,
@@ -240,9 +241,9 @@ pub fn compute_ld_decay_by_chromosome(
     weights: &[f64],
     source1_freqs: &[f64],
     source2_freqs: &[f64],
-    options: Option<LdOptions>,
+    options: &LdOptions,
 ) -> Result<LdDecay> {
-    let opts = options.unwrap_or_default();
+    let opts = options;
     opts.validate()?;
     let samples = geno.population_indices(&PopulationId::new(test_pop));
     if samples.is_empty() {

@@ -15,6 +15,7 @@ use crate::Result;
 
 /// Configuration options for qpWave analysis.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct QpWaveOptions {
     /// Regularization factor for numerical stability (default: 1e-4).
     pub fudge: f64,
@@ -47,6 +48,7 @@ pub struct RankTest {
 
 /// Result of qpWave analysis.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct QpWaveResult {
     /// Series of rank tests from 0 to max possible.
     pub rank_tests: Vec<RankTest>,
@@ -88,9 +90,9 @@ pub fn qpwave(
     f2_blocks: &F2Blocks,
     left: &[&str],
     right: &[&str],
-    options: Option<QpWaveOptions>,
+    options: &QpWaveOptions,
 ) -> Result<QpWaveResult> {
-    let opts = options.unwrap_or_default();
+    let opts = options;
     // as admixtools2 ("Duplicated pops"); qpAdm's left is target + sources
     check_populations(left.iter().chain(right).copied(), |p| {
         f2_blocks.pop_index(p).is_some()
@@ -208,7 +210,7 @@ mod tests {
         let left = vec!["Pop1", "Pop2", "Pop3"];
         let right = vec!["Pop4", "Pop5"];
 
-        let result = qpwave(&f2_blocks, &left, &right, None).unwrap();
+        let result = qpwave(&f2_blocks, &left, &right, &Default::default()).unwrap();
 
         // Should have rank tests from 0 to min(n_left-1, n_right-1) = min(2, 1) = 1
         assert!(!result.rank_tests.is_empty());
@@ -233,7 +235,7 @@ mod tests {
         let left = vec!["Pop1", "Pop2"];
         let right = vec!["Pop4", "Pop5"];
 
-        let result = qpwave(&f2_blocks, &left, &right, None).unwrap();
+        let result = qpwave(&f2_blocks, &left, &right, &Default::default()).unwrap();
 
         // With similar populations, rank 0 p-value should be high
         // (though this depends on the synthetic data structure)
@@ -269,11 +271,21 @@ mod tests {
         let f2_blocks = create_test_f2_blocks();
 
         // Should fail with only 1 left population
-        let result = qpwave(&f2_blocks, &["Pop1"], &["Pop4", "Pop5"], None);
+        let result = qpwave(
+            &f2_blocks,
+            &["Pop1"],
+            &["Pop4", "Pop5"],
+            &Default::default(),
+        );
         assert!(result.is_err());
 
         // Should fail with only 1 right population
-        let result = qpwave(&f2_blocks, &["Pop1", "Pop2"], &["Pop4"], None);
+        let result = qpwave(
+            &f2_blocks,
+            &["Pop1", "Pop2"],
+            &["Pop4"],
+            &Default::default(),
+        );
         assert!(result.is_err());
     }
 }

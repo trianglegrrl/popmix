@@ -46,13 +46,15 @@ fn r_optim_lbfgsb<'py>(
             .and_then(|v| v.extract::<f64>(py))
             .map_err(|e| PopmixError::numerical("optim", format!("the objective failed: {e}")))
     };
-    let opts = LbfgsbOptions {
-        lmm,
-        factr,
-        pgtol,
-        maxit,
-        fnscale,
-        ndeps,
+    let opts = {
+        let mut o = LbfgsbOptions::default();
+        o.lmm = lmm;
+        o.factr = factr;
+        o.pgtol = pgtol;
+        o.maxit = maxit;
+        o.fnscale = fnscale;
+        o.ndeps = ndeps;
+        o
     };
     let r = optim_lbfgsb(&mut f, None, &par, &lower, &upper, &opts)?;
     let d = PyDict::new(py);

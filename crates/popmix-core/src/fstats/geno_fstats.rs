@@ -107,6 +107,7 @@ pub enum F4Mode {
 
 /// Options for f3 from genotypes (admixtools2 `qp3pop` defaults).
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct F3GenoOptions {
     /// Subtract the target's sampling bias, `h / n` (`apply_corr`).
     pub apply_corr: bool,

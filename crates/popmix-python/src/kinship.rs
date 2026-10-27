@@ -105,13 +105,14 @@ pub fn read_kinship_py(
             )))
         }
     };
-    let options = ReadOptions {
-        window_size,
-        norm,
-        window_estimate,
-        thresholds,
-        compat,
-        ..Default::default()
+    let options = {
+        let mut o = ReadOptions::default();
+        o.window_size = window_size;
+        o.norm = norm;
+        o.window_estimate = window_estimate;
+        o.thresholds = thresholds;
+        o.compat = compat;
+        o
     };
     let (mut source, snps, _, samples) = open_source(prefix, &populations, auto_only)?;
     let positions: Vec<u64> = snps.iter().map(|s| s.position_bp as u64).collect();

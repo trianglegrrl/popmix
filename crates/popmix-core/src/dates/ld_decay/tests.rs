@@ -122,7 +122,7 @@ fn bins_do_not_depend_on_the_thread_count() {
                 ..Default::default()
             };
             let bins = pool
-                .install(|| compute_ld_decay(&geno, &af, "test", &weights, &s1, &s2, Some(opts)))
+                .install(|| compute_ld_decay(&geno, &af, "test", &weights, &s1, &s2, &opts))
                 .unwrap();
             bins.iter()
                 .map(|b| (b.weighted_ld.to_bits(), b.correlation.to_bits()))
@@ -156,7 +156,7 @@ fn test_ld_decay_basic() {
         &weights,
         &source1_freqs,
         &source2_freqs,
-        Some(opts),
+        &opts,
     )
     .unwrap();
 
@@ -190,7 +190,7 @@ fn test_mesh_matches_exact_when_snps_sit_on_mesh_cells() {
             &weights,
             &source1_freqs,
             &source2_freqs,
-            Some(opts),
+            &opts,
         )
         .unwrap()
     };
@@ -231,7 +231,7 @@ fn run_mesh_test(qbin: usize, compat: DatesCompat) -> Vec<LdBin> {
         &weights,
         &source1_freqs,
         &source2_freqs,
-        Some(opts),
+        &opts,
     )
     .unwrap()
 }
@@ -307,7 +307,7 @@ fn test_leave_one_out_with_single_chromosome_is_empty() {
         &weights,
         &source1_freqs,
         &source2_freqs,
-        None,
+        &Default::default(),
     )
     .unwrap();
     assert_eq!(ld.chromosomes.len(), 1);
@@ -334,7 +334,7 @@ fn test_ld_decay_missing_population() {
         &weights,
         &source1_freqs,
         &source2_freqs,
-        None,
+        &Default::default(),
     );
     assert!(result.is_err());
 }
@@ -349,6 +349,7 @@ fn a_snp_without_a_genetic_position_is_an_error() {
         geno.get(i, j) as u8
     });
     let geno = GenotypeMatrix::new(data, geno.samples().to_vec(), snps).unwrap();
-    let err = compute_ld_decay(&geno, &af, "test", &weights, &s1, &s2, None).unwrap_err();
+    let err =
+        compute_ld_decay(&geno, &af, "test", &weights, &s1, &s2, &Default::default()).unwrap_err();
     assert!(err.to_string().contains("rs7"), "{err}");
 }

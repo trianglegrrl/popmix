@@ -109,6 +109,7 @@ impl Spectrum {
 
 /// Which admixtools2 `joint_sfs()` quirks to reproduce.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub struct JointSfsCompat {
     /// ADMIXTOOLS2-0003: the allele count is frequency times sample size in
     /// floating point, and a SNP whose product is not exactly an integer

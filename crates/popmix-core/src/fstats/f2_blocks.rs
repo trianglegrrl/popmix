@@ -132,6 +132,7 @@ impl FstBlocks {
 
 /// Which SNPs go into the f2 blocks, as in admixtools2 `extract_f2`.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct F2Options {
     /// Drop SNPs missing in more than this fraction of the populations
     /// (admixtools2 `maxmiss`). Default: 0, so every population must have

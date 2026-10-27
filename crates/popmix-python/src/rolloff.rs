@@ -68,14 +68,16 @@ pub fn rolloff_py(
     let (mut source, snps, pops, samples) = open_source_filtered(prefix, &populations, &keep)?;
     // jackknife weights: the SNPs of each chromosome in the .snp file
     let all_snps = popmix_io::eigenstrat::read_snp_file(&format!("{prefix}.snp"))?;
-    let options = RolloffOptions {
-        binsize,
-        maxdis,
-        runmode,
-        zdipcorr,
-        chithresh,
-        mincount,
-        minparentcount,
+    let options = {
+        let mut o = RolloffOptions::default();
+        o.binsize = binsize;
+        o.maxdis = maxdis;
+        o.runmode = runmode;
+        o.zdipcorr = zdipcorr;
+        o.chithresh = chithresh;
+        o.mincount = mincount;
+        o.minparentcount = minparentcount;
+        o
     };
     let n = samples.len();
     let out = crate::compute(py, || {

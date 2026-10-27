@@ -61,9 +61,11 @@ pub(crate) fn extract_f2(
     if let Some(size) = block_size {
         opts.blocks = BlockDefinition::new(size);
     }
-    opts.f2 = F2Options {
-        max_missing: maxmiss,
-        poly_only,
+    opts.f2 = {
+        let mut o = F2Options::default();
+        o.max_missing = maxmiss;
+        o.poly_only = poly_only;
+        o
     };
     opts.labels = labels;
     opts.ploidy = pseudohaploid.parse()?;

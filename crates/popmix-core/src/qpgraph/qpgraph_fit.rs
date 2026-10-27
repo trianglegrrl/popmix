@@ -43,6 +43,7 @@ const EDGE_UPPER: f64 = 2147483647.0;
 
 /// Options for [`qpgraph`]; defaults are admixtools2's.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct QpGraphOptions {
     /// Regularization of the edge-length normal equations, scaled by the
     /// mean of their diagonal (admixtools2 `diag`, default 1e-4).
@@ -124,6 +125,7 @@ pub struct QpGraphStart {
 
 /// Result of [`qpgraph`].
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct QpGraphResult {
     /// Leaves in graph order; the first is the f3 base population.
     pub pops: Vec<String>,
@@ -587,9 +589,9 @@ impl Model {
 pub fn qpgraph(
     f2_blocks: &F2Blocks,
     edges: &[(String, String)],
-    options: Option<QpGraphOptions>,
+    options: &QpGraphOptions,
 ) -> Result<QpGraphResult> {
-    let opts = options.unwrap_or_default();
+    let opts = options;
     let g = EdgeListGraph::parse(edges)?;
     let pops: Vec<String> = g.leaves.iter().map(|&v| g.vertices[v].clone()).collect();
     if pops.len() < 3 {

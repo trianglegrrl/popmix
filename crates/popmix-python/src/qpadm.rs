@@ -132,7 +132,7 @@ pub(crate) fn qpf4ratio(
             &source_b,
             &outgroup,
             &reference,
-            None,
+            &Default::default(),
         )?;
 
         Ok(PyF4RatioResult {
@@ -390,15 +390,15 @@ pub(crate) fn qpadm_rotate(
         let candidates_refs: Vec<&str> = candidates.iter().map(|s| s.as_str()).collect();
         let outgroups_refs: Vec<&str> = outgroups.iter().map(|s| s.as_str()).collect();
 
-        let opts = popmix_core::QpAdmRotateOptions {
-            min_sources: min_sources.unwrap_or(1),
-            max_sources,
-            p_threshold: 0.05,
-            feasible_only: feasible_only.unwrap_or(false),
-            qpadm_opts: popmix_core::QpAdmOptions {
-                fudge: fudge.unwrap_or(1e-4),
-                ..Default::default()
-            },
+        let opts = {
+            let mut o = popmix_core::QpAdmRotateOptions::default();
+            o.min_sources = min_sources.unwrap_or(1);
+            o.max_sources = max_sources;
+            o.p_threshold = 0.05;
+            o.feasible_only = feasible_only.unwrap_or(false);
+            o.qpadm_opts.fudge = fudge.unwrap_or(1e-4);
+
+            o
         };
 
         let result = popmix_core::qpadm_rotate(
@@ -406,7 +406,7 @@ pub(crate) fn qpadm_rotate(
             &target,
             &candidates_refs,
             &outgroups_refs,
-            Some(opts),
+            &opts,
         )?;
 
         let models = result
@@ -461,12 +461,14 @@ pub(crate) fn qpwave(
         let left_refs: Vec<&str> = left.iter().map(|s| s.as_str()).collect();
         let right_refs: Vec<&str> = right.iter().map(|s| s.as_str()).collect();
 
-        let opts = popmix_core::QpWaveOptions {
-            fudge: fudge.unwrap_or(1e-4),
-            max_rank: None,
+        let opts = {
+            let mut o = popmix_core::QpWaveOptions::default();
+            o.fudge = fudge.unwrap_or(1e-4);
+            o.max_rank = None;
+            o
         };
 
-        let result = popmix_core::qpwave(&f2_blocks.inner, &left_refs, &right_refs, Some(opts))?;
+        let result = popmix_core::qpwave(&f2_blocks.inner, &left_refs, &right_refs, &opts)?;
 
         let rank_tests = result
             .rank_tests
@@ -616,13 +618,14 @@ pub(crate) fn qpwave_pairs(
         let pop_refs: Vec<&str> = populations.iter().map(|s| s.as_str()).collect();
         let outgroup_refs: Vec<&str> = outgroups.iter().map(|s| s.as_str()).collect();
 
-        let opts = popmix_core::QpWaveOptions {
-            fudge: fudge.unwrap_or(1e-4),
-            max_rank: None,
+        let opts = {
+            let mut o = popmix_core::QpWaveOptions::default();
+            o.fudge = fudge.unwrap_or(1e-4);
+            o.max_rank = None;
+            o
         };
 
-        let inner =
-            popmix_core::qpwave_pairs(&f2_blocks.inner, &pop_refs, &outgroup_refs, Some(opts))?;
+        let inner = popmix_core::qpwave_pairs(&f2_blocks.inner, &pop_refs, &outgroup_refs, &opts)?;
         Ok(PyQpWavePairsResult { inner })
     })
 }
@@ -673,19 +676,16 @@ pub(crate) fn qpadm(
         let sources_refs: Vec<&str> = sources.iter().map(|s| s.as_str()).collect();
         let right_refs: Vec<&str> = right.iter().map(|s| s.as_str()).collect();
 
-        let opts = popmix_core::QpAdmOptions {
-            fudge: fudge.unwrap_or(1e-4),
-            constrained: constrained.unwrap_or(false),
-            compat: admixtools2_compat(compat)?,
+        let opts = {
+            let mut o = popmix_core::QpAdmOptions::default();
+            o.fudge = fudge.unwrap_or(1e-4);
+            o.constrained = constrained.unwrap_or(false);
+            o.compat = admixtools2_compat(compat)?;
+            o
         };
 
-        let result = popmix_core::qpadm(
-            &f2_blocks.inner,
-            &target,
-            &sources_refs,
-            &right_refs,
-            Some(opts),
-        )?;
+        let result =
+            popmix_core::qpadm(&f2_blocks.inner, &target, &sources_refs, &right_refs, &opts)?;
 
         Ok(PyQpAdmResult::from(result))
     })
@@ -725,22 +725,18 @@ pub(crate) fn qpadm_multi(
         let sources_refs: Vec<&str> = sources.iter().map(|s| s.as_str()).collect();
         let right_refs: Vec<&str> = right.iter().map(|s| s.as_str()).collect();
 
-        let opts = popmix_core::QpAdmOptions {
-            fudge: fudge.unwrap_or(1e-4),
-            constrained: constrained.unwrap_or(false),
-            compat: admixtools2_compat(compat)?,
+        let opts = {
+            let mut o = popmix_core::QpAdmOptions::default();
+            o.fudge = fudge.unwrap_or(1e-4);
+            o.constrained = constrained.unwrap_or(false);
+            o.compat = admixtools2_compat(compat)?;
+            o
         };
 
         let mut results = Vec::with_capacity(targets.len());
 
         for target in &targets {
-            match popmix_core::qpadm(
-                &f2_blocks.inner,
-                target,
-                &sources_refs,
-                &right_refs,
-                Some(opts.clone()),
-            ) {
+            match popmix_core::qpadm(&f2_blocks.inner, target, &sources_refs, &right_refs, &opts) {
                 Ok(result) => {
                     results.push(PyQpAdmResult::from(result));
                 }

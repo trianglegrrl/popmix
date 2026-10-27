@@ -9,6 +9,7 @@
 /// (the default) reproduces none; [`DatesCompat::V753`] reproduces all four
 /// and so matches DATES's own output.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct DatesCompat {
     /// DATES-0001: in mesh mode, lags past the window of real pairs take the
     /// circular cross-correlation's wrapped values (short-range pairs

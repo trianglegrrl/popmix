@@ -81,11 +81,13 @@ fn read_jout(name: &str) -> (f64, f64) {
 
 fn dates_fit_options() -> FitOptions {
     // dates_expfit -l 0.450 -a -s 0.001 as run by dates_wtjack
-    FitOptions {
-        min_distance_cm: 0.45,
-        max_distance_cm: f64::INFINITY,
-        use_affine: true,
-        bin_size_cm: 0.1,
+    {
+        let mut o = FitOptions::default();
+        o.min_distance_cm = 0.45;
+        o.max_distance_cm = f64::INFINITY;
+        o.use_affine = true;
+        o.bin_size_cm = 0.1;
+        o
     }
 }
 
@@ -102,7 +104,7 @@ fn fit_on_dates_ld_table_matches_dates_expfit() {
     for name in CONFIGS {
         let bins = read_ld_table(name);
         let expected = read_full_estimate(name);
-        let fit = fit_exponential(&bins, Some(dates_fit_options())).unwrap();
+        let fit = fit_exponential(&bins, &dates_fit_options()).unwrap();
         assert!(
             (fit.decay_rate - expected).abs() <= FIT_TOL,
             "{name}: popmix fit {:.6} != DATES {expected:.3}",

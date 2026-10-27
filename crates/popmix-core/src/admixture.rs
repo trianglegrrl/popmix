@@ -40,6 +40,7 @@ pub const BOUND: f64 = 1e-5;
 
 /// Options for fitting.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct AdmixtureOptions {
     /// Stop when an iteration improves the log-likelihood by less than this
     /// (ADMIXTURE `-C`, default 1e-4), or by less than 1e-13 of it.
@@ -61,6 +62,7 @@ impl Default for AdmixtureOptions {
 
 /// A fit: Q (samples x K, row-major), P (SNPs x K, row-major).
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct AdmixtureFit {
     pub k: usize,
     pub q: Vec<f64>,

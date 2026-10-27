@@ -236,16 +236,17 @@ pub(crate) fn dates(
             fit_options.max_distance_cm = max_d;
         }
 
-        let opts = popmix_core::DatesOptions {
-            ld_options,
-            fit_options,
-            generation_time: generation_time.unwrap_or(29.0),
-            run_jackknife: run_jackknife.unwrap_or(true),
-            compat,
-            ..Default::default()
+        let opts = {
+            let mut o = popmix_core::DatesOptions::default();
+            o.ld_options = ld_options;
+            o.fit_options = fit_options;
+            o.generation_time = generation_time.unwrap_or(29.0);
+            o.run_jackknife = run_jackknife.unwrap_or(true);
+            o.compat = compat;
+            o
         };
 
-        let result = popmix_core::dates(&geno.inner, None, test_pop, source1, source2, Some(opts))?;
+        let result = popmix_core::dates(&geno.inner, None, test_pop, source1, source2, &opts)?;
 
         Ok(PyDatesResult {
             test_pop: result.test_pop.to_string(),

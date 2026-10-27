@@ -161,22 +161,26 @@ pub(crate) fn find_graphs(
                 )))
             }
         };
-        let opts = popmix_core::GraphSearchOptions {
-            nadmix,
-            outgroup,
-            method,
-            qpgraph: popmix_core::QpGraphOptions {
-                diag,
-                diag_f3,
-                constrained,
-                numstart,
-                seed,
-                admix_weights: None,
-                f2_blocks_test: None,
-            },
+        let opts = {
+            let mut o = popmix_core::GraphSearchOptions::default();
+            o.nadmix = nadmix;
+            o.outgroup = outgroup;
+            o.method = method;
+            o.qpgraph = {
+                let mut o = popmix_core::QpGraphOptions::default();
+                o.diag = diag;
+                o.diag_f3 = diag_f3;
+                o.constrained = constrained;
+                o.numstart = numstart;
+                o.seed = seed;
+                o.admix_weights = None;
+                o.f2_blocks_test = None;
+                o
+            };
+            o
         };
         let pop_refs: Vec<&str> = populations.iter().map(|s| s.as_str()).collect();
-        let result = popmix_core::find_graphs(&f2_blocks.inner, &pop_refs, Some(opts))?;
+        let result = popmix_core::find_graphs(&f2_blocks.inner, &pop_refs, &opts)?;
         let graphs = result
             .graphs
             .into_iter()
@@ -363,16 +367,18 @@ pub(crate) fn qpgraph(
     f2_blocks_test: Option<&PyF2Blocks>,
 ) -> PyResult<PyQpGraphResult> {
     compute(py, move || {
-        let opts = popmix_core::QpGraphOptions {
-            diag,
-            diag_f3,
-            constrained,
-            numstart,
-            seed,
-            admix_weights,
-            f2_blocks_test: f2_blocks_test.map(|b| b.inner.clone()),
+        let opts = {
+            let mut o = popmix_core::QpGraphOptions::default();
+            o.diag = diag;
+            o.diag_f3 = diag_f3;
+            o.constrained = constrained;
+            o.numstart = numstart;
+            o.seed = seed;
+            o.admix_weights = admix_weights;
+            o.f2_blocks_test = f2_blocks_test.map(|b| b.inner.clone());
+            o
         };
-        let r = popmix_core::qpgraph(&f2_blocks.inner, &edges, Some(opts))?;
+        let r = popmix_core::qpgraph(&f2_blocks.inner, &edges, &opts)?;
         Ok(PyQpGraphResult {
             pops: r.pops,
             score: r.score,

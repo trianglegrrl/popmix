@@ -23,6 +23,7 @@ use crate::error::{PopmixError, Result};
 
 /// Which bins to fit and how.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct FitOptions {
     /// First distance fitted (cM): leading bins below it are skipped
     /// (DATES's `lovalfit`, in cM).
@@ -48,6 +49,7 @@ impl Default for FitOptions {
 
 /// The fitted decay A·exp(−n·d) + K.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct DecayFit {
     /// A·r: the fitted excess over K at the first fitted bin.
     pub amplitude: f64,
@@ -197,8 +199,8 @@ fn minimise(y: &[f64], affine: bool) -> Option<f64> {
 /// Bins are taken in the order given: leading bins with `distance_cm` below
 /// `min_distance_cm` are skipped, then bins are taken while `distance_cm` is
 /// at most `max_distance_cm`. At least 4 are needed.
-pub fn fit_exponential(ld_bins: &[LdBin], options: Option<FitOptions>) -> Result<DecayFit> {
-    let opts = options.unwrap_or_default();
+pub fn fit_exponential(ld_bins: &[LdBin], options: &FitOptions) -> Result<DecayFit> {
+    let opts = options;
     let y: Vec<f64> = ld_bins
         .iter()
         .skip_while(|b| b.distance_cm < opts.min_distance_cm)
@@ -323,7 +325,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = fit_exponential(&bins, Some(opts)).unwrap();
+        let result = fit_exponential(&bins, &opts).unwrap();
 
         assert!(
             (result.decay_rate - true_n).abs() < 1e-6 * true_n,
@@ -348,7 +350,7 @@ mod tests {
             std_err: 0.0001,
         }];
 
-        let result = fit_exponential(&bins, None);
+        let result = fit_exponential(&bins, &Default::default());
         assert!(result.is_err());
     }
 
@@ -361,7 +363,7 @@ mod tests {
                 max_distance_cm: 30.0,
                 ..Default::default()
             };
-            let result = fit_exponential(&bins, Some(opts)).unwrap();
+            let result = fit_exponential(&bins, &opts).unwrap();
 
             assert!(
                 (result.decay_rate - true_n).abs() < 1e-6 * true_n,

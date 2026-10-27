@@ -119,14 +119,16 @@ pub fn smartpca_py(
             }
         })
         .collect();
-    let options = PcaOptions {
-        n_components,
-        outlier_iterations,
-        outlier_components,
-        outlier_sigma,
-        lsq_project: lsqproject,
-        min_tw_eigs,
-        compat,
+    let options = {
+        let mut o = PcaOptions::default();
+        o.n_components = n_components;
+        o.outlier_iterations = outlier_iterations;
+        o.outlier_components = outlier_components;
+        o.outlier_sigma = outlier_sigma;
+        o.lsq_project = lsqproject;
+        o.min_tw_eigs = min_tw_eigs;
+        o.compat = compat;
+        o
     };
     let n_samples = samples.len();
     let out = crate::compute(py, || {

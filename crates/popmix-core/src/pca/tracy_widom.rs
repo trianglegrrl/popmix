@@ -10,6 +10,7 @@ use super::tw_table::{TW_PDF, TW_TAIL, TW_X};
 
 /// Which smartpca quirks to reproduce.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub struct EigensoftCompat {
     /// EIGENSOFT-0001: beyond the table (TW statistic above 8) smartpca's
     /// `gettw` returns the asymptotic density as the p-value (and the tail as

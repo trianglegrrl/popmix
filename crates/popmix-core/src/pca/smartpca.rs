@@ -119,6 +119,7 @@ pub enum SampleRole {
 
 /// smartpca's parameters, with its defaults.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct PcaOptions {
     /// Eigenvectors to report (`numoutevec`).
     pub n_components: usize,
@@ -162,6 +163,7 @@ pub struct Outlier {
 }
 
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct PcaResult {
     /// Every eigenvalue of the scaled matrix, decreasing.
     pub eigenvalues: Vec<f64>,

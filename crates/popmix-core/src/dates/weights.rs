@@ -16,6 +16,7 @@ const MIN_MEAN_HET: f64 = 0.001;
 
 /// SNP weights w = p1 − p2.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct WeightResult {
     /// One per SNP: p1 − p2 where the SNP is valid, NaN elsewhere.
     pub weights: Vec<f64>,

@@ -19,6 +19,7 @@ use crate::Result;
 
 /// Configuration options for qpAdm analysis.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct QpAdmOptions {
     /// Regularization factor (default: 1e-4).
     pub fudge: f64,
@@ -40,6 +41,7 @@ impl Default for QpAdmOptions {
 
 /// Result of qpAdm analysis.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct QpAdmResult {
     /// Target population.
     pub target: PopulationId,
@@ -88,9 +90,9 @@ pub fn qpadm(
     target: &str,
     sources: &[&str],
     right: &[&str],
-    options: Option<QpAdmOptions>,
+    options: &QpAdmOptions,
 ) -> Result<QpAdmResult> {
-    let opts = options.unwrap_or_default();
+    let opts = options;
 
     if sources.is_empty() {
         return Err(crate::PopmixError::too_few(
@@ -118,7 +120,7 @@ pub fn qpadm(
         fudge: opts.fudge,
         max_rank: None,
     };
-    let qpwave_result = qpwave(f2_blocks, &left, right, Some(qpwave_opts))?;
+    let qpwave_result = qpwave(f2_blocks, &left, right, &qpwave_opts)?;
     let f4 = &qpwave_result.f4_matrix;
 
     let rnk = sources.len() - 1;
@@ -219,7 +221,7 @@ mod tests {
             "Pop3",
             &["Pop1", "Pop2"],
             &["Out1", "Out2"],
-            None,
+            &Default::default(),
         )
         .unwrap();
 
@@ -256,7 +258,7 @@ mod tests {
             "Pop3",
             &["Pop1", "Pop2"],
             &["Out1", "Out2"],
-            Some(opts),
+            &opts,
         )
         .unwrap();
 
@@ -281,7 +283,13 @@ mod tests {
     fn test_qpadm_requires_sources() {
         let f2_blocks = create_admixed_test_data();
 
-        let result = qpadm(&f2_blocks, "Pop3", &[], &["Out1", "Out2"], None);
+        let result = qpadm(
+            &f2_blocks,
+            "Pop3",
+            &[],
+            &["Out1", "Out2"],
+            &Default::default(),
+        );
         assert!(result.is_err());
     }
 
@@ -289,7 +297,13 @@ mod tests {
     fn test_qpadm_requires_outgroups() {
         let f2_blocks = create_admixed_test_data();
 
-        let result = qpadm(&f2_blocks, "Pop3", &["Pop1", "Pop2"], &["Out1"], None);
+        let result = qpadm(
+            &f2_blocks,
+            "Pop3",
+            &["Pop1", "Pop2"],
+            &["Out1"],
+            &Default::default(),
+        );
         assert!(result.is_err());
     }
 }

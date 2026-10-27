@@ -16,6 +16,7 @@ use crate::fstats::jackknife::block_jackknife;
 
 /// Result of an f3 computation.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct F3Result {
     /// The f3 estimate.
     pub estimate: f64,
@@ -29,6 +30,7 @@ pub struct F3Result {
 
 /// Result of an f4 computation.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct F4Result {
     /// The f4 estimate.
     pub estimate: f64,
@@ -42,6 +44,7 @@ pub struct F4Result {
 
 /// Result of an FST computation.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct FstResult {
     /// The FST estimate (Hudson's FST).
     pub estimate: f64,

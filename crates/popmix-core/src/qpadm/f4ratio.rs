@@ -42,6 +42,7 @@ use crate::{PopmixError, Result};
 
 /// Result of qpF4ratio analysis.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct F4RatioResult {
     /// Test (admixed) population.
     pub test: PopulationId,
@@ -69,6 +70,7 @@ pub struct F4RatioResult {
 
 /// Options for f4ratio computation.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct F4RatioOptions {
     /// Blocks whose denominator f4 is smaller than this in absolute value are
     /// left out (admixtools2 `thresh`, default: 1e-6).
@@ -109,9 +111,9 @@ pub fn f4ratio(
     source_b: &str,
     outgroup: &str,
     reference: &str,
-    options: Option<F4RatioOptions>,
+    options: &F4RatioOptions,
 ) -> Result<F4RatioResult> {
-    let opts = options.unwrap_or_default();
+    let opts = options;
     for pop in [test, source_a, source_b, outgroup, reference] {
         if f2_blocks.pop_index(pop).is_none() {
             return Err(PopmixError::PopulationNotFound(pop.to_string()));
@@ -279,12 +281,13 @@ mod tests {
         let f2_blocks = create_test_f2_blocks();
 
         let result = f4ratio(
-            &f2_blocks, "PopX", // test (admixed)
+            &f2_blocks,
+            "PopX", // test (admixed)
             "PopA", // source_a
             "PopB", // source_b
             "PopO", // outgroup
             "PopC", // reference
-            None,
+            &Default::default(),
         )
         .unwrap();
 
@@ -325,7 +328,7 @@ mod tests {
             "PopB",
             "PopO",
             "PopC",
-            None,
+            &Default::default(),
         );
 
         assert!(result.is_err());
@@ -339,15 +342,7 @@ mod tests {
             min_denominator: 1e-10,
         };
 
-        let result = f4ratio(
-            &f2_blocks,
-            "PopX",
-            "PopA",
-            "PopB",
-            "PopO",
-            "PopC",
-            Some(opts),
-        );
+        let result = f4ratio(&f2_blocks, "PopX", "PopA", "PopB", "PopO", "PopC", &opts);
 
         assert!(result.is_ok());
     }

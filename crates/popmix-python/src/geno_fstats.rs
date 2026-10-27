@@ -263,9 +263,11 @@ pub fn f3_from_geno(
 ) -> PyResult<Py<PyAny>> {
     let rule = ploidy_rule(pseudohaploid)?;
     let (source, snps, pops, _) = open_source_with(prefix, &populations, auto_only, rule)?;
-    let options = F3GenoOptions {
-        apply_corr,
-        outgroup_mode: outgroupmode,
+    let options = {
+        let mut o = F3GenoOptions::default();
+        o.apply_corr = apply_corr;
+        o.outgroup_mode = outgroupmode;
+        o
     };
     let out = crate::compute(py, || {
         run(source, |rows| {

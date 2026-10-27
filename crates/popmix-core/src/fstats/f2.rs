@@ -16,6 +16,7 @@ use crate::genotype_matrix::AlleleFrequencies;
 
 /// Result of an f2 computation.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct F2Result {
     /// The f2 estimate.
     pub estimate: f64,

@@ -25,6 +25,7 @@ use crate::genotypes::Snp;
 use crate::pca::PackedGenotypes;
 
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct RolloffOptions {
     /// Distance bin (Morgans).
     pub binsize: f64,
@@ -292,6 +293,7 @@ pub struct RolloffBins {
 }
 
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct RolloffResult {
     /// Chromosome labels, in order.
     pub chromosomes: Vec<String>,
@@ -488,6 +490,7 @@ pub fn rolloff(
 
 /// A fit of C + A exp(-m d) to ROLLOFF correlations.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
 pub struct RolloffFit {
     pub affine: f64,
     pub amplitude: f64,

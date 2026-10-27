@@ -55,9 +55,10 @@ fn pca(c: &mut Criterion) {
         let g = genotypes(n, 20_000);
         let packed = PackedGenotypes::read(&mut rows(&g), n, g.n_snps()).unwrap();
         let roles = vec![SampleRole::Pca; n];
-        let opts = PcaOptions {
-            outlier_iterations: 0,
-            ..Default::default()
+        let opts = {
+            let mut o = PcaOptions::default();
+            o.outlier_iterations = 0;
+            o
         };
         group.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, _| {
             b.iter(|| smartpca(&packed, &roles, &opts).unwrap())
@@ -84,9 +85,11 @@ fn f2_blocks(c: &mut Criterion) {
     group.sample_size(10);
     let g = genotypes(400, 50_000);
     let af = AlleleFrequencies::from_genotypes(&g);
-    let opts = F2Options {
-        max_missing: 1.0,
-        poly_only: true,
+    let opts = {
+        let mut o = F2Options::default();
+        o.max_missing = 1.0;
+        o.poly_only = true;
+        o
     };
     let def = BlockDefinition::new(0.005);
     group.bench_function("4 populations, maxmiss 1", |b| {
@@ -115,9 +118,10 @@ fn admixture_fit(c: &mut Criterion) {
     group.sample_size(10);
     let g = genotypes(60, 5_000);
     let packed = PackedGenotypes::read(&mut rows(&g), 60, g.n_snps()).unwrap();
-    let opts = AdmixtureOptions {
-        max_iterations: 5,
-        ..Default::default()
+    let opts = {
+        let mut o = AdmixtureOptions::default();
+        o.max_iterations = 5;
+        o
     };
     group.bench_function("K=3, 5 iterations", |b| {
         b.iter(|| admixture(&packed, 3, &opts).unwrap())
