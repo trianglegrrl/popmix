@@ -518,13 +518,16 @@ thread count.
   UserWarning, filterable by class); the CLI prints each as one
   `Warning: ...` line on stderr. The CLI's own population-check notice
   goes the same way.
-- [ ] **G14. qpGraph past a zero-bound kink:** where a fitted edge length
+- [x] **G14. qpGraph past a zero-bound kink:** where a fitted edge length
   reaches zero the score has a kink, and R-style finite-difference
   L-BFGS-B stalls before it from every start, as admixtools2's does
   (AADR v66.p1 ancient_5pop admix1: both stop at weight 0.4502-0.4503,
   score 0.67713, against the minimum 0.67706 at 0.45087). Polish the best
   start by default (a bracketing line search on the stalled direction),
   keep the stall under compat.
+  *Done in 588670a:* golden-section polish of each best weight; compat
+  `qpgraph_stall_at_kink` (ADMIXTOOLS2-0009); ancient_5pop admix1 reaches
+  0.677059.
 
 ## H. Practitioner features (P1)
 
