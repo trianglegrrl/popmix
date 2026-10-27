@@ -558,7 +558,7 @@ thread count.
   trait; `lib.rs` (3,153 lines) becomes thin wrappers, split by domain;
   delegate `best_clade`/`worst_pair` (`lib.rs:2079-2083,2345-2349`) to core.
   RS, AI
-  *Done in e389bb0 and COMMIT:* the bindings' `lib.rs` split by domain
+  *Done in e389bb0 and e309932:* the bindings' `lib.rs` split by domain
   (3,128 lines to 200; seven modules, each under 800). The pipeline is
   `popmix_io::extract::extract_f2(prefix, &ExtractOptions, warn)`, with
   `popmix_io::dataset` (`open_mapped`, `read_genotypes`, `PloidyRule`,
