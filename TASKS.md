@@ -584,7 +584,7 @@ thread count.
   into driver, memory, Cauchy point, subspace and line search (910b747);
   ADMIXTURE into fit, Newton steps and quadratic programs (b9b8d6e); the
   CLI by domain (c0484a7); `benchmarks/cases.py` into a package by area
-  (COMMIT). `test_process_rules.py` keeps every source file under 800.
+  (8b58f1a). `test_process_rules.py` keeps every source file under 800.
 
 ## J. Python API consistency (P2)
 
