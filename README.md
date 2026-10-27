@@ -750,9 +750,9 @@ runs after a warm-up, on a 16-thread laptop (i7-1360P, 62 GB):
 | KING-robust kinship | PLINK 2 (16 threads) | 1.2 s | 2.1 s | 5.0e-13 |
 | ADMIXTURE K=3 | ADMIXTURE 1.3.0 | 13.9 s | 6.8 s | log-likelihood 0.004 higher |
 
-popmix is slower than PLINK 2 on this small kinship case (TASKS.md F14),
-and on one thread slower than ADMIXTURE (16.7 s against 13.9 s; F16). Its
-output is byte-identical at 1, 4 and 16 threads in every case. Classic qpAdm
+popmix is slower than PLINK 2 on this small kinship case (TASKS.md F14).
+On one thread ADMIXTURE K=3 now takes 10.0 s against ADMIXTURE's 14.2 s.
+Its output is byte-identical at 1, 4 and 16 threads in every case. Classic qpAdm
 differs from ADMIXTOOLS 7.0.2 by design (DEVIATIONS.md).
 
 Scaling (`benchmarks/scaling.py`): f2 blocks of 497 populations take 5.8 s

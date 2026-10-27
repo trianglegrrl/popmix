@@ -80,16 +80,27 @@ struct Data<'a> {
 }
 
 impl Data<'_> {
-    /// h = 2 - g, the count of the allele P refers to; None if not used.
+    /// The genotype code g (0, 1, 2; h = 2 - g copies of the allele P refers
+    /// to); None if missing or held out.
     #[inline]
-    fn h(&self, snp: usize, sample: usize) -> Option<f64> {
+    fn g(&self, snp: usize, sample: usize) -> Option<u8> {
         let g = self.geno.get(snp, sample);
         if g > 2 || self.held_out.is_some_and(|m| m.contains(snp, sample)) {
             None
         } else {
-            Some(2.0 - g as f64)
+            Some(g)
         }
     }
+}
+
+/// A genotype's log-likelihood term h ln(a) + (2 - h) ln(b), h = 2 - g, with
+/// one logarithm: a homozygote's other term is zero, a heterozygote's two
+/// are ln(ab). The logarithms are most of the fit's time.
+#[inline]
+fn term(g: u8, a: f64, b: f64) -> f64 {
+    // a^h b^(2-h), chosen without a branch: genotypes vary from sample to
+    // sample, and a mispredicted branch costs more than the logarithm
+    [a * a, a * b, b * b][g as usize].ln()
 }
 
 /// Genotype entries held out of a fit.
@@ -152,11 +163,11 @@ fn loglik(d: &Data, q: &[f64], p: &[f64], k: usize) -> f64 {
             for j in c * CHUNK..((c + 1) * CHUNK).min(m) {
                 let pj = &p[j * k..(j + 1) * k];
                 for i in 0..n {
-                    if let Some(h) = d.h(j, i) {
+                    if let Some(g) = d.g(j, i) {
                         let qi = &q[i * k..(i + 1) * k];
                         let a: f64 = qi.iter().zip(pj).map(|(x, y)| x * y).sum();
                         let b: f64 = qi.iter().zip(pj).map(|(x, y)| x * (1.0 - y)).sum();
-                        l += h * a.ln() + (2.0 - h) * b.ln();
+                        l += term(g, a, b);
                     }
                 }
             }
@@ -312,6 +323,77 @@ fn simplex_qp(a: &[f64], g: &[f64], lo: &[f64]) -> Vec<f64> {
     x
 }
 
+/// Call `$f::<K>(args)` with K the compile-time value of `$k` for the
+/// usual numbers of populations (so the loops over them unroll), K = 0 (the
+/// value read at run time) otherwise.
+macro_rules! with_k {
+    ($k:expr, $f:ident($($arg:expr),*)) => {
+        match $k {
+            2 => $f::<2>($($arg),*),
+            3 => $f::<3>($($arg),*),
+            4 => $f::<4>($($arg),*),
+            5 => $f::<5>($($arg),*),
+            6 => $f::<6>($($arg),*),
+            7 => $f::<7>($($arg),*),
+            8 => $f::<8>($($arg),*),
+            _ => $f::<0>($($arg),*),
+        }
+    };
+}
+
+/// [`q_terms`] over the SNPs `snps`, added to `out`; `K` is k, or 0.
+fn q_terms_chunk<const K: usize>(
+    d: &Data,
+    q: &[f64],
+    p: &[f64],
+    k: usize,
+    snps: std::ops::Range<usize>,
+    derivatives: bool,
+    out: &mut (Vec<f64>, Vec<f64>, Vec<f64>),
+) {
+    let k = if K == 0 { k } else { K };
+    let n = d.geno.n_samples();
+    let (ll, grad, hess) = out;
+    // each SNP's p, 1 - p and their products, shared by every sample
+    let (mut np, mut pp, mut nn) = (vec![0.0; k], vec![0.0; k * k], vec![0.0; k * k]);
+    for j in snps {
+        let pj = &p[j * k..(j + 1) * k];
+        for t in 0..k {
+            np[t] = 1.0 - pj[t];
+        }
+        if derivatives {
+            for t in 0..k {
+                for u in t..k {
+                    pp[t * k + u] = pj[t] * pj[u];
+                    nn[t * k + u] = np[t] * np[u];
+                }
+            }
+        }
+        for i in 0..n {
+            let Some(g) = d.g(j, i) else { continue };
+            let qi = &q[i * k..(i + 1) * k];
+            let a: f64 = qi.iter().zip(pj).map(|(x, y)| x * y).sum();
+            let b: f64 = qi.iter().zip(&np).map(|(x, y)| x * y).sum();
+            ll[i] += term(g, a, b);
+            if !derivatives {
+                continue;
+            }
+            let gi = &mut grad[i * k..(i + 1) * k];
+            let hi = &mut hess[i * k * k..(i + 1) * k * k];
+            let h = 2.0 - g as f64;
+            let (ra, rb) = (1.0 / a, 1.0 / b);
+            let (wa, wb) = (h * ra, (2.0 - h) * rb);
+            let (wa2, wb2) = (wa * ra, wb * rb);
+            for t in 0..k {
+                gi[t] += wa * pj[t] + wb * np[t];
+                for u in t..k {
+                    hi[t * k + u] += wa2 * pp[t * k + u] + wb2 * nn[t * k + u];
+                }
+            }
+        }
+    }
+}
+
 /// Per-sample log-likelihood contributions, and (with `derivatives`) each
 /// sample's gradient and negated Hessian of its log-likelihood in Q.
 fn q_terms(
@@ -335,29 +417,10 @@ fn q_terms(
     let parts: Vec<(Vec<f64>, Vec<f64>, Vec<f64>)> = (0..m.div_ceil(chunk))
         .into_par_iter()
         .map(|c| {
-            let (mut ll, mut grad, mut hess) = zero();
-            for j in c * chunk..((c + 1) * chunk).min(m) {
-                let pj = &p[j * k..(j + 1) * k];
-                for i in 0..n {
-                    let Some(h) = d.h(j, i) else { continue };
-                    let qi = &q[i * k..(i + 1) * k];
-                    let a: f64 = qi.iter().zip(pj).map(|(x, y)| x * y).sum();
-                    let b: f64 = qi.iter().zip(pj).map(|(x, y)| x * (1.0 - y)).sum();
-                    ll[i] += h * a.ln() + (2.0 - h) * b.ln();
-                    if derivatives {
-                        let (wa, wb) = (h / a, (2.0 - h) / b);
-                        let (wa2, wb2) = (wa / a, wb / b);
-                        for t in 0..k {
-                            grad[i * k + t] += wa * pj[t] + wb * (1.0 - pj[t]);
-                            for u in t..k {
-                                hess[(i * k + t) * k + u] +=
-                                    wa2 * pj[t] * pj[u] + wb2 * (1.0 - pj[t]) * (1.0 - pj[u]);
-                            }
-                        }
-                    }
-                }
-            }
-            (ll, grad, hess)
+            let mut out = zero();
+            let snps = c * chunk..((c + 1) * chunk).min(m);
+            with_k!(k, q_terms_chunk(d, q, p, k, snps, derivatives, &mut out));
+            out
         })
         .collect();
     let mut out = zero();
@@ -381,11 +444,11 @@ fn sample_ll(d: &Data, q: &[f64], p: &[f64], k: usize, samples: &[usize]) -> Vec
             for j in c * chunk..((c + 1) * chunk).min(m) {
                 let pj = &p[j * k..(j + 1) * k];
                 for (l, &i) in ll.iter_mut().zip(samples) {
-                    let Some(h) = d.h(j, i) else { continue };
+                    let Some(g) = d.g(j, i) else { continue };
                     let qi = &q[i * k..(i + 1) * k];
                     let a: f64 = qi.iter().zip(pj).map(|(x, y)| x * y).sum();
                     let b: f64 = qi.iter().zip(pj).map(|(x, y)| x * (1.0 - y)).sum();
-                    *l += h * a.ln() + (2.0 - h) * b.ln();
+                    *l += term(g, a, b);
                 }
             }
             ll
@@ -465,6 +528,53 @@ fn q_newton(d: &Data, q: &[f64], p: &[f64], k: usize, fixed_q: &[bool]) -> Vec<f
     out
 }
 
+/// SNP `j`'s log-likelihood at `pj`, its gradient in P added to `g` and its
+/// negated Hessian to `a` (K x K, filled whole); None if no sample is
+/// called. `qq` holds each sample's q q' (upper triangle); `K` is k, or 0.
+#[allow(clippy::too_many_arguments)]
+fn p_terms<const K: usize>(
+    d: &Data,
+    q: &[f64],
+    qq: &[f64],
+    pj: &[f64],
+    k: usize,
+    j: usize,
+    g: &mut [f64],
+    a: &mut [f64],
+) -> Option<f64> {
+    let k = if K == 0 { k } else { K };
+    let n = d.geno.n_samples();
+    let np: Vec<f64> = pj.iter().map(|x| 1.0 - x).collect();
+    let mut ll0 = 0.0;
+    let mut any = false;
+    for i in 0..n {
+        let Some(gc) = d.g(j, i) else { continue };
+        any = true;
+        let h = 2.0 - gc as f64;
+        let qi = &q[i * k..(i + 1) * k];
+        let x: f64 = qi.iter().zip(pj).map(|(x, y)| x * y).sum();
+        let y: f64 = qi.iter().zip(&np).map(|(x, y)| x * y).sum();
+        ll0 += term(gc, x, y);
+        let (rx, ry) = (1.0 / x, 1.0 / y);
+        let (wx, wy) = (h * rx, (2.0 - h) * ry);
+        let w = wx - wy;
+        let w2 = wx * rx + wy * ry;
+        let qqi = &qq[i * k * k..(i + 1) * k * k];
+        for t in 0..k {
+            g[t] += qi[t] * w;
+            for u in t..k {
+                a[t * k + u] += qqi[t * k + u] * w2;
+            }
+        }
+    }
+    for t in 0..k {
+        for u in 0..t {
+            a[t * k + u] = a[u * k + t];
+        }
+    }
+    any.then_some(ll0)
+}
+
 /// One Newton step on every SNP's P with Q fixed, within the bounds, halved
 /// until that SNP's log-likelihood does not decrease; with the
 /// log-likelihood at the new P, summed SNP by SNP in order.
@@ -474,41 +584,37 @@ fn p_newton(d: &Data, q: &[f64], p: &[f64], k: usize) -> (Vec<f64>, f64) {
     let snp_ll = |j: usize, pj: &[f64]| -> f64 {
         (0..n)
             .filter_map(|i| {
-                let h = d.h(j, i)?;
+                let g = d.g(j, i)?;
                 let qi = &q[i * k..(i + 1) * k];
                 let a: f64 = qi.iter().zip(pj).map(|(x, y)| x * y).sum();
                 let b: f64 = qi.iter().zip(pj).map(|(x, y)| x * (1.0 - y)).sum();
-                Some(h * a.ln() + (2.0 - h) * b.ln())
+                Some(term(g, a, b))
             })
             .sum()
     };
+    // each sample's q q' (upper triangle), shared by every SNP
+    let qq: Vec<f64> = (0..n)
+        .flat_map(|i| {
+            let qi = &q[i * k..(i + 1) * k];
+            (0..k * k).map(move |tu| {
+                let (t, u) = (tu / k, tu % k);
+                if u >= t {
+                    qi[t] * qi[u]
+                } else {
+                    0.0
+                }
+            })
+        })
+        .collect();
     let per_snp: Vec<(Vec<f64>, f64)> = (0..m)
         .into_par_iter()
         .map(|j| {
             let pj = &p[j * k..(j + 1) * k];
             let mut g = vec![0.0; k];
             let mut a = vec![0.0; k * k];
-            let mut ll0 = 0.0;
-            let mut any = false;
-            for i in 0..n {
-                let Some(h) = d.h(j, i) else { continue };
-                any = true;
-                let qi = &q[i * k..(i + 1) * k];
-                let x: f64 = qi.iter().zip(pj).map(|(x, y)| x * y).sum();
-                let y: f64 = qi.iter().zip(pj).map(|(x, y)| x * (1.0 - y)).sum();
-                ll0 += h * x.ln() + (2.0 - h) * y.ln();
-                let w = h / x - (2.0 - h) / y;
-                let w2 = h / (x * x) + (2.0 - h) / (y * y);
-                for t in 0..k {
-                    g[t] += qi[t] * w;
-                    for u in 0..k {
-                        a[t * k + u] += qi[t] * qi[u] * w2;
-                    }
-                }
-            }
-            if !any {
+            let Some(ll0) = with_k!(k, p_terms(d, q, &qq, pj, k, j, &mut g, &mut a)) else {
                 return (pj.to_vec(), 0.0);
-            }
+            };
             // a tiny ridge keeps the system positive definite where some
             // population has no weight at this SNP
             for t in 0..k {
@@ -996,6 +1102,20 @@ mod tests {
                 .unwrap_err()
                 .to_string();
             assert!(err.contains("folds"), "{folds}: {err}");
+        }
+    }
+
+    #[test]
+    fn one_logarithm_terms_are_the_definition() {
+        for (a, b) in [(0.3, 0.7), (1e-5, 1.0 - 1e-5), (0.999, 0.001), (0.5, 0.25)] {
+            for g in 0..3u8 {
+                let h = 2.0 - g as f64;
+                let want = h * f64::ln(a) + (2.0 - h) * f64::ln(b);
+                // the product rounds by one ulp, which moves its logarithm
+                // by about epsilon however small the logarithm is
+                let tolerance = 4.0 * f64::EPSILON * (1.0 + want.abs());
+                assert!((term(g, a, b) - want).abs() <= tolerance, "{a} {b} {g}");
+            }
         }
     }
 

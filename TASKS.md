@@ -381,9 +381,9 @@ thread count.
 - [x] **F15. CLI startup:** `import popmix` loads pandas eagerly (through
   `popmix.admixture`), about a second on every command; import it lazily.
   Done: submodules load on first use; `popmix --help` 0.33 s to 0.04 s, 8d5ae2b.
-- [ ] **F16. ADMIXTURE speed:** popmix 19.3 s against ADMIXTURE's 13.9 s in
+- [x] **F16. ADMIXTURE speed:** popmix 19.3 s against ADMIXTURE's 13.9 s in
   the E benchmark.
-  Progress: no passes for settled samples and SNPs, P-step log-likelihood reused (577c8fc): 53.0 s to 21.9 s (1 thread), 22.7 s to 6.3 s (4); ADMIXTURE 13.6 s on one thread. Rerun (2026-10-26): E benchmark 6.8 s on 4 threads (ADMIXTURE 13.9 s), 16.7 s on 1. One thread is still slower.
+  Progress: no passes for settled samples and SNPs, P-step log-likelihood reused (577c8fc): 53.0 s to 21.9 s (1 thread), 22.7 s to 6.3 s (4); ADMIXTURE 13.6 s on one thread. Rerun (2026-10-26): E benchmark 6.8 s on 4 threads (ADMIXTURE 13.9 s), 16.7 s on 1. Then one logarithm per genotype (ln a^h b^(2-h), chosen without a branch), reciprocals for the derivative weights, per-SNP and per-sample products shared, the inner loops specialized on K (2-8): one thread 15.7 s to 10.0 s against ADMIXTURE's 14.2 s, the same log-likelihood, identical at 1, 4 and 16 threads. (One-thread runs vary with the core they land on: 84 ms for a Q-step's sums on a P core, 150 ms on an E core.) Done.
 - [ ] **F17. PCA cost grows with the square of the samples:** in the sample
   scaling curve popmix takes about 4x per doubling (5.8 s at 250 samples,
   62.7 s at 1,000, 225 s at 2,000, 1,079 s at 3,970) and smartpca about 2x
