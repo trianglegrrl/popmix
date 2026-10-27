@@ -693,7 +693,7 @@ thread count.
 - [x] **M2. Idiom:** `f64::midpoint` (9 places), `let … else` instead of
   `unwrap` after `is_none` (`ped.rs:184`, `graph.rs:240`), worthwhile
   `clippy::pedantic` lints (1,782 warnings, mostly noise). RS
-  *Done in COMMIT:* 21 of clippy's pedantic lints are on for the
+  *Done in a44f566:* 21 of clippy's pedantic lints are on for the
   workspace (`[workspace.lints.clippy]`: midpoint, let-else, file
   extensions compared case-blind, `Option<&T>`, needless `Result`,
   unused `self`, hashers, inlined format arguments, `From` for lossless
