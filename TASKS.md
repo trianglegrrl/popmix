@@ -377,13 +377,13 @@ thread count.
   kernels as plink2 uses (F11). At 3,970 samples 547 s and 7.4 GB against
   PLINK 2's 201 s. Threads, as in PCA (F17): at 2,000 samples 215 s on 1
   thread, 131 s on 4, 158 s on 16, CPU time 216 s to 1,527 s.
-  Progress: tiled pair counts, AVX2/POPCNT kernel chosen at run time, words built per sample (911385b): 1,000 samples 61 s to 36 s (1 thread), 38 s to 18 s (4); pair counting 45 s to 20 s and 24 s to 7.6 s. Benchmarks to rerun.
+  Progress: tiled pair counts, AVX2/POPCNT kernel chosen at run time, words built per sample (911385b): 1,000 samples 61 s to 36 s (1 thread), 38 s to 18 s (4); pair counting 45 s to 20 s and 24 s to 7.6 s. Rerun (2026-10-26): E benchmark 3.9 s to 2.1 s (PLINK 2 1.2 s); 3,970 samples 547 s to 216 s and 3.8 GB (PLINK 2 201 s); 2,000 samples 105 s on 1 thread, 52 s on 4 (PLINK 2 135 s at its default).
 - [x] **F15. CLI startup:** `import popmix` loads pandas eagerly (through
   `popmix.admixture`), about a second on every command; import it lazily.
   Done: submodules load on first use; `popmix --help` 0.33 s to 0.04 s, 8d5ae2b.
 - [ ] **F16. ADMIXTURE speed:** popmix 19.3 s against ADMIXTURE's 13.9 s in
   the E benchmark.
-  Progress: no passes for settled samples and SNPs, P-step log-likelihood reused (577c8fc): 53.0 s to 21.9 s (1 thread), 22.7 s to 6.3 s (4); ADMIXTURE 13.6 s on one thread. One thread is still slower.
+  Progress: no passes for settled samples and SNPs, P-step log-likelihood reused (577c8fc): 53.0 s to 21.9 s (1 thread), 22.7 s to 6.3 s (4); ADMIXTURE 13.6 s on one thread. Rerun (2026-10-26): E benchmark 6.8 s on 4 threads (ADMIXTURE 13.9 s), 16.7 s on 1. One thread is still slower.
 - [ ] **F17. PCA cost grows with the square of the samples:** in the sample
   scaling curve popmix takes about 4x per doubling (5.8 s at 250 samples,
   62.7 s at 1,000, 225 s at 2,000, 1,079 s at 3,970) and smartpca about 2x
@@ -393,7 +393,7 @@ thread count.
   3,029 s, so the extra threads spin or contend instead of working. Profile
   the PCA path (the samples x samples product, its eigensolver, the parallel
   split), and make it scale like smartpca's with samples and threads.
-  Progress: tiled upper-triangle X X', panel products for loadings and projections (27f0ab6): 1,000 samples 100 s to 65 s (1 thread), 53 s to 42 s (4). The GEMM runs at about 30 GFLOP/s per core. On this machine (i7-1360P, 4 P + 8 E cores, 16 logical CPUs, about 1.5 of them busy with other processes) FLOP-bound work stops scaling at 4-8 threads, and at 14-16 threads rayon workers are descheduled while the others spin, so 16 threads is slower than 4 for every kernel: the CPU-time growth in the scaling curves comes from that, not from popmix.
+  Progress: tiled upper-triangle X X', panel products for loadings and projections (27f0ab6): 1,000 samples 100 s to 65 s (1 thread), 53 s to 42 s (4). The GEMM runs at about 30 GFLOP/s per core. On this machine (i7-1360P, 4 P + 8 E cores, 16 logical CPUs, about 1.5 of them busy with other processes) FLOP-bound work stops scaling at 4-8 threads, and at 14-16 threads rayon workers are descheduled while the others spin, so 16 threads is slower than 4 for every kernel: the CPU-time growth in the scaling curves comes from that, not from popmix. Rerun (2026-10-26): 5.9, 14.3, 38.3, 143, 516 s at 250 to 3,970 samples (smartpca 63, 94, 174, 406, 1,385 s); at 2,000 samples 213 s on 1 thread, 119 s on 4, 136 s on 16. Faster than smartpca at every size, but its lead shrinks with samples (10.7x at 250, 2.7x at 3,970): the n² product still dominates.
 - [x] **F18. `extract_f2` runs on one core:** 128 populations take 16 s at
   every thread count from 1 to 16, CPU time equal to wall time. Parallelize
   the per-SNP frequencies and the per-block pair sums (populations x

@@ -702,9 +702,9 @@ Bad input gives a one-line `Error: ...` and exit code 1; `popmix --debug
 
 ## Performance Tips
 
-1. **Use PACKEDANCESTRYMAP input** for f2 extraction: it is streamed SNP by
-   SNP, never loaded whole. Other formats are read into memory first, so
-   convert large datasets once:
+1. **Use PACKEDANCESTRYMAP or PLINK .bed input**: both are memory-mapped
+   and read only for the populations asked for. VCF and text EIGENSTRAT are
+   read into memory first, so convert large datasets once:
    ```bash
    popmix convertf -i data -o data_packed -of packedancestrymap
    popmix extract-f2 -i data_packed -o f2/ --populations Pop1,Pop2,Pop3
@@ -713,9 +713,8 @@ Bad input gives a one-line `Error: ...` and exit code 1; `popmix --debug
 2. **Name only the populations you need**: f2 blocks hold every pair of the
    populations given, so their size grows with the square of their number.
 
-3. **Threads** help PCA, ADMIXTURE, ROLLOFF, DATES and kinship, best at
-   about 4 (more threads are slower for now: TASKS.md F17); `extract-f2`
-   runs on one core whatever the setting (F18):
+3. **Threads** help every analysis, best at about 4 on a laptop: on a
+   machine with few performance cores, 16 threads can be slower than 4:
    ```bash
    popmix --threads 4 pca ...
    ```
@@ -734,31 +733,31 @@ runs after a warm-up, on a 16-thread laptop (i7-1360P, 62 GB):
 
 | Analysis | Reference | Reference | popmix | Agreement |
 |----------|-----------|-----------|--------|-----------|
-| convertf (packed to text) | AdmixTools 8 convertf | 78.0 s | 3.2 s | identical files |
-| f2 blocks, 16 populations | admixtools2 `f2_from_geno` | 36.9 s, 7.9 GB | 5.4 s, 0.8 GB | every entry 1e-10 |
-| qpAdm from genotypes | admixtools2 `qpadm` | 21.5 s | 4.3 s | 2.0e-11 |
-| qpAdm rotation, 30 models | admixtools2 `qpadm_rotate` | 21.4 s | 4.0 s | 6.9e-10 |
-| qpDstat, 20 f4 | admixtools2 `qpdstat` | 16.8 s | 3.9 s | 3.4e-11 |
-| qpGraph, 10 starts | admixtools2 `qpgraph` | 16.8 s | 3.7 s | 2.8e-12 |
-| Graph search | admixtools2 `find_graphs` | 45.2 s | 4.4 s | same optimum |
-| qpGraph bootstrap | admixtools2 `qpgraph_resample_snps` | 18.9 s | 3.0 s | 4.1e-12 |
-| qpDstat, qp3Pop, qpGraph | ADMIXTOOLS 7.0.2 | 42.9 s, 2.4 min, 91.0 s | 3.4 s, 3.3 s, 3.1 s | printed precision |
-| PCA, 10 PCs | EIGENSOFT smartpca | 83.2 s | 5.4 s | 4.3e-12 |
-| ROLLOFF | ADMIXTOOLS 7.0.2 rolloff | 4.3 min | 14.6 s | 4.1e-12 |
-| DATES | DATES v753 | 30.7 s | 5.7 s | printed precision |
-| READ kinship | READv2 | 28.3 s | 1.9 s | 4.8e-12 |
-| KING-robust kinship | PLINK 2 (16 threads) | 1.2 s | 3.9 s | 5.0e-13 |
-| ADMIXTURE K=3 | ADMIXTURE 1.3.0 | 13.9 s | 19.3 s | log-likelihood 0.004 higher |
+| convertf (packed to text) | AdmixTools 8 convertf | 78.0 s | 1.8 s | identical files |
+| f2 blocks, 16 populations | admixtools2 `f2_from_geno` | 36.9 s, 7.9 GB | 1.0 s, 0.7 GB | every entry 1e-10 |
+| qpAdm from genotypes | admixtools2 `qpadm` | 21.5 s | 1.3 s | 2.0e-11 |
+| qpAdm rotation, 30 models | admixtools2 `qpadm_rotate` | 21.4 s | 1.5 s | 6.9e-10 |
+| qpDstat, 20 f4 | admixtools2 `qpdstat` | 16.8 s | 2.0 s | 3.4e-11 |
+| qpGraph, 10 starts | admixtools2 `qpgraph` | 16.8 s | 1.1 s | 2.8e-12 |
+| Graph search | admixtools2 `find_graphs` | 45.2 s | 2.4 s | same optimum |
+| qpGraph bootstrap | admixtools2 `qpgraph_resample_snps` | 18.9 s | 1.5 s | 4.1e-12 |
+| qpDstat, qp3Pop, qpGraph | ADMIXTOOLS 7.0.2 | 42.9 s, 2.4 min, 91.0 s | 1.8 s, 1.6 s, 0.9 s | printed precision |
+| PCA, 10 PCs | EIGENSOFT smartpca | 83.2 s | 4.3 s | 4.3e-12 |
+| ROLLOFF | ADMIXTOOLS 7.0.2 rolloff | 4.3 min | 16.1 s | 4.1e-12 |
+| DATES | DATES v753 | 30.7 s | 2.6 s | printed precision |
+| READ kinship | READv2 | 28.3 s | 1.1 s | 4.8e-12 |
+| KING-robust kinship | PLINK 2 (16 threads) | 1.2 s | 2.1 s | 5.0e-13 |
+| ADMIXTURE K=3 | ADMIXTURE 1.3.0 | 13.9 s | 6.8 s | log-likelihood 0.004 higher |
 
-popmix is slower than PLINK 2 and ADMIXTURE (TASKS.md F14, F16). Its output
-is byte-identical at 1, 4 and 16 threads in every case. Classic qpAdm
+popmix is slower than PLINK 2 on this small kinship case (TASKS.md F14),
+and on one thread slower than ADMIXTURE (16.7 s against 13.9 s; F16). Its
+output is byte-identical at 1, 4 and 16 threads in every case. Classic qpAdm
 differs from ADMIXTOOLS 7.0.2 by design (DEVIATIONS.md).
 
-Scaling (`benchmarks/scaling.py`): f2 blocks of 497 populations take 52 s
-and 6.9 GB, and of the 16 populations from all 23,089 AADR samples 7.5 s
-(admixtools2: 67 s). PCA and KING grow faster with samples than smartpca and
-PLINK 2: at 3,970 samples PCA takes 18 min (smartpca 23 min), KING 9.1 min
-(PLINK 2 3.4 min) (F14, F17). Full results, with CPU time, memory and
+Scaling (`benchmarks/scaling.py`): f2 blocks of 497 populations take 5.8 s
+and 8.2 GB, and of the 16 populations from all 23,089 AADR samples 1.0 s
+(admixtools2: 67 s). At 3,970 samples PCA takes 8.6 min (smartpca 23 min)
+and KING 3.6 min (PLINK 2 3.4 min). Full results, with CPU time, memory and
 run-to-run variation, are in `benchmarks/results/`.
 
 ## Validation
