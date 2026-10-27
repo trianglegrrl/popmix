@@ -458,11 +458,15 @@ thread count.
   Python, CLI) enter the years and their SE; the CLI says "before the
   admixed samples lived" without a sample age, and that R² is not evidence
   of a single pulse.
-- [ ] **G4. Warn on few blocks or chromosomes:** leave-one-chromosome-out
+- [x] **G4. Warn on few blocks or chromosomes:** leave-one-chromosome-out
   jackknife on 3 chromosomes; `f4_matrix.rs:120` accepts 2 blocks; qpAdm's
   χ² treats the jackknife covariance as known, inflated when (nl−1)(nr−1)
   nears the block count (document; consider a Hotelling-type correction).
   PR
+  *Done in 4d7114c:* warnings below 20 f2 blocks, for qpAdm/qpWave
+  chi-squared inflated past 10% by (g − 1)/(g − p − 2) (Hotelling; or
+  g <= p + 2), and for DATES/ROLLOFF jackknives over fewer than 10
+  chromosomes; documented, no correction applied.
 - [ ] **G5. Warn when there is no genetic map** (2 Mb blocks,
   `fstats/blocks.rs:63`, shorter than 5 cM; SEs slightly small). PR
 - [ ] **G6. Projected ancient samples:** default to lsqproject when
