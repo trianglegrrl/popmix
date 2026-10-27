@@ -151,6 +151,7 @@ def find_graphs(f2_blocks: F2Blocks, populations: Sequence[str], nadmix: int = 0
                 numstart: int = 10, seed: int = 1, diag: float = 1e-4, diag_f3: float = 1e-5,
                 constrained: bool = True) -> tuple[list[Any], int]: ...
 def dates(prefix: str, admixed: str, sources: Sequence[str], *, generation_time: float = 29.0,
+          generation_time_se: float = 0.0, sample_age: float = 0.0, sample_age_se: float = 0.0,
           min_distance_cm: float = 0.45, max_distance_cm: float = 100.0, bin_width_cm: float = 0.1,
           jackknife: bool = True, qbin: int = 0, compat: str | None = None) -> Any: ...
 def f3_from_geno(prefix: str, populations: Sequence[str], triples: Sequence[Sequence[int]],

@@ -10,7 +10,8 @@ ancient samples.
 
 ```text
 popmix dates --input PREFIX --admixed T --sources A,B [--bin-width CM]
-             [--max-distance CM] [--min-distance CM] [--generation-time Y] [--no-jackknife]
+             [--max-distance CM] [--min-distance CM] [--generation-time Y] [--generation-time-se Y]
+             [--sample-age Y] [--sample-age-se Y] [--no-jackknife]
              [--qbin N] [--compat dates-v753]
              [--format text|json|tsv]
 ```
@@ -26,10 +27,13 @@ popmix dates --input PREFIX --admixed T --sources A,B [--bin-width CM]
 | `--max-distance` | number | 100 | Largest SNP-pair distance in cM (DATES `maxdis` x 100). Smaller values (for example 50) are much faster. |
 | `--min-distance` | number | 0.45 | Fit only bins from this distance in cM (DATES `lovalfit`); shorter distances carry background LD. |
 | `--generation-time` | number | 29 | Years per generation, for the date in years. |
+| `--generation-time-se` | number | 0 | Its standard error in years; enters the date's SE. |
+| `--sample-age` | number | 0 | Age of the admixed samples in years BP, so the date is before present (0: before the samples lived). |
+| `--sample-age-se` | number | 0 | Its standard error in years. |
 | `--jackknife` / `--no-jackknife` | flag | `--jackknife` | Standard errors by a weighted jackknife over chromosomes; `--no-jackknife` is faster and gives no SE. |
 | `--qbin` | integer (at least 0) | 0 | DATES `qbin`: 0 visits every SNP pair (exact); N > 0 bins SNPs on an FFT mesh of N cells per bin, much faster on large data and slightly approximate (10 is typical). |
 | `--compat` | `dates-v753` | none (corrected) | Reproduce DATES v753's quirks (DATES-0001 to DATES-0004) for output identical to DATES. |
-| `--format` | `text`, `json`, `tsv` | `text` | `text`: the date and the first 10 bins; `json`: admixed, sources, date, SE, years, fit (amplitude, decay_rate, r_squared), SNPs and the first 20 bins; `tsv`: every LD bin (distance_cm, n_pairs, correlation, weighted_ld). |
+| `--format` | `text`, `json`, `tsv` | `text` | `text`: the date and the first 10 bins; `json`: admixed, sources, date, SE, years, generation_time(_se), sample_age(_se), fit (amplitude, decay_rate, r_squared), SNPs and the first 20 bins; `tsv`: every LD bin (distance_cm, n_pairs, correlation, weighted_ld). |
 
 ## Inputs and outputs
 
@@ -40,8 +44,9 @@ DATES Results: Simulation.1 = mix of French and Yoruba
 ============================================================
 Amplitude (fit): 0.031292
 Estimated generations: 65.0 ± 25.8
-Estimated years BP: 1884 ± 749 (29 years/gen)
-Fit R²: 0.0695
+Date: 1884 ± 749 years before the admixed samples lived (29 years/gen, taken as
+      exact; give --sample-age for years BP)
+Fit R²: 0.0695 (how well one exponential fits; it does not show a single pulse)
 SNPs used: 20881
 LD bins: 1000
 ```
@@ -69,8 +74,15 @@ popmix --threads 8 dates -i aadr_v66p1 --admixed French.DG \
 
 - **Estimated generations ± SE**: a weighted block jackknife over
   chromosomes (what DATES reports); the full-data fit's rate is
-  `fit.decay_rate` in JSON. Years = generations x `--generation-time` (29 by default); for ancient
-  samples add their age.
+  `fit.decay_rate` in JSON.
+- **Date** in years = `--sample-age` + generations x `--generation-time`
+  (29 by default). Without a sample age it is years before the admixed
+  samples lived, not BP. The generation time is an assumption (25 to 30
+  years are common); give its uncertainty with `--generation-time-se`, and
+  the date's SE includes it and the sample age's.
+- **Fit R²** says how well one exponential fits the decay, not that there
+  was a single pulse: continuous or repeated admixture also gives a decay
+  that one exponential fits, with a date between the events.
 - A date is credible when the decay curve (the `tsv` bins) shows a clear
   exponential above noise, the SE is well below the estimate (Z = estimate
   / SE above about 2-3) and the date is stable across `--min-distance` and
@@ -93,8 +105,6 @@ popmix --threads 8 dates -i aadr_v66p1 --admixed French.DG \
   ([DATES-0004](https://github.com/trianglegrrl/popmix/blob/main/DEVIATIONS.md#dates-0004-every-sample-counted-as-diploid)).
 - DATES's `mincount` is ignored by DATES; popmix matches (a SNP is used
   once each source has one called sample).
-- The generation time (29 years) and the jackknife cannot be changed on the
-  CLI; the Python API (`pm.dates(..., generation_time=...)`) takes them.
 
 ## Reference
 

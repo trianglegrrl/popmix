@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import math
+import textwrap
 
 import click
 
@@ -46,6 +48,22 @@ def rolloff(input_prefix: str, admixed: str, sources: list, binsize: float, maxd
         fail(e)
 
 
+def _estimate(x: float, se: float, fmt: str) -> str:
+    return f"{x:{fmt}}" if math.isnan(se) else f"{x:{fmt}} ± {se:{fmt}}"
+
+
+def _date_line(r: pm.DatesResult) -> str:
+    """The date in years, with the assumptions it rests on (G3)."""
+    t = (f"{r.generation_time:g} years/gen, taken as exact" if r.generation_time_se == 0
+         else f"{r.generation_time:g} ± {r.generation_time_se:g} years/gen")
+    date = _estimate(r.years_bp, r.years_bp_se, ".0f")
+    if r.sample_age == 0 and r.sample_age_se == 0:
+        text = f"Date: {date} years before the admixed samples lived ({t}; give --sample-age for years BP)"
+    else:
+        text = f"Date: {date} years BP (sample age {r.sample_age:g} ± {r.sample_age_se:g}, {t})"
+    return textwrap.fill(text, width=79, subsequent_indent="      ")
+
+
 @click.command()
 @click.option("--input", "-i", "input_prefix", required=True, help="Input genotype file prefix")
 @click.option("--admixed", required=True, help="The admixed population (DATES's test population)")
@@ -57,6 +75,13 @@ def rolloff(input_prefix: str, admixed: str, sources: list, binsize: float, maxd
               help="Fit bins from this distance in cM, DATES lovalfit (default: 0.45)")
 @click.option("--generation-time", type=float, default=29.0,
               help="Years per generation, for the date in years (default: 29)")
+@click.option("--generation-time-se", type=float, default=0.0,
+              help="Standard error of the generation time in years, added to the date's SE (default: 0)")
+@click.option("--sample-age", type=float, default=0.0,
+              help="Age of the admixed samples in years BP: DATES counts generations before they lived "
+                   "(default: 0, present-day)")
+@click.option("--sample-age-se", type=float, default=0.0,
+              help="Standard error of the sample age in years (default: 0)")
 @click.option("--jackknife/--no-jackknife", default=True,
               help="Standard errors by a jackknife over chromosomes (default: on); off is faster, without SEs")
 @click.option("--qbin", type=click.IntRange(min=0), default=0,
@@ -69,7 +94,7 @@ def rolloff(input_prefix: str, admixed: str, sources: list, binsize: float, maxd
               help="Output format")
 def dates(input_prefix: str, admixed: str, sources: list,
           bin_width: float, max_distance: float, min_distance: float, generation_time: float,
-          jackknife: bool, qbin: int, compat: str | None, output_format: str):
+          generation_time_se: float, sample_age: float, sample_age_se: float, jackknife: bool, qbin: int, compat: str | None, output_format: str):
     """Estimate admixture date using DATES algorithm.
 
     DATES estimates the time since admixture by fitting an exponential decay
@@ -90,6 +115,9 @@ def dates(input_prefix: str, admixed: str, sources: list,
             max_distance_cm=max_distance,
             min_distance_cm=min_distance,
             generation_time=generation_time,
+            generation_time_se=generation_time_se,
+            sample_age=sample_age,
+            sample_age_se=sample_age_se,
             jackknife=jackknife,
             qbin=qbin,
             compat=compat,
@@ -104,6 +132,10 @@ def dates(input_prefix: str, admixed: str, sources: list,
                 "generations_se": result.generations_se,
                 "years_bp": result.years_bp,
                 "years_bp_se": result.years_bp_se,
+                "generation_time": result.generation_time,
+                "generation_time_se": result.generation_time_se,
+                "sample_age": result.sample_age,
+                "sample_age_se": result.sample_age_se,
                 "n_snps": result.n_snps,
                 "n_bins": len(result.ld_bins),
                 "qbin": qbin,
@@ -133,9 +165,10 @@ def dates(input_prefix: str, admixed: str, sources: list,
             click.echo(f"\nDATES Results: {admixed} = mix of {source1} and {source2}")
             click.echo("=" * 60)
             click.echo(f"Amplitude (fit): {result.fit.amplitude:.6f}")
-            click.echo(f"Estimated generations: {result.generations:.1f} ± {result.generations_se:.1f}")
-            click.echo(f"Estimated years BP: {result.years_bp:.0f} ± {result.years_bp_se:.0f} ({generation_time:g} years/gen)")
-            click.echo(f"Fit R²: {result.fit.r_squared:.4f}")
+            click.echo(f"Estimated generations: {_estimate(result.generations, result.generations_se, '.1f')}")
+            click.echo(_date_line(result))
+            click.echo(f"Fit R²: {result.fit.r_squared:.4f} (how well one exponential fits; it does not show a "
+                       "single pulse)")
             click.echo(f"SNPs used: {result.n_snps}")
             click.echo(f"LD bins: {len(result.ld_bins)}")
             click.echo()

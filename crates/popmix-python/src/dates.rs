@@ -86,6 +86,16 @@ pub(crate) struct PyDatesResult {
     years_bp: f64,
     #[pyo3(get)]
     years_bp_se: f64,
+    /// The assumptions behind the years: years per generation and the
+    /// samples' age (years BP), with their SEs.
+    #[pyo3(get)]
+    generation_time: f64,
+    #[pyo3(get)]
+    generation_time_se: f64,
+    #[pyo3(get)]
+    sample_age: f64,
+    #[pyo3(get)]
+    sample_age_se: f64,
     #[pyo3(get)]
     n_snps: usize,
     #[pyo3(get)]
@@ -172,6 +182,10 @@ impl PyDatesResult {
 ///     admixed: The admixed population (DATES's test population)
 ///     sources: Its two source populations
 ///     generation_time: Generation time in years (default: 29)
+///     generation_time_se: Its standard error in years (default: 0)
+///     sample_age: Age of the admixed samples in years BP (default: 0),
+///         so that ``years_bp`` is before present, not before they lived
+///     sample_age_se: Its standard error in years (default: 0)
 ///     min_distance_cm: Minimum distance for fitting, DATES lovalfit (default: 0.45)
 ///     max_distance_cm: Maximum distance, DATES maxdis x 100 (default: 100.0)
 ///     bin_width_cm: Width of distance bins, DATES binsize x 100 (default: 0.1)
@@ -193,7 +207,7 @@ impl PyDatesResult {
 ///     >>> result = pm.dates("/path/to/data", "French", ["Yamnaya", "Anatolia_N"])
 ///     >>> print(f"Admixture time: {result.generations:.0f} generations")
 #[pyfunction]
-#[pyo3(signature = (prefix, admixed, sources, *, generation_time=29.0, min_distance_cm=0.45, max_distance_cm=100.0, bin_width_cm=0.1, jackknife=true, qbin=0, compat=None))]
+#[pyo3(signature = (prefix, admixed, sources, *, generation_time=29.0, generation_time_se=0.0, sample_age=0.0, sample_age_se=0.0, min_distance_cm=0.45, max_distance_cm=100.0, bin_width_cm=0.1, jackknife=true, qbin=0, compat=None))]
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn dates(
     py: Python<'_>,
@@ -201,6 +215,9 @@ pub(crate) fn dates(
     admixed: &str,
     sources: Vec<String>,
     generation_time: f64,
+    generation_time_se: f64,
+    sample_age: f64,
+    sample_age_se: f64,
     min_distance_cm: f64,
     max_distance_cm: f64,
     bin_width_cm: f64,
@@ -240,6 +257,9 @@ pub(crate) fn dates(
         opts.fit_options.min_distance_cm = min_distance_cm;
         opts.fit_options.max_distance_cm = max_distance_cm;
         opts.generation_time = generation_time;
+        opts.generation_time_se = generation_time_se;
+        opts.sample_age = sample_age;
+        opts.sample_age_se = sample_age_se;
         opts.run_jackknife = jackknife;
         opts.compat = compat;
 
@@ -253,6 +273,10 @@ pub(crate) fn dates(
             generations_se: result.generations_se,
             years_bp: result.years_bp,
             years_bp_se: result.years_bp_se,
+            generation_time,
+            generation_time_se,
+            sample_age,
+            sample_age_se,
             n_snps: result.n_snps,
             n_chromosomes: result.n_chromosomes,
             ld_bins: result.ld_bins,

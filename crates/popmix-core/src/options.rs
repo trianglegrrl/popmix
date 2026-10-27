@@ -18,6 +18,18 @@ pub(crate) fn check_positive(name: &str, value: f64) -> Result<()> {
     }
 }
 
+/// `value` must be a finite number at least 0.
+pub(crate) fn check_non_negative(name: &str, value: f64) -> Result<()> {
+    if value.is_finite() && value >= 0.0 {
+        Ok(())
+    } else {
+        Err(PopmixError::parameter(
+            name,
+            format!("must be a finite number at least 0, not {value}"),
+        ))
+    }
+}
+
 /// Bins of width `binsize` out to `maxdis`: both positive, and at most
 /// [`MAX_BINS`] of them.
 pub(crate) fn check_bins(bin_name: &str, binsize: f64, max_name: &str, maxdis: f64) -> Result<()> {

@@ -550,8 +550,9 @@ DATES Results: French.DG = mix of Russia_Samara_EBA_Yamnaya.AG and Germany_Halbe
 ============================================================
 Amplitude (fit): 0.003202
 Estimated generations: 128.1 ± 21.9
-Estimated years BP: 3716 ± 636 (29 years/gen)
-Fit R²: 0.3055
+Date: 3716 ± 636 years before the admixed samples lived (29 years/gen, taken as
+      exact; give --sample-age for years BP)
+Fit R²: 0.3055 (how well one exponential fits; it does not show a single pulse)
 SNPs used: 828743
 LD bins: 1000
 
@@ -563,7 +564,10 @@ LD Decay (first 10 bins):
 ```
 
 `--qbin 10` bins SNPs on an FFT mesh, much faster on data this size and
-slightly approximate; the default, 0, visits every SNP pair.
+slightly approximate; the default, 0, visits every SNP pair. DATES counts
+generations before the admixed samples lived: for ancient samples give
+`--sample-age` (years BP, with `--sample-age-se`), and the uncertainty of
+the generation time as `--generation-time-se`; both enter the date's SE.
 
 ### `popmix convertf`
 

@@ -10,8 +10,9 @@
 //!
 //! Stages: `weights` (SNP weights), `ld_decay` (the binned weighted LD
 //! table, by every pair or on an FFT mesh), `exponential_fit` (the fit and
-//! the weighted jackknife), `dating` (the whole analysis) and `compat` (the
-//! DATES v753 behaviours popmix corrects by default).
+//! the weighted jackknife), `dating` (the whole analysis), `years` (the date
+//! in years) and `compat` (the DATES v753 behaviours popmix corrects by
+//! default).
 //!
 //! Provenance: written from the clean-room specification
 //! `docs/cleanroom/dates.md` (and `docs/cleanroom/dates-mesh.md`),
@@ -26,6 +27,7 @@ mod dating;
 mod exponential_fit;
 mod ld_decay;
 mod weights;
+mod years;
 
 pub use compat::DatesCompat;
 pub use dating::{dates, DatesOptions, DatesResult, JackknifeBlock};

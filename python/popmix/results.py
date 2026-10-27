@@ -257,6 +257,9 @@ class DatesResult:
     ``generations`` and ``generations_se`` are the weighted jackknife
     estimate and SE that DATES reports; ``fit.decay_rate`` is the full-data
     fit; ``jackknife_by_chromosome`` holds (chromosome, estimate, weight).
+    ``years_bp`` is ``sample_age`` + generations x ``generation_time``:
+    years before present when the samples' age is given, else before they
+    lived; ``years_bp_se`` combines the SEs of all three.
     """
 
     admixed: str
@@ -265,6 +268,10 @@ class DatesResult:
     generations_se: float
     years_bp: float
     years_bp_se: float
+    generation_time: float
+    generation_time_se: float
+    sample_age: float
+    sample_age_se: float
     n_snps: int
     n_chromosomes: int
     jackknife_by_chromosome: tuple[tuple[int, float, float], ...]

@@ -14,10 +14,11 @@ use super::compat::DatesCompat;
 use super::exponential_fit::{fit_exponential, weighted_jackknife, DecayFit, DecayFitOptions};
 use super::ld_decay::{compute_ld_decay_by_chromosome, LdBin, LdOptions};
 use super::weights::{compute_weights, WeightResult};
+use super::years::years_bp;
 use crate::error::{PopmixError, Result};
 use crate::genotype_matrix::{AlleleFrequencies, GenotypeMatrix};
 use crate::genotypes::PopulationId;
-use crate::options::check_positive;
+use crate::options::{check_non_negative, check_positive};
 
 /// Options of the analysis.
 #[derive(Debug, Clone)]
@@ -29,6 +30,13 @@ pub struct DatesOptions {
     pub fit_options: DecayFitOptions,
     /// Years per generation.
     pub generation_time: f64,
+    /// Standard error of the generation time, in years (default 0).
+    pub generation_time_se: f64,
+    /// Age of the admixed samples in years BP (default 0, present-day), so
+    /// that the date in years is before present, not before they lived.
+    pub sample_age: f64,
+    /// Standard error of the sample age, in years (default 0).
+    pub sample_age_se: f64,
     /// Fewest observed alleles in each source for a SNP to be used.
     pub min_source_count: u32,
     /// Run the leave-one-chromosome-out jackknife.
@@ -43,6 +51,9 @@ impl Default for DatesOptions {
             ld_options: LdOptions::default(),
             fit_options: DecayFitOptions::default(),
             generation_time: 29.0,
+            generation_time_se: 0.0,
+            sample_age: 0.0,
+            sample_age_se: 0.0,
             min_source_count: 1,
             run_jackknife: true,
             compat: DatesCompat::CORRECTED,
@@ -72,7 +83,11 @@ pub struct DatesResult {
     pub generations: f64,
     /// Jackknife standard error (NaN without the jackknife).
     pub generations_se: f64,
+    /// `sample_age` + generations × `generation_time`: years before
+    /// present if the sample age is given, else before the samples lived.
     pub years_bp: f64,
+    /// Its SE, from the generations', the generation time's and the sample
+    /// age's SEs (NaN without the jackknife).
     pub years_bp_se: f64,
     /// The LD table over every chromosome.
     pub ld_bins: Vec<LdBin>,
@@ -122,6 +137,9 @@ pub fn dates(
 ) -> Result<DatesResult> {
     let opts = options;
     check_positive("generation_time", opts.generation_time)?;
+    check_non_negative("generation_time_se", opts.generation_time_se)?;
+    check_non_negative("sample_age", opts.sample_age)?;
+    check_non_negative("sample_age_se", opts.sample_age_se)?;
     let computed;
     let af = match af {
         Some(af) => af,
@@ -204,18 +222,22 @@ pub fn dates(
         .map(|s| &s.chromosome)
         .collect();
 
+    let (years_bp, years_bp_se) = years_bp(
+        generations,
+        generations_se,
+        opts.generation_time,
+        opts.generation_time_se,
+        opts.sample_age,
+        opts.sample_age_se,
+    );
     Ok(DatesResult {
         test_pop: PopulationId::new(test_pop),
         source1: PopulationId::new(source1),
         source2: PopulationId::new(source2),
         generations,
         generations_se,
-        years_bp: generations * opts.generation_time,
-        years_bp_se: if generations_se.is_finite() {
-            generations_se * opts.generation_time
-        } else {
-            f64::NAN
-        },
+        years_bp,
+        years_bp_se,
         ld_bins: ld.bins,
         fit,
         n_snps: weights.n_valid,
