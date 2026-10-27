@@ -643,7 +643,7 @@ thread count.
   functions (CLAUDE.md rule). PD
 - [x] **J4. pyclass `module="popmix._core"`, names, `frozen` where possible,
   pickling** (reprs show `builtins.PyQpAdmRotateResult`). RS, AI
-  *Done in COMMIT:* analysis results are frozen dataclasses in
+  *Done in 631ddda:* analysis results are frozen dataclasses in
   `popmix.results` (QpWaveResult, QpAdmResult with PopDropRow,
   F4RatioResult, QpGraphResult with its edges, f3 and starts, ScoredGraph,
   DatesResult with LdBin and DecayFit): they compare by value, pickle, and
