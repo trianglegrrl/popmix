@@ -316,9 +316,12 @@ def f3(target: str, source1: str, source2: str, input_prefix: str | None, f2_dir
               help="Output format")
 def f4(pop1: str, pop2: str, pop3: str, pop4: str, input_prefix: str | None, f2_dir: str | None,
        block_size: float, maxmiss: float, all_chromosomes: bool, output_format: str):
-    """Compute f4 statistic (D-statistic / ABBA-BABA test).
+    """Compute the f4 statistic f4(pop1, pop2; pop3, pop4).
 
-    f4(A, B; C, D) tests for gene flow between (A,B) and (C,D) branches.
+    f4(A, B; C, D) is nonzero when the A-B and C-D branches share drift,
+    as gene flow between them makes them do; its sign tells which way.
+    This prints f4 itself: for the D-statistic (ABBA-BABA), its
+    normalised form, use qpdstat --d-mode.
     """
     try:
         f2_blocks = load_f2_blocks(input_prefix, f2_dir, [pop1, pop2, pop3, pop4], block_size, maxmiss, all_chromosomes)

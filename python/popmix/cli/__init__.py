@@ -10,7 +10,7 @@ Commands:
     extract-f2  Extract F2 blocks from genotype data
     f2          Compute f2 statistic between two populations
     f3          Compute f3 statistic (admixture test)
-    f4          Compute f4 statistic (D-statistic)
+    f4          Compute the f4 statistic f4(pop1, pop2; pop3, pop4)
     qpadm       Estimate admixture weights
     qpwave      Test admixture wave count
     convertf    Convert between genotype file formats

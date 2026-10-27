@@ -229,7 +229,7 @@ Popmix auto-detects the format from file extensions:
 | `extract-f2` | Extract F2 blocks from genotype data, as admixtools2's extract_f2(). |
 | `f2` | Compute f2 statistic between two populations. |
 | `f3` | Compute f3 statistic (admixture test). |
-| `f4` | Compute f4 statistic (D-statistic / ABBA-BABA test). |
+| `f4` | Compute the f4 statistic f4(pop1, pop2; pop3, pop4). |
 | `find-graphs` | Search for the admixture graphs that best fit the data. |
 | `info` | Show dataset information. |
 | `install-skill` | Install the popmix agent skill for Claude Code. |
@@ -404,7 +404,8 @@ f3(French; Yamnaya, Anatolia_N):
 
 ### `popmix f4`
 
-Compute f4 statistic (D-statistic / ABBA-BABA test). Tests for gene flow.
+Compute the f4 statistic f4(pop1, pop2; pop3, pop4), nonzero when gene flow
+makes the two branches share drift. For the D-statistic, use `qpdstat --d-mode`.
 
 ```bash
 popmix f4 -i /path/to/data --pop1 French --pop2 Han --pop3 Yoruba --pop4 Mbuti
