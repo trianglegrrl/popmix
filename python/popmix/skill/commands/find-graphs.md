@@ -26,6 +26,7 @@ popmix find-graphs --populations A,B,... (--input PREFIX | --f2-dir DIR) [--nadm
 | `--output-graph` | path (file) | none | Write the best graph here, as `popmix qpgraph --graph` reads it (with its score in a `#` comment). |
 | `--numstart` | integer (at least 1) | 10 | Random starts for each graph's admixture weights. |
 | `--seed` | integer | 1 | Seed for the random starts. |
+| `--out-of-sample` / `--no-out-of-sample` | flag | `--out-of-sample` | Also report each graph shown out of sample (fitted on alternate jackknife blocks, scored on the others; two more fits per graph). |
 | `--input`, `-i` | text (path) | none | Genotype prefix. f2 blocks are extracted for exactly this command's populations, on the SNPs with data in all of them (with `--maxmiss 0`). Give this or `--f2-dir`. |
 | `--f2-dir` | path (directory) | none | Read f2 blocks saved by [extract-f2](extract-f2.md) instead of genotypes; every population must be in them. The SNP set is the one extract-f2 chose. |
 | `--block-size` | number | 0.05 | With `--input`: jackknife block length in Morgans. |
@@ -61,7 +62,10 @@ popmix find-graphs -i aadr_v66p1 \
 ## Reading the result
 
 Lower score is better. Several graphs within a few score units fit about
-equally well; do not over-read the top one. Compare graphs with resampling
+equally well; do not over-read the top one: the best of many fits is
+optimistic. The out-of-sample score of each graph shown (fitted on
+alternate jackknife blocks, scored on the others) is a fairer comparison,
+as is the penalized score across numbers of admixtures (`popmix qpgraph`). Compare graphs with resampling
 in the Python API (`pm.compare_fits`), and check the best one with
 [qpgraph](qpgraph.md) (worst residual |z|).
 

@@ -62,6 +62,9 @@ def graph_leaves(edges: list) -> list:
 @click.option("--plot-fit", default=None,
               help="Also plot each f3's residual z to this image file (needs popmix[plot])")
 @click.option("--dot", default=None, help="Also write the fitted graph in Graphviz DOT format to this file")
+@click.option("--out-of-sample/--no-out-of-sample", default=True,
+              help="Also score the graph out of sample: fitted on alternate jackknife blocks, scored on the "
+                   "others (default: on; two more fits)")
 @click.option("--compat", type=click.Choice(["admixtools2-2.0.10"]), default=None,
               help="Reproduce admixtools2: stop the fit where L-BFGS-B stalls before a zero-bound kink, and "
                    "with --dot write its DOT text exactly (see DEVIATIONS.md)")
@@ -70,7 +73,7 @@ def graph_leaves(edges: list) -> list:
               help="Output format")
 def qpgraph(graph_file: str, admix_weights: str | None, numstart: int, seed: int, diag: float,
             diag_f3: float, unconstrained: bool, plot: str | None, plot_fit: str | None, dot: str | None,
-            compat: str | None, input_prefix: str | None, f2_dir: str | None, block_size: float, maxmiss: float,
+            out_of_sample: bool, compat: str | None, input_prefix: str | None, f2_dir: str | None, block_size: float, maxmiss: float,
             all_chromosomes: bool, output_format: str):
     """Fit an admixture graph, as admixtools2 qpgraph does.
 
@@ -93,6 +96,9 @@ def qpgraph(graph_file: str, admix_weights: str | None, numstart: int, seed: int
         f2_blocks = load_f2_blocks(input_prefix, f2_dir, pops, block_size, maxmiss, all_chromosomes)
         result = pm.qpgraph(f2_blocks, edges, admix_weights=weights, numstart=numstart, seed=seed,
                             diag=diag, diag_f3=diag_f3, constrained=not unconstrained, compat=compat)
+        oos = (pm.qpgraph_out_of_sample(f2_blocks, edges, admix_weights=weights, numstart=numstart, seed=seed,
+                                        diag=diag, diag_f3=diag_f3, constrained=not unconstrained, compat=compat)
+               if out_of_sample else None)
         if dot:
             pm.write_dot(result, path=dot, compat=compat)
         if plot or plot_fit:
@@ -107,6 +113,11 @@ def qpgraph(graph_file: str, admix_weights: str | None, numstart: int, seed: int
             output = {
                 "pops": result.pops,
                 "score": result.score,
+                "score_out_of_sample": oos,
+                "n_f3": result.n_f3,
+                "n_params": result.n_params,
+                "dof": result.dof,
+                "penalized_score": result.penalized_score,
                 "edges": [{"from": e.from_node, "to": e.to_node, "type": e.kind, "weight": e.weight,
                            "low": e.low, "high": e.high} for e in result.edges],
                 "f3": [{"pop1": f.pop1, "pop2": f.pop2, "pop3": f.pop3, "est": f.est, "se": f.se,
@@ -126,6 +137,10 @@ def qpgraph(graph_file: str, admix_weights: str | None, numstart: int, seed: int
             click.echo(f"qpGraph: {len(pops)} populations, {len(edges)} edges")
             click.echo(f"f3 base population: {result.pops[0]}")
             click.echo(f"Score: {result.score:.4f}")
+            click.echo(f"Parameters: {result.n_params} for {result.n_f3} f3 statistics ({result.dof} dof); "
+                       f"penalized score {result.penalized_score:.4f}")
+            if oos is not None:
+                click.echo(f"Out-of-sample score (alternate blocks): {oos:.4f}")
             click.echo(f"Worst f3 residual: f3({worst.pop1}; {worst.pop2}, {worst.pop3}) "
                        f"z = {worst.z:.2f}")
             click.echo()
@@ -154,12 +169,15 @@ def qpgraph(graph_file: str, admix_weights: str | None, numstart: int, seed: int
 @click.option("--numstart", type=click.IntRange(min=1), default=10,
               help="Random starts for each graph's admixture weights (default: 10)")
 @click.option("--seed", type=int, default=1, help="Seed for the random starts (default: 1)")
+@click.option("--out-of-sample/--no-out-of-sample", default=True,
+              help="Also score the graphs reported out of sample, fitted on alternate jackknife blocks "
+                   "(default: on; two more fits per graph)")
 @f2_source_options
 @click.option("--format", "output_format", type=click.Choice(["text", "json"]), default="text",
               help="Output format")
 def find_graphs(populations: list, nadmix: int, outgroup: str | None, method: str,
                 plot: str | None, beam_width: int, top: int, output_graph: str | None,
-                numstart: int, seed: int, input_prefix: str | None, f2_dir: str | None,
+                numstart: int, seed: int, out_of_sample: bool, input_prefix: str | None, f2_dir: str | None,
                 block_size: float, maxmiss: float, all_chromosomes: bool, output_format: str):
     """Search for the admixture graphs that best fit the data.
 
@@ -181,18 +199,24 @@ def find_graphs(populations: list, nadmix: int, outgroup: str | None, method: st
                     f.write(f"{a}\t{b}\n")
 
         shown = graphs[:top]
+        n_params = pm.qpgraph(f2_blocks, shown[0].edges, numstart=1).n_params if shown else 0
+        oos = [pm.qpgraph_out_of_sample(f2_blocks, g.edges, numstart=numstart, seed=seed) if out_of_sample else None
+               for g in shown]
         if output_format == "json":
             output = {
                 "n_evaluated": n_evaluated,
-                "graphs": [{"score": g.score, "edges": g.edges} for g in shown],
+                "graphs": [{"score": g.score, "score_out_of_sample": o, "n_params": n_params, "edges": g.edges}
+                           for g, o in zip(shown, oos)],
             }
             click.echo(json.dumps(output, indent=2))
         else:
             click.echo(f"find-graphs: {len(populations)} populations, {nadmix} admixture, {method} search")
-            click.echo(f"Graphs fitted: {n_evaluated}")
-            for rank, g in enumerate(shown, 1):
+            click.echo(f"Graphs fitted: {n_evaluated}, each with {n_params} parameters. The best score of many "
+                       "is optimistic: compare graphs out of sample or with compare_fits.")
+            for rank, (g, o) in enumerate(zip(shown, oos), 1):
                 click.echo()
-                click.echo(f"#{rank}  score {g.score:.4f}")
+                tail = "" if o is None else f", out of sample {o:.4f}"
+                click.echo(f"#{rank}  score {g.score:.4f}{tail}")
                 for a, b in g.edges:
                     click.echo(f"  {a}\t{b}")
 

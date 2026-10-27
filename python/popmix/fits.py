@@ -152,7 +152,11 @@ def qpgraph(f2_blocks: _core.F2Blocks, edges: Sequence[tuple[str, str]], *,
     QpGraphResult
         Fitted edges, score, f3 fits and the optimization starts.
     """
+    from popmix.graph_assess import warn_unidentified
+
     weights = None if admix_weights is None else list(admix_weights)
-    return qpgraph_result(_core.qpgraph(
+    result = qpgraph_result(_core.qpgraph(
         f2_blocks, [tuple(e) for e in edges], admix_weights=weights, numstart=numstart, seed=seed,
         diag=diag, diag_f3=diag_f3, constrained=constrained, f2_blocks_test=f2_blocks_test, compat=compat))
+    warn_unidentified(result)
+    return result

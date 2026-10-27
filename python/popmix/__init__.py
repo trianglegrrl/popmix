@@ -108,6 +108,7 @@ _LAZY = {
     "qpdstat_resample_snps": "resample",
     "qpf4ratio": "fits",
     "qpgraph": "fits",
+    "qpgraph_out_of_sample": "graph_assess",
     "qpgraph_resample_inds": "resample",
     "qpgraph_resample_multi": "resample",
     "qpgraph_resample_snps": "resample",
@@ -170,6 +171,7 @@ if TYPE_CHECKING:
     )
     from popmix.f2_dirs import extract_f2_subset, read_admixtools2_f2, write_admixtools2_f2
     from popmix.fits import qpadm, qpf4ratio, qpgraph, qpwave
+    from popmix.graph_assess import qpgraph_out_of_sample
     from popmix.graph_search import find_graphs
     from popmix.kinship import king, read_kinship
     from popmix.ld_dating import dates
@@ -302,6 +304,7 @@ __all__ = [
     # qpGraph functions
     "build_tree",
     "qpgraph",
+    "qpgraph_out_of_sample",
     "find_graphs",
     "all_graphs",
     "graph_key",

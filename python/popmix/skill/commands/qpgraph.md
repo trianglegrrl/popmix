@@ -26,6 +26,7 @@ popmix qpgraph --graph FILE (--input PREFIX | --f2-dir DIR) [--admix-weights W1,
 | `--unconstrained` | flag | off | Allow negative drift lengths and weights outside [0, 1] (admixtools2 `constrained = FALSE`). |
 | `--plot` | text (path) | none | Also draw the fitted graph to this image file (needs `popmix[plot]`). |
 | `--plot-fit` | text (path) | none | Also plot the residual z of each f3 to this image file (needs `popmix[plot]`). |
+| `--out-of-sample` / `--no-out-of-sample` | flag | `--out-of-sample` | Also report the out-of-sample score: the graph fitted on alternate jackknife blocks and scored on the others, both ways, averaged (two more fits; `pm.qpgraph_out_of_sample`). |
 | `--dot` | text (path) | none | Also write the fitted graph in Graphviz DOT (drift x 1000 and weights in % as labels; names quoted). |
 | `--compat` | `admixtools2-2.0.10` | none (corrected) | Reproduce admixtools2: stop the weight fit where its L-BFGS-B stalls before a zero-bound kink (ADMIXTOOLS2-0009), and with `--dot` write its DOT text exactly, which strips "." and "-" from names on edges only (ADMIXTOOLS2-0004). |
 | `--input`, `-i` | text (path) | none | Genotype prefix. f2 blocks are extracted for exactly this command's populations, on the SNPs with data in all of them (with `--maxmiss 0`). Give this or `--f2-dir`. |
@@ -91,7 +92,17 @@ popmix qpgraph --f2-dir f2_graph --graph my.graph --numstart 50 --plot my.pdf
 
 - **Score**: the weighted squared error of the fitted against the observed
   f3 (admixtools2's score); lower is better, and it is comparable between
-  graphs on the same populations and f2 blocks.
+  graphs on the same populations and f2 blocks. It falls with every
+  parameter added, so a lower score alone does not favour a graph with
+  more admixtures.
+- **Parameters** (drift lengths and admixture weights) against the f3
+  statistics fitted: with 0 dof or fewer the graph can fit anything. The
+  **penalized score** adds twice the parameters (AIC-style), and the
+  **out-of-sample score** fits on alternate jackknife blocks and scores on
+  the others: neither falls just because a graph has more parameters.
+- A warning that starts reaching the best score disagree on the weights
+  means the f3 statistics do not determine them: report the range, not
+  one value.
 - **Worst f3 residual**: |z| over about 3 means the graph misses that
   relation; `--plot-fit` shows all of them.
 - Edges: `edge` weights are drift lengths (f2 units); `admix` weights are

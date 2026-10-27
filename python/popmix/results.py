@@ -212,6 +212,29 @@ class QpGraphResult:
     ppinv: np.ndarray
     score_test: float | None
 
+    @property
+    def n_f3(self) -> int:
+        """The f3 statistics fitted: f3(base; i, j) for i <= j."""
+        return len(self.f3)
+
+    @property
+    def n_params(self) -> int:
+        """Free parameters: the drift lengths and the admixture weights."""
+        drift = sum(e.kind != "admix" for e in self.edges)
+        return drift + sum(e.kind == "admix" for e in self.edges) // 2
+
+    @property
+    def dof(self) -> int:
+        """f3 statistics less parameters; at or below 0 the graph can fit anything."""
+        return self.n_f3 - self.n_params
+
+    @property
+    def penalized_score(self) -> float:
+        """The score plus twice the parameters (AIC-style), for comparing graphs
+        with different numbers of admixtures: the score falls with every one
+        added."""
+        return self.score + 2 * self.n_params
+
 
 @dataclass(frozen=True)
 class ScoredGraph:
