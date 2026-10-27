@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import dataclasses
 import json
-import math
 import sys
 import textwrap
 
@@ -32,11 +31,13 @@ from ._errors import EXPECTED_ERRORS, fail
 @click.option("--fudge", type=float, default=1e-4,
               help="Regularisation of the f4 covariance, added to its diagonal as a fraction of its trace "
                    "(admixtools2 fudge; default: 1e-4)")
+@click.option("--alpha", type=click.FloatRange(0, 1, min_open=True, max_open=True), default=0.05,
+              help="Significance level: p at or below it rejects the model (default: 0.05)")
 @f2_source_options
 @click.option("--format", "output_format", type=click.Choice(["text", "json", "tsv"]), default="text",
               help="Output format")
 def qpadm(target: str, left: list, right: list, constrained: bool, compat: str | None, fudge: float,
-          input_prefix: str | None,
+          alpha: float, input_prefix: str | None,
           f2_dir: str | None, block_size: float, maxmiss: float, all_chromosomes: bool,
           output_format: str):
     """Estimate admixture weights using qpAdm.
@@ -58,6 +59,7 @@ def qpadm(target: str, left: list, right: list, constrained: bool, compat: str |
         f2_blocks = load_f2_blocks(input_prefix, f2_dir, all_pops, block_size, maxmiss, all_chromosomes)
 
         result = pm.qpadm(f2_blocks, left, right, target, constrained=constrained, fudge=fudge, compat=compat)
+        assessment = result.assess(alpha)
 
         if output_format == "json":
             output = {
@@ -69,6 +71,7 @@ def qpadm(target: str, left: list, right: list, constrained: bool, compat: str |
                 "dof": result.dof,
                 "p": _json_number(result.p),
                 "feasible": result.feasible,
+                "assessment": dataclasses.asdict(assessment) | {"notes": list(assessment.notes)},
                 "popdrop": [_popdrop_json(row) for row in result.popdrop],
             }
             click.echo(json.dumps(output, indent=2))
@@ -87,17 +90,30 @@ def qpadm(target: str, left: list, right: list, constrained: bool, compat: str |
             click.echo()
             click.echo(f"Model fit: chisq={result.chisq:.4f}, dof={result.dof}, p={_p_text(result.p)}")
             click.echo(f"Feasible: {result.feasible}")
-            if math.isnan(result.p):
-                click.echo("=> Model not tested: it has 0 degrees of freedom (as many right populations as"
-                           " left), so the data cannot reject it")
-            elif result.p > 0.05:  # G1 replaces this verdict
-                click.echo("=> Good model fit (p > 0.05)")
-            else:
-                click.echo("=> Poor model fit (p <= 0.05)")
+            _echo_assessment(assessment)
             _echo_popdrop(result.popdrop)
 
     except EXPECTED_ERRORS as e:
         fail(e)
+
+
+_VERDICTS = {
+    "not tested": "=> Not tested: 0 degrees of freedom (as many right populations as left), so the data cannot "
+                  "reject the model.",
+    "rejected": "=> Rejected at alpha {alpha:g}: the sources do not explain the target's f4 relations to the "
+                "right populations.",
+    "infeasible": "=> Rejected: p is above alpha {alpha:g}, but a weight is outside [0, 1].",
+    "not rejected": "=> Not rejected at alpha {alpha:g}, with every weight in [0, 1]. That does not make it the "
+                    "model: others may fit too.",
+}
+
+
+def _echo_assessment(assessment: pm.QpAdmAssessment) -> None:
+    """The verdict from p, feasibility, SEs and popdrop, never from p alone (G1)."""
+    click.echo(textwrap.fill(_VERDICTS[assessment.status].format(alpha=assessment.alpha), width=79,
+                             subsequent_indent="   "))
+    for note in assessment.notes:
+        click.echo(textwrap.fill(note, width=79, initial_indent="   - ", subsequent_indent="     "))
 
 
 def _popdrop_json(row: pm.PopDropRow) -> dict:

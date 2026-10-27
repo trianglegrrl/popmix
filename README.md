@@ -485,7 +485,8 @@ Admixture weights:
 
 Model fit: chisq=37.7305, dof=3, p=0.0000
 Feasible: True
-=> Poor model fit (p <= 0.05)
+=> Rejected at alpha 0.05: the sources do not explain the target's f4 relations
+   to the right populations.
 
 Models (popdrop; pattern 1 = source left out):
   pattern   wt  dof      chisq         p f4rank feasible  best weights
@@ -495,7 +496,10 @@ Models (popdrop; pattern 1 = source left out):
 ```
 
 Two sources are not enough here: present-day French also carry
-hunter-gatherer ancestry the model leaves out. The popdrop table fits every
+hunter-gatherer ancestry the model leaves out. A model that is not rejected
+is never called a good fit: the verdict weighs p (`--alpha`), whether every
+weight is in [0, 1], weights within 2 SE of 0, and simpler models in the
+popdrop table that also fit (`QpAdmResult.assess()` in Python). The popdrop table fits every
 subset of the sources (admixtools2's `popdrop`); `--compat
 admixtools2-2.0.10` reproduces admixtools2's nested path (`best`), which
 compares siblings rather than nested models (DEVIATIONS.md).

@@ -71,8 +71,8 @@ def _cli(f2, tmp_path: Path, fmt: str) -> str:
 
 def test_cli_says_the_model_is_not_tested(f2, tmp_path):
     text = _cli(f2, tmp_path, "text")
-    assert "Good model fit" not in text and "Poor model fit" not in text
-    assert "not tested" in text
+    assert "Good model fit" not in text
+    assert "=> Not tested: 0 degrees of freedom" in text
     assert "p=NA" in text
 
 

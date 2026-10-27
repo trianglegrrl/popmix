@@ -66,11 +66,6 @@ pub struct QpAdmResult {
 }
 
 impl QpAdmResult {
-    /// Whether the model fits: p-value above the threshold.
-    pub fn is_good_fit(&self, p_threshold: f64) -> bool {
-        self.p_value > p_threshold
-    }
-
     /// Whether all weights lie in [0, 1].
     pub fn is_feasible(&self) -> bool {
         self.weights.iter().all(|&w| (0.0..=1.0).contains(&w))

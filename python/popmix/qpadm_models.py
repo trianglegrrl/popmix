@@ -16,6 +16,9 @@ from typing import Any
 import pandas as pd
 
 from popmix import _core
+from popmix.fits import qpadm
+from popmix.qpadm_assess import warn_multiple_testing
+from popmix.results import QpAdmResult
 
 
 def _pops(pops: str | Sequence[str] | None) -> list[str]:
@@ -202,11 +205,14 @@ def qpadm_rotate(
     *, full_results: bool = False,
     fudge: float = 1e-4,
     constrained: bool = False,
-) -> pd.DataFrame | list[_core.PyQpAdmResult]:
+) -> pd.DataFrame | list[QpAdmResult]:
     """Fit every qpAdm model of a rotation (admixtools2 ``qpadm_rotate``).
 
     The models are those of ``rotate_models``, except that the right set is
-    ``rightfix`` followed by the rest of ``leftright``.
+    ``rightfix`` followed by the rest of ``leftright``. The p-values are not
+    corrected for testing them all: a ``PopmixWarning`` says how many models
+    were tested, which a report should give with any model chosen (Harney
+    et al. 2021); the table's ``attrs["n_models"]`` holds it too.
 
     Parameters
     ----------
@@ -230,10 +236,13 @@ def qpadm_rotate(
     """
     models = [{"left": left, "right": right, "target": target}
               for left, right in _rotations(_pops(leftright), _pops(rightfix), True)]
-    out = qpadm_multi(f2_blocks, models, full_results=full_results, fudge=fudge, constrained=constrained)
+    out = _multi(f2_blocks, models, full_results, fudge, constrained)
+    warn_multiple_testing(len(out))
     if full_results:
         return out
-    return out.drop(columns="target")
+    table = out.drop(columns="target")
+    table.attrs["n_models"] = len(table)
+    return table
 
 
 def _model_rows(models: pd.DataFrame | Mapping[str, Sequence] | Sequence[Mapping[str, Any]]) -> list[dict]:
@@ -264,8 +273,12 @@ def qpadm_multi(
     *, full_results: bool = True,
     fudge: float = 1e-4,
     constrained: bool = False,
-) -> pd.DataFrame | list[_core.PyQpAdmResult]:
+) -> pd.DataFrame | list[QpAdmResult]:
     """Run several qpAdm models (admixtools2 ``qpadm_multi``).
+
+    As for ``qpadm_rotate``, a ``PopmixWarning`` gives the number of models
+    tested (also the table's ``attrs["n_models"]``): their p-values are not
+    corrected for multiple testing.
 
     Parameters
     ----------
@@ -282,6 +295,15 @@ def qpadm_multi(
         frame with the models (``left`` without the target) and the
         ``qpadm_p`` columns.
     """
+    out = _multi(f2_blocks, models, full_results, fudge, constrained)
+    warn_multiple_testing(len(out))
+    if not full_results:
+        out.attrs["n_models"] = len(out)
+    return out
+
+
+def _multi(f2_blocks: _core.F2Blocks, models: Any, full_results: bool, fudge: float,
+           constrained: bool) -> pd.DataFrame | list[QpAdmResult]:
     rows = []
     for m in _model_rows(models):
         target = m["target"]
@@ -289,7 +311,7 @@ def qpadm_multi(
         if target is None:
             target, left = left[0], left[1:]
         if full_results:
-            rows.append(_core.qpadm(f2_blocks, left, m["right"], target, constrained=constrained, fudge=fudge))
+            rows.append(qpadm(f2_blocks, left, m["right"], target, constrained=constrained, fudge=fudge))
         else:
             rows.append({"left": left, "right": m["right"], "target": m["target"],
                          **qpadm_p(f2_blocks, left, m["right"], target, fudge=fudge, constrained=constrained)})

@@ -22,6 +22,7 @@ popmix qpadm --target T --left S1,S2,... --right R1,R2,... (--input PREFIX | --f
 | `--right` | text (comma-separated) | required | Right (reference) populations, at least two; the first is the basis (R0) of the f4 matrix f4(target or source, ...; R0, Rj). |
 | `--constrained` / `--unconstrained` | flag | `--unconstrained` | `--constrained` keeps every weight in [0, 1] (quadratic programming), as admixtools2 `constrained = TRUE`; the default allows any weights summing to 1. |
 | `--compat` | `admixtools2-2.0.10` | none (corrected) | Reproduce admixtools2's popdrop nested path (`best`), which compares siblings instead of nested models (DEVIATIONS.md ADMIXTOOLS2-0001). |
+| `--alpha` | number (0 to 1) | 0.05 | Significance level: p at or below it rejects the model. |
 | `--fudge` | number | 1e-4 | Regularisation of the f4 covariance: this fraction of its trace is added to its diagonal (admixtools2 `fudge`). |
 | `--input`, `-i` | text (path) | none | Genotype prefix. f2 blocks are extracted for exactly this command's populations, on the SNPs with data in all of them (with `--maxmiss 0`). Give this or `--f2-dir`. |
 | `--f2-dir` | path (directory) | none | Read f2 blocks saved by [extract-f2](extract-f2.md) instead of genotypes; every population must be in them. The SNP set is the one extract-f2 chose. |
@@ -29,7 +30,7 @@ popmix qpadm --target T --left S1,S2,... --right R1,R2,... (--input PREFIX | --f
 | `--maxmiss` | number (0 to 1) | 0 | With `--input`: keep SNPs missing in at most this fraction of the populations. |
 | `--all-chromosomes` | flag | off | With `--input`: use every chromosome, not only autosomes 1-22. |
 | `--pseudohaploid` | `detect`, `admixtools2`, `diploid` | `detect` | With `--input`: which samples count one allele per SNP (see [SKILL.md](../SKILL.md#things-every-command-shares); `admixtools2` reproduces ADMIXTOOLS2-0007). |
-| `--format` | `text`, `json`, `tsv` | `text` | `json`: target, sources, weights and se (by source), chisq, dof, p (null when untestable), feasible, and `popdrop` (one object per row, admixtools2's columns). `tsv`: one row per source with weight, se, chisq, dof, p. |
+| `--format` | `text`, `json`, `tsv` | `text` | `json`: target, sources, weights and se (by source), chisq, dof, p (null when untestable), feasible, `assessment` (status, alpha, notes), and `popdrop` (one object per row, admixtools2's columns). `tsv`: one row per source with weight, se, chisq, dof, p. |
 
 ## Inputs and outputs
 
@@ -45,7 +46,8 @@ Admixture weights:
 
 Model fit: chisq=1.2836, dof=2, p=0.5263
 Feasible: True
-=> Good model fit (p > 0.05)
+=> Not rejected at alpha 0.05, with every weight in [0, 1]. That does not make
+   it the model: others may fit too.
 
 Models (popdrop; pattern 1 = source left out):
   pattern   wt  dof      chisq         p f4rank feasible  best weights
@@ -82,9 +84,17 @@ popmix qpadm --f2-dir f2_eu --target Spain_EN --left Turkey_N,Serbia_IronGates_M
 
 - **Weights** sum to 1. **Feasible: True** when all lie in [0, 1]; an
   infeasible model (a negative weight) is rejected however good its p.
-- **p > 0.05** (`=> Good model fit`): the target's f4 relations to the
-  right populations are explained by the sources; the model is not
-  rejected. p <= 0.05 rejects it. Report p with the weights.
+- **The verdict** (`=>`) weighs p and the weights, never p alone, and is
+  `assessment` in JSON (`status`, `alpha`, `notes`):
+  - `Rejected at alpha 0.05`: p <= `--alpha`.
+  - `Rejected: ... a weight is outside [0, 1]` (status `infeasible`).
+  - `Not rejected at alpha 0.05, with every weight in [0, 1]`: the sources
+    explain the target's f4 relations to these right populations. Other
+    models may too; it is not "a good fit".
+  - Notes under it flag a weight within 2 SE of 0 (the data may not need
+    that source) and models with fewer sources, from the popdrop table,
+    that are also not rejected (prefer the simplest).
+  Report p, the weights and SEs, and the right populations.
 - **dof** is the number of right populations minus the number of sources.
   With dof = 0 (as many right as left) there is nothing to test: p is `NA`
   in text and tsv, `null` in JSON, and the output says the model is not
@@ -105,10 +115,13 @@ popmix qpadm --f2-dir f2_eu --target Spain_EN --left Turkey_N,Serbia_IronGates_M
 - Constrained fits with three or more sources work, where admixtools2
   stops with an error
   ([ADMIXTOOLS2-0002](https://github.com/trianglegrrl/popmix/blob/main/DEVIATIONS.md#admixtools2-0002-constrained-qpadm-stops-with-three-or-more-sources)).
-- The CLI reports the full model only; rank drops, popdrop (every subset of
-  the sources), rotations and model sets are in the Python API
-  (`pm.qpadm_p`, `pm.qpadm_rotate`, `pm.qpadm_multi`, `pm.qpadm_models`),
-  with `compat="admixtools2-2.0.10"` for popdrop
+- The CLI reports the full model and its popdrop table; rank drops,
+  rotations and model sets are in the Python API (`pm.qpadm_p`,
+  `pm.qpadm_rotate`, `pm.qpadm_multi`, `pm.qpadm_models`). Their p-values
+  are not corrected for testing many models: they warn with the number of
+  models tested (also `table.attrs["n_models"]`), which a report should give
+  with any model chosen (Harney et al. 2021). `--compat admixtools2-2.0.10`
+  reproduces admixtools2's popdrop nested path
   ([ADMIXTOOLS2-0001](https://github.com/trianglegrrl/popmix/blob/main/DEVIATIONS.md#admixtools2-0001-popdrops-nested-path-compares-siblings)).
 - Classic ADMIXTOOLS qpAdm uses a different SNP rule and covariance
   estimate, so its numbers differ slightly

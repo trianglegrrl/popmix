@@ -43,7 +43,7 @@ pub struct QpAdmRotateResult {
     pub models: Vec<RotationModel>,
     /// Total number of combinations tested.
     pub n_combinations: usize,
-    /// Number of feasible models (weights in [0,1]).
+    /// Number of feasible models (weights in \[0, 1\]).
     pub n_feasible: usize,
     /// Combinations not fit: more sources than outgroups (rank too high to
     /// test), or a singular or infeasible system.

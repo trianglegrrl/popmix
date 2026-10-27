@@ -85,7 +85,7 @@ def test_qpadm_multi_takes_any_table_of_models(f2):
     # without a target the first left population is the target: the same model
     assert tables[0].chisq[0] == tables[0].chisq[1]
     full = pm.qpadm_multi(f2, rows)
-    assert [r.sources for r in full] == [["French"], ["French"]]
+    assert [r.sources for r in full] == [("French",), ("French",)]
     assert full[0].chisq == pytest.approx(tables[0].chisq[0], rel=1e-12)
 
 
@@ -100,7 +100,8 @@ def test_qpadm_multi_rejects_malformed_models():
 def test_qpadm_rotate_full_results_are_qpadm(f2):
     rows = pm.qpadm_rotate(f2, ["French", "Yoruba"], TARGET, "Simulation")
     full = pm.qpadm_rotate(f2, ["French", "Yoruba"], TARGET, "Simulation", full_results=True)
-    assert rows.left.tolist() == [r.sources for r in full] == [["French"], ["Yoruba"]]
+    assert rows.left.tolist() == [["French"], ["Yoruba"]]
+    assert [r.sources for r in full] == [("French",), ("Yoruba",)]
     assert rows.right.tolist() == [["Simulation", "Yoruba"], ["Simulation", "French"]]
     for (_, row), r in zip(rows.iterrows(), full):  # noqa: B905
         assert row.chisq == pytest.approx(r.chisq, rel=1e-12)

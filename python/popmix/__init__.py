@@ -65,6 +65,7 @@ _LAZY = {
     "LdBin": "results",
     "PcaResult": "pca",
     "PopDropRow": "results",
+    "QpAdmAssessment": "qpadm_assess",
     "QpAdmResult": "results",
     "QpGraphEdge": "results",
     "QpGraphF3": "results",
@@ -173,6 +174,7 @@ if TYPE_CHECKING:
     from popmix.kinship import king, read_kinship
     from popmix.ld_dating import dates
     from popmix.pca import PcaResult, smartpca
+    from popmix.qpadm_assess import QpAdmAssessment
     from popmix.qpadm_models import (
         qpadm_models,
         qpadm_multi,
@@ -316,6 +318,7 @@ __all__ = [
     "RankTest",
     "QpWaveResult",
     "QpAdmResult",
+    "QpAdmAssessment",
     "PopDropRow",
     "F4RatioResult",
     "AdmixGraph",

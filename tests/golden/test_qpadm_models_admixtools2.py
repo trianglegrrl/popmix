@@ -132,7 +132,7 @@ def test_qpadm_multi_full_results(f2_blocks):
     models = [{"left": _list(m["left"]), "right": _list(m["right"]), "target": m["target"]} for m in t["models"]]
     ours = pm.qpadm_multi(f2_blocks, models)
     for res, full, m in zip(ours, t["full"], models):  # noqa: B905
-        assert res.sources == m["left"]
+        assert res.sources == tuple(m["left"])
         np.testing.assert_allclose(res.weights, [float(w["weight"]) for w in full["weights"]], rtol=WEIGHT_RTOL)
         # a lone source has weight 1 and SE 0, up to rounding
         np.testing.assert_allclose(res.weight_se, [float(w["se"]) for w in full["weights"]], rtol=1e-6,

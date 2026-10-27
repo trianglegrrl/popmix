@@ -8,9 +8,12 @@ names: ``est``, ``se``, ``z``, ``p``, ``chisq``, ``dof``.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from popmix.qpadm_assess import QpAdmAssessment
 
 
 def _array(rows: Any) -> np.ndarray:
@@ -111,6 +114,27 @@ class QpAdmResult:
             Source population to its weight.
         """
         return dict(zip(self.sources, self.weights))
+
+    def assess(self, alpha: float = 0.05) -> QpAdmAssessment:
+        """What the fit shows, from p, feasibility, the SEs and popdrop.
+
+        p alone does not make a model good: see ``QpAdmAssessment``.
+
+        Parameters
+        ----------
+        alpha
+            Significance level: p at or below it rejects the model.
+
+        Returns
+        -------
+        QpAdmAssessment
+            The status (not tested, rejected, infeasible or not rejected)
+            and notes: weights within 2 SE of 0 or outside [0, 1], and
+            models with fewer sources that are also not rejected.
+        """
+        from popmix.qpadm_assess import assess
+
+        return assess(self, alpha)
 
 
 @dataclass(frozen=True)
