@@ -523,41 +523,70 @@ impl PyQpWavePairResult {
     }
 }
 
+impl From<&popmix_core::QpWavePairResult> for PyQpWavePairResult {
+    fn from(p: &popmix_core::QpWavePairResult) -> Self {
+        PyQpWavePairResult {
+            pop_a: p.pop_a.to_string(),
+            pop_b: p.pop_b.to_string(),
+            p_value: p.p_value,
+            chi_sq: p.chi_sq,
+            df: p.df,
+        }
+    }
+}
+
 /// Result of pairwise qpWave analysis.
 #[pyclass]
 pub(crate) struct PyQpWavePairsResult {
-    #[pyo3(get)]
-    populations: Vec<String>,
-    #[pyo3(get)]
-    outgroups: Vec<String>,
-    #[pyo3(get)]
-    pairs: Vec<PyQpWavePairResult>,
-    #[pyo3(get)]
-    n_pairs: usize,
-    /// Pairs whose qpWave system was singular, left out of `pairs`.
-    #[pyo3(get)]
-    n_skipped: usize,
+    inner: popmix_core::QpWavePairsResult,
 }
 
 #[pymethods]
 impl PyQpWavePairsResult {
-    /// Get pairs that pass the cladality test (p > threshold).
-    #[pyo3(signature = (p_threshold=0.05))]
-    fn clades(&self, p_threshold: f64) -> Vec<PyQpWavePairResult> {
-        self.pairs
+    #[getter]
+    fn populations(&self) -> Vec<String> {
+        self.inner
+            .populations
             .iter()
-            .filter(|p| p.p_value > p_threshold)
-            .cloned()
+            .map(|s| s.to_string())
             .collect()
     }
 
-    /// Get the pair with highest p-value (most likely clade).
+    #[getter]
+    fn outgroups(&self) -> Vec<String> {
+        self.inner.outgroups.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[getter]
+    fn pairs(&self) -> Vec<PyQpWavePairResult> {
+        self.inner.pairs.iter().map(Into::into).collect()
+    }
+
+    #[getter]
+    fn n_pairs(&self) -> usize {
+        self.inner.n_pairs
+    }
+
+    /// Pairs whose qpWave system was singular, left out of `pairs`.
+    #[getter]
+    fn n_skipped(&self) -> usize {
+        self.inner.n_skipped
+    }
+
+    /// Get pairs that pass the cladality test (p > threshold).
+    #[pyo3(signature = (p_threshold=0.05))]
+    fn clades(&self, p_threshold: f64) -> Vec<PyQpWavePairResult> {
+        self.inner
+            .clades(p_threshold)
+            .into_iter()
+            .map(Into::into)
+            .collect()
+    }
+
+    /// Get the pair with highest p-value (most likely clade); pairs with no
+    /// p-value (0 degrees of freedom) are not candidates.
     fn best_clade(&self) -> Option<PyQpWavePairResult> {
-        self.pairs
-            .iter()
-            .filter(|p| !p.p_value.is_nan())
-            .max_by(|a, b| a.p_value.total_cmp(&b.p_value))
-            .cloned()
+        self.inner.best_clade().map(Into::into)
     }
 }
 
@@ -592,28 +621,9 @@ pub(crate) fn qpwave_pairs(
             max_rank: None,
         };
 
-        let result =
+        let inner =
             popmix_core::qpwave_pairs(&f2_blocks.inner, &pop_refs, &outgroup_refs, Some(opts))?;
-
-        let pairs = result
-            .pairs
-            .into_iter()
-            .map(|p| PyQpWavePairResult {
-                pop_a: p.pop_a.to_string(),
-                pop_b: p.pop_b.to_string(),
-                p_value: p.p_value,
-                chi_sq: p.chi_sq,
-                df: p.df,
-            })
-            .collect();
-
-        Ok(PyQpWavePairsResult {
-            populations: result.populations.iter().map(|s| s.to_string()).collect(),
-            outgroups: result.outgroups.iter().map(|s| s.to_string()).collect(),
-            pairs,
-            n_pairs: result.n_pairs,
-            n_skipped: result.n_skipped,
-        })
+        Ok(PyQpWavePairsResult { inner })
     })
 }
 

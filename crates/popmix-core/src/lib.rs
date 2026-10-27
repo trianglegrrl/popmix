@@ -28,6 +28,7 @@ pub mod rcompat;
 pub mod rolloff;
 pub mod sfs;
 pub mod threading;
+pub mod warnings;
 
 // Re-exports for convenience
 pub use admixture::{
@@ -65,6 +66,7 @@ pub use qpgraph::{
 pub use rolloff::{fit_rolloff, rolloff, RolloffBins, RolloffFit, RolloffOptions, RolloffResult};
 pub use sfs::{joint_sfs, projected_sfs, JointSfsCompat, JointSfsSnps, SfsSummary, Spectrum};
 pub use threading::init_thread_pool;
+pub use warnings::Warning;
 
 // DATES re-exports
 pub use dates::{

@@ -16,7 +16,9 @@ use std::path::Path;
 use popmix_core::error::{PopmixError, Result};
 
 pub mod ancestrymap;
+pub mod dataset;
 pub mod eigenstrat;
+pub mod extract;
 pub mod f2_storage;
 pub mod merge;
 pub mod npy;

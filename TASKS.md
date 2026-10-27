@@ -552,12 +552,22 @@ thread count.
   FromStr for GenoFormat`; `rcompat` and the second graph fitter
   `pub(crate)` or documented; distinct names for dates and qpgraph
   `FitOptions`; decide whether ndarray/nalgebra types are public. RS
-- [ ] **I4. Move the extraction pipeline out of the bindings:** format
+- [x] **I4. Move the extraction pipeline out of the bindings:** format
   detection, streaming choice, ploidy detection and relabelling into
   `popmix_io::extract_f2(prefix, &ExtractOptions)` behind a `GenotypeSource`
   trait; `lib.rs` (3,153 lines) becomes thin wrappers, split by domain;
   delegate `best_clade`/`worst_pair` (`lib.rs:2079-2083,2345-2349`) to core.
   RS, AI
+  *Done in e389bb0 and COMMIT:* the bindings' `lib.rs` split by domain
+  (3,128 lines to 200; seven modules, each under 800). The pipeline is
+  `popmix_io::extract::extract_f2(prefix, &ExtractOptions, warn)`, with
+  `popmix_io::dataset` (`open_mapped`, `read_genotypes`, `PloidyRule`,
+  `open_vcf`); a function choosing the read path in one place did what a
+  `GenotypeSource` trait was meant to, so there is none. Warnings reach
+  Python through `popmix_core::Warning` (the start of G13). Found doing it:
+  the matrix path ordered populations as the file, the streamed path as
+  requested (TGENO and PED gave other `populations` than packed input);
+  both follow the request now. `QpWavePairsResult` methods call core's.
 - [ ] **I5. One linear-algebra library** in public types and hot paths. RS
 - [ ] **I6. Don't promise a stable Rust API at 1.0** until I1-I4 are done
   (Python package 1.0 is separate). RS
@@ -577,6 +587,9 @@ thread count.
 - [ ] **J2. One result convention:** dicts (`f2`), pyclasses, DataFrames with
   admixtools column names (`est`/`se`); counts as ints, not floats
   (`n_snps: 21077.0`). PD, AI
+  Also: `pm.qpwave_pairs` is the Python, admixtools2-shaped table; the
+  Rust `_core.qpwave_pairs` and the exported `QpWavePairsResult` are
+  returned by no public function. Keep one.
 - [ ] **J3. Type hints and NumPy-format docstrings** on the raw PyO3
   functions (CLAUDE.md rule). PD
 - [ ] **J4. pyclass `module="popmix._core"`, names, `frozen` where possible,

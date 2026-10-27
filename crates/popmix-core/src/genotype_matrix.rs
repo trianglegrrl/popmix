@@ -304,14 +304,16 @@ impl AlleleFrequencies {
     ) -> Self {
         let all_populations = geno.populations();
 
-        // Filter to requested populations
+        // the requested populations present, in the order requested (each
+        // once), as the frequencies streamed from a file
         let populations: Vec<PopulationId> = match population_filter {
             Some(filter) => {
-                let filter_set: std::collections::HashSet<&str> = filter.iter().copied().collect();
-                all_populations
+                let mut seen = std::collections::HashSet::new();
+                filter
                     .iter()
-                    .filter(|p| filter_set.contains(p.as_str()))
-                    .cloned()
+                    .filter(|p| all_populations.iter().any(|q| q.as_str() == **p))
+                    .filter(|p| seen.insert(**p))
+                    .map(|p| PopulationId::from(*p))
                     .collect()
             }
             None => all_populations,
@@ -556,6 +558,29 @@ mod tests {
 
         // SNP 1, PopB: (2 + 2) / 4 = 1.0
         assert!((af.get(1, 1).unwrap() - 1.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn populations_asked_for_come_in_the_order_asked() {
+        // as the frequencies streamed from a file: the f2 blocks of a
+        // dataset list its populations the same way whatever its format
+        let data = array![[0, 2, 0, 2], [1, 1, 2, 2]];
+        let snps = vec![
+            Snp::new("rs1", Chromosome::Autosome(1), 100, 0.01, 'A', 'G'),
+            Snp::new("rs2", Chromosome::Autosome(1), 200, 0.02, 'C', 'T'),
+        ];
+        let geno = GenotypeMatrix::new(data, make_test_samples(), snps).unwrap();
+        let af = AlleleFrequencies::from_genotypes_for_populations(&geno, Some(&["PopB", "PopA"]));
+        let names: Vec<&str> = af.populations.iter().map(|p| p.as_str()).collect();
+        assert_eq!(names, ["PopB", "PopA"]);
+        assert!((af.get(1, 0).unwrap() - 1.0).abs() < 1e-10);
+        // asked twice, or not there: once, and left out
+        let af = AlleleFrequencies::from_genotypes_for_populations(
+            &geno,
+            Some(&["PopA", "PopC", "PopA"]),
+        );
+        let names: Vec<&str> = af.populations.iter().map(|p| p.as_str()).collect();
+        assert_eq!(names, ["PopA"]);
     }
 
     #[test]

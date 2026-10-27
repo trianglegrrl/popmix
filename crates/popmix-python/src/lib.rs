@@ -22,7 +22,7 @@ mod qpgraph;
 mod rcompat;
 mod rolloff;
 mod sfs;
-mod vcf_input;
+mod warnings;
 
 use popmix_core::python::popmix_exception;
 use pyo3::prelude::*;

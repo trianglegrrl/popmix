@@ -1,16 +1,14 @@
 //! Genotype data for Python: samples, SNPs, genotype matrices and allele
 //! frequencies, and the readers of every genotype format.
 
-use crate::vcf_input::open_vcf;
+use crate::warnings::{open_vcf, with_warnings};
 use crate::{compute, require_sample_populations};
 use crate::{geno_fstats, ploidy};
 use numpy::{IntoPyArray, PyArray2};
 use popmix_core::python::{input_error, missing_file};
 use popmix_core::{AlleleFrequencies, GenotypeMatrix, Ploidy};
 use popmix_io::tgeno::{is_tgeno_format, TgenoReader};
-use popmix_io::{
-    is_packed_format, EigenstratReader, PackedAncestryMapReader, PedReader, PlinkReader,
-};
+use popmix_io::{is_packed_format, EigenstratReader, PackedAncestryMapReader, PlinkReader};
 use pyo3::prelude::*;
 
 /// A sample (individual) with metadata.
@@ -456,73 +454,12 @@ pub(crate) fn read_genotypes_internal(prefix: &str) -> PyResult<GenotypeMatrix> 
 /// The genotypes of the samples of `populations` (or more): for TGENO only
 /// their records are read, for other formats the whole file.
 pub(crate) fn read_genotypes_of(prefix: &str, populations: &[String]) -> PyResult<GenotypeMatrix> {
-    let geno_path = format!("{prefix}.geno");
-    if std::path::Path::new(&geno_path).exists() && is_tgeno_format(&geno_path)? {
-        let reader = TgenoReader::new(prefix)?;
-        let selected: Vec<usize> = (0..reader.samples().len())
-            .filter(|&i| {
-                let pop = reader.samples()[i].population.as_str();
-                populations.iter().any(|p| p == pop)
-            })
-            .collect();
-        return reader.read_samples(&selected).map_err(PyErr::from);
-    }
-    read_genotypes_any_format(prefix)
+    with_warnings(|warn| popmix_io::dataset::read_genotypes_of(prefix, populations, warn))
 }
 
+/// Every genotype of `prefix`, in any format.
 pub(crate) fn read_genotypes_any_format(prefix: &str) -> PyResult<GenotypeMatrix> {
-    use std::path::Path;
-
-    // Check for VCF format (full path with extension)
-    if (prefix.ends_with(".vcf") || prefix.ends_with(".vcf.gz")) && Path::new(prefix).exists() {
-        let reader = open_vcf(prefix)?;
-        return reader.read_all().map_err(PyErr::from);
-    }
-
-    // Check for VCF format with prefix
-    let vcf_gz_path = format!("{}.vcf.gz", prefix);
-    if Path::new(&vcf_gz_path).exists() {
-        let reader = open_vcf(&vcf_gz_path)?;
-        return reader.read_all().map_err(PyErr::from);
-    }
-    let vcf_path = format!("{}.vcf", prefix);
-    if Path::new(&vcf_path).exists() {
-        let reader = open_vcf(&vcf_path)?;
-        return reader.read_all().map_err(PyErr::from);
-    }
-
-    // Check for PLINK format (.bed file)
-    if Path::new(&format!("{}.bed", prefix)).exists() {
-        let reader = PlinkReader::new(prefix)?;
-        return reader.read_all().map_err(PyErr::from);
-    }
-
-    // Text PLINK (.ped and .map)
-    if Path::new(&format!("{}.ped", prefix)).exists() {
-        let reader = PedReader::new(prefix)?;
-        return reader.read_all().map_err(PyErr::from);
-    }
-
-    // Check for EIGENSTRAT/PACKEDANCESTRYMAP format (.geno file)
-    let geno_path = format!("{}.geno", prefix);
-    if Path::new(&geno_path).exists() {
-        if is_tgeno_format(&geno_path)? {
-            let reader = TgenoReader::new(prefix)?;
-            return reader.read_all().map_err(PyErr::from);
-        }
-        if is_packed_format(&geno_path)? {
-            let reader = PackedAncestryMapReader::new(prefix)?;
-            return reader.read_all().map_err(PyErr::from);
-        } else {
-            let reader = EigenstratReader::new(prefix)?;
-            return reader.read_all().map_err(PyErr::from);
-        }
-    }
-
-    Err(missing_file(format!(
-        "No genotype files found for prefix: {}",
-        prefix
-    )))
+    with_warnings(|warn| popmix_io::dataset::read_genotypes(prefix, warn))
 }
 
 // ============================================================================

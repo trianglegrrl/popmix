@@ -2,7 +2,7 @@
 //! names nearest a mistyped one.
 
 use crate::compute;
-use crate::vcf_input::open_vcf;
+use crate::warnings::open_vcf;
 use popmix_core::python::missing_file;
 use popmix_core::Sample;
 use popmix_io::tgeno::{is_tgeno_format, TgenoReader};

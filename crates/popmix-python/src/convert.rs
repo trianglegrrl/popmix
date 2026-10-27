@@ -17,7 +17,7 @@ use popmix_io::{
 };
 
 use crate::compute;
-use crate::vcf_input::{open_vcf, vcf_path};
+use crate::warnings::{open_vcf, with_warnings};
 
 /// Convert genotype data between file formats.
 ///
@@ -67,37 +67,10 @@ pub(crate) type MappedInput = (popmix_io::SnpMajor, Vec<Sample>, Vec<Snp>);
 
 /// A packed .geno, PLINK .bed or text EIGENSTRAT input, mapped to be read in
 /// place, or a VCF read once into packed genotypes in memory; None for the
-/// other formats, and for text whose lines are not all one character per
-/// sample.
+/// other formats (`popmix_io::dataset::open_mapped_as`).
 pub(crate) fn mapped_input(prefix: &str, format: GenoFormat) -> PyResult<Option<MappedInput>> {
-    use popmix_io::SnpMajor;
-    Ok(match format {
-        GenoFormat::Vcf => match vcf_path(prefix) {
-            Some(path) => {
-                let (samples, snps, file) = open_vcf(&path)?.into_snp_major();
-                Some((file, samples, snps))
-            }
-            None => None,
-        },
-        GenoFormat::Eigenstrat => {
-            let samples = popmix_io::eigenstrat::read_ind_file(&format!("{prefix}.ind"))?;
-            let snps = popmix_io::eigenstrat::read_snp_file(&format!("{prefix}.snp"))?;
-            SnpMajor::open_text(&format!("{prefix}.geno"), samples.len(), snps.len())?
-                .map(|file| (file, samples, snps))
-        }
-        GenoFormat::PackedAncestrymap => {
-            let samples = popmix_io::eigenstrat::read_ind_file(&format!("{prefix}.ind"))?;
-            let snps = popmix_io::eigenstrat::read_snp_file(&format!("{prefix}.snp"))?;
-            let file = SnpMajor::open_packed(&format!("{prefix}.geno"), samples.len(), snps.len())?;
-            Some((file, samples, snps))
-        }
-        GenoFormat::PackedPed => {
-            let (samples, snps) = PlinkReader::new(prefix)?.into_parts();
-            let file = SnpMajor::open_bed(&format!("{prefix}.bed"), samples.len(), snps.len())?;
-            Some((file, samples, snps))
-        }
-        _ => None,
-    })
+    let mapped = with_warnings(|warn| popmix_io::dataset::open_mapped_as(prefix, format, warn))?;
+    Ok(mapped.map(|m| (m.file, m.samples, m.snps)))
 }
 
 /// Can `format` be written from a file read in place: one SNP at a time, or
