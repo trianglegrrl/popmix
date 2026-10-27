@@ -563,6 +563,34 @@ impl SnpMajorRows {
 }
 
 impl popmix_core::GenotypeRows for SnpMajorRows {
+    fn next_rows(&mut self, out: &mut [u8], width: usize) -> Result<()> {
+        // the SNPs of the rows, then the rows decoded in parallel
+        let n = out.len() / width.max(1);
+        let mut snps = Vec::with_capacity(n);
+        while snps.len() < n {
+            while self.next_snp < self.keep.len() && !self.keep[self.next_snp] {
+                self.next_snp += 1;
+            }
+            if self.next_snp >= self.keep.len() {
+                return Err(PopmixError::InvalidFileFormat {
+                    file: self.file.path.clone(),
+                    details: "read past the last SNP".to_string(),
+                });
+            }
+            snps.push(self.next_snp);
+            self.next_snp += 1;
+        }
+        out.par_chunks_mut(width.max(1))
+            .zip(snps)
+            .for_each(|(row, snp)| {
+                let record = self.file.record(snp);
+                for (o, &s) in row.iter_mut().zip(&self.samples) {
+                    *o = self.file.code(record, s);
+                }
+            });
+        Ok(())
+    }
+
     fn next_row(&mut self, out: &mut [u8]) -> Result<()> {
         while self.next_snp < self.keep.len() && !self.keep[self.next_snp] {
             self.next_snp += 1;
@@ -712,6 +740,37 @@ mod tests {
             assert_eq!(row, want, "SNP {snp}");
         }
         assert!(rows.next_row(&mut row).is_err());
+    }
+
+    #[test]
+    fn batches_of_rows_are_the_rows_one_at_a_time() {
+        use popmix_core::GenotypeRows;
+        let (_dir, bed) = family_bed();
+        let n_snps = crate::PlinkReader::new(&bed).unwrap().num_snps();
+        let keep: Vec<bool> = (0..n_snps).map(|i| i % 5 != 2).collect();
+        let samples = vec![53, 0, 7, 20, 31];
+        let open = || {
+            SnpMajorRows::open_bed(&format!("{bed}.bed"), 54, keep.clone(), samples.clone())
+                .unwrap()
+        };
+        let (mut one, mut many) = (open(), open());
+        let kept = keep.iter().filter(|&&k| k).count();
+        let mut batch = vec![0u8; 1000 * samples.len()];
+        let mut row = vec![0u8; samples.len()];
+        let mut done = 0;
+        while done < kept {
+            let n = (kept - done).min(1000);
+            many.next_rows(&mut batch[..n * samples.len()], samples.len())
+                .unwrap();
+            for r in 0..n {
+                one.next_row(&mut row).unwrap();
+                assert_eq!(&batch[r * samples.len()..(r + 1) * samples.len()], &row[..]);
+            }
+            done += n;
+        }
+        assert!(many
+            .next_rows(&mut batch[..samples.len()], samples.len())
+            .is_err());
     }
 
     #[test]

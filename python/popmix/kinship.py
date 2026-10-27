@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import os
 from collections.abc import Sequence
-
-import pandas as pd
+from typing import TYPE_CHECKING
 
 from popmix import _core
+
+if TYPE_CHECKING:
+    import numpy as np
+    import pandas as pd
 
 
 def king(prefix: str | os.PathLike[str], populations: Sequence[str] | None = None) -> pd.DataFrame:
@@ -34,9 +37,18 @@ def king(prefix: str | os.PathLike[str], populations: Sequence[str] | None = Non
         2nd), ...): id1, id2, nsnp, hethet, ibs0, het1_hom2, het2_hom1 (counts)
         and kinship.
     """
+    import pandas as pd
+
+    return pd.DataFrame(king_columns(prefix, populations))
+
+
+def king_columns(
+    prefix: str | os.PathLike[str], populations: Sequence[str] | None = None
+) -> dict[str, list[str] | np.ndarray]:
+    """The columns of :func:`king`, as a dict of lists and arrays (no pandas)."""
     if populations is None:
         populations = [p for p, _ in _core.list_populations(os.fspath(prefix)) if p != "Ignore"]
-    return pd.DataFrame(_core.king(os.fspath(prefix), list(populations)))
+    return _core.king(os.fspath(prefix), list(populations))
 
 
 def read_kinship(
@@ -101,6 +113,8 @@ def read_kinship(
     out = _core.read_kinship(os.fspath(prefix), list(populations), norm, norm_value, window_size,
                              window_estimate, thresholds, compat, auto_only)
     norm_used = out.pop("norm_value")
+    import pandas as pd
+
     df = pd.DataFrame(out)
     df.attrs["norm_value"] = norm_used
     return df

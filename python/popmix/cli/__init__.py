@@ -462,6 +462,35 @@ def write_table(df, output_format: str, output: str | None, index: bool = False)
         click.echo(text, nl=False)
 
 
+def write_columns(columns: dict, output: str | None) -> None:
+    """Write equal-length columns as TSV, exactly as write_table writes a DataFrame of them.
+
+    For tables built straight from the Rust results, without importing pandas
+    (a third of a fast command's time).
+    """
+    import csv
+    import io
+
+    import numpy as np
+
+    def cell(x) -> str:
+        if isinstance(x, (float, np.floating)):
+            return "" if math.isnan(x) else f"{x:.12g}"
+        return str(x)
+
+    buf = io.StringIO()
+    writer = csv.writer(buf, delimiter="\t", lineterminator="\n")
+    writer.writerow(list(columns))
+    for row in zip(*columns.values()):
+        writer.writerow([cell(x) for x in row])
+    text = buf.getvalue()
+    if output:
+        with open(output, "w") as f:
+            f.write(text)
+    else:
+        click.echo(text, nl=False)
+
+
 def write_matrix(matrix, order: str, output_format: str, output: str | None, heatmap: str | None,
                  title: str, center: float | None) -> None:
     """Order a population matrix, write it, and optionally draw its heatmap."""
@@ -707,7 +736,10 @@ def kinship(input_prefix: str, populations: list, method: str, norm: str, norm_v
         validate_populations(input_prefix, populations)
         pops = populations or None
         if method == "king":
-            df = pm.king(input_prefix, pops)
+            from popmix.kinship import king_columns
+
+            write_columns(king_columns(input_prefix, pops), output)
+            return
         else:
             df = pm.read_kinship(input_prefix, pops, norm=norm, norm_value=norm_value, window_size=window_size,
                                  compat=compat)

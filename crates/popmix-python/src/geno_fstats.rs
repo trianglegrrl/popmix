@@ -103,10 +103,10 @@ fn open_source_filtered_with(
 
     let keep: Vec<bool> = snps.iter().map(keep_snp).collect();
     let kept: Vec<Snp> = snps
-        .iter()
+        .into_iter()
         .zip(&keep)
         .filter(|(_, &k)| k)
-        .map(|(s, _)| s.clone())
+        .map(|(s, _)| s)
         .collect();
     let source = match (file, matrix) {
         (Some(file), _) => {
@@ -140,6 +140,10 @@ struct RowsRef<'a>(&'a mut PackedRows);
 impl GenotypeRows for RowsRef<'_> {
     fn next_row(&mut self, out: &mut [u8]) -> popmix_core::Result<()> {
         self.0.next_row(out)
+    }
+
+    fn next_rows(&mut self, out: &mut [u8], width: usize) -> popmix_core::Result<()> {
+        self.0.next_rows(out, width)
     }
 }
 

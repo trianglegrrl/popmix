@@ -42,6 +42,16 @@ pub trait GenotypeRows {
     /// Fill `out` with the genotype codes (0, 1, 2; 3 for missing) of the
     /// selected samples at the next SNP.
     fn next_row(&mut self, out: &mut [u8]) -> Result<()>;
+
+    /// Fill `out` with the next `out.len() / width` rows, `width` codes each,
+    /// as that many calls of [`next_row`](Self::next_row) would; sources
+    /// that can decode rows in parallel do.
+    fn next_rows(&mut self, out: &mut [u8], width: usize) -> Result<()> {
+        for row in out.chunks_exact_mut(width.max(1)) {
+            self.next_row(row)?;
+        }
+        Ok(())
+    }
 }
 
 /// Rows of an in-memory genotype matrix: the given SNPs, for the given samples.

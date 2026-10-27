@@ -692,8 +692,7 @@ pub(crate) fn mapped_input(prefix: &str, format: GenoFormat) -> PyResult<Option<
             Some((file, samples, snps))
         }
         GenoFormat::PackedPed => {
-            let reader = PlinkReader::new(prefix).map_err(to_py_err)?;
-            let (samples, snps) = (reader.samples().to_vec(), reader.snps().to_vec());
+            let (samples, snps) = PlinkReader::new(prefix).map_err(to_py_err)?.into_parts();
             let file = SnpMajor::open_bed(&format!("{prefix}.bed"), samples.len(), snps.len())
                 .map_err(to_py_err)?;
             Some((file, samples, snps))

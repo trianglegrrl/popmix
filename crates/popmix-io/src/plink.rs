@@ -83,6 +83,11 @@ impl PlinkReader {
         &self.snps
     }
 
+    /// The samples and SNPs, moved out of the reader.
+    pub fn into_parts(self) -> (Vec<Sample>, Vec<Snp>) {
+        (self.samples, self.snps)
+    }
+
     /// Get the file prefix.
     pub fn prefix(&self) -> &str {
         &self.prefix

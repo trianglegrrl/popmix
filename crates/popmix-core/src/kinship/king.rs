@@ -46,31 +46,42 @@ impl BitGenotypes {
         if n_samples == 0 {
             return Ok(g);
         }
-        // a batch of whole words of SNPs at a time, then each sample's words
-        // in parallel
-        const BATCH_WORDS: usize = 64;
+        // a batch of whole words of SNPs at a time (rows decoded in
+        // parallel), then each word of every sample from its 64 rows, read
+        // in order, the words in parallel
+        const BATCH_WORDS: usize = 256;
         let mut batch = vec![0u8; BATCH_WORDS * 64 * n_samples];
         for w0 in (0..words).step_by(BATCH_WORDS) {
             let first = w0 * 64;
             let n_rows = (first + BATCH_WORDS * 64).min(n_snps) - first;
-            for row in batch.chunks_exact_mut(n_samples).take(n_rows) {
-                rows.next_row(row)?;
-            }
+            rows.next_rows(&mut batch[..n_rows * n_samples], n_samples)?;
             let batch = &batch[..n_rows * n_samples];
             let span = n_rows.div_ceil(64);
-            let set = |v: &mut [u64], code: u8| {
-                v.par_chunks_mut(words).enumerate().for_each(|(s, sample)| {
-                    for (w, word) in sample[w0..w0 + span].iter_mut().enumerate() {
-                        let rows = w * 64..((w + 1) * 64).min(n_rows);
-                        for (bit, r) in rows.enumerate() {
-                            *word |= ((batch[r * n_samples + s] == code) as u64) << bit;
+            // per word: the het, hom0 and hom2 bits of every sample
+            let built: Vec<Vec<[u64; 3]>> = (0..span)
+                .into_par_iter()
+                .map(|w| {
+                    let mut bits = vec![[0u64; 3]; n_samples];
+                    let rows = w * 64..((w + 1) * 64).min(n_rows);
+                    for (bit, r) in rows.enumerate() {
+                        let row = &batch[r * n_samples..(r + 1) * n_samples];
+                        for (b, &code) in bits.iter_mut().zip(row) {
+                            b[0] |= ((code == 1) as u64) << bit;
+                            b[1] |= ((code == 0) as u64) << bit;
+                            b[2] |= ((code == 2) as u64) << bit;
                         }
                     }
-                });
-            };
-            set(&mut g.het, 1);
-            set(&mut g.hom0, 0);
-            set(&mut g.hom2, 2);
+                    bits
+                })
+                .collect();
+            for (w, bits) in built.iter().enumerate() {
+                for (s, b) in bits.iter().enumerate() {
+                    let at = s * words + w0 + w;
+                    g.het[at] = b[0];
+                    g.hom0[at] = b[1];
+                    g.hom2[at] = b[2];
+                }
+            }
         }
         Ok(g)
     }

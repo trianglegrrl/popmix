@@ -6,6 +6,7 @@ tests/golden/test_king_plink2.py and tests/golden/test_read_readv2.py.
 
 import os
 import subprocess
+import sys
 
 import pandas as pd
 import pytest
@@ -51,3 +52,24 @@ def test_kinship_command_matches_the_api(tmp_path, method):
     api = (pm.king if method == "king" else pm.read_kinship)(SMALL, ["French", "Yoruba"])
     assert got["id1"].tolist() == api["id1"].tolist()
     assert got["kinship"].to_numpy() == pytest.approx(api["kinship"].to_numpy(), rel=1e-11)
+
+
+def test_columns_are_written_as_the_table_writer_writes_them(tmp_path):
+    """The KING command writes its table without pandas, in the same format."""
+    import numpy as np
+
+    from popmix.cli import write_columns, write_table
+
+    cols = {"id1": ["a", "b", "c"], "nsnp": np.array([3, 0, 12], dtype=np.uint64),
+            "kinship": np.array([0.1234567890123456, -np.inf, np.nan]), "x": np.array([1e-20, 2.5, -0.0])}
+    write_table(pd.DataFrame(cols), "tsv", str(tmp_path / "pandas.tsv"))
+    write_columns(cols, str(tmp_path / "columns.tsv"))
+    assert (tmp_path / "columns.tsv").read_text() == (tmp_path / "pandas.tsv").read_text()
+
+
+def test_the_king_command_does_not_load_pandas():
+    code = ("import sys\nfrom click.testing import CliRunner\nfrom popmix.cli import cli\n"
+            f"r = CliRunner().invoke(cli, ['kinship', '-i', '{SMALL}', '--populations', 'French', '--method', 'king'])\n"
+            "assert r.exit_code == 0, r.output\nprint('pandas' in sys.modules)")
+    out = subprocess.run([sys.executable, "-c", code], check=True, capture_output=True, text=True).stdout
+    assert out.strip() == "False"
