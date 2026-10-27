@@ -491,9 +491,12 @@ thread count.
   `compare_fits` give z and p NaN when the SE is 0; f4 with pop1 = pop2
   or pop3 = pop4 is exactly 0 (admixtools2: rounding noise and a z from
   it; ADMIXTOOLS2-0008).
-- [ ] **G9. qpGraph and find_graphs:** report overfitting and
+- [x] **G9. qpGraph and find_graphs:** report overfitting and
   identifiability (penalized score with an admixture-count penalty,
   out-of-sample score by default; `compare_fits` exists). PR
+  *Done in d10fc32:* n_params, dof and AIC-style penalized score on the
+  result; `qpgraph_out_of_sample` (alternate blocks) reported by default
+  on the qpgraph and find-graphs CLIs; warning for unidentifiable weights.
 - [x] **G10. DATES `min_source_count` of 1:** warn when sources have very
   few called samples. PR
   *Done in 20f146e:* `source_alleles` (mean observed alleles per SNP used)
