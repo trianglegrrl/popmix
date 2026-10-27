@@ -203,7 +203,8 @@ def compare_fits(scores1: Sequence[float], scores2: Sequence[float]) -> dict[str
     positive and ``n_neg`` negative:
 
     - ``diff``: the mean of ``d``; ``se``: its standard deviation
-      (denominator ``n - 1``); ``z = diff / se``; ``p``: two-sided normal p
+      (denominator ``n - 1``); ``z = diff / se``, NaN when ``se`` is 0;
+      ``p``: two-sided normal p
       of ``z``.
     - ``p_emp_nocorr``: ``2 * min(n_pos, n_neg) / n``.
     - ``p_emp``: ``2 * min(n_pos + 1, n_neg + 1) / (n + 1)``, so never 0.
@@ -240,7 +241,7 @@ def compare_fits(scores1: Sequence[float], scores2: Sequence[float]) -> dict[str
     with np.errstate(invalid="ignore", divide="ignore"):
         diff = float(d.mean()) if n else nan
         se = float(np.sqrt(np.sum((d - diff) ** 2) / (n - 1))) if n > 1 else nan
-        z = float(np.float64(diff) / se)
+        z = float(np.float64(diff) / se) if se > 0 else nan
     p = nan if math.isnan(z) else math.erfc(abs(z) / math.sqrt(2.0))
     q = np.quantile(d, [0.025, 0.975]) if n else (nan, nan)
     return {

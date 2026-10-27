@@ -36,6 +36,7 @@
 //! (Nature 461:489, supplement) and Patterson et al. 2012 (Genetics
 //! 192:1065), and checked against admixtools2's black-box outputs.
 
+use crate::fstats::jackknife::z_score;
 use crate::fstats::{jackknife_with_total, leave_one_out, F2Blocks};
 use crate::genotypes::PopulationId;
 use crate::{PopmixError, Result};
@@ -178,7 +179,7 @@ pub fn f4ratio(
         reference: PopulationId::new(reference),
         alpha,
         std_err,
-        z_score: alpha / std_err,
+        z_score: z_score(alpha, std_err),
         n_blocks: num.len(),
         f4_numerator,
         f4_denominator,

@@ -12,7 +12,7 @@
 //!   Fixation index measuring population differentiation
 
 use crate::fstats::f2_blocks::F2Blocks;
-use crate::fstats::jackknife::block_jackknife;
+use crate::fstats::jackknife::{block_jackknife, z_score};
 
 /// Result of an f3 computation.
 #[derive(Debug, Clone)]
@@ -22,7 +22,7 @@ pub struct F3Result {
     pub estimate: f64,
     /// Standard error from jackknife.
     pub std_err: f64,
-    /// Z-score (estimate / std_err).
+    /// Z-score (estimate / std_err), NaN when the SE is 0.
     pub z_score: f64,
     /// Number of blocks used.
     pub n_blocks: usize,
@@ -36,7 +36,7 @@ pub struct F4Result {
     pub estimate: f64,
     /// Standard error from jackknife.
     pub std_err: f64,
-    /// Z-score (estimate / std_err).
+    /// Z-score (estimate / std_err), NaN when the SE is 0.
     pub z_score: f64,
     /// Number of blocks used.
     pub n_blocks: usize,
@@ -81,11 +81,7 @@ impl F2Blocks {
         // Weighted block jackknife, as admixtools2 f3()
         let (estimate, std_err) = block_jackknife(&block_f3, &self.block_lengths_f64())?;
         let n_blocks = block_f3.iter().filter(|v| v.is_finite()).count();
-        let z_score = if std_err > 0.0 {
-            estimate / std_err
-        } else {
-            0.0
-        };
+        let z_score = z_score(estimate, std_err);
 
         Some(F3Result {
             estimate,
@@ -110,23 +106,29 @@ impl F2Blocks {
         let idx_c = self.pop_index(pop_c)?;
         let idx_d = self.pop_index(pop_d)?;
 
-        // f4 for each block; NA where a pair has no SNPs in the block
+        // f4 for each block; NA where a pair has no SNPs in the block. With
+        // A = B or C = D it is 0 by construction: exactly 0, not rounding
+        // noise whose "SE" would give a z in the thousands (ADMIXTOOLS2-0008).
+        let zero = idx_a == idx_b || idx_c == idx_d;
         let block_f4: Vec<f64> = (0..self.n_blocks)
             .map(|block| {
                 let mean = |i, j| self.block_mean(block, i, j);
-                (mean(idx_a, idx_d) + mean(idx_b, idx_c) - mean(idx_a, idx_c) - mean(idx_b, idx_d))
-                    / 2.0
+                let f4 = (mean(idx_a, idx_d) + mean(idx_b, idx_c)
+                    - mean(idx_a, idx_c)
+                    - mean(idx_b, idx_d))
+                    / 2.0;
+                if zero && f4.is_finite() {
+                    0.0
+                } else {
+                    f4
+                }
             })
             .collect();
 
         // Weighted block jackknife, as admixtools2 f4()
         let (estimate, std_err) = block_jackknife(&block_f4, &self.block_lengths_f64())?;
         let n_blocks = block_f4.iter().filter(|v| v.is_finite()).count();
-        let z_score = if std_err > 0.0 {
-            estimate / std_err
-        } else {
-            0.0
-        };
+        let z_score = z_score(estimate, std_err);
 
         Some(F4Result {
             estimate,
@@ -453,6 +455,26 @@ mod tests {
             f2.f4("PopA", "PopB", "PopA", "PopB").unwrap().estimate,
             f2_ab
         ));
+    }
+
+    #[test]
+    fn z_is_nan_without_an_se() {
+        // f3(A; A, B) and f4(A, A; B, C) are 0 in every block: SE 0, and z
+        // is undefined, not 0 (TASKS.md G8)
+        let af = make_test_data_4pops();
+        let f2 = F2Blocks::from_allele_frequencies(&af, &BlockDefinition::default());
+        let f3 = f2.f3("PopA", "PopA", "PopB").unwrap();
+        assert_eq!(f3.std_err, 0.0);
+        assert!(f3.z_score.is_nan());
+        for (a, b, c, d) in [
+            ("PopA", "PopA", "PopB", "PopC"),
+            ("PopA", "PopB", "PopC", "PopC"),
+        ] {
+            let f4 = f2.f4(a, b, c, d).unwrap();
+            assert_eq!(f4.estimate, 0.0);
+            assert_eq!(f4.std_err, 0.0);
+            assert!(f4.z_score.is_nan());
+        }
     }
 
     #[test]

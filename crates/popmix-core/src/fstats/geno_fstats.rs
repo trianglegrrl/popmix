@@ -33,7 +33,7 @@ use statrs::distribution::{ContinuousCDF, Normal};
 
 use crate::error::{PopmixError, Result};
 use crate::fstats::blocks::BlockDefinition;
-use crate::fstats::jackknife::{jackknife_from_loo, leave_one_out};
+use crate::fstats::jackknife::{jackknife_from_loo, leave_one_out, z_score};
 use crate::genotype_matrix::GenotypeMatrix;
 use crate::genotypes::Snp;
 
@@ -435,7 +435,7 @@ fn weights(n: &[u64]) -> Vec<f64> {
 /// leave-one-out value. Everything is NaN when no block has one.
 fn summarize(loo: &[f64], blocks: GenoStatBlocks) -> GenoStat {
     let (est, se) = jackknife_from_loo(loo, &weights(&blocks.n)).unwrap_or((f64::NAN, f64::NAN));
-    let z = est / se;
+    let z = z_score(est, se);
     let p = 2.0 * Normal::standard().sf(z.abs());
     let n = loo
         .iter()
@@ -620,6 +620,26 @@ mod tests {
         )
         .unwrap();
         assert!((out.stats[0].est - 1.0).abs() < 1e-15);
+    }
+
+    #[test]
+    fn z_and_p_are_nan_without_an_se() {
+        // every SNP is BABA, so D is 1 in every block and the SE is 0
+        let names = ["A", "B", "C", "D"];
+        let m = matrix(20, &names, |_, k| if k / 2 % 2 == 0 { 0 } else { 2 });
+        let pops = populations(&m, &names, 2);
+        let out = f4_from_genotypes(
+            &mut rows(&m),
+            m.snps(),
+            &pops,
+            &[[0, 1, 2, 3]],
+            F4Mode::D,
+            BLOCK,
+        )
+        .unwrap();
+        assert_eq!(out.stats[0].se, 0.0);
+        assert!(out.stats[0].z.is_nan());
+        assert!(out.stats[0].p.is_nan());
     }
 
     #[test]

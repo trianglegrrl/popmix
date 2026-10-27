@@ -20,6 +20,7 @@ rules for adding one.
 | ADMIXTOOLS2-0004 | `write_dot()` renames nodes on edges (removes "." and "-") but declares them unrenamed | Quoted names, unchanged | `compat="admixtools2-2.0.10"` (`write_dot`); `qpgraph --dot ... --compat admixtools2-2.0.10` |
 | ADMIXTOOLS2-0006 | PLINK files with chromosome codes X and Y stop with an error (`auto_only = TRUE`) | Reads them; X and Y are not autosomes | nothing to reproduce |
 | ADMIXTOOLS2-0007 | A sample with no heterozygous call among the first 1,000 SNPs is pseudo-haploid, which catches diploid genomes | Pseudo-haploid only with no heterozygous call at any SNP | `pseudohaploid="admixtools2"` (`--pseudohaploid admixtools2`) |
+| ADMIXTOOLS2-0008 | A statistic with no standard error gets a z anyway: rounding noise for f4(A, A; B, C), Inf from `compare_fits` | Exactly 0 where it is 0 by construction; z and p NaN when the SE is 0 | nothing to reproduce (rounding noise) |
 | EIGENSOFT-0001 | smartpca reports the Tracy-Widom density as the p-value beyond its table | The tail | `compat="eigensoft-7.2.1"` |
 | PLINK2-0001 | `--make-king-table` labels its two het-hom counts the wrong way round | Counts named as they are | nothing to reproduce (labels only) |
 | READV2-0001 | Each jackknife window also counts the last SNP of the window before | Disjoint windows | `compat="readv2-2.01"` |
@@ -366,6 +367,28 @@ qpWave/qpAdm fits by the C++ code path (`cpp = TRUE`, the default).
   (`tests/golden/test_ploidy_rule.py`: for NA18606.DG and HGDP00581.DG, only
   that genome is reclassified, only its population's statistics change, and
   the default equals counting every sample diploid).
+
+### ADMIXTOOLS2-0008: a z without a standard error
+
+- **admixtools2:** `f4()` computes f4(A, A; B, C) and f4(A, B; C, C), which
+  are 0 by construction, as sums of f2 that cancel only up to rounding: on
+  the dg_6pop f2, f4(Mbuti.DG, Han.DG; French.DG, French.DG) is
+  -2.9e-20 with SE 1.1e-16 and z -0.0003, so the z is the ratio of two
+  rounding errors. `compare_fits()` gives z = Inf and p = 0 when every
+  bootstrap replicate has the same score difference (SE 0).
+- **popmix:** such an f4 is exactly 0 in every block, so its SE is 0; and
+  wherever the SE is 0 (or not finite), z and p are NaN, meaning "no
+  information", not "no effect" (z = 0, as popmix's Rust f3 and f4 gave)
+  nor "certain" (z = Inf, as its genotype-path statistics gave for a
+  constant D). This covers f3 and f4 on f2 blocks, `qpdstat` and `qp3pop`
+  on genotypes, `f4ratio` and `compare_fits`.
+- **Impact:** only statistics whose SE is 0 or rounding noise: a population
+  repeated where the statistic cancels, or a statistic constant across
+  blocks. Others are unchanged.
+- **Tests:** `tests/python/test_z_without_se.py` (f4 with pop1 = pop2 and
+  pop3 = pop4 on the dg_6pop f2, the `qpdstat` CLI, `compare_fits`); Rust
+  `f3_f4::tests::z_is_nan_without_an_se`,
+  `geno_fstats::tests::z_and_p_are_nan_without_an_se`.
 
 ### Matched, not corrected
 
