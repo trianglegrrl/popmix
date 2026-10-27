@@ -13,6 +13,7 @@ import popmix as pm
 
 TGENO = "tests/fixtures/small_tgeno"
 TEXT = "tests/fixtures/small_eigenstrat"
+SMALL_FAMILY = "tests/golden/dates/family_chr20_22"
 
 
 def test_detected_and_read():
@@ -36,3 +37,13 @@ def test_convertf_writes_what_convertf_wrote(tmp_path):
     ours, theirs = Path(f"{out}.geno").read_bytes(), Path(f"{TGENO}.geno").read_bytes()
     assert ours[48:] == theirs[48:]
     assert ours[:48].rstrip(b"\0").split() == theirs[:48].rstrip(b"\0").split()
+
+
+def test_dataset_info_lists_populations_in_sample_order(tmp_path):
+    """In order of first appearance in the samples, whatever the format, every time."""
+    geno = pm.read_genotypes(SMALL_FAMILY)
+    expected = list(dict.fromkeys(s.population for s in geno.samples))
+    for fmt in ("packedancestrymap", "tgeno", "plink", "eigenstrat"):
+        out = str(tmp_path / fmt)
+        pm.convertf(SMALL_FAMILY, out, fmt)
+        assert pm.dataset_info(out)["populations"] == expected, fmt

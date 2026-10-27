@@ -33,6 +33,16 @@ pub(crate) fn detect_format(prefix: &str) -> PyResult<String> {
     Ok(format.name().to_string())
 }
 
+/// The samples' populations, each once, in order of first appearance.
+fn populations_in_order(samples: &[Sample]) -> Vec<String> {
+    let mut seen = std::collections::HashSet::new();
+    samples
+        .iter()
+        .filter(|s| seen.insert(s.population.as_str()))
+        .map(|s| s.population.to_string())
+        .collect()
+}
+
 /// Describe a genotype dataset without reading its genotypes.
 ///
 /// Parameters
@@ -62,14 +72,7 @@ pub(crate) fn dataset_info(prefix: &str) -> PyResult<HashMap<String, Py<PyAny>>>
                 reader.num_samples().into_py_any(py)?,
             );
             info.insert("n_snps".to_string(), reader.num_snps().into_py_any(py)?);
-            // in a fixed order: sorted
-            let pops: Vec<String> = reader
-                .samples()
-                .iter()
-                .map(|s| s.population.to_string())
-                .collect::<std::collections::BTreeSet<_>>()
-                .into_iter()
-                .collect();
+            let pops = populations_in_order(reader.samples());
             info.insert("populations".to_string(), pops.into_py_any(py)?);
             return Ok(info);
         }
@@ -84,13 +87,7 @@ pub(crate) fn dataset_info(prefix: &str) -> PyResult<HashMap<String, Py<PyAny>>>
             );
             info.insert("n_snps".to_string(), reader.num_snps().into_py_any(py)?);
 
-            let pops: Vec<String> = reader
-                .samples()
-                .iter()
-                .map(|s| s.population.to_string())
-                .collect::<std::collections::HashSet<_>>()
-                .into_iter()
-                .collect();
+            let pops = populations_in_order(reader.samples());
             info.insert("populations".to_string(), pops.into_py_any(py)?);
             return Ok(info);
         }
@@ -106,13 +103,7 @@ pub(crate) fn dataset_info(prefix: &str) -> PyResult<HashMap<String, Py<PyAny>>>
                     reader.samples().len().into_py_any(py)?,
                 );
                 info.insert("n_snps".to_string(), reader.snps().len().into_py_any(py)?);
-                let pops: Vec<String> = reader
-                    .samples()
-                    .iter()
-                    .map(|s| s.population.to_string())
-                    .collect::<std::collections::HashSet<_>>()
-                    .into_iter()
-                    .collect();
+                let pops = populations_in_order(reader.samples());
                 info.insert("populations".to_string(), pops.into_py_any(py)?);
                 return Ok(info);
             }
@@ -125,13 +116,7 @@ pub(crate) fn dataset_info(prefix: &str) -> PyResult<HashMap<String, Py<PyAny>>>
                 );
                 info.insert("n_snps".to_string(), reader.num_snps().into_py_any(py)?);
 
-                let pops: Vec<String> = reader
-                    .samples()
-                    .iter()
-                    .map(|s| s.population.to_string())
-                    .collect::<std::collections::HashSet<_>>()
-                    .into_iter()
-                    .collect();
+                let pops = populations_in_order(reader.samples());
                 info.insert("populations".to_string(), pops.into_py_any(py)?);
             } else {
                 let reader = EigenstratReader::new(prefix)?;
@@ -142,13 +127,7 @@ pub(crate) fn dataset_info(prefix: &str) -> PyResult<HashMap<String, Py<PyAny>>>
                 );
                 info.insert("n_snps".to_string(), reader.num_snps().into_py_any(py)?);
 
-                let pops: Vec<String> = reader
-                    .samples()
-                    .iter()
-                    .map(|s| s.population.to_string())
-                    .collect::<std::collections::HashSet<_>>()
-                    .into_iter()
-                    .collect();
+                let pops = populations_in_order(reader.samples());
                 info.insert("populations".to_string(), pops.into_py_any(py)?);
             }
             return Ok(info);

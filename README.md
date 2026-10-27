@@ -253,81 +253,109 @@ Popmix auto-detects the format from file extensions:
 | `sfs` | Site-frequency spectrum, as dadi (projected) or admixtools2 joint_sfs(). |
 
 Every command documents its options under `popmix <command> --help`;
-the sections below walk through the most used ones.
+the sections below walk through the most used ones. Their outputs are real
+runs on `aadr_v66p1`, the 27 populations of AADR v66.p1 the tests use,
+labelled by data type (`French.DG`; built by
+`tests/golden/aadr/build_aadr_v66p1.py`), and
+`tests/golden/test_readme_examples.py` checks that each command still
+prints them.
 
 ### `popmix info`
 
 Display dataset information.
 
 ```bash
-popmix info /path/to/data
-popmix info /path/to/data --populations  # Show all populations with counts
+popmix info aadr_v66p1
 ```
 
 **Output:**
 ```
-Dataset: /path/to/data
-Format: tgeno
-Samples: 23089
+Dataset: aadr_v66p1
+Format: packedancestrymap
+Samples: 1201
 SNPs: 1233013
-Populations: 3898
-  - Spain_Guayadeque_LateAntiquity
-  - Denmark_Bogovej_Viking
-  ...
+Populations: 27
+  - Germany_HalberstadtSonntagsfeld_EN_LBK.AG
+  - England_MIA.AG
+  - Russia_Samara_EBA_Yamnaya.AG
+  - Czechia_EBA_CordedWare.AG
+  - France_Yonne_N.AG
+  ... and 22 more
+
+Tip: Use --populations to show all populations with counts
 ```
+
+The populations come in the order of the `.ind` file; `popmix info
+aadr_v66p1 --populations` lists every one with its sample count.
 
 ### `popmix populations`
 
 List all populations in a dataset with sample counts.
 
 ```bash
-popmix populations /path/to/data
-popmix populations /path/to/data --filter "French*"
-popmix populations /path/to/data --format json
+popmix populations aadr_v66p1
 ```
 
 **Output:**
 ```
-Populations in /path/to/data (3898 total):
+Populations in aadr_v66p1 (27 total):
 
 Population                               Samples
 --------------------------------------------------
-French                                        31
-Han                                           46
-Yoruba                                        24
-Mbuti                                         15
+TSI.DG                                      107
+CHB.DG                                      103
+YRI.DG                                      102
 ...
+Dinka.DG                                      1
 
 Tip: Use --filter "pattern*" to search
-Tip: Specify populations with: --populations "French,Han,Yoruba"
+Tip: Specify populations with: --populations "TSI.DG,CHB.DG,YRI.DG"
 ```
 
-### `popmix merge`
-
-Merge two genotype datasets. Keeps only SNPs present in both files.
-
 ```bash
-popmix merge \
-  --file-a my_samples \
-  --file-b /references/aadr/v66.p1/v66.p1_1240K.aadr.patch.PUB \
-  --output merged_data \
-  --output-format plink
+popmix populations aadr_v66p1 --filter "French*"
 ```
 
 **Output:**
 ```
-Merge complete:
-  SNPs in file A: 500000
-  SNPs in file B: 1233013
-  SNPs in common: 498234
-  Samples in file A: 10
-  Samples in file B: 17629
-  Total samples: 17639
-  Alleles swapped (recoded): 1234
-  Left out, A/T or C/G (strand unknown): 210
+Populations in aadr_v66p1 (1 matched):
 
-Output files written to merged_data
+Population                               Samples
+--------------------------------------------------
+French.DG                                    31
 ```
+
+`--format json` gives the list as JSON.
+
+### `popmix merge`
+
+Merge two genotype datasets. Keeps only SNPs present in both files. Here
+on two small EIGENSTRAT files (`tests/fixtures/merge_a` and `merge_b`):
+
+```bash
+popmix merge --file-a my_samples --file-b reference --output merged --output-format plink
+```
+
+**Output:**
+```
+File A format (auto-detected): EIGENSTRAT
+File B format (auto-detected): EIGENSTRAT
+Output format: plink
+Merging my_samples + reference -> merged...
+
+Merge complete:
+  SNPs in file A: 5
+  SNPs in file B: 4
+  SNPs in common: 3
+  Samples in file A: 2
+  Samples in file B: 1
+  Total samples: 3
+
+Output files written to merged
+```
+
+When alleles had to be swapped, complemented or left out, the summary
+counts those SNPs too.
 
 Alleles are reconciled as AdmixTools `mergeit` does: swapped alleles are
 recoded, a SNP reported on the other strand is complemented, the unknown
@@ -360,34 +388,41 @@ popmix extract-f2 \
 Compute f2 statistic (genetic drift) between two populations.
 
 ```bash
-popmix f2 -i /path/to/data --pop1 French --pop2 Yoruba --format json
+popmix f2 -i aadr_v66p1 --pop1 French.DG --pop2 Yoruba.DG
 ```
 
-**Output formats:**
-
-Text (default):
+**Output:**
 ```
-f2(French, Yoruba):
-  Estimate: 0.023456
-  Std Error: 0.000123
-  Z-score: 190.699
-  N SNPs: 1200000
+f2(French.DG, Yoruba.DG):
+  Estimate: 0.054374
+  Std Error: 0.000393
+  Z-score: 138.427  (p = 0)
+  N SNPs: 1046394
 ```
 
-JSON (`--format json`):
+```bash
+popmix f2 -i aadr_v66p1 --pop1 French.DG --pop2 Yoruba.DG --format json
+```
+
+**Output:**
 ```json
 {
-  "estimate": 0.023456,
-  "std_err": 0.000123,
-  "z_score": 190.699,
-  "n_snps": 1200000
+  "est": 0.05437365580582565,
+  "se": 0.0003927970713996346,
+  "z": 138.42683605577471,
+  "p": 0.0,
+  "n_snps": 1046394
 }
 ```
 
-TSV (`--format tsv`):
+```bash
+popmix f2 -i aadr_v66p1 --pop1 French.DG --pop2 Yoruba.DG --format tsv
 ```
-pop1    pop2    estimate    std_err    z_score    n_snps
-French  Yoruba  0.023456    0.000123   190.699    1200000
+
+**Output:**
+```
+pop1	pop2	est	se	z	p	n_snps
+French.DG	Yoruba.DG	0.054374	0.000393	138.427	0	1046394
 ```
 
 ### `popmix f3`
@@ -395,16 +430,16 @@ French  Yoruba  0.023456    0.000123   190.699    1200000
 Compute f3 statistic (admixture test). A **negative f3** indicates the target is admixed.
 
 ```bash
-popmix f3 -i /path/to/data --target French --source1 Yamnaya --source2 Anatolia_N
+popmix f3 -i aadr_v66p1 --target French.DG --source1 Russia_Samara_EBA_Yamnaya.AG --source2 Germany_HalberstadtSonntagsfeld_EN_LBK.AG
 ```
 
 **Output:**
 ```
-f3(French; Yamnaya, Anatolia_N):
-  Estimate: -0.001234
-  Std Error: 0.000089
-  Z-score: -13.87
-  N blocks: 546
+f3(French.DG; Russia_Samara_EBA_Yamnaya.AG, Germany_HalberstadtSonntagsfeld_EN_LBK.AG):
+  Estimate: -0.001535
+  Std Error: 0.000096
+  Z-score: -16.064  (p = 4.53e-58)
+  N blocks: 713
   => Significant admixture signal
 ```
 
@@ -414,16 +449,16 @@ Compute the f4 statistic f4(pop1, pop2; pop3, pop4), nonzero when gene flow
 makes the two branches share drift. For the D-statistic, use `qpdstat --d-mode`.
 
 ```bash
-popmix f4 -i /path/to/data --pop1 French --pop2 Han --pop3 Yoruba --pop4 Mbuti
+popmix f4 -i aadr_v66p1 --pop1 Mbuti.DG --pop2 French.DG --pop3 Russia_Samara_EBA_Yamnaya.AG --pop4 Germany_HalberstadtSonntagsfeld_EN_LBK.AG
 ```
 
 **Output:**
 ```
-f4(French, Han; Yoruba, Mbuti):
-  Estimate: 0.000567
-  Std Error: 0.000089
-  Z-score: 6.37
-  N blocks: 546
+f4(Mbuti.DG, French.DG; Russia_Samara_EBA_Yamnaya.AG, Germany_HalberstadtSonntagsfeld_EN_LBK.AG):
+  Estimate: 0.001193
+  Std Error: 0.000188
+  Z-score: 6.361  (p = 2e-10)
+  N blocks: 713
   => Significant deviation from tree-like evolution
 ```
 
@@ -439,7 +474,7 @@ popmix qpadm \
   --right Mbuti.DG,Han.DG,Papuan.DG,Karitiana.DG,Ulchi.DG
 ```
 
-**Output** (AADR v66.p1, populations labelled by data type):
+**Output:**
 ```
 qpAdm: French.DG = mix of Russia_Samara_EBA_Yamnaya.AG, Germany_HalberstadtSonntagsfeld_EN_LBK.AG
 Outgroups: Mbuti.DG, Han.DG, Papuan.DG, Karitiana.DG, Ulchi.DG
@@ -462,21 +497,20 @@ Test the number of independent ancestry streams.
 
 ```bash
 popmix qpwave \
-  -i /path/to/data \
-  --left French,Spanish,Italian \
-  --right Mbuti,Han,Papuan
+  -i aadr_v66p1 \
+  --left French.DG,Sardinian.DG,Basque.DG \
+  --right Mbuti.DG,Han.DG,Papuan.DG,Karitiana.DG,Ulchi.DG
 ```
 
 **Output:**
 ```
-qpWave: French, Spanish, Italian
-Outgroups: Mbuti, Han, Papuan
+qpWave: French.DG, Sardinian.DG, Basque.DG
+Outgroups: Mbuti.DG, Han.DG, Papuan.DG, Karitiana.DG, Ulchi.DG
 
 Rank tests:
-  Rank  Chi-sq     df    P-value
-     0    45.2341     6  0.000001 *
-     1     3.1234     2  0.209876
-     2     0.0000     0  1.000000
+  Rank   chisq    dof          p
+     0  327.8390     8  0.000000 *
+     1    5.2071     3  0.157243
 
 Estimated rank: 1
 => 2 independent ancestry streams
@@ -488,28 +522,33 @@ Estimate admixture timing using LD decay.
 
 ```bash
 popmix dates \
-  -i /path/to/data \
-  --admixed French \
-  --sources Yamnaya,Anatolia_N
+  -i aadr_v66p1 \
+  --admixed French.DG \
+  --sources Russia_Samara_EBA_Yamnaya.AG,Germany_HalberstadtSonntagsfeld_EN_LBK.AG \
+  --qbin 10
 ```
 
 **Output:**
 ```
-DATES Results: French = mix of Yamnaya and Anatolia_N
+
+DATES Results: French.DG = mix of Russia_Samara_EBA_Yamnaya.AG and Germany_HalberstadtSonntagsfeld_EN_LBK.AG
 ============================================================
-Amplitude (fit): 0.036364
-Estimated generations: 150.2 ± 12.3
-Estimated years BP: 4356 ± 357 (29 years/gen)
-Fit R²: 0.9234
-SNPs used: 1200000
+Amplitude (fit): 0.003202
+Estimated generations: 128.1 ± 21.9
+Estimated years BP: 3716 ± 636 (29 years/gen)
+Fit R²: 0.3055
+SNPs used: 828743
 LD bins: 1000
 
 LD Decay (first 10 bins):
   Dist(cM)  Pairs      Correlation
-     0.1       298384  +0.137219
-     0.2       206537  +0.082825
-     ...
+     0.1    718093027  +0.061655
+     0.2    612297992  +0.014745
+...
 ```
+
+`--qbin 10` bins SNPs on an FFT mesh, much faster on data this size and
+slightly approximate; the default, 0, visits every SNP pair.
 
 ### `popmix convertf`
 
@@ -536,16 +575,19 @@ Any input format converts to any output format.
 
 Popmix provides helpful error messages with fuzzy suggestions when population names are wrong:
 
+```bash
+popmix f2 -i aadr_v66p1 --pop1 French --pop2 Yoruba.DG
 ```
-Error: Population 'French.DG' not found in dataset.
+
+**Output** (on stderr, exit code 1):
+```
+Error: Population 'French' not found in dataset.
 
 Did you mean one of these?
-  - French (31 samples)
-  - France_FrenchAlps (10 samples)
-  - FrenchPolynesia_200BP (2 samples)
+  - French.DG (31 samples)
 
-Tip: List all populations with: popmix populations /path/to/data
-Tip: Search populations with: popmix populations /path/to/data --filter "French*"
+Tip: List all populations with: popmix populations aadr_v66p1
+Tip: Search populations with: popmix populations aadr_v66p1 --filter "Fren*"
 ```
 
 ## Python API
