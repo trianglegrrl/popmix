@@ -310,11 +310,11 @@ full AADR analyses within a 62 GB machine; parallel speed-up close to
 linear to 8+ threads where the work allows; results identical at every
 thread count.
 
-- [ ] **F1. Stream every format.** PLINK `.bed`, VCF and text EIGENSTRAT
+- [x] **F1. Stream every format.** PLINK `.bed`, VCF and text EIGENSTRAT
   straight into allele frequencies, as packed `.geno` does; today
   `extract_f2` fallback (`lib.rs:1464`), `geno_fstats.rs:53`, `sfs.rs:78` call
   `read_all()` into `Array2<u8>` (21.7 GB for AADR). PD [reviewer-verified]
-  Progress: PLINK .bed is read in place like packed .geno (memory-mapped SNP-major reader: rows, ploidy, parallel frequencies) by extract_f2, the SFS, KING/READ, PCA, ADMIXTURE and the genotype f-statistics (5ef0734): KING at 1,000 samples 17.7 s / 2.1 GB to 13.3 s / 1.0 GB. Text EIGENSTRAT whose lines are one character per sample (as popmix, convertf and admixtools2 write it) is read in place too, by every analysis above and by convertf and merge: extract_f2 of 16 populations from 473 x 1.2M text 6.9 s / 2.0 GB to 0.9 s / 1.2 GB; other text (CRLF, padded) goes through the reader. Left: VCF still loads the matrix.
+  Progress: PLINK .bed is read in place like packed .geno (memory-mapped SNP-major reader: rows, ploidy, parallel frequencies) by extract_f2, the SFS, KING/READ, PCA, ADMIXTURE and the genotype f-statistics (5ef0734): KING at 1,000 samples 17.7 s / 2.1 GB to 13.3 s / 1.0 GB. Text EIGENSTRAT whose lines are one character per sample (as popmix, convertf and admixtools2 write it) is read in place too, by every analysis above and by convertf and merge: extract_f2 of 16 populations from 473 x 1.2M text 6.9 s / 2.0 GB to 0.9 s / 1.2 GB; other text (CRLF, padded) goes through the reader. VCF is read once (it was read twice), lines parsed in parallel batches while a thread decompresses, genotypes held packed (2 bits, not a byte) and read through the same SnpMajor code: 1000G chr22 (2,504 x 1.06M) to packed 283 s / 2.8 GB to 16-22 s / 0.8 GB, identical output. Done: every format is read in place or, for VCF, packed in memory.
 - [x] **F2. DATES/ALDER/ROLLOFF read only the samples they need** from a
   prefix (`popmix dates` loads the whole matrix, `cli/__init__.py:1198`). PD
   Done: `read_genotypes(prefix, populations=[...])` reads only those samples; `popmix dates` uses it; ROLLOFF already streamed (9f0a1ac).

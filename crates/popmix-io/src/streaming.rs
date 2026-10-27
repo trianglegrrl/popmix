@@ -147,6 +147,23 @@ pub fn detect_ploidy_packedancestrymap_selected(
     Ok(())
 }
 
+/// The bytes of a [`SnpMajor`] file: mapped, or held in memory (a VCF,
+/// decompressed and packed).
+enum Bytes {
+    Mapped(Mmap),
+    Owned(Vec<u8>),
+}
+
+impl std::ops::Deref for Bytes {
+    type Target = [u8];
+    fn deref(&self) -> &[u8] {
+        match self {
+            Bytes::Mapped(map) => map,
+            Bytes::Owned(bytes) => bytes,
+        }
+    }
+}
+
 /// How a [`SnpMajor`] file stores a genotype.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Encoding {
@@ -163,7 +180,7 @@ enum Encoding {
 /// hold one character per sample.
 pub struct SnpMajor {
     path: String,
-    map: Mmap,
+    map: Bytes,
     /// Offset of the first SNP's record.
     start: usize,
     bytes_per_snp: usize,
@@ -207,7 +224,7 @@ impl SnpMajor {
         // record_length checked that the file holds the header and every SNP
         Ok(SnpMajor {
             path: geno_path.to_string(),
-            map,
+            map: Bytes::Mapped(map),
             start: bytes_per_snp,
             bytes_per_snp,
             n_samples,
@@ -236,7 +253,7 @@ impl SnpMajor {
         }
         Ok(SnpMajor {
             path: bed_path.to_string(),
-            map,
+            map: Bytes::Mapped(map),
             start: 3,
             bytes_per_snp,
             n_samples,
@@ -257,13 +274,39 @@ impl SnpMajor {
         }
         Ok(Some(SnpMajor {
             path: geno_path.to_string(),
-            map,
+            map: Bytes::Mapped(map),
             start: 0,
             bytes_per_snp: line,
             n_samples,
             n_snps,
             encoding: Encoding::Text,
         }))
+    }
+
+    /// Genotypes held in memory: `n_snps` records of `n_samples.div_ceil(4)`
+    /// bytes packed as PACKEDANCESTRYMAP packs them, with no header. `path`
+    /// names the file they came from, for errors.
+    pub fn from_packed_records(
+        path: String,
+        records: Vec<u8>,
+        n_samples: usize,
+        n_snps: usize,
+    ) -> Self {
+        let bytes_per_snp = n_samples.div_ceil(4);
+        assert_eq!(
+            records.len(),
+            n_snps * bytes_per_snp,
+            "packed records of {path}"
+        );
+        SnpMajor {
+            path,
+            map: Bytes::Owned(records),
+            start: 0,
+            bytes_per_snp,
+            n_samples,
+            n_snps,
+            encoding: Encoding::Packed,
+        }
     }
 
     pub fn n_snps(&self) -> usize {

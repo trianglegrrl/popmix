@@ -3,9 +3,11 @@
 //! VCF is a text format for storing genetic variants.
 //! This module reads VCF files and converts them to genotype matrices.
 //!
-//! Reference: VCF v4.2 specification
-//! Based on PLINK 2.0 VCF parser concepts by Shaun Purcell & Christopher Chang.
-//! Reference: https://github.com/chrchang/plink-ng
+//! Implemented from the VCF v4.2 specification; which records are read
+//! follows PLINK 2's documented `--snps-only just-acgt --max-alleles 2`.
+//! The file is read once: the reading thread decompresses and splits lines,
+//! batches of them are parsed in parallel, and the genotypes are kept packed
+//! (2 bits each) rather than a byte per genotype.
 
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -14,6 +16,7 @@ use std::path::Path;
 use flate2::read::MultiGzDecoder;
 use ndarray::Array2;
 
+use crate::streaming::SnpMajor;
 use popmix_core::{
     Chromosome, Genotype, GenotypeMatrix, Ploidy, PopmixError, PopulationId, Result, Sample, Snp,
 };
@@ -31,8 +34,9 @@ pub struct VcfReader {
     samples: Vec<Sample>,
     snps: Vec<Snp>,
     skipped: VcfSkipped,
-    /// Whether the file is gzip compressed
-    is_gzipped: bool,
+    /// Every SNP's genotypes, packed as PACKEDANCESTRYMAP packs them
+    /// (`samples.len().div_ceil(4)` bytes each).
+    records: Vec<u8>,
 }
 
 /// Records a VCF reader skipped, by reason.
@@ -78,16 +82,13 @@ impl VcfReader {
     pub fn new(path: impl AsRef<Path>) -> Result<Self> {
         let path_str = path.as_ref().to_string_lossy().to_string();
         let is_gzipped = path_str.ends_with(".gz");
-
-        // Parse header to get samples and SNP count
-        let (samples, snps, skipped) = parse_vcf_header_and_variants(&path_str, is_gzipped)?;
-
+        let scan = scan_vcf(&path_str, is_gzipped)?;
         Ok(VcfReader {
             path: path_str,
-            samples,
-            snps,
-            skipped,
-            is_gzipped,
+            samples: scan.samples,
+            snps: scan.snps,
+            skipped: scan.skipped,
+            records: scan.records,
         })
     }
 
@@ -118,7 +119,31 @@ impl VcfReader {
 
     /// Read all genotypes into a GenotypeMatrix.
     pub fn read_all(&self) -> Result<GenotypeMatrix> {
-        read_vcf_genotypes(&self.path, self.is_gzipped, &self.samples, &self.snps)
+        use rayon::prelude::*;
+        let n = self.samples.len();
+        let bytes = n.div_ceil(4);
+        let mut data = Array2::<u8>::zeros((self.snps.len(), n));
+        data.axis_iter_mut(ndarray::Axis(0))
+            .into_par_iter()
+            .zip(self.records.par_chunks(bytes.max(1)))
+            .for_each(|(mut row, record)| {
+                for (s, g) in row.iter_mut().enumerate() {
+                    *g = (record[s / 4] >> (6 - 2 * (s % 4))) & 0b11;
+                }
+            });
+        GenotypeMatrix::new(data, self.samples.clone(), self.snps.clone())
+    }
+
+    /// The samples, the SNPs, and the genotypes as a [`SnpMajor`] file held
+    /// in memory, to be read as a mapped one is.
+    pub fn into_snp_major(self) -> (Vec<Sample>, Vec<Snp>, SnpMajor) {
+        let file = SnpMajor::from_packed_records(
+            self.path,
+            self.records,
+            self.samples.len(),
+            self.snps.len(),
+        );
+        (self.samples, self.snps, file)
     }
 }
 
@@ -171,96 +196,173 @@ pub fn parse_vcf_gt(gt: &str) -> Option<Genotype> {
     }
 }
 
-/// Parse VCF header and count variants.
-fn parse_vcf_header_and_variants(
-    path: &str,
-    is_gzipped: bool,
-) -> Result<(Vec<Sample>, Vec<Snp>, VcfSkipped)> {
-    let file = File::open(path).map_err(|e| PopmixError::io_with_path(e, path))?;
+/// One data line of a VCF, parsed.
+enum Line {
+    /// A biallelic SNP and its packed genotypes.
+    Snp(Snp, Vec<u8>),
+    /// A record that is not a biallelic SNP, counted by reason.
+    Skipped(fn(&mut VcfSkipped)),
+    /// A blank or `#` line.
+    Blank,
+}
 
-    let reader: Box<dyn BufRead> = if is_gzipped {
-        // bgzip (the usual .vcf.gz) is a series of gzip members
-        Box::new(BufReader::new(MultiGzDecoder::new(file)))
+/// Lines decompressed and split off by the reading thread, parsed a batch at
+/// a time in parallel.
+const BATCH_BYTES: usize = 16 << 20;
+
+/// The genotype code (0, 1, 2; 3 missing) of a sample's GT, as
+/// [`parse_vcf_gt`] reads it, without allocating for the usual `a|b`.
+#[inline]
+fn gt_code(gt: &[u8]) -> u8 {
+    if let [a @ (b'0' | b'1'), b'|' | b'/', b @ (b'0' | b'1')] = gt {
+        return (a - b'0') + (b - b'0');
+    }
+    std::str::from_utf8(gt)
+        .ok()
+        .and_then(parse_vcf_gt)
+        .unwrap_or(Genotype::Missing) as u8
+}
+
+/// Parse data line `number` (1-based, for errors) of a VCF of `n_samples`
+/// samples, packing its genotypes as PACKEDANCESTRYMAP does (the first
+/// sample in a byte's high bits).
+fn parse_line(path: &str, number: usize, line: &[u8], n_samples: usize) -> Result<Line> {
+    let line = line.strip_suffix(b"\r").unwrap_or(line);
+    if line.is_empty() || line[0] == b'#' {
+        return Ok(Line::Blank);
+    }
+    let text = |b: &[u8]| String::from_utf8_lossy(b).into_owned();
+    let mut fields = line.split(|&c| c == b'\t');
+    let mut fixed: [&[u8]; 9] = [&[]; 9];
+    let mut n_fixed = 0;
+    for slot in fixed.iter_mut() {
+        match fields.next() {
+            Some(f) => {
+                *slot = f;
+                n_fixed += 1;
+            }
+            None => break,
+        }
+    }
+    if n_fixed < 8 {
+        return Err(PopmixError::parse(
+            path,
+            number,
+            format!("VCF data line must have at least 8 columns, got {n_fixed}"),
+        ));
+    }
+    let (chrom, pos_field) = (text(fixed[0]), text(fixed[1]));
+    let pos = pos_field
+        .parse::<u32>()
+        .map_err(|_| PopmixError::parse(path, number, format!("Invalid position: {pos_field}")))?;
+    let (ref_allele, alt) = (text(fixed[3]), text(fixed[4]));
+    // every data line holds a column per sample
+    let samples: Vec<&[u8]> = fields.take(n_samples).collect();
+    if n_fixed < 9 || samples.len() < n_samples {
+        return Err(PopmixError::parse(
+            path,
+            number,
+            format!(
+                "Expected {} columns, got {}",
+                9 + n_samples,
+                n_fixed + samples.len()
+            ),
+        ));
+    }
+    if let Some(count) = skip_reason(&ref_allele, &alt) {
+        return Ok(Line::Skipped(count));
+    }
+    let gt_idx = fixed[8]
+        .split(|&c| c == b':')
+        .position(|f| f == b"GT")
+        .ok_or_else(|| PopmixError::parse(path, number, "No GT field in FORMAT column"))?;
+    let mut record = vec![0u8; n_samples.div_ceil(4)];
+    for (s, field) in samples.iter().enumerate() {
+        let code = match field.split(|&c| c == b':').nth(gt_idx) {
+            Some(gt) => gt_code(gt),
+            None => Genotype::Missing as u8,
+        };
+        record[s / 4] |= code << (6 - 2 * (s % 4));
+    }
+    let id = if fixed[2] == b"." {
+        format!("{chrom}:{pos}")
     } else {
-        Box::new(BufReader::new(file))
+        text(fixed[2])
+    };
+    let ref_base = ref_allele.chars().next().unwrap_or('N');
+    let alt_base = alt.chars().next().unwrap_or('N');
+    // VCF doesn't have genetic position - use 0.0. Genotypes count ALT
+    // copies, and the counted allele is listed first (EIGENSTRAT .snp
+    // column 5, PLINK A1), as PLINK 2 and convertf list it.
+    let snp = Snp::new(id, Chromosome::parse(&chrom), pos, 0.0, alt_base, ref_base);
+    Ok(Line::Snp(snp, record))
+}
+
+/// A VCF read in one pass: its samples, SNPs, skipped records, and every
+/// SNP's genotypes packed in `records`, `n_samples.div_ceil(4)` bytes each.
+struct Scan {
+    samples: Vec<Sample>,
+    snps: Vec<Snp>,
+    skipped: VcfSkipped,
+    records: Vec<u8>,
+}
+
+/// Read a VCF once: the header on this thread, then the data lines,
+/// decompressed and split into batches by a reading thread, parsed in
+/// parallel and kept in file order.
+fn scan_vcf(path: &str, is_gzipped: bool) -> Result<Scan> {
+    use rayon::prelude::*;
+    use std::sync::mpsc::sync_channel;
+
+    let file = File::open(path).map_err(|e| PopmixError::io_with_path(e, path))?;
+    let mut reader: Box<dyn BufRead + Send> = if is_gzipped {
+        // bgzip (the usual .vcf.gz) is a series of gzip members
+        Box::new(BufReader::with_capacity(1 << 20, MultiGzDecoder::new(file)))
+    } else {
+        Box::new(BufReader::with_capacity(1 << 20, file))
     };
 
+    // the header, to the #CHROM line
     let mut samples = Vec::new();
-    let mut snps = Vec::new();
-    let mut skipped = VcfSkipped::default();
-
-    for (line_num, line_result) in reader.lines().enumerate() {
-        let line = line_result.map_err(|e| PopmixError::io_with_path(e, path))?;
-
-        // Skip meta-information lines (##)
-        if line.starts_with("##") {
+    let mut number = 0;
+    let mut line = Vec::new();
+    loop {
+        line.clear();
+        let n = reader
+            .read_until(b'\n', &mut line)
+            .map_err(|e| PopmixError::io_with_path(e, path))?;
+        if n == 0 {
+            break;
+        }
+        number += 1;
+        let text = String::from_utf8_lossy(&line);
+        let text = text.trim_end_matches(['\n', '\r']);
+        if text.starts_with("##") || text.is_empty() {
             continue;
         }
-
-        // Parse header line (#CHROM)
-        if line.starts_with("#CHROM") {
-            let fields: Vec<&str> = line.split('\t').collect();
+        if text.starts_with("#CHROM") {
+            let fields: Vec<&str> = text.split('\t').collect();
             if fields.len() < 10 {
                 return Err(PopmixError::parse(
                     path,
-                    line_num + 1,
+                    number,
                     "VCF header must have at least 10 columns (including sample columns)",
                 ));
             }
-
-            // Sample names start at column 9 (0-indexed)
-            for sample_name in &fields[9..] {
-                // VCF doesn't have population info - use sample ID as population
-                samples.push(Sample::with_ploidy(
-                    sample_name.to_string(),
-                    PopulationId::new(sample_name.to_string()),
-                    Ploidy::Diploid,
-                ));
-            }
-            continue;
+            // VCF doesn't have population info - use sample ID as population
+            samples = fields[9..]
+                .iter()
+                .map(|name| {
+                    Sample::with_ploidy(
+                        name.to_string(),
+                        PopulationId::new(name.to_string()),
+                        Ploidy::Diploid,
+                    )
+                })
+                .collect();
         }
-
-        // Parse data lines
-        if !line.starts_with('#') && !line.is_empty() {
-            let fields: Vec<&str> = line.split('\t').collect();
-            if fields.len() < 8 {
-                return Err(PopmixError::parse(
-                    path,
-                    line_num + 1,
-                    format!(
-                        "VCF data line must have at least 8 columns, got {}",
-                        fields.len()
-                    ),
-                ));
-            }
-
-            let chrom = Chromosome::parse(fields[0]);
-            let pos = fields[1].parse::<u32>().map_err(|_| {
-                PopmixError::parse(
-                    path,
-                    line_num + 1,
-                    format!("Invalid position: {}", fields[1]),
-                )
-            })?;
-            let id = if fields[2] == "." {
-                format!("{}:{}", fields[0], pos)
-            } else {
-                fields[2].to_string()
-            };
-            if let Some(count) = skip_reason(fields[3], fields[4]) {
-                count(&mut skipped);
-                continue;
-            }
-            let ref_allele = fields[3].chars().next().unwrap_or('N');
-            let alt_allele = fields[4].chars().next().unwrap_or('N');
-
-            // VCF doesn't have genetic position - use 0.0. Genotypes count ALT
-            // copies, and the counted allele is listed first (EIGENSTRAT .snp
-            // column 5, PLINK A1), as PLINK 2 and convertf list it.
-            snps.push(Snp::new(id, chrom, pos, 0.0, alt_allele, ref_allele));
-        }
+        break;
     }
-
     if samples.is_empty() {
         return Err(PopmixError::parse(
             path,
@@ -268,92 +370,73 @@ fn parse_vcf_header_and_variants(
             "No samples found in VCF header",
         ));
     }
-
-    Ok((samples, snps, skipped))
-}
-
-/// Read genotypes from VCF file.
-fn read_vcf_genotypes(
-    path: &str,
-    is_gzipped: bool,
-    samples: &[Sample],
-    snps: &[Snp],
-) -> Result<GenotypeMatrix> {
-    let file = File::open(path).map_err(|e| PopmixError::io_with_path(e, path))?;
-
-    let reader: Box<dyn BufRead> = if is_gzipped {
-        // bgzip (the usual .vcf.gz) is a series of gzip members
-        Box::new(BufReader::new(MultiGzDecoder::new(file)))
-    } else {
-        Box::new(BufReader::new(file))
-    };
-
     let n_samples = samples.len();
-    let n_snps = snps.len();
-    let mut data = Array2::zeros((n_snps, n_samples));
 
-    let mut snp_idx = 0;
-
-    for (line_num, line_result) in reader.lines().enumerate() {
-        let line = line_result.map_err(|e| PopmixError::io_with_path(e, path))?;
-
-        // Skip header lines
-        if line.starts_with('#') {
-            continue;
-        }
-
-        if line.is_empty() {
-            continue;
-        }
-
-        let fields: Vec<&str> = line.split('\t').collect();
-        if fields.len() < 9 + n_samples {
-            return Err(PopmixError::parse(
-                path,
-                line_num + 1,
-                format!("Expected {} columns, got {}", 9 + n_samples, fields.len()),
-            ));
-        }
-
-        // the records the header pass skipped
-        if skip_reason(fields[3], fields[4]).is_some() {
-            continue;
-        }
-
-        // Find GT position in FORMAT field
-        let format_field = fields[8];
-        let gt_idx = format_field
-            .split(':')
-            .position(|f| f == "GT")
-            .ok_or_else(|| {
-                PopmixError::parse(path, line_num + 1, "No GT field in FORMAT column")
-            })?;
-
-        // Parse genotypes for each sample
-        for (sample_idx, sample_field) in fields[9..].iter().enumerate() {
-            if sample_idx >= n_samples {
-                break;
+    let mut snps = Vec::new();
+    let mut skipped = VcfSkipped::default();
+    let mut records = Vec::new();
+    // batches of whole lines: the bytes, where each line ends, the number
+    // of the first
+    type Batch = std::io::Result<(Vec<u8>, Vec<usize>, usize)>;
+    let (tx, rx) = sync_channel::<Batch>(2);
+    let first = number + 1;
+    std::thread::scope(|scope| -> Result<()> {
+        scope.spawn(move || {
+            let mut next = first;
+            loop {
+                let mut buf = Vec::with_capacity(BATCH_BYTES + (1 << 16));
+                let mut ends = Vec::new();
+                while buf.len() < BATCH_BYTES {
+                    match reader.read_until(b'\n', &mut buf) {
+                        Ok(0) => break,
+                        Ok(_) => ends.push(buf.len()),
+                        Err(e) => {
+                            let _ = tx.send(Err(e));
+                            return;
+                        }
+                    }
+                }
+                if ends.is_empty() {
+                    return;
+                }
+                let n = ends.len();
+                if tx.send(Ok((buf, ends, next))).is_err() {
+                    return;
+                }
+                next += n;
             }
-
-            let sample_parts: Vec<&str> = sample_field.split(':').collect();
-            let gt_str = sample_parts.get(gt_idx).unwrap_or(&"./.");
-
-            let geno = parse_vcf_gt(gt_str).unwrap_or(Genotype::Missing);
-            data[[snp_idx, sample_idx]] = geno as u8;
+        });
+        for batch in rx {
+            let (buf, ends, start) = batch.map_err(|e| PopmixError::io_with_path(e, path))?;
+            let parsed: Vec<Result<Line>> = (0..ends.len())
+                .into_par_iter()
+                .map(|i| {
+                    let lo = if i == 0 { 0 } else { ends[i - 1] };
+                    let line = &buf[lo..ends[i]];
+                    let line = line.strip_suffix(b"\n").unwrap_or(line);
+                    parse_line(path, start + i, line, n_samples)
+                })
+                .collect();
+            for line in parsed {
+                match line? {
+                    Line::Snp(snp, record) => {
+                        snps.push(snp);
+                        records.extend_from_slice(&record);
+                    }
+                    Line::Skipped(count) => count(&mut skipped),
+                    Line::Blank => {}
+                }
+            }
         }
+        Ok(())
+    })?;
 
-        snp_idx += 1;
-    }
-
-    if snp_idx != n_snps {
-        return Err(PopmixError::parse(
-            path,
-            0,
-            format!("Expected {} SNPs, read {}", n_snps, snp_idx),
-        ));
-    }
-
-    GenotypeMatrix::new(data, samples.to_vec(), snps.to_vec())
+    Ok(Scan {
+        samples,
+        snps,
+        skipped,
+        records,
+    })
 }
 
 #[cfg(test)]
@@ -377,6 +460,67 @@ mod tests {
         env!("CARGO_MANIFEST_DIR"),
         "/../../tests/fixtures/small_eigenstrat"
     );
+
+    /// Every genotype of `reader`'s in-memory records, decoded.
+    fn decoded(reader: VcfReader) -> Vec<Vec<u8>> {
+        let (_, snps, file) = reader.into_snp_major();
+        (0..snps.len())
+            .map(|i| {
+                let r = file.record(i);
+                (0..file.n_samples()).map(|s| file.code(r, s)).collect()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn records_held_in_memory_equal_read_all() {
+        for path in [
+            VCF_FIXTURE,
+            VCF_MISSING_FIXTURE,
+            VCF_PHASED_FIXTURE,
+            concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../tests/fixtures/small_vcf_haploid.vcf"
+            ),
+            concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../tests/fixtures/small_vcf_multiallelic.vcf"
+            ),
+        ] {
+            let geno = VcfReader::new(path).unwrap().read_all().unwrap();
+            let want: Vec<Vec<u8>> = (0..geno.n_snps())
+                .map(|i| geno.snp_raw(i).to_vec())
+                .collect();
+            assert_eq!(decoded(VcfReader::new(path).unwrap()), want, "{path}");
+        }
+    }
+
+    #[test]
+    fn odd_calls_crlf_lines_and_gzip_read_as_the_rules_say() {
+        let dir = tempfile::tempdir().unwrap();
+        let text = "##fileformat=VCFv4.2\r\n\
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\ta\tb\tc\td\te\r\n\
+1\t10\t.\tA\tG\t.\t.\t.\tGT:DP\t0|1:3\t1/1\t./.:0\t0/.\t1\r\n\
+1\t20\trs2\tA\tAT\t.\t.\t.\tGT\t0|1\t1/1\t0/0\t0/0\t0\r\n\
+1\t30\trs3\tC\tT\t.\t.\t.\tDP:GT\t3:0/0\t4:1|0\t5\t6:10/0\t7:0\r\n";
+        let vcf = dir.path().join("x.vcf");
+        std::fs::write(&vcf, text).unwrap();
+        let gz = dir.path().join("x.vcf.gz");
+        let mut enc = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+        std::io::Write::write_all(&mut enc, text.as_bytes()).unwrap();
+        std::fs::write(&gz, enc.finish().unwrap()).unwrap();
+        for path in [&vcf, &gz] {
+            let reader = VcfReader::new(path).unwrap();
+            assert_eq!(reader.skipped().not_snp, 1);
+            let ids: Vec<&str> = reader.snps().iter().map(|s| s.id.as_str()).collect();
+            assert_eq!(ids, ["1:10", "rs3"]);
+            // 0/. and 10/0 are not calls popmix reads: missing; a lone 0 is HomRef
+            assert_eq!(
+                decoded(reader),
+                vec![vec![1, 2, 3, 3, 2], vec![0, 1, 3, 3, 0]]
+            );
+        }
+    }
 
     // TDD RED: Test GT parsing
     #[test]

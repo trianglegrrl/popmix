@@ -647,12 +647,32 @@ fn convertf(
 /// A genotype file mapped to be read in place, with its samples and SNPs.
 pub(crate) type MappedInput = (popmix_io::SnpMajor, Vec<Sample>, Vec<Snp>);
 
+/// The VCF file of `prefix`: the path itself, or with .vcf.gz or .vcf added.
+fn vcf_path(prefix: &str) -> Option<String> {
+    use std::path::Path;
+    if (prefix.ends_with(".vcf") || prefix.ends_with(".vcf.gz")) && Path::new(prefix).exists() {
+        return Some(prefix.to_string());
+    }
+    [".vcf.gz", ".vcf"]
+        .iter()
+        .map(|e| format!("{prefix}{e}"))
+        .find(|p| Path::new(p).exists())
+}
+
 /// A packed .geno, PLINK .bed or text EIGENSTRAT input, mapped to be read in
-/// place; None for the other formats, and for text whose lines are not all
-/// one character per sample.
+/// place, or a VCF read once into packed genotypes in memory; None for the
+/// other formats, and for text whose lines are not all one character per
+/// sample.
 pub(crate) fn mapped_input(prefix: &str, format: GenoFormat) -> PyResult<Option<MappedInput>> {
     use popmix_io::SnpMajor;
     Ok(match format {
+        GenoFormat::Vcf => match vcf_path(prefix) {
+            Some(path) => {
+                let (samples, snps, file) = open_vcf(&path)?.into_snp_major();
+                Some((file, samples, snps))
+            }
+            None => None,
+        },
         GenoFormat::Eigenstrat => {
             let samples = popmix_io::eigenstrat::read_ind_file(&format!("{prefix}.ind"))
                 .map_err(to_py_err)?;
