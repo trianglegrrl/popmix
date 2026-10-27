@@ -35,7 +35,7 @@ fn qpadm_p<'py>(
         constrained,
     )
     .map_err(to_py_err)?;
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     d.set_item("f4rank", r.f4rank)?;
     d.set_item("dof", r.dof)?;
     d.set_item("chisq", r.chi_sq)?;

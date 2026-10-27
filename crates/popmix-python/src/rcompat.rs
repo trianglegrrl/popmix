@@ -32,7 +32,7 @@ fn r_sample_replace(seed: i32, n: usize, size: usize, reps: usize) -> Vec<Vec<us
 #[allow(clippy::too_many_arguments)]
 fn r_optim_lbfgsb<'py>(
     py: Python<'py>,
-    fn_: PyObject,
+    fn_: Py<PyAny>,
     par: Vec<f64>,
     lower: Vec<f64>,
     upper: Vec<f64>,
@@ -57,7 +57,7 @@ fn r_optim_lbfgsb<'py>(
         ndeps,
     };
     let r = optim_lbfgsb(&mut f, None, &par, &lower, &upper, &opts).map_err(to_py_err)?;
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     d.set_item("par", r.par)?;
     d.set_item("value", r.value)?;
     d.set_item("evaluations", r.evaluations)?;

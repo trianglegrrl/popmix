@@ -59,8 +59,8 @@ fn result(
     snps: &[Snp],
     samples: &[Sample],
     cv_error: Option<f64>,
-) -> PyResult<PyObject> {
-    let d = PyDict::new_bound(py);
+) -> PyResult<Py<PyAny>> {
+    let d = PyDict::new(py);
     let k = fit.k;
     let as2d = |v: Vec<f64>, rows: usize| {
         ndarray::Array2::from_shape_vec((rows, k), v)
@@ -81,8 +81,8 @@ fn result(
         "snps",
         snps.iter().map(|s| s.id.clone()).collect::<Vec<_>>(),
     )?;
-    d.set_item("Q", as2d(fit.q, samples.len())?.into_pyarray_bound(py))?;
-    d.set_item("P", as2d(fit.p, snps.len())?.into_pyarray_bound(py))?;
+    d.set_item("Q", as2d(fit.q, samples.len())?.into_pyarray(py))?;
+    d.set_item("P", as2d(fit.p, snps.len())?.into_pyarray(py))?;
     d.set_item("loglik", fit.loglik)?;
     d.set_item("iterations", fit.iterations)?;
     d.set_item("converged", fit.converged)?;
@@ -116,7 +116,7 @@ pub fn admixture_py(
     seed: u64,
     tolerance: f64,
     max_iterations: usize,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let (geno, snps, samples) = load(py, prefix, &populations, &chromosomes, &snps)?;
     let options = AdmixtureOptions {
         tolerance,

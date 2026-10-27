@@ -55,15 +55,15 @@ fn allele_frequencies(
 }
 
 fn spectrum_dict<'py>(py: Python<'py>, sfs: Spectrum) -> PyResult<Bound<'py, PyDict>> {
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     let dims = sfs.dims.clone();
     d.set_item("dims", dims.clone())?;
     let data = ndarray::ArrayD::from_shape_vec(dims.clone(), sfs.data)
         .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
     let mask = ndarray::ArrayD::from_shape_vec(dims, sfs.mask)
         .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
-    d.set_item("data", data.into_pyarray_bound(py))?;
-    d.set_item("mask", mask.into_pyarray_bound(py))?;
+    d.set_item("data", data.into_pyarray(py))?;
+    d.set_item("mask", mask.into_pyarray(py))?;
     Ok(d)
 }
 
@@ -80,7 +80,7 @@ pub fn joint_sfs_py(
     populations: Vec<String>,
     compat: Option<&str>,
     auto_only: bool,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let compat = match compat {
         None => JointSfsCompat::CORRECTED,
         Some("admixtools2-2.0.10") => JointSfsCompat::ADMIXTOOLS2_2_0_10,
@@ -117,7 +117,7 @@ pub fn projected_sfs_py(
     folded: bool,
     auto_only: bool,
     pseudohaploid: &str,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let rule = ploidy_rule(pseudohaploid)?;
     let af = crate::compute(py, || {
         allele_frequencies(prefix, &populations, auto_only, rule)

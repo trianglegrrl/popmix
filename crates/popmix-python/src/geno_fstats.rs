@@ -158,23 +158,23 @@ where
     .map_err(to_py_err)
 }
 
-fn to_dict(py: Python<'_>, out: GenoStats) -> PyResult<PyObject> {
-    let d = PyDict::new_bound(py);
+fn to_dict(py: Python<'_>, out: GenoStats) -> PyResult<Py<PyAny>> {
+    let d = PyDict::new(py);
     let n_blocks = out.block_lengths.len();
     let col = |f: &dyn Fn(&popmix_core::GenoStat) -> f64| -> Vec<f64> {
         out.stats.iter().map(f).collect()
     };
-    d.set_item("est", col(&|s| s.est).into_pyarray_bound(py))?;
-    d.set_item("se", col(&|s| s.se).into_pyarray_bound(py))?;
-    d.set_item("z", col(&|s| s.z).into_pyarray_bound(py))?;
-    d.set_item("p", col(&|s| s.p).into_pyarray_bound(py))?;
+    d.set_item("est", col(&|s| s.est).into_pyarray(py))?;
+    d.set_item("se", col(&|s| s.se).into_pyarray(py))?;
+    d.set_item("z", col(&|s| s.z).into_pyarray(py))?;
+    d.set_item("p", col(&|s| s.p).into_pyarray(py))?;
     d.set_item(
         "n",
         out.stats
             .iter()
             .map(|s| s.n)
             .collect::<Vec<u64>>()
-            .into_pyarray_bound(py),
+            .into_pyarray(py),
     )?;
     let blocks =
         |f: &dyn Fn(&popmix_core::GenoStat) -> Vec<f64>| -> PyResult<Bound<'_, PyArray2<f64>>> {
@@ -182,7 +182,7 @@ fn to_dict(py: Python<'_>, out: GenoStats) -> PyResult<PyObject> {
             let flat: Vec<f64> = rows.into_iter().flatten().collect();
             let arr = ndarray::Array2::from_shape_vec((out.stats.len(), n_blocks), flat)
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
-            Ok(arr.into_pyarray_bound(py))
+            Ok(arr.into_pyarray(py))
         };
     d.set_item("block_num", blocks(&|s| s.blocks.num.clone())?)?;
     d.set_item("block_den", blocks(&|s| s.blocks.den.clone())?)?;
@@ -221,7 +221,7 @@ pub fn f4_from_geno(
     block_size: f64,
     auto_only: bool,
     pseudohaploid: &str,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let rule = ploidy_rule(pseudohaploid)?;
     let (source, snps, pops, _) = open_source_with(prefix, &populations, auto_only, rule)?;
     let mode = if f4mode { F4Mode::F4 } else { F4Mode::D };
@@ -261,7 +261,7 @@ pub fn f3_from_geno(
     block_size: f64,
     auto_only: bool,
     pseudohaploid: &str,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let rule = ploidy_rule(pseudohaploid)?;
     let (source, snps, pops, _) = open_source_with(prefix, &populations, auto_only, rule)?;
     let options = F3GenoOptions {

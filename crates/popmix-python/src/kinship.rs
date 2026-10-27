@@ -22,7 +22,7 @@ pub fn king(
     prefix: &str,
     populations: Vec<String>,
     auto_only: bool,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let (mut source, snps, _, samples) = open_source(prefix, &populations, auto_only)?;
     let n = samples.len();
     let pairs = crate::compute(py, || {
@@ -31,23 +31,23 @@ pub fn king(
         Ok::<_, popmix_core::PopmixError>(king_robust(&g))
     })
     .map_err(to_py_err)?;
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     let id = |k: usize| samples[k].id.clone();
     d.set_item("id1", pairs.iter().map(|p| id(p.i)).collect::<Vec<_>>())?;
     d.set_item("id2", pairs.iter().map(|p| id(p.j)).collect::<Vec<_>>())?;
     let count = |f: fn(&popmix_core::KingPair) -> u64| pairs.iter().map(f).collect::<Vec<u64>>();
-    d.set_item("nsnp", count(|p| p.nsnp).into_pyarray_bound(py))?;
-    d.set_item("hethet", count(|p| p.hethet).into_pyarray_bound(py))?;
-    d.set_item("ibs0", count(|p| p.ibs0).into_pyarray_bound(py))?;
-    d.set_item("het1_hom2", count(|p| p.het1_hom2).into_pyarray_bound(py))?;
-    d.set_item("het2_hom1", count(|p| p.het2_hom1).into_pyarray_bound(py))?;
+    d.set_item("nsnp", count(|p| p.nsnp).into_pyarray(py))?;
+    d.set_item("hethet", count(|p| p.hethet).into_pyarray(py))?;
+    d.set_item("ibs0", count(|p| p.ibs0).into_pyarray(py))?;
+    d.set_item("het1_hom2", count(|p| p.het1_hom2).into_pyarray(py))?;
+    d.set_item("het2_hom1", count(|p| p.het2_hom1).into_pyarray(py))?;
     d.set_item(
         "kinship",
         pairs
             .iter()
             .map(|p| p.kinship)
             .collect::<Vec<f64>>()
-            .into_pyarray_bound(py),
+            .into_pyarray(py),
     )?;
     Ok(d.into())
 }
@@ -75,7 +75,7 @@ pub fn read_kinship_py(
     thresholds: &str,
     compat: Option<&str>,
     auto_only: bool,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let bad = |msg: String| PyErr::new::<pyo3::exceptions::PyValueError, _>(msg);
     let norm = match (norm, norm_value) {
         (_, Some(v)) => ReadNorm::Value(v),
@@ -131,7 +131,7 @@ pub fn read_kinship_py(
         read_kinship(&g, &positions, &chroms, &options)
     })
     .map_err(to_py_err)?;
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     let p = &out.pairs;
     let id = |k: usize| samples[k].id.clone();
     let f =
@@ -145,22 +145,19 @@ pub fn read_kinship_py(
     )?;
     d.set_item(
         "z_upper",
-        f(&|x| x.z_upper.unwrap_or(f64::NAN)).into_pyarray_bound(py),
+        f(&|x| x.z_upper.unwrap_or(f64::NAN)).into_pyarray(py),
     )?;
     d.set_item(
         "z_lower",
-        f(&|x| x.z_lower.unwrap_or(f64::NAN)).into_pyarray_bound(py),
+        f(&|x| x.z_lower.unwrap_or(f64::NAN)).into_pyarray(py),
     )?;
-    d.set_item(
-        "normalized_p0",
-        f(&|x| x.normalized_p0).into_pyarray_bound(py),
-    )?;
+    d.set_item("normalized_p0", f(&|x| x.normalized_p0).into_pyarray(py))?;
     d.set_item(
         "normalized_p0_se",
-        f(&|x| x.normalized_p0_se).into_pyarray_bound(py),
+        f(&|x| x.normalized_p0_se).into_pyarray(py),
     )?;
-    d.set_item("p0", f(&|x| x.p0).into_pyarray_bound(py))?;
-    d.set_item("p0_se", f(&|x| x.p0_se).into_pyarray_bound(py))?;
+    d.set_item("p0", f(&|x| x.p0).into_pyarray(py))?;
+    d.set_item("p0_se", f(&|x| x.p0_se).into_pyarray(py))?;
     d.set_item(
         "first_degree_type",
         p.iter()
@@ -169,28 +166,19 @@ pub fn read_kinship_py(
     )?;
     d.set_item(
         "first_degree_windows_outside",
-        f(&|x| x.first_degree_windows_outside).into_pyarray_bound(py),
+        f(&|x| x.first_degree_windows_outside).into_pyarray(py),
     )?;
     d.set_item(
         "overlap_snps",
         p.iter()
             .map(|x| x.overlap_snps)
             .collect::<Vec<u64>>()
-            .into_pyarray_bound(py),
+            .into_pyarray(py),
     )?;
-    d.set_item(
-        "effective_snps",
-        f(&|x| x.effective_snps).into_pyarray_bound(py),
-    )?;
-    d.set_item("kinship", f(&|x| x.kinship).into_pyarray_bound(py))?;
-    d.set_item(
-        "kinship_ci_low",
-        f(&|x| x.kinship_ci.0).into_pyarray_bound(py),
-    )?;
-    d.set_item(
-        "kinship_ci_high",
-        f(&|x| x.kinship_ci.1).into_pyarray_bound(py),
-    )?;
+    d.set_item("effective_snps", f(&|x| x.effective_snps).into_pyarray(py))?;
+    d.set_item("kinship", f(&|x| x.kinship).into_pyarray(py))?;
+    d.set_item("kinship_ci_low", f(&|x| x.kinship_ci.0).into_pyarray(py))?;
+    d.set_item("kinship_ci_high", f(&|x| x.kinship_ci.1).into_pyarray(py))?;
     Ok(d.into())
 }
 

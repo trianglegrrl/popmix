@@ -2,6 +2,7 @@
 
 import subprocess
 import sys
+from pathlib import Path
 
 
 def _run(code: str) -> str:
@@ -15,8 +16,8 @@ def test_the_default_is_four_threads_and_asking_does_not_fix_it():
 
 
 def test_the_thread_count_can_change_after_a_computation():
-    code = ("import os\n"
-            "p = os.path.join(os.path.dirname(pm.__file__), '..', '..', 'tests', 'fixtures', 'small_eigenstrat')\n"
+    fixture = Path(__file__).parents[1] / "fixtures" / "small_eigenstrat"
+    code = (f"p = {str(fixture)!r}\n"
             "pm.init_threads(2)\n"
             "pm.extract_f2(p, [x for x, _ in pm.list_populations(p)][:3])\n"
             "print(pm.init_threads(3), pm.get_threads())")

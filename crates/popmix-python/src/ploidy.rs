@@ -85,7 +85,7 @@ pub(crate) fn mapped(prefix: &str) -> PyResult<Option<Mapped>> {
         }
     };
     Ok(
-        crate::mapped_input(prefix, format)?.map(|(file, samples, snps)| Mapped {
+        crate::convert::mapped_input(prefix, format)?.map(|(file, samples, snps)| Mapped {
             file,
             samples,
             snps,

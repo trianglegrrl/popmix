@@ -20,7 +20,7 @@ MAX_LINES = 800
 
 # over MAX_LINES on 2026-10-27, with their line counts then (TASKS.md I7)
 TOO_LONG = {
-    "crates/popmix-python/src/lib.rs": 3628,
+    "crates/popmix-python/src/lib.rs": 3152,
     "crates/popmix-core/src/rcompat/lbfgsb.rs": 2127,
     "python/popmix/cli/__init__.py": 1580,
     "crates/popmix-core/src/fstats/f2_blocks.rs": 1527,

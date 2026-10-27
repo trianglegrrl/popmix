@@ -7,8 +7,11 @@ import pytest
 
 yaml = pytest.importorskip("yaml")
 
-WORKFLOW = Path(__file__).resolve().parents[2] / ".github/workflows/release.yml"
-PYTHONS = ["3.9", "3.10", "3.11", "3.12", "3.13"]
+ROOT = Path(__file__).resolve().parents[2]
+WORKFLOW = ROOT / ".github/workflows/release.yml"
+# one stable-ABI (abi3) wheel per platform serves every Python from the
+# oldest supported on; each is installed and run on the oldest and newest
+OLDEST, NEWEST = "3.9", "3.14"
 
 
 @pytest.fixture(scope="module")
@@ -36,7 +39,7 @@ def test_runs_on_version_tags_and_by_hand(workflow: dict) -> None:
     assert "workflow_dispatch" in on
 
 
-def test_builds_wheels_for_each_platform_and_python(workflow: dict) -> None:
+def test_builds_one_wheel_for_each_platform(workflow: dict) -> None:
     jobs = workflow["jobs"]
     for name, runner in [("linux", "ubuntu"), ("macos", "macos"), ("windows", "windows")]:
         job = jobs[name]
@@ -45,8 +48,7 @@ def test_builds_wheels_for_each_platform_and_python(workflow: dict) -> None:
         assert builds, f"{name} does not build with maturin"
         args = builds[0]["with"]["args"]
         assert "--release" in args
-        for python in PYTHONS:
-            assert python in args, f"{name} misses Python {python}"
+        assert "-i " not in f"{args} ", f"{name}: an abi3 wheel is built once, not per interpreter"
     assert "manylinux" in _uses(jobs["linux"], "PyO3/maturin-action")[0]["with"]
     # Intel and ARM wheels: one each on Linux, one universal2 wheel on macOS
     targets = {m["target"] for m in jobs["linux"]["strategy"]["matrix"]["include"]}
@@ -57,18 +59,38 @@ def test_builds_wheels_for_each_platform_and_python(workflow: dict) -> None:
     assert _uses(jobs["sdist"], "PyO3/maturin-action")[0]["with"]["command"] == "sdist"
 
 
-def test_wheels_are_installed_and_run_before_publishing(workflow: dict) -> None:
+def test_the_wheel_uses_the_stable_abi_from_the_oldest_python() -> None:
+    maturin = (ROOT / "pyproject.toml").read_text().split("[tool.maturin]")[1].split("\n[")[0]
+    features = next(line for line in maturin.splitlines() if line.startswith("features"))
+    assert f'"pyo3/abi3-py{OLDEST.replace(".", "")}"' in features
+    project = (ROOT / "pyproject.toml").read_text()
+    assert f'requires-python = ">={OLDEST}"' in project
+
+
+CHECK = "bash .github/scripts/check-wheel.sh"
+
+
+def test_wheels_are_installed_and_run_on_the_oldest_and_newest_python(workflow: dict) -> None:
     for name in ("linux", "macos", "windows"):
-        runs = " ".join(s.get("run", "") for s in workflow["jobs"][name]["steps"])
-        assert "pip install" in runs and "popmix --version" in runs, name
+        steps = workflow["jobs"][name]["steps"]
+        build = next(i for i, s in enumerate(steps) if s.get("uses", "").startswith("PyO3/maturin-action"))
+        checked = [steps[i - 1]["with"]["python-version"] for i, s in enumerate(steps)
+                   if i > build and s.get("run", "").strip() == CHECK]
+        assert checked == [OLDEST, NEWEST], name
+        assert all(steps[i - 1].get("uses", "").startswith("actions/setup-python")
+                   for i, s in enumerate(steps) if s.get("run", "").strip() == CHECK), name
 
 
-def test_wheels_ship_the_agent_skill(workflow: dict) -> None:
+def test_the_check_installs_the_wheel_runs_it_and_finds_the_skill() -> None:
     # the skill is package data (python/popmix/skill/): the built wheel must hold it
-    for name in ("linux", "macos", "windows"):
-        runs = " ".join(s.get("run", "") for s in workflow["jobs"][name]["steps"])
-        assert "popmix install-skill --dest skill-check" in runs, name
-        assert "test -f skill-check/commands/qpadm.md" in runs, name
+    script = (ROOT / ".github/scripts/check-wheel.sh").read_text()
+    for line in ("pip install popmix --no-index --find-links dist --no-deps",
+                 "pip install popmix --find-links dist",
+                 "popmix --version",
+                 "popmix install-skill --dest",
+                 "commands/qpadm.md",
+                 "import popmix, popmix._core"):
+        assert line in script, line
 
 
 def test_publishes_from_tags_with_trusted_publishing(workflow: dict) -> None:

@@ -9,7 +9,7 @@ use crate::geno_fstats::{open_source_filtered, rows_of};
 use crate::to_py_err;
 
 fn bins_dict<'py>(py: Python<'py>, b: &RolloffBins) -> PyResult<Bound<'py, PyDict>> {
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     d.set_item("d", b.d.clone())?;
     d.set_item("zscore", b.zscore.clone())?;
     d.set_item("regression", b.regression.clone())?;
@@ -45,7 +45,7 @@ pub fn rolloff_py(
     chromosomes: Option<Vec<String>>,
     lval: f64,
     hval: f64,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     if refs.len() != 2 {
         return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
             "rolloff takes two reference populations, got {}",
@@ -113,11 +113,11 @@ pub fn rolloff_py(
         .collect();
     let jack = popmix_core::dates::weighted_jackknife(fit.decay, &blocks).map_err(to_py_err)?;
 
-    let d = PyDict::new_bound(py);
+    let d = PyDict::new(py);
     d.set_item("chromosomes", out.chromosomes.clone())?;
     d.set_item("n_snps_used", out.n_snps_used)?;
     d.set_item("bins", bins_dict(py, &out.bins)?)?;
-    let jl = PyList::empty_bound(py);
+    let jl = PyList::empty(py);
     for b in &out.jackknife {
         jl.append(bins_dict(py, b)?)?;
     }

@@ -606,8 +606,13 @@ thread count.
   `publish = false` on popmix-python, `rust-version` on every crate. RS
 - [ ] **L2. Unused dependencies:** `ordered-float`; `proptest` and
   `criterion` unless F12/B6 use them. RS
-- [ ] **L3. PyO3 upgrade** (0.22 `*_bound` API deprecated from 0.23); abi3
-  if rust-numpy allows. RS
+- [x] **L3. PyO3 upgrade** (0.22 `*_bound` API deprecated from 0.23); abi3
+  if rust-numpy allows. RS *Done in COMMIT:* pyo3 0.29.3 and numpy 0.29.0
+  (0.30 was under two weeks old; a small step before release); one abi3
+  wheel per platform for CPython 3.9 on, checked in release.yml on 3.9 and
+  3.14 (`.github/scripts/check-wheel.sh`); `gil_used = true` until popmix is
+  tested on free-threaded Python. `convertf`/`merge` moved to `convert.rs`
+  and VCF input to `vcf_input.rs` (`lib.rs` 3,628 to 3,152 lines, I7).
 - [ ] **L4. Release:** create `trianglegrrl/popmix`, push, run `release.yml`
   by hand, tag `v1.0.0` (PyPI trusted publisher is configured).
 - [ ] **L5. Bioconda:** recipe from the PyPI sdist and sha256, local build,

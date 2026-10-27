@@ -6,6 +6,7 @@
 #![allow(clippy::useless_conversion)]
 
 mod admixture;
+mod convert;
 mod geno_fstats;
 mod kinship;
 mod pca;
@@ -14,23 +15,23 @@ mod qpadm_models;
 mod rcompat;
 mod rolloff;
 mod sfs;
+mod vcf_input;
 
 use std::collections::{BTreeMap, HashMap};
 
 use numpy::{IntoPyArray, PyArray1, PyArray2};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+use pyo3::IntoPyObjectExt;
 
-use popmix_core::{
-    AlleleFrequencies, BlockDefinition, F2Blocks, GenotypeMatrix, Ploidy, Sample, Snp,
-};
+use convert::{convertf, merge};
+use popmix_core::{AlleleFrequencies, BlockDefinition, F2Blocks, GenotypeMatrix, Ploidy, Sample};
 use popmix_io::tgeno::{is_tgeno_format, TgenoReader};
 use popmix_io::{
-    is_packed_format, merge::merge_genotypes, read_f2_blocks, write_ancestrymap, write_eigenstrat,
-    write_f2_blocks, write_packedancestrymap, write_packedped, write_ped, write_tgeno,
-    AncestryMapReader, EigenstratReader, GenoFormat, PackedAncestryMapReader, PedReader,
-    PlinkReader, VcfReader,
+    is_packed_format, read_f2_blocks, write_f2_blocks, EigenstratReader, GenoFormat,
+    PackedAncestryMapReader, PedReader, PlinkReader,
 };
+use vcf_input::open_vcf;
 
 // ============================================================================
 // Error conversion helper
@@ -72,29 +73,6 @@ fn to_py_err(e: popmix_core::PopmixError) -> PyErr {
         | E::Numerical(_)
         | E::LinAlg { .. } => PyRuntimeError::new_err(e.to_string()),
     }
-}
-
-/// Open a VCF, warning (UserWarning) about the records skipped because they
-/// are not biallelic SNPs: popmix's formats hold two single-base alleles.
-fn open_vcf(path: &str) -> PyResult<VcfReader> {
-    let reader = VcfReader::new(path).map_err(to_py_err)?;
-    let k = reader.skipped();
-    if k.total() > 0 {
-        Python::with_gil(|py| {
-            PyErr::warn_bound(
-                py,
-                &py.get_type_bound::<pyo3::exceptions::PyUserWarning>(),
-                &format!(
-                    "{path}: skipped {} records that are not biallelic SNPs ({} multiallelic, {} indels or symbolic alleles)",
-                    k.total(),
-                    k.multiallelic,
-                    k.not_snp
-                ),
-                1,
-            )
-        })?;
-    }
-    Ok(reader)
 }
 
 /// An error naming any of `pops` that is not in the f2 blocks.
@@ -145,7 +123,7 @@ fn init_threads(threads: Option<usize>) -> PyResult<bool> {
 
 /// Run `f` without the GIL on popmix's thread pool (`init_threads`).
 pub(crate) fn compute<T: Send>(py: Python<'_>, f: impl FnOnce() -> T + Send) -> T {
-    py.allow_threads(|| popmix_core::threading::install(f))
+    py.detach(|| popmix_core::threading::install(f))
 }
 
 /// Get the current number of threads.
@@ -165,7 +143,7 @@ fn version() -> &'static str {
 // ============================================================================
 
 /// A sample (individual) with metadata.
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 struct PySample {
     #[pyo3(get)]
@@ -194,7 +172,7 @@ impl From<&popmix_core::Sample> for PySample {
 // ============================================================================
 
 /// A SNP (variant) with metadata.
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 struct PySnp {
     #[pyo3(get)]
@@ -281,7 +259,7 @@ impl PyGenotypeMatrix {
     ///     - 3 = Missing
     fn to_numpy<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<u8>> {
         // one copy of the contiguous matrix
-        PyArray2::from_array_bound(py, &self.inner.data())
+        PyArray2::from_array(py, &self.inner.data())
     }
 
     /// Compute allele frequencies per population.
@@ -349,7 +327,7 @@ impl PyAlleleFrequencies {
     ///     2D numpy array of shape (n_snps, n_populations) with frequency values.
     ///     NaN indicates missing data.
     fn to_numpy<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
-        self.inner.frequencies.clone().into_pyarray_bound(py)
+        self.inner.frequencies.clone().into_pyarray(py)
     }
 
     /// Get observation counts as a numpy array.
@@ -357,7 +335,7 @@ impl PyAlleleFrequencies {
     /// Returns:
     ///     2D numpy array of shape (n_snps, n_populations) with observation counts.
     fn counts_to_numpy<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<u32>> {
-        self.inner.counts.clone().into_pyarray_bound(py)
+        self.inner.counts.clone().into_pyarray(py)
     }
 
     /// Get allele frequency for a specific SNP and population.
@@ -607,486 +585,6 @@ fn read_f2(py: Python<'_>, path: &str) -> PyResult<PyF2Blocks> {
     })
 }
 
-/// Convert genotype data between file formats.
-///
-/// Supported formats:
-/// - ancestrymap: Sparse text format (.ancestrymapgeno, .snp, .ind)
-/// - eigenstrat: Dense text format (.geno, .snp, .ind)
-/// - packedancestrymap: Binary format (.geno, .snp, .ind)
-/// - plink/packedped: Binary PLINK format (.bed, .bim, .fam)
-/// - ped: Text PLINK format (.ped, .map, .pedind)
-///
-/// Args:
-///     input_prefix: Path prefix for the input dataset
-///     output_prefix: Path prefix for the output dataset
-///     output_format: Output format name (see above)
-///     input_format: Optional input format (auto-detected if not specified)
-///
-/// Returns:
-///     Dictionary with conversion info (n_samples, n_snps, output_format)
-#[pyfunction]
-#[pyo3(signature = (input_prefix, output_prefix, output_format, input_format=None))]
-fn convertf(
-    py: Python<'_>,
-    input_prefix: &str,
-    output_prefix: &str,
-    output_format: &str,
-    input_format: Option<&str>,
-) -> PyResult<HashMap<String, PyObject>> {
-    let (n_samples, n_snps, in_format, out_format) = compute(py, || {
-        convertf_files(input_prefix, output_prefix, output_format, input_format)
-    })?;
-    let mut result: HashMap<String, PyObject> = HashMap::new();
-    result.insert("n_samples".to_string(), n_samples.to_object(py));
-    result.insert("n_snps".to_string(), n_snps.to_object(py));
-    result.insert("input_format".to_string(), in_format.name().to_object(py));
-    result.insert("output_format".to_string(), out_format.name().to_object(py));
-    Ok(result)
-}
-
-/// A genotype file mapped to be read in place, with its samples and SNPs.
-pub(crate) type MappedInput = (popmix_io::SnpMajor, Vec<Sample>, Vec<Snp>);
-
-/// The VCF file of `prefix`: the path itself, or with .vcf.gz or .vcf added.
-fn vcf_path(prefix: &str) -> Option<String> {
-    use std::path::Path;
-    if (prefix.ends_with(".vcf") || prefix.ends_with(".vcf.gz")) && Path::new(prefix).exists() {
-        return Some(prefix.to_string());
-    }
-    [".vcf.gz", ".vcf"]
-        .iter()
-        .map(|e| format!("{prefix}{e}"))
-        .find(|p| Path::new(p).exists())
-}
-
-/// A packed .geno, PLINK .bed or text EIGENSTRAT input, mapped to be read in
-/// place, or a VCF read once into packed genotypes in memory; None for the
-/// other formats, and for text whose lines are not all one character per
-/// sample.
-pub(crate) fn mapped_input(prefix: &str, format: GenoFormat) -> PyResult<Option<MappedInput>> {
-    use popmix_io::SnpMajor;
-    Ok(match format {
-        GenoFormat::Vcf => match vcf_path(prefix) {
-            Some(path) => {
-                let (samples, snps, file) = open_vcf(&path)?.into_snp_major();
-                Some((file, samples, snps))
-            }
-            None => None,
-        },
-        GenoFormat::Eigenstrat => {
-            let samples = popmix_io::eigenstrat::read_ind_file(&format!("{prefix}.ind"))
-                .map_err(to_py_err)?;
-            let snps = popmix_io::eigenstrat::read_snp_file(&format!("{prefix}.snp"))
-                .map_err(to_py_err)?;
-            SnpMajor::open_text(&format!("{prefix}.geno"), samples.len(), snps.len())
-                .map_err(to_py_err)?
-                .map(|file| (file, samples, snps))
-        }
-        GenoFormat::PackedAncestrymap => {
-            let samples = popmix_io::eigenstrat::read_ind_file(&format!("{prefix}.ind"))
-                .map_err(to_py_err)?;
-            let snps = popmix_io::eigenstrat::read_snp_file(&format!("{prefix}.snp"))
-                .map_err(to_py_err)?;
-            let file = SnpMajor::open_packed(&format!("{prefix}.geno"), samples.len(), snps.len())
-                .map_err(to_py_err)?;
-            Some((file, samples, snps))
-        }
-        GenoFormat::PackedPed => {
-            let (samples, snps) = PlinkReader::new(prefix).map_err(to_py_err)?.into_parts();
-            let file = SnpMajor::open_bed(&format!("{prefix}.bed"), samples.len(), snps.len())
-                .map_err(to_py_err)?;
-            Some((file, samples, snps))
-        }
-        _ => None,
-    })
-}
-
-/// Can `format` be written from a file read in place: one SNP at a time, or
-/// (PED, TGENO) a block of samples at a time?
-fn written_streamed(format: GenoFormat) -> bool {
-    written_by_rows(format) || by_samples(format)
-}
-
-/// Is `format` stored sample by sample (written by [`write_samples`])?
-fn by_samples(format: GenoFormat) -> bool {
-    matches!(format, GenoFormat::Ped | GenoFormat::Tgeno)
-}
-
-/// Write PED or TGENO from genotypes read a block of samples at a time.
-fn write_samples(
-    format: GenoFormat,
-    output_prefix: &str,
-    samples: &[Sample],
-    snps: &[Snp],
-    genotypes: &dyn popmix_io::SampleGenotypes,
-) -> PyResult<()> {
-    if format == GenoFormat::Ped {
-        popmix_io::write_ped_samples(output_prefix, samples, snps, genotypes)
-    } else {
-        popmix_io::write_tgeno_samples(output_prefix, samples, snps, genotypes)
-    }
-    .map_err(to_py_err)
-}
-
-/// Can `format` be written one SNP at a time?
-fn written_by_rows(format: GenoFormat) -> bool {
-    matches!(
-        format,
-        GenoFormat::Eigenstrat
-            | GenoFormat::Ancestrymap
-            | GenoFormat::PackedAncestrymap
-            | GenoFormat::PackedPed
-    )
-}
-
-/// Write `rows` (one per SNP of `snps`) in a format of [`written_by_rows`].
-fn write_rows(
-    format: GenoFormat,
-    output_prefix: &str,
-    samples: &[Sample],
-    snps: &[Snp],
-    rows: &mut dyn popmix_core::GenotypeRows,
-) -> PyResult<()> {
-    use popmix_io::{
-        write_ancestrymap_rows, write_eigenstrat_rows, write_packedancestrymap_rows,
-        write_packedped_rows,
-    };
-    let out = std::path::Path::new(output_prefix);
-    match format {
-        GenoFormat::Eigenstrat => write_eigenstrat_rows(out, samples, snps, rows),
-        GenoFormat::Ancestrymap => write_ancestrymap_rows(out, samples, snps, rows),
-        GenoFormat::PackedAncestrymap => write_packedancestrymap_rows(out, samples, snps, rows),
-        GenoFormat::PackedPed => write_packedped_rows(out, samples, snps, rows),
-        other => {
-            return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-                "{} is not written SNP by SNP",
-                other.name()
-            )))
-        }
-    }
-    .map_err(to_py_err)
-}
-
-/// `convertf` one SNP at a time, when the input is read in place and the
-/// output written SNP by SNP: the sample and SNP counts, or None.
-fn convertf_streamed(
-    input_prefix: &str,
-    output_prefix: &str,
-    in_format: GenoFormat,
-    out_format: GenoFormat,
-) -> PyResult<Option<(usize, usize)>> {
-    if !written_streamed(out_format) {
-        return Ok(None);
-    }
-    let Some((file, samples, snps)) = mapped_input(input_prefix, in_format)? else {
-        return Ok(None);
-    };
-    if by_samples(out_format) {
-        write_samples(out_format, output_prefix, &samples, &snps, &file)?;
-    } else {
-        let mut rows = popmix_io::SnpMajorRows::from_file(
-            file,
-            vec![true; snps.len()],
-            (0..samples.len()).collect(),
-        )
-        .map_err(to_py_err)?;
-        write_rows(out_format, output_prefix, &samples, &snps, &mut rows)?;
-    }
-    Ok(Some((samples.len(), snps.len())))
-}
-
-/// `convertf`'s work: the sample and SNP counts and both formats.
-fn convertf_files(
-    input_prefix: &str,
-    output_prefix: &str,
-    output_format: &str,
-    input_format: Option<&str>,
-) -> PyResult<(usize, usize, GenoFormat, GenoFormat)> {
-    use std::path::Path;
-
-    // Detect or parse input format
-    let in_format = match input_format {
-        Some(fmt) => GenoFormat::from_str(fmt).map_err(to_py_err)?,
-        None => GenoFormat::detect(input_prefix).map_err(to_py_err)?,
-    };
-
-    // Parse output format
-    let out_format = GenoFormat::from_str(output_format).map_err(to_py_err)?;
-
-    // From a packed .geno or a PLINK .bed to a format written SNP by SNP:
-    // stream, without holding the genotypes in memory
-    if let Some(done) = convertf_streamed(input_prefix, output_prefix, in_format, out_format)? {
-        return Ok((done.0, done.1, in_format, out_format));
-    }
-
-    // Read the input data
-    let geno = match in_format {
-        GenoFormat::PackedPed => {
-            let reader = PlinkReader::new(input_prefix).map_err(to_py_err)?;
-            reader.read_all().map_err(to_py_err)?
-        }
-        GenoFormat::PackedAncestrymap => {
-            let reader = PackedAncestryMapReader::new(input_prefix).map_err(to_py_err)?;
-            reader.read_all().map_err(to_py_err)?
-        }
-        GenoFormat::Eigenstrat => {
-            let reader = EigenstratReader::new(input_prefix).map_err(to_py_err)?;
-            reader.read_all().map_err(to_py_err)?
-        }
-        GenoFormat::Ped => {
-            let reader = PedReader::new(input_prefix).map_err(to_py_err)?;
-            reader.read_all().map_err(to_py_err)?
-        }
-        GenoFormat::Ancestrymap => {
-            let reader = AncestryMapReader::new(input_prefix).map_err(to_py_err)?;
-            reader.read_all().map_err(to_py_err)?
-        }
-        GenoFormat::Vcf => {
-            let reader = open_vcf(input_prefix)?;
-            reader.read_all().map_err(to_py_err)?
-        }
-        GenoFormat::Tgeno => TgenoReader::new(input_prefix)
-            .and_then(|r| r.read_all())
-            .map_err(to_py_err)?,
-    };
-
-    let n_samples = geno.n_samples();
-    let n_snps = geno.n_snps();
-
-    // Write the output data
-    let out_path = Path::new(output_prefix);
-    match out_format {
-        GenoFormat::Ancestrymap => {
-            write_ancestrymap(out_path, &geno).map_err(to_py_err)?;
-        }
-        GenoFormat::Eigenstrat => {
-            write_eigenstrat(out_path, &geno).map_err(to_py_err)?;
-        }
-        GenoFormat::PackedAncestrymap => {
-            write_packedancestrymap(out_path, &geno).map_err(to_py_err)?;
-        }
-        GenoFormat::PackedPed => {
-            write_packedped(out_path, &geno).map_err(to_py_err)?;
-        }
-        GenoFormat::Ped => {
-            write_ped(out_path, &geno).map_err(to_py_err)?;
-        }
-        GenoFormat::Tgeno => {
-            write_tgeno(out_path, &geno).map_err(to_py_err)?;
-        }
-        GenoFormat::Vcf => {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "VCF output format is not supported. Use plink, eigenstrat, or packedancestrymap.",
-            ));
-        }
-    }
-
-    Ok((n_samples, n_snps, in_format, out_format))
-}
-
-/// Merge two genotype datasets.
-///
-/// Merges two genotype files by SNP intersection. SNPs are matched by
-/// chromosome and position (and by name where several share one). Alleles
-/// are reconciled as AdmixTools mergeit does: swapped alleles are recoded,
-/// a SNP on the other strand is complemented, the unknown allele of a
-/// monomorphic SNP is filled in, and A/T, C/G and third-allele SNPs are left
-/// out and counted.
-///
-/// Args:
-///     file_a: Path prefix for first dataset
-///     file_b: Path prefix for second dataset
-///     output: Path prefix for output dataset
-///     output_format: Output format ("plink", "eigenstrat", "packedancestrymap", etc.)
-///     input_format_a: Optional input format for file_a (auto-detected if not specified)
-///     input_format_b: Optional input format for file_b (auto-detected if not specified)
-///
-/// Returns:
-///     Dictionary with merge statistics:
-///     - snps_only_a: SNPs only in file A
-///     - snps_only_b: SNPs only in file B
-///     - snps_identical: SNPs with identical alleles
-///     - snps_flipped: SNPs with flipped alleles (recoded)
-///     - snps_strand_ambiguous: SNPs skipped due to A/T or C/G ambiguity
-///     - snps_mismatch: SNPs with mismatched alleles
-///     - samples_total: Total samples in merged output
-///     - snps_merged: Total SNPs in merged output
-#[pyfunction]
-#[pyo3(signature = (file_a, file_b, output, output_format, input_format_a=None, input_format_b=None))]
-fn merge(
-    py: Python<'_>,
-    file_a: &str,
-    file_b: &str,
-    output: &str,
-    output_format: &str,
-    input_format_a: Option<&str>,
-    input_format_b: Option<&str>,
-) -> PyResult<HashMap<String, PyObject>> {
-    use std::path::Path;
-    let work = || -> PyResult<_> {
-        // Helper to read genotypes from a prefix
-        fn read_geno(prefix: &str, format: Option<&str>) -> PyResult<GenotypeMatrix> {
-            let fmt = match format {
-                Some(f) => GenoFormat::from_str(f).map_err(to_py_err)?,
-                None => GenoFormat::detect(prefix).map_err(to_py_err)?,
-            };
-
-            match fmt {
-                GenoFormat::PackedPed => {
-                    let reader = PlinkReader::new(prefix).map_err(to_py_err)?;
-                    reader.read_all().map_err(to_py_err)
-                }
-                GenoFormat::PackedAncestrymap => {
-                    let reader = PackedAncestryMapReader::new(prefix).map_err(to_py_err)?;
-                    reader.read_all().map_err(to_py_err)
-                }
-                GenoFormat::Eigenstrat => {
-                    let reader = EigenstratReader::new(prefix).map_err(to_py_err)?;
-                    reader.read_all().map_err(to_py_err)
-                }
-                GenoFormat::Ped => {
-                    let reader = PedReader::new(prefix).map_err(to_py_err)?;
-                    reader.read_all().map_err(to_py_err)
-                }
-                GenoFormat::Ancestrymap => {
-                    let reader = AncestryMapReader::new(prefix).map_err(to_py_err)?;
-                    reader.read_all().map_err(to_py_err)
-                }
-                GenoFormat::Vcf => {
-                    let reader = open_vcf(prefix)?;
-                    reader.read_all().map_err(to_py_err)
-                }
-                GenoFormat::Tgeno => TgenoReader::new(prefix)
-                    .and_then(|r| r.read_all())
-                    .map_err(to_py_err),
-            }
-        }
-
-        let format_of = |prefix: &str, format: Option<&str>| match format {
-            Some(f) => GenoFormat::from_str(f).map_err(to_py_err),
-            None => GenoFormat::detect(prefix).map_err(to_py_err),
-        };
-        let out_format = GenoFormat::from_str(output_format).map_err(to_py_err)?;
-
-        // Both inputs read in place and an output written SNP by SNP: stream,
-        // without holding either file's genotypes in memory
-        if written_streamed(out_format) {
-            let in_a = mapped_input(file_a, format_of(file_a, input_format_a)?)?;
-            let in_b = mapped_input(file_b, format_of(file_b, input_format_b)?)?;
-            if let (Some((fa, samples_a, snps_a)), Some((fb, samples_b, snps_b))) = (in_a, in_b) {
-                let (merged_snps, samples, stats) =
-                    popmix_io::merge::plan_merge(&samples_a, &snps_a, &samples_b, &snps_b)
-                        .map_err(to_py_err)?;
-                let snps: Vec<Snp> = merged_snps.iter().map(|m| m.snp.clone()).collect();
-                let mut rows = popmix_io::merge::MergedRows::new(&fa, &fb, &merged_snps);
-                if by_samples(out_format) {
-                    write_samples(out_format, output, &samples, &snps, &rows)?;
-                } else {
-                    write_rows(out_format, output, &samples, &snps, &mut rows)?;
-                }
-                return Ok((
-                    snps_a.len(),
-                    snps_b.len(),
-                    samples_a.len(),
-                    samples_b.len(),
-                    snps.len(),
-                    samples.len(),
-                    stats,
-                ));
-            }
-        }
-
-        // Read both input files
-        let geno_a = read_geno(file_a, input_format_a)?;
-        let geno_b = read_geno(file_b, input_format_b)?;
-
-        // Capture input stats before merging
-        let snps_a = geno_a.n_snps();
-        let snps_b = geno_b.n_snps();
-        let samples_a = geno_a.n_samples();
-        let samples_b = geno_b.n_samples();
-
-        // Merge
-        let (merged, stats) = merge_genotypes(&geno_a, &geno_b).map_err(to_py_err)?;
-
-        // Write output
-        let out_path = Path::new(output);
-
-        match out_format {
-            GenoFormat::Ancestrymap => {
-                write_ancestrymap(out_path, &merged).map_err(to_py_err)?;
-            }
-            GenoFormat::Eigenstrat => {
-                write_eigenstrat(out_path, &merged).map_err(to_py_err)?;
-            }
-            GenoFormat::PackedAncestrymap => {
-                write_packedancestrymap(out_path, &merged).map_err(to_py_err)?;
-            }
-            GenoFormat::PackedPed => {
-                write_packedped(out_path, &merged).map_err(to_py_err)?;
-            }
-            GenoFormat::Ped => {
-                write_ped(out_path, &merged).map_err(to_py_err)?;
-            }
-            GenoFormat::Tgeno => {
-                write_tgeno(out_path, &merged).map_err(to_py_err)?;
-            }
-            GenoFormat::Vcf => {
-                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "VCF output format is not supported. Use plink, eigenstrat, or packedancestrymap.",
-            ));
-            }
-        }
-
-        Ok((
-            snps_a,
-            snps_b,
-            samples_a,
-            samples_b,
-            merged.n_snps(),
-            merged.n_samples(),
-            stats,
-        ))
-    };
-    let (snps_a, snps_b, samples_a, samples_b, snps_merged, samples_merged, stats) =
-        compute(py, work)?;
-
-    // Return stats
-    {
-        let mut result: HashMap<String, PyObject> = HashMap::new();
-        // Input file stats
-        result.insert("snps_a".to_string(), snps_a.to_object(py));
-        result.insert("snps_b".to_string(), snps_b.to_object(py));
-        result.insert("samples_a".to_string(), samples_a.to_object(py));
-        result.insert("samples_b".to_string(), samples_b.to_object(py));
-        // Merge stats
-        result.insert("snps_merged".to_string(), snps_merged.to_object(py));
-        result.insert("samples_merged".to_string(), samples_merged.to_object(py));
-        result.insert(
-            "snps_identical".to_string(),
-            stats.snps_identical.to_object(py),
-        );
-        result.insert("flipped_snps".to_string(), stats.snps_flipped.to_object(py));
-        result.insert(
-            "strand_ambiguous_snps".to_string(),
-            stats.snps_strand_ambiguous.to_object(py),
-        );
-        result.insert(
-            "snps_mismatch".to_string(),
-            stats.snps_mismatch.to_object(py),
-        );
-        result.insert(
-            "other_strand_snps".to_string(),
-            stats.snps_other_strand.to_object(py),
-        );
-        result.insert(
-            "duplicate_position_snps".to_string(),
-            stats.snps_duplicate_position.to_object(py),
-        );
-        Ok(result)
-    }
-}
-
 /// Detect the genotype file format at a given prefix.
 ///
 /// Args:
@@ -1108,18 +606,21 @@ fn detect_format(prefix: &str) -> PyResult<String> {
 /// Returns:
 ///     Dictionary with keys: format, n_samples, n_snps, populations
 #[pyfunction]
-fn dataset_info(prefix: &str) -> PyResult<HashMap<String, PyObject>> {
+fn dataset_info(prefix: &str) -> PyResult<HashMap<String, Py<PyAny>>> {
     use std::path::Path;
 
-    Python::with_gil(|py| {
-        let mut info: HashMap<String, PyObject> = HashMap::new();
+    Python::attach(|py| {
+        let mut info: HashMap<String, Py<PyAny>> = HashMap::new();
 
         // Check for VCF format (full path with extension)
         if (prefix.ends_with(".vcf") || prefix.ends_with(".vcf.gz")) && Path::new(prefix).exists() {
             let reader = open_vcf(prefix)?;
-            info.insert("format".to_string(), "vcf".to_object(py));
-            info.insert("n_samples".to_string(), reader.num_samples().to_object(py));
-            info.insert("n_snps".to_string(), reader.num_snps().to_object(py));
+            info.insert("format".to_string(), "vcf".into_py_any(py)?);
+            info.insert(
+                "n_samples".to_string(),
+                reader.num_samples().into_py_any(py)?,
+            );
+            info.insert("n_snps".to_string(), reader.num_snps().into_py_any(py)?);
 
             let pops: Vec<String> = reader
                 .samples()
@@ -1128,7 +629,7 @@ fn dataset_info(prefix: &str) -> PyResult<HashMap<String, PyObject>> {
                 .collect::<std::collections::HashSet<_>>()
                 .into_iter()
                 .collect();
-            info.insert("populations".to_string(), pops.to_object(py));
+            info.insert("populations".to_string(), pops.into_py_any(py)?);
             return Ok(info);
         }
 
@@ -1136,9 +637,12 @@ fn dataset_info(prefix: &str) -> PyResult<HashMap<String, PyObject>> {
         let vcf_gz_path = format!("{}.vcf.gz", prefix);
         if Path::new(&vcf_gz_path).exists() {
             let reader = open_vcf(&vcf_gz_path)?;
-            info.insert("format".to_string(), "vcf".to_object(py));
-            info.insert("n_samples".to_string(), reader.num_samples().to_object(py));
-            info.insert("n_snps".to_string(), reader.num_snps().to_object(py));
+            info.insert("format".to_string(), "vcf".into_py_any(py)?);
+            info.insert(
+                "n_samples".to_string(),
+                reader.num_samples().into_py_any(py)?,
+            );
+            info.insert("n_snps".to_string(), reader.num_snps().into_py_any(py)?);
 
             let pops: Vec<String> = reader
                 .samples()
@@ -1147,15 +651,18 @@ fn dataset_info(prefix: &str) -> PyResult<HashMap<String, PyObject>> {
                 .collect::<std::collections::HashSet<_>>()
                 .into_iter()
                 .collect();
-            info.insert("populations".to_string(), pops.to_object(py));
+            info.insert("populations".to_string(), pops.into_py_any(py)?);
             return Ok(info);
         }
         let vcf_path = format!("{}.vcf", prefix);
         if Path::new(&vcf_path).exists() {
             let reader = open_vcf(&vcf_path)?;
-            info.insert("format".to_string(), "vcf".to_object(py));
-            info.insert("n_samples".to_string(), reader.num_samples().to_object(py));
-            info.insert("n_snps".to_string(), reader.num_snps().to_object(py));
+            info.insert("format".to_string(), "vcf".into_py_any(py)?);
+            info.insert(
+                "n_samples".to_string(),
+                reader.num_samples().into_py_any(py)?,
+            );
+            info.insert("n_snps".to_string(), reader.num_snps().into_py_any(py)?);
 
             let pops: Vec<String> = reader
                 .samples()
@@ -1164,16 +671,19 @@ fn dataset_info(prefix: &str) -> PyResult<HashMap<String, PyObject>> {
                 .collect::<std::collections::HashSet<_>>()
                 .into_iter()
                 .collect();
-            info.insert("populations".to_string(), pops.to_object(py));
+            info.insert("populations".to_string(), pops.into_py_any(py)?);
             return Ok(info);
         }
 
         // Check for PLINK format
         if Path::new(&format!("{}.bed", prefix)).exists() {
             let reader = PlinkReader::new(prefix).map_err(to_py_err)?;
-            info.insert("format".to_string(), "plink".to_object(py));
-            info.insert("n_samples".to_string(), reader.num_samples().to_object(py));
-            info.insert("n_snps".to_string(), reader.num_snps().to_object(py));
+            info.insert("format".to_string(), "plink".into_py_any(py)?);
+            info.insert(
+                "n_samples".to_string(),
+                reader.num_samples().into_py_any(py)?,
+            );
+            info.insert("n_snps".to_string(), reader.num_snps().into_py_any(py)?);
 
             let pops: Vec<String> = reader
                 .samples()
@@ -1182,7 +692,7 @@ fn dataset_info(prefix: &str) -> PyResult<HashMap<String, PyObject>> {
                 .collect::<std::collections::HashSet<_>>()
                 .into_iter()
                 .collect();
-            info.insert("populations".to_string(), pops.to_object(py));
+            info.insert("populations".to_string(), pops.into_py_any(py)?);
             return Ok(info);
         }
 
@@ -1191,12 +701,12 @@ fn dataset_info(prefix: &str) -> PyResult<HashMap<String, PyObject>> {
         if Path::new(&geno_path).exists() {
             if is_tgeno_format(&geno_path).map_err(to_py_err)? {
                 let reader = TgenoReader::new(prefix).map_err(to_py_err)?;
-                info.insert("format".to_string(), "tgeno".to_object(py));
+                info.insert("format".to_string(), "tgeno".into_py_any(py)?);
                 info.insert(
                     "n_samples".to_string(),
-                    reader.samples().len().to_object(py),
+                    reader.samples().len().into_py_any(py)?,
                 );
-                info.insert("n_snps".to_string(), reader.snps().len().to_object(py));
+                info.insert("n_snps".to_string(), reader.snps().len().into_py_any(py)?);
                 let pops: Vec<String> = reader
                     .samples()
                     .iter()
@@ -1204,14 +714,17 @@ fn dataset_info(prefix: &str) -> PyResult<HashMap<String, PyObject>> {
                     .collect::<std::collections::HashSet<_>>()
                     .into_iter()
                     .collect();
-                info.insert("populations".to_string(), pops.to_object(py));
+                info.insert("populations".to_string(), pops.into_py_any(py)?);
                 return Ok(info);
             }
             if is_packed_format(&geno_path).map_err(to_py_err)? {
                 let reader = PackedAncestryMapReader::new(prefix).map_err(to_py_err)?;
-                info.insert("format".to_string(), "packedancestrymap".to_object(py));
-                info.insert("n_samples".to_string(), reader.num_samples().to_object(py));
-                info.insert("n_snps".to_string(), reader.num_snps().to_object(py));
+                info.insert("format".to_string(), "packedancestrymap".into_py_any(py)?);
+                info.insert(
+                    "n_samples".to_string(),
+                    reader.num_samples().into_py_any(py)?,
+                );
+                info.insert("n_snps".to_string(), reader.num_snps().into_py_any(py)?);
 
                 let pops: Vec<String> = reader
                     .samples()
@@ -1220,12 +733,15 @@ fn dataset_info(prefix: &str) -> PyResult<HashMap<String, PyObject>> {
                     .collect::<std::collections::HashSet<_>>()
                     .into_iter()
                     .collect();
-                info.insert("populations".to_string(), pops.to_object(py));
+                info.insert("populations".to_string(), pops.into_py_any(py)?);
             } else {
                 let reader = EigenstratReader::new(prefix).map_err(to_py_err)?;
-                info.insert("format".to_string(), "eigenstrat".to_object(py));
-                info.insert("n_samples".to_string(), reader.num_samples().to_object(py));
-                info.insert("n_snps".to_string(), reader.num_snps().to_object(py));
+                info.insert("format".to_string(), "eigenstrat".into_py_any(py)?);
+                info.insert(
+                    "n_samples".to_string(),
+                    reader.num_samples().into_py_any(py)?,
+                );
+                info.insert("n_snps".to_string(), reader.num_snps().into_py_any(py)?);
 
                 let pops: Vec<String> = reader
                     .samples()
@@ -1234,7 +750,7 @@ fn dataset_info(prefix: &str) -> PyResult<HashMap<String, PyObject>> {
                     .collect::<std::collections::HashSet<_>>()
                     .into_iter()
                     .collect();
-                info.insert("populations".to_string(), pops.to_object(py));
+                info.insert("populations".to_string(), pops.into_py_any(py)?);
             }
             return Ok(info);
         }
@@ -1521,7 +1037,7 @@ impl PyF2Blocks {
         let pair = self
             .inner
             .pair_index(self.inner.pop_index(pop_a)?, self.inner.pop_index(pop_b)?);
-        Some(ndarray::Array1::from(fst.block_values(pair)).into_pyarray_bound(py))
+        Some(ndarray::Array1::from(fst.block_values(pair)).into_pyarray(py))
     }
 
     /// Get population names.
@@ -1680,26 +1196,29 @@ impl PyF2Blocks {
         pop2: Vec<String>,
         pop3: Vec<String>,
         pop4: Vec<String>,
-    ) -> Vec<HashMap<String, PyObject>> {
+    ) -> PyResult<Vec<HashMap<String, Py<PyAny>>>> {
         let pop1_refs: Vec<&str> = pop1.iter().map(|s| s.as_str()).collect();
         let pop2_refs: Vec<&str> = pop2.iter().map(|s| s.as_str()).collect();
         let pop3_refs: Vec<&str> = pop3.iter().map(|s| s.as_str()).collect();
         let pop4_refs: Vec<&str> = pop4.iter().map(|s| s.as_str()).collect();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             self.inner
                 .qpdstat(&pop1_refs, &pop2_refs, &pop3_refs, &pop4_refs)
                 .into_iter()
                 .map(|(p1, p2, p3, p4, result)| {
                     let mut out = HashMap::new();
-                    out.insert("pop1".to_string(), p1.into_py(py));
-                    out.insert("pop2".to_string(), p2.into_py(py));
-                    out.insert("pop3".to_string(), p3.into_py(py));
-                    out.insert("pop4".to_string(), p4.into_py(py));
-                    out.insert("estimate".to_string(), result.estimate.into_py(py));
-                    out.insert("std_err".to_string(), result.std_err.into_py(py));
-                    out.insert("z_score".to_string(), result.z_score.into_py(py));
-                    out.insert("n_blocks".to_string(), (result.n_blocks as f64).into_py(py));
-                    out
+                    out.insert("pop1".to_string(), p1.into_py_any(py)?);
+                    out.insert("pop2".to_string(), p2.into_py_any(py)?);
+                    out.insert("pop3".to_string(), p3.into_py_any(py)?);
+                    out.insert("pop4".to_string(), p4.into_py_any(py)?);
+                    out.insert("estimate".to_string(), result.estimate.into_py_any(py)?);
+                    out.insert("std_err".to_string(), result.std_err.into_py_any(py)?);
+                    out.insert("z_score".to_string(), result.z_score.into_py_any(py)?);
+                    out.insert(
+                        "n_blocks".to_string(),
+                        (result.n_blocks as f64).into_py_any(py)?,
+                    );
+                    Ok(out)
                 })
                 .collect()
         })
@@ -1722,24 +1241,27 @@ impl PyF2Blocks {
         targets: Vec<String>,
         source1: Vec<String>,
         source2: Vec<String>,
-    ) -> Vec<HashMap<String, PyObject>> {
+    ) -> PyResult<Vec<HashMap<String, Py<PyAny>>>> {
         let targets_refs: Vec<&str> = targets.iter().map(|s| s.as_str()).collect();
         let source1_refs: Vec<&str> = source1.iter().map(|s| s.as_str()).collect();
         let source2_refs: Vec<&str> = source2.iter().map(|s| s.as_str()).collect();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             self.inner
                 .qp3pop(&targets_refs, &source1_refs, &source2_refs)
                 .into_iter()
                 .map(|(target, s1, s2, result)| {
                     let mut out = HashMap::new();
-                    out.insert("target".to_string(), target.into_py(py));
-                    out.insert("source1".to_string(), s1.into_py(py));
-                    out.insert("source2".to_string(), s2.into_py(py));
-                    out.insert("estimate".to_string(), result.estimate.into_py(py));
-                    out.insert("std_err".to_string(), result.std_err.into_py(py));
-                    out.insert("z_score".to_string(), result.z_score.into_py(py));
-                    out.insert("n_blocks".to_string(), (result.n_blocks as f64).into_py(py));
-                    out
+                    out.insert("target".to_string(), target.into_py_any(py)?);
+                    out.insert("source1".to_string(), s1.into_py_any(py)?);
+                    out.insert("source2".to_string(), s2.into_py_any(py)?);
+                    out.insert("estimate".to_string(), result.estimate.into_py_any(py)?);
+                    out.insert("std_err".to_string(), result.std_err.into_py_any(py)?);
+                    out.insert("z_score".to_string(), result.z_score.into_py_any(py)?);
+                    out.insert(
+                        "n_blocks".to_string(),
+                        (result.n_blocks as f64).into_py_any(py)?,
+                    );
+                    Ok(out)
                 })
                 .collect()
         })
@@ -1750,7 +1272,7 @@ impl PyF2Blocks {
     /// Returns:
     ///     2D numpy array of shape (n_pops, n_pops) with f2 values.
     fn f2_matrix<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
-        self.inner.f2_matrix().into_pyarray_bound(py)
+        self.inner.f2_matrix().into_pyarray(py)
     }
 
     /// Get per-block f2 values for a pair of populations.
@@ -1764,7 +1286,7 @@ impl PyF2Blocks {
         pop_b: &str,
     ) -> PyResult<Option<Bound<'py, PyArray1<f64>>>> {
         match self.inner.get_block_f2_values(pop_a, pop_b) {
-            Some(values) => Ok(Some(values.into_pyarray_bound(py))),
+            Some(values) => Ok(Some(values.into_pyarray(py))),
             None => Ok(None),
         }
     }
@@ -2022,7 +1544,7 @@ fn f2_from_frequencies(
 // ============================================================================
 
 /// Result of a single rank test from qpWave.
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 struct PyRankTest {
     #[pyo3(get)]
@@ -2198,7 +1720,7 @@ struct PyQpAdmResult {
 /// ``p_nested`` compare a step with the model it came from. With
 /// ``compat="admixtools2-2.0.10"`` they reproduce admixtools2's columns
 /// instead (DEVIATIONS.md, ADMIXTOOLS2-0001).
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 struct PyPopDropRow {
     #[pyo3(get)]
@@ -2275,7 +1797,7 @@ impl PyQpAdmResult {
 
     /// Get weights as a dictionary mapping source name to weight, in source order.
     fn weights_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
-        let dict = PyDict::new_bound(py);
+        let dict = PyDict::new(py);
         for (source, weight) in self.sources.iter().zip(&self.weights) {
             dict.set_item(source, weight)?;
         }
@@ -2284,7 +1806,7 @@ impl PyQpAdmResult {
 }
 
 /// A single model result from qpAdm rotation.
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 struct PyRotationModel {
     #[pyo3(get)]
@@ -2314,7 +1836,7 @@ impl PyRotationModel {
 
     /// Get weights as a dictionary mapping source name to weight, in source order.
     fn weights_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
-        let dict = PyDict::new_bound(py);
+        let dict = PyDict::new(py);
         for (source, weight) in self.sources.iter().zip(&self.weights) {
             dict.set_item(source, weight)?;
         }
@@ -2509,7 +2031,7 @@ fn qpwave(
 }
 
 /// Result of qpWave test for a single population pair.
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 struct PyQpWavePairResult {
     #[pyo3(get)]
@@ -2768,7 +2290,7 @@ fn qpadm_multi(
 // ============================================================================
 
 /// An admixture graph representing population relationships.
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 struct PyAdmixGraph {
     inner: popmix_core::AdmixGraph,
@@ -2850,7 +2372,7 @@ fn build_tree(
 }
 
 /// One graph found by find_graphs.
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 struct PyScoredGraph {
     /// The graph as (from, to) pairs; the path from the root to the first
@@ -2977,7 +2499,7 @@ fn graph_key(edges: Vec<(String, String)>) -> PyResult<Vec<String>> {
 }
 
 /// One fitted qpgraph edge.
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 struct PyQpGraphEdge {
     #[pyo3(get)]
@@ -2998,7 +2520,7 @@ struct PyQpGraphEdge {
 }
 
 /// One fitted f3(pop1; pop2, pop3) of a qpgraph fit.
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 struct PyQpGraphF3 {
     #[pyo3(get)]
@@ -3022,7 +2544,7 @@ struct PyQpGraphF3 {
 }
 
 /// One random start of the qpgraph admixture weight optimization.
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 struct PyQpGraphStart {
     #[pyo3(get)]
@@ -3049,7 +2571,7 @@ impl PyQpGraphStart {
 }
 
 /// Result of qpgraph().
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 struct PyQpGraphResult {
     /// Leaves in graph order; the first is the f3 base population.
@@ -3282,7 +2804,7 @@ pub(crate) fn read_genotypes_any_format(prefix: &str) -> PyResult<GenotypeMatrix
 // ============================================================================
 
 /// Result of a single LD bin from DATES.
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 struct PyLdBin {
     #[pyo3(get)]
@@ -3316,7 +2838,7 @@ impl From<&popmix_core::LdBin> for PyLdBin {
 }
 
 /// Result of exponential decay fitting.
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 struct PyDecayFit {
     #[pyo3(get)]
@@ -3401,7 +2923,7 @@ impl PyDatesResult {
         self.ld_bins
             .iter()
             .map(|b| {
-                let d = PyDict::new_bound(py);
+                let d = PyDict::new(py);
                 d.set_item("distance_cm", b.distance_cm)?;
                 d.set_item("weighted_ld", b.weighted_ld)?;
                 d.set_item("z_score", b.z_score)?;
@@ -3545,7 +3067,9 @@ fn dates(
 // ============================================================================
 
 /// Python module for popmix population genetics toolkit.
-#[pymodule]
+// Not yet tested on free-threaded Python (3.13t): until it is, importing
+// popmix there turns the GIL back on rather than risk a race.
+#[pymodule(gil_used = true)]
 fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Threading functions
     m.add_function(wrap_pyfunction!(init_threads, m)?)?;

@@ -54,7 +54,7 @@ impl PyPcaResult {
         let flat: Vec<f64> = self.coords.iter().flatten().copied().collect();
         let arr = ndarray::Array2::from_shape_vec((self.coords.len(), k), flat)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
-        Ok(arr.into_pyarray_bound(py))
+        Ok(arr.into_pyarray(py))
     }
 }
 
