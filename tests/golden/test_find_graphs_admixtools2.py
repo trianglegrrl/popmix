@@ -131,12 +131,13 @@ def test_qpgraph_tree_scores(f2_blocks, i):
         assert _close(pm.qpgraph(f2_blocks, _edges(g)).score, g["score"], FIXED_RTOL)
 
 
-def _optimized(f2_blocks, case) -> tuple:
+def _optimized(f2_blocks, case, compat="admixtools2-2.0.10") -> tuple:
     """Graphs whose optimized score is the same as admixtools2's (rtol 1e-6),
-    lower, and higher."""
+    lower, and higher; by default with admixtools2's stall at a zero-bound
+    kink (ADMIXTOOLS2-0009)."""
     same, lower, higher = [], [], []
     for k, g in enumerate(case["graphs"]):
-        ours = pm.qpgraph(f2_blocks, _edges(g)).score
+        ours = pm.qpgraph(f2_blocks, _edges(g), compat=compat).score
         (same if _close(ours, g["score"], OPT_RTOL) else lower if ours < g["score"] else higher).append(k)
     return same, lower, higher
 
@@ -161,7 +162,18 @@ def test_qpgraph_optimized_score_with_two_admixtures(f2_blocks, i):
     same, lower, higher = _optimized(f2_blocks, case)
     assert len(same) >= 1222 and len(higher) <= 39, f"{len(same)} same, {len(lower)} lower, {len(higher)} higher"
     best = min(g["score"] for g in case["graphs"])
-    assert _close(min(pm.qpgraph(f2_blocks, _edges(case["graphs"][k])).score for k in same + lower), best, OPT_RTOL)
+    assert _close(min(pm.qpgraph(f2_blocks, _edges(case["graphs"][k]), compat="admixtools2-2.0.10").score
+                      for k in same + lower), best, OPT_RTOL)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("i", [c for c in _cases() if c.id.endswith("_1admix")])
+def test_polishing_is_never_worse_than_admixtools2(f2_blocks, i):
+    """By default the best weights are polished past zero-bound kinks
+    (ADMIXTOOLS2-0009): on every one-admixture graph the score is
+    admixtools2's or lower."""
+    same, lower, higher = _optimized(f2_blocks, _reference()["cases"][i], compat=None)
+    assert not higher, f"{len(higher)} higher"
 
 
 @pytest.mark.slow

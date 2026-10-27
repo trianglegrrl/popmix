@@ -184,7 +184,7 @@ def test_readme_names_every_input_format():
 
 # the command of each public function that takes compat
 COMPAT_COMMANDS = {"qpadm": "qpadm", "dates": "dates", "smartpca": "pca", "read_kinship": "kinship",
-                   "joint_sfs": "sfs", "write_dot": "qpgraph"}
+                   "joint_sfs": "sfs", "write_dot": "qpgraph", "qpgraph": "qpgraph"}
 
 
 def test_every_compat_switch_is_on_the_cli():
@@ -215,10 +215,13 @@ def test_qpgraph_dot_takes_compat(dg6, f2_dir, tmp_path, compat):
     assert dot.read_text() == expected
 
 
-def test_qpgraph_compat_needs_dot(tmp_path):
+def test_qpgraph_compat_fits_as_admixtools2(dg6, f2_dir, tmp_path):
+    """--compat stops the fit where admixtools2 does (ADMIXTOOLS2-0009), with or without --dot."""
+    ref = json.loads((ROOT / "tests/golden/admixtools2/v2.0.10/dg_6pop/qpgraph.json").read_text())
+    edges = next(g for g in ref["graphs"] if g["name"] == "admix1")["edges"]
     graph = tmp_path / "graph.txt"
-    graph.write_text("R\tA\nR\tB\n")
-    out = subprocess.run(["popmix", "qpgraph", "--graph", str(graph), "--f2-dir", str(tmp_path),
-                          "--compat", "admixtools2-2.0.10"], capture_output=True, text=True)
-    assert out.returncode == 2
-    assert "--compat applies only with --dot" in out.stderr
+    graph.write_text("".join(f"{a}\t{b}\n" for a, b in edges))
+    out = json.loads(popmix("qpgraph", "--f2-dir", f2_dir, "--graph", str(graph), "--compat", "admixtools2-2.0.10",
+                            "--format", "json").stdout)
+    expected = pm.qpgraph(dg6, [tuple(e) for e in edges], compat="admixtools2-2.0.10")
+    assert out["score"] == pytest.approx(expected.score, rel=1e-12)

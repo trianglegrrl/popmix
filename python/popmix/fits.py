@@ -107,7 +107,7 @@ def qpf4ratio(f2_blocks: _core.F2Blocks, test: str, source_a: str, source_b: str
 def qpgraph(f2_blocks: _core.F2Blocks, edges: Sequence[tuple[str, str]], *,
             admix_weights: Sequence[float] | None = None, numstart: int = 10, seed: int = 1,
             diag: float = 1e-4, diag_f3: float = 1e-5, constrained: bool = True,
-            f2_blocks_test: _core.F2Blocks | None = None) -> QpGraphResult:
+            f2_blocks_test: _core.F2Blocks | None = None, compat: str | None = None) -> QpGraphResult:
     """Fit an admixture graph, as admixtools2 ``qpgraph`` does.
 
     Drift lengths minimise the covariance-weighted residual of f3(base; i, j)
@@ -141,6 +141,11 @@ def qpgraph(f2_blocks: _core.F2Blocks, edges: Sequence[tuple[str, str]], *,
     f2_blocks_test
         Also score the fit against these blocks' f3 statistics
         (``score_test``), for an out-of-sample score.
+    compat
+        None polishes the best start's weights past a zero-bound kink, where
+        R's L-BFGS-B (and so admixtools2) stalls; "admixtools2-2.0.10" stops
+        there, as admixtools2 (ADMIXTOOLS2-0009). The starts in ``opt`` are
+        unpolished either way.
 
     Returns
     -------
@@ -150,4 +155,4 @@ def qpgraph(f2_blocks: _core.F2Blocks, edges: Sequence[tuple[str, str]], *,
     weights = None if admix_weights is None else list(admix_weights)
     return qpgraph_result(_core.qpgraph(
         f2_blocks, [tuple(e) for e in edges], admix_weights=weights, numstart=numstart, seed=seed,
-        diag=diag, diag_f3=diag_f3, constrained=constrained, f2_blocks_test=f2_blocks_test))
+        diag=diag, diag_f3=diag_f3, constrained=constrained, f2_blocks_test=f2_blocks_test, compat=compat))

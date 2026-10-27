@@ -34,7 +34,7 @@ def find_graphs(f2_blocks: _core.F2Blocks, populations: Sequence[str], *, nadmix
         ``"stepwise"`` (default) or ``"exhaustive"``.
     **kwargs
         Options of the method (``beam_width`` for stepwise) and of qpgraph
-        (``numstart``, ``diag``, ``diag_f3``).
+        (``numstart``, ``diag``, ``diag_f3``, ``compat``).
 
     Returns
     -------

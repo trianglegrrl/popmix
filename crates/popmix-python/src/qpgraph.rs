@@ -168,7 +168,7 @@ impl PyScoredGraph {
 ///     with 2). Anything else raises ``InputError``.
 /// beam_width
 ///     Graphs kept after each stepwise step (default 20).
-/// numstart, seed, diag, diag_f3, constrained
+/// numstart, seed, diag, diag_f3, constrained, compat
 ///     As for qpgraph().
 ///
 /// Returns
@@ -177,7 +177,7 @@ impl PyScoredGraph {
 ///     ``(graphs, n_evaluated)``: the graphs of the last step, best first,
 ///     as a list of ``PyScoredGraph``, and the number of qpgraph fits made.
 #[pyfunction]
-#[pyo3(signature = (f2_blocks, populations, nadmix=0, outgroup=None, method="stepwise", beam_width=20, numstart=10, seed=1, diag=1e-4, diag_f3=1e-5, constrained=true))]
+#[pyo3(signature = (f2_blocks, populations, nadmix=0, outgroup=None, method="stepwise", beam_width=20, numstart=10, seed=1, diag=1e-4, diag_f3=1e-5, constrained=true, compat=None))]
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn find_graphs(
     py: Python<'_>,
@@ -192,7 +192,9 @@ pub(crate) fn find_graphs(
     diag: f64,
     diag_f3: f64,
     constrained: bool,
+    compat: Option<&str>,
 ) -> PyResult<(Vec<PyScoredGraph>, usize)> {
+    let compat = crate::qpadm::admixtools2_compat(compat)?;
     compute(py, move || {
         let method = match method {
             "stepwise" => popmix_core::GraphSearchMethod::Stepwise { beam_width },
@@ -217,6 +219,7 @@ pub(crate) fn find_graphs(
                 o.seed = seed;
                 o.admix_weights = None;
                 o.f2_blocks_test = None;
+                o.compat = compat;
                 o
             };
             o
@@ -430,13 +433,17 @@ impl PyQpGraphResult {
 ///     Also score the fit against these blocks' f3 statistics
 ///     (``score_test``), for an out-of-sample score; None (the default)
 ///     for none.
+/// compat
+///     None to polish the best start's weights past a zero-bound kink
+///     where L-BFGS-B stalls; "admixtools2-2.0.10" to stop there, as
+///     admixtools2 (ADMIXTOOLS2-0009).
 ///
 /// Returns
 /// -------
 /// PyQpGraphResult
 ///     The fitted edges, score, f3 fits and the random starts.
 #[pyfunction]
-#[pyo3(signature = (f2_blocks, edges, *, admix_weights=None, numstart=10, seed=1, diag=1e-4, diag_f3=1e-5, constrained=true, f2_blocks_test=None))]
+#[pyo3(signature = (f2_blocks, edges, *, admix_weights=None, numstart=10, seed=1, diag=1e-4, diag_f3=1e-5, constrained=true, f2_blocks_test=None, compat=None))]
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn qpgraph(
     py: Python<'_>,
@@ -449,7 +456,9 @@ pub(crate) fn qpgraph(
     diag_f3: f64,
     constrained: bool,
     f2_blocks_test: Option<&PyF2Blocks>,
+    compat: Option<&str>,
 ) -> PyResult<PyQpGraphResult> {
+    let compat = crate::qpadm::admixtools2_compat(compat)?;
     compute(py, move || {
         let opts = {
             let mut o = popmix_core::QpGraphOptions::default();
@@ -460,6 +469,7 @@ pub(crate) fn qpgraph(
             o.seed = seed;
             o.admix_weights = admix_weights;
             o.f2_blocks_test = f2_blocks_test.map(|b| b.inner.clone());
+            o.compat = compat;
             o
         };
         let r = popmix_core::qpgraph(&f2_blocks.inner, &edges, &opts)?;

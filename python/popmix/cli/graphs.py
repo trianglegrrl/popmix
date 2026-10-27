@@ -63,7 +63,8 @@ def graph_leaves(edges: list) -> list:
               help="Also plot each f3's residual z to this image file (needs popmix[plot])")
 @click.option("--dot", default=None, help="Also write the fitted graph in Graphviz DOT format to this file")
 @click.option("--compat", type=click.Choice(["admixtools2-2.0.10"]), default=None,
-              help="With --dot: write admixtools2's DOT text exactly, dotted names unquoted (see DEVIATIONS.md)")
+              help="Reproduce admixtools2: stop the fit where L-BFGS-B stalls before a zero-bound kink, and "
+                   "with --dot write its DOT text exactly (see DEVIATIONS.md)")
 @f2_source_options
 @click.option("--format", "output_format", type=click.Choice(["text", "json", "tsv"]), default="text",
               help="Output format")
@@ -78,8 +79,6 @@ def qpgraph(graph_file: str, admix_weights: str | None, numstart: int, seed: int
     with two incoming edges is an admixture node, and --admix-weights gives
     the weight of its incoming edge whose source node appears first.
     """
-    if compat and not dot:
-        raise click.UsageError("--compat applies only with --dot")
     edges = read_graph_file(graph_file)
     pops = graph_leaves(edges)
     weights = None
@@ -93,7 +92,7 @@ def qpgraph(graph_file: str, admix_weights: str | None, numstart: int, seed: int
     try:
         f2_blocks = load_f2_blocks(input_prefix, f2_dir, pops, block_size, maxmiss, all_chromosomes)
         result = pm.qpgraph(f2_blocks, edges, admix_weights=weights, numstart=numstart, seed=seed,
-                            diag=diag, diag_f3=diag_f3, constrained=not unconstrained)
+                            diag=diag, diag_f3=diag_f3, constrained=not unconstrained, compat=compat)
         if dot:
             pm.write_dot(result, path=dot, compat=compat)
         if plot or plot_fit:

@@ -25,7 +25,9 @@
 //!    (`matrix(runif(numstart * nadmix), numstart)`), each with R's
 //!    `optim(method = "L-BFGS-B")` and admixtools2's controls (`fnscale`
 //!    1e-6, `maxit` 1e4, finite-difference gradients); the best start wins,
-//!    the first among ties.
+//!    the first among ties. Its weights are then polished past a zero-bound
+//!    kink where L-BFGS-B stalls (`polish`, ADMIXTOOLS2-0009; not with
+//!    `compat.qpgraph_stall_at_kink`). The starts' own results are kept.
 //!
 //! Provenance: Patterson et al. 2012 (Genetics, qpGraph), Maier et al. 2023
 //! (eLife, admixtools2), admixtools2's documentation, the clean-room
@@ -35,6 +37,7 @@ use nalgebra::{DMatrix, DVector};
 use ndarray::Array2;
 
 use crate::fstats::{jackknife_cov_from_loo, leave_one_out, F2Blocks};
+use crate::qpadm::Admixtools2Compat;
 use crate::rcompat::{optim_lbfgsb, LbfgsbOptions, RRng};
 use crate::{PopmixError, Result};
 
@@ -64,6 +67,9 @@ pub struct QpGraphOptions {
     /// the fitted blocks' inverse f3 covariance (admixtools2
     /// `f2_blocks_test`, for an out-of-sample score).
     pub f2_blocks_test: Option<F2Blocks>,
+    /// admixtools2 2.0.10 quirks to reproduce (ADMIXTOOLS2-0009: stop where
+    /// L-BFGS-B stalls, without polishing).
+    pub compat: Admixtools2Compat,
 }
 
 impl Default for QpGraphOptions {
@@ -76,6 +82,7 @@ impl Default for QpGraphOptions {
             seed: 1,
             admix_weights: None,
             f2_blocks_test: None,
+            compat: Admixtools2Compat::CORRECTED,
         }
     }
 }
@@ -651,13 +658,20 @@ pub fn qpgraph(
                     convergence: r.convergence,
                 });
             }
-            opt.iter()
+            let best = opt
+                .iter()
                 .fold(None::<&QpGraphStart>, |best, s| match best {
                     Some(b) if b.score <= s.score => Some(b),
                     _ => Some(s),
                 })
                 .map(|s| s.weights.clone())
-                .unwrap_or_default()
+                .unwrap_or_default();
+            if opts.compat.qpgraph_stall_at_kink {
+                best
+            } else {
+                let mut score = |w: &[f64]| model.score(w);
+                super::polish::polish(&mut score, &best, &lo, &hi)?.0
+            }
         }
     };
 

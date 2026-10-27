@@ -18,16 +18,23 @@ pub struct Admixtools2Compat {
     /// the best-fitting feasible model; each step is compared with the model
     /// it came from.
     pub popdrop_sibling_path: bool,
+    /// ADMIXTOOLS2-0009. qpGraph's best admixture weights are where R's
+    /// finite-difference L-BFGS-B stops, which is short of a minimum at a
+    /// zero-bound kink. Corrected: the best start's weights are polished by
+    /// a line search on each weight (`qpgraph::polish`).
+    pub qpgraph_stall_at_kink: bool,
 }
 
 impl Admixtools2Compat {
     /// popmix behaviour: every quirk corrected.
     pub const CORRECTED: Admixtools2Compat = Admixtools2Compat {
         popdrop_sibling_path: false,
+        qpgraph_stall_at_kink: false,
     };
 
     /// Reproduce admixtools2 2.0.10 exactly.
     pub const V2_0_10: Admixtools2Compat = Admixtools2Compat {
         popdrop_sibling_path: true,
+        qpgraph_stall_at_kink: true,
     };
 }

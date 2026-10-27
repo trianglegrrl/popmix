@@ -470,12 +470,14 @@ def _check_qpgraph_fit(name: str):
     tools stop short of it, at weights 0.4502-0.4503 and scores 0.677125-
     0.677129, at a point set by rounding at the 1e-11 level: the scores then
     agree to STALL_RTOL, the weights to STALL_WEIGHT_TOL and the
-    convergence codes not at all.
+    convergence codes not at all. popmix polishes past the kink by default
+    (ADMIXTOOLS2-0009, ``_check_qpgraph_polished``), so this compares with
+    compat="admixtools2-2.0.10".
     """
     _, f2 = _result_for(name)
     mismatches = []
     for g in _qpgraph_reference(name):
-        r = pm.qpgraph(f2, [tuple(e) for e in g["edges"]])
+        r = pm.qpgraph(f2, [tuple(e) for e in g["edges"]], compat="admixtools2-2.0.10")
         stalled = any(o.convergence == 52 for o in r.opt) or any(row["convergence"] == 52 for row in g["opt"] or [])
         score_rtol, weight_tol = (STALL_RTOL, STALL_WEIGHT_TOL) if stalled else (F_RTOL, WEIGHT_TOL)
         if not np.isclose(r.score, g["score"], rtol=score_rtol, atol=0):
@@ -501,6 +503,27 @@ def _check_qpgraph_fit(name: str):
                     mismatches.append(f"{g['name']} {e.from_node}->{e.to_node}: {field} "
                                       f"{getattr(e, field)!r} != {theirs[field]!r}")
     assert not mismatches, "\n".join(mismatches)
+
+
+def _check_qpgraph_polished(name: str):
+    """By default the best weights are polished past a zero-bound kink
+    (ADMIXTOOLS2-0009): never a worse score than admixtools2's, and in
+    ancient_5pop admix1, where both L-BFGS-B runs stall at 0.677125-0.677129,
+    the minimum at weight 0.45087 (score 0.677059, from a fine grid of
+    fixed-weight fits). Only the best weights change: the starts are as
+    admixtools2's."""
+    _, f2 = _result_for(name)
+    for g in _qpgraph_reference(name):
+        edges = [tuple(e) for e in g["edges"]]
+        r = pm.qpgraph(f2, edges)
+        stalled = pm.qpgraph(f2, edges, compat="admixtools2-2.0.10")
+        assert r.score <= stalled.score * (1 + 1e-12), g["name"]
+        assert [o.score for o in r.opt] == [o.score for o in stalled.opt]
+        if name == "ancient_5pop" and g["name"] == "admix1":
+            assert r.score == pytest.approx(0.677059, abs=5e-7)
+            assert r.score < g["score"] - 5e-5
+            w = next(e.weight for e in r.edges if e.kind == "admix")
+            assert min(abs(w - 0.45087), abs(1 - w - 0.45087)) < 5e-5
 
 
 _fst = {}
@@ -570,6 +593,7 @@ CHECKS = {
     "qpgraph_f3": _check_qpgraph_f3,
     "qpgraph_fixed": _check_qpgraph_fixed,
     "qpgraph_fit": _check_qpgraph_fit,
+    "qpgraph_polished": _check_qpgraph_polished,
     "fst_block_lengths": _check_fst_block_lengths,
     "fst_blocks": _check_fst_blocks,
     "fst_estimates": _check_fst_estimates,

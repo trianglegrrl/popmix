@@ -8,6 +8,7 @@
 
 mod graph;
 mod graph_search;
+mod polish;
 mod qpgraph_fit;
 
 pub use graph::{AdmixGraph, AdmixNode, EdgeType, GraphBuilder, NodeId};

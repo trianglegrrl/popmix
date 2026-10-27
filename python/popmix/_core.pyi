@@ -145,11 +145,11 @@ def qpf4ratio(f2_blocks: F2Blocks, test: str, source_a: str, source_b: str, outg
 def qpgraph(f2_blocks: F2Blocks, edges: Sequence[tuple[str, str]], *,
             admix_weights: Sequence[float] | None = None, numstart: int = 10, seed: int = 1,
             diag: float = 1e-4, diag_f3: float = 1e-5, constrained: bool = True,
-            f2_blocks_test: F2Blocks | None = None) -> Any: ...
+            f2_blocks_test: F2Blocks | None = None, compat: str | None = None) -> Any: ...
 def find_graphs(f2_blocks: F2Blocks, populations: Sequence[str], nadmix: int = 0,
                 outgroup: str | None = None, method: str = "stepwise", beam_width: int = 20,
                 numstart: int = 10, seed: int = 1, diag: float = 1e-4, diag_f3: float = 1e-5,
-                constrained: bool = True) -> tuple[list[Any], int]: ...
+                constrained: bool = True, compat: str | None = None) -> tuple[list[Any], int]: ...
 def dates(prefix: str, admixed: str, sources: Sequence[str], *, generation_time: float = 29.0,
           generation_time_se: float = 0.0, sample_age: float = 0.0, sample_age_se: float = 0.0,
           min_distance_cm: float = 0.45, max_distance_cm: float = 100.0, bin_width_cm: float = 0.1,

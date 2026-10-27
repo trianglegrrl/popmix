@@ -20,6 +20,7 @@ rules for adding one.
 | ADMIXTOOLS2-0004 | `write_dot()` renames nodes on edges (removes "." and "-") but declares them unrenamed | Quoted names, unchanged | `compat="admixtools2-2.0.10"` (`write_dot`); `qpgraph --dot ... --compat admixtools2-2.0.10` |
 | ADMIXTOOLS2-0006 | PLINK files with chromosome codes X and Y stop with an error (`auto_only = TRUE`) | Reads them; X and Y are not autosomes | nothing to reproduce |
 | ADMIXTOOLS2-0007 | A sample with no heterozygous call among the first 1,000 SNPs is pseudo-haploid, which catches diploid genomes | Pseudo-haploid only with no heterozygous call at any SNP | `pseudohaploid="admixtools2"` (`--pseudohaploid admixtools2`) |
+| ADMIXTOOLS2-0009 | qpGraph's L-BFGS-B stops short of a minimum where a drift edge reaches 0 (a kink in the score) | The best start's weights polished by a line search on each weight | `compat="admixtools2-2.0.10"` (`qpgraph`, `find_graphs`); `qpgraph --compat admixtools2-2.0.10` |
 | ADMIXTOOLS2-0008 | A statistic with no standard error gets a z anyway: rounding noise for f4(A, A; B, C), Inf from `compare_fits` | Exactly 0 where it is 0 by construction; z and p NaN when the SE is 0 | nothing to reproduce (rounding noise) |
 | EIGENSOFT-0001 | smartpca reports the Tracy-Widom density as the p-value beyond its table | The tail | `compat="eigensoft-7.2.1"` |
 | PLINK2-0001 | `--make-king-table` labels its two het-hom counts the wrong way round | Counts named as they are | nothing to reproduce (labels only) |
@@ -389,6 +390,31 @@ qpWave/qpAdm fits by the C++ code path (`cpp = TRUE`, the default).
   pop3 = pop4 on the dg_6pop f2, the `qpdstat` CLI, `compare_fits`); Rust
   `f3_f4::tests::z_is_nan_without_an_se`,
   `geno_fstats::tests::z_and_p_are_nan_without_an_se`.
+
+### ADMIXTOOLS2-0009: qpGraph stops short of a zero-bound kink
+
+- **admixtools2:** `qpgraph()` optimizes the admixture weights with R's
+  `optim(method = "L-BFGS-B")` and finite-difference gradients. Where a
+  fitted drift edge reaches its bound of 0 the score has a kink, and the
+  difference quotient straddles it: from every start the search stops
+  short. In AADR v66.p1 ancient_5pop admix1 (s -> Sardinian.DG at 0) both
+  tools stop at weight 0.4502-0.4503, score 0.677125-0.677129, where a
+  fine grid of fixed-weight fits puts the minimum at 0.45087, 0.677059.
+- **popmix:** the best start's weights are then polished: each weight in
+  turn by a golden-section search over a window of 0.01 around it, kept
+  only if the score falls, until a round gains less than 1e-12 relative
+  (`qpgraph/polish.rs`). The starts in `opt`, and the weights' low/high
+  range over them, stay as L-BFGS-B left them.
+- **Impact:** only fits that stalled. Of the one-admixture graphs of the
+  find_graphs goldens, 17 of the 4- and 5-leaf graphs score lower than
+  admixtools2's and none higher; ancient_5pop admix1 reaches 0.677059.
+  Fits L-BFGS-B finishes change only by rounding.
+- **Tests:** `qpgraph/polish.rs` (a kinked function from the stall point),
+  `tests/golden/test_fstats_admixtools2.py` `qpgraph_polished` (never worse
+  than admixtools2's; ancient_5pop admix1 at the minimum) with
+  `qpgraph_fit` under compat, `tests/golden/test_find_graphs_admixtools2.py`
+  (parity under compat, never worse by default),
+  `tests/python/test_cli_consistency.py` (`--compat` on the CLI).
 
 ### Matched, not corrected
 
