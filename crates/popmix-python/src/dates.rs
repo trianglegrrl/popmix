@@ -231,7 +231,7 @@ pub(crate) fn dates(
             sources.len()
         )));
     };
-    compute(py, move || {
+    let out = compute(py, move || -> PyResult<_> {
         let compat = match compat {
             None => popmix_core::dates::DatesCompat::CORRECTED,
             Some("dates-v753") => popmix_core::dates::DatesCompat::V753,
@@ -283,5 +283,11 @@ pub(crate) fn dates(
             fit: result.fit,
             jackknife: result.jackknife_by_chromosome,
         })
-    })
+    })?;
+    if jackknife {
+        crate::warnings::emit(|w| {
+            popmix_core::warnings::check_chromosomes("DATES", out.n_chromosomes, w);
+        })?;
+    }
+    Ok(out)
 }

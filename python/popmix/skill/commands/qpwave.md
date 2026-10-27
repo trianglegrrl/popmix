@@ -75,6 +75,10 @@ the sources (the last row above equals the qpAdm chi-squared).
 
 ## Caveats
 
+- chi-squared treats the jackknife covariance of the f4 statistics as
+  known. With g blocks and p = (left - 1)(right - 1) statistics it is
+  inflated about (g - 1)/(g - p - 2)-fold (Hotelling's T²), so p is too
+  small; popmix warns past 10% and when g <= p + 2, and below 20 blocks.
 - The ranks tested go from 0 to (number of left populations - 2). If every
   test is rejected the estimated rank is one above the highest rank tested:
   full rank, as many streams as left populations.

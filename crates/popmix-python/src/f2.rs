@@ -28,10 +28,10 @@ use pyo3::IntoPyObjectExt;
 ///     The f2 blocks, ready for f-statistics.
 #[pyfunction]
 pub(crate) fn read_f2(py: Python<'_>, path: &str) -> PyResult<PyF2Blocks> {
-    compute(py, move || {
-        let inner = read_f2_blocks(std::path::Path::new(path))?;
-        Ok(PyF2Blocks { inner })
-    })
+    let inner = compute(py, move || -> PyResult<F2Blocks> {
+        Ok(read_f2_blocks(std::path::Path::new(path))?)
+    })?;
+    crate::warnings::checked_blocks(inner)
 }
 
 /// Per-block f2 statistics for every pair of populations.
@@ -169,9 +169,12 @@ impl PyF2Blocks {
             .iter()
             .map(|p| popmix_core::PopulationId::from(p.as_str()))
             .collect();
-        Ok(PyF2Blocks {
-            inner: F2Blocks::from_block_means(pops, block_lengths, &means, &counts)?,
-        })
+        crate::warnings::checked_blocks(F2Blocks::from_block_means(
+            pops,
+            block_lengths,
+            &means,
+            &counts,
+        )?)
     }
 
     /// Select blocks, as admixtools2 ``f2_blocks[, , blocks]``.
@@ -459,13 +462,11 @@ pub(crate) fn f2_from_frequencies(
     af: &PyAlleleFrequencies,
     block_size: f64,
 ) -> PyResult<PyF2Blocks> {
-    compute(py, move || {
+    let inner = compute(py, move || {
         let block_def = BlockDefinition::new(block_size);
-
-        let f2_blocks = F2Blocks::from_allele_frequencies(&af.inner, &block_def);
-
-        Ok(PyF2Blocks { inner: f2_blocks })
-    })
+        F2Blocks::from_allele_frequencies(&af.inner, &block_def)
+    });
+    crate::warnings::checked_blocks(inner)
 }
 
 // ============================================================================

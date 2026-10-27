@@ -103,6 +103,10 @@ popmix qpadm --f2-dir f2_eu --target Spain_EN --left Turkey_N,Serbia_IronGates_M
 
 ## Caveats
 
+- chi-squared treats the jackknife covariance of the f4 statistics as
+  known. With g blocks and p = (left - 1)(right - 1) statistics it is
+  inflated about (g - 1)/(g - p - 2)-fold (Hotelling's T²), so p is too
+  small; popmix warns past 10% and when g <= p + 2, and below 20 blocks.
 - The right populations must be differently related to the sources;
   otherwise weights are unstable (large SEs) and the test has no power.
 - `--input` extracts f2 for exactly the model's populations, on the SNPs

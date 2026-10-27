@@ -80,5 +80,5 @@ pub(crate) fn extract_f2(
     let inner = compute(py, || {
         with_warnings(|warn| popmix_io::extract::extract_f2(prefix, &opts, warn))
     })?;
-    Ok(PyF2Blocks { inner })
+    crate::warnings::checked_blocks(inner)
 }

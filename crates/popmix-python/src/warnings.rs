@@ -21,6 +21,20 @@ pub(crate) fn raise(warnings: Vec<Warning>) -> PyResult<()> {
     })
 }
 
+/// Raise the warnings `f` gives its sink.
+pub(crate) fn emit(f: impl FnOnce(&mut dyn FnMut(Warning))) -> PyResult<()> {
+    let mut warnings = Vec::new();
+    f(&mut |w| warnings.push(w));
+    raise(warnings)
+}
+
+/// f2 blocks, with a warning if they are too few for reliable SEs
+/// (TASKS.md G4).
+pub(crate) fn checked_blocks(inner: popmix_core::F2Blocks) -> PyResult<crate::f2::PyF2Blocks> {
+    emit(|w| popmix_core::warnings::check_blocks(inner.n_blocks(), w))?;
+    Ok(crate::f2::PyF2Blocks { inner })
+}
+
 /// Run `f` with a sink for its warnings, then raise them.
 pub(crate) fn with_warnings<T>(
     f: impl FnOnce(&mut dyn FnMut(Warning)) -> Result<T>,

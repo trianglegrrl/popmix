@@ -284,7 +284,9 @@ pub(crate) fn qpwave(
     fudge: f64,
     alpha: f64,
 ) -> PyResult<PyQpWaveResult> {
-    compute(py, move || {
+    let statistics = left.len().saturating_sub(1) * right.len().saturating_sub(1);
+    let blocks = f2_blocks.inner.n_blocks();
+    let out = compute(py, move || -> PyResult<_> {
         let left_refs: Vec<&str> = left.iter().map(std::string::String::as_str).collect();
         let right_refs: Vec<&str> = right.iter().map(std::string::String::as_str).collect();
 
@@ -318,7 +320,9 @@ pub(crate) fn qpwave(
             f4_matrix: rows(&result.f4_matrix.values),
             f4_covariance: rows(&result.f4_matrix.covariance),
         })
-    })
+    })?;
+    crate::warnings::emit(|w| popmix_core::warnings::check_blocks_for_f4(blocks, statistics, w))?;
+    Ok(out)
 }
 
 /// Parse a qpAdm `compat` argument.
@@ -364,7 +368,10 @@ pub(crate) fn qpadm(
     fudge: f64,
     compat: Option<&str>,
 ) -> PyResult<PyQpAdmResult> {
-    compute(py, move || {
+    // f4(target, source; right0, right): (left - 1)(right - 1) statistics
+    let statistics = left.len() * right.len().saturating_sub(1);
+    let blocks = f2_blocks.inner.n_blocks();
+    let out = compute(py, move || -> PyResult<_> {
         let sources_refs: Vec<&str> = left.iter().map(std::string::String::as_str).collect();
         let right_refs: Vec<&str> = right.iter().map(std::string::String::as_str).collect();
 
@@ -380,5 +387,7 @@ pub(crate) fn qpadm(
             popmix_core::qpadm(&f2_blocks.inner, &target, &sources_refs, &right_refs, &opts)?;
 
         Ok(PyQpAdmResult::from(result))
-    })
+    })?;
+    crate::warnings::emit(|w| popmix_core::warnings::check_blocks_for_f4(blocks, statistics, w))?;
+    Ok(out)
 }

@@ -94,7 +94,8 @@ popmix --threads 8 dates -i aadr_v66p1 --admixed French.DG \
 
 ## Caveats
 
-- The jackknife is over chromosomes, so use data on many chromosomes.
+- The jackknife is over chromosomes, so use data on many chromosomes;
+  popmix warns below 10.
 - Corrections over DATES v753 (default) and `--compat dates-v753`:
   mesh FFT lags that wrap around and the last lag left unscaled
   ([DATES-0001](https://github.com/trianglegrrl/popmix/blob/main/DEVIATIONS.md#dates-0001-mesh-fft-lags-wrap-around),

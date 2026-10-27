@@ -112,6 +112,9 @@ pub fn rolloff_py(
         .map(|(c, f)| (weight(c), f.decay))
         .collect();
     let jack = popmix_core::dates::weighted_jackknife(fit.decay, &blocks)?;
+    crate::warnings::emit(|w| {
+        popmix_core::warnings::check_chromosomes("ROLLOFF", out.chromosomes.len(), w);
+    })?;
 
     let d = PyDict::new(py);
     d.set_item("chromosomes", out.chromosomes.clone())?;
