@@ -2,17 +2,20 @@
 name = "popmix-python"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Python bindings for popmix population genetics toolkit"
+# the extension module inside the wheel, not a crate of its own
+publish = false
 
 [lib]
 name = "_core"
 crate-type = ["cdylib"]
 
 [dependencies]
-popmix-core = { path = "../popmix-core" }
-popmix-io = { path = "../popmix-io" }
+popmix-core = { path = "../popmix-core", version = "=1.0.0" }
+popmix-io = { path = "../popmix-io", version = "=1.0.0" }
 pyo3 = { workspace = true }
 numpy = { workspace = true }
 ndarray = { workspace = true }

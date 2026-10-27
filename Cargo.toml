@@ -9,6 +9,8 @@ members = [
 [workspace.package]
 version = "1.0.0"
 edition = "2021"
+# the toolchain CI builds with (rust-toolchain.toml): 1.92 miscompiled F2Blocks::build
+rust-version = "1.99"
 license = "MIT AND BSD-3-Clause"
 authors = ["Popmix Contributors"]
 repository = "https://github.com/trianglegrrl/popmix"

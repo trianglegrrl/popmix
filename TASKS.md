@@ -602,8 +602,14 @@ thread count.
 
 ## L. Packaging and release (last)
 
-- [ ] **L1. popmix-io/core publishable:** `version` on the path dependency,
+- [x] **L1. popmix-io/core publishable:** `version` on the path dependency,
   `publish = false` on popmix-python, `rust-version` on every crate. RS
+  *Done in COMMIT:* path dependencies pinned `=1.0.0`, `rust-version` 1.99
+  (the pinned toolchain), popmix-python unpublished; `cargo package` of
+  both libraries builds. Found doing it: the crate packages lacked LICENSE
+  and NOTICE (now symlinked in, packaged as text), and `Cargo.lock` was
+  ignored, so wheels were built from freshly resolved versions (now
+  tracked, and in the sdist). `tests/python/test_crate_manifests.py`.
 - [x] **L2. Unused dependencies:** `ordered-float`; `proptest` and
   `criterion` unless F12/B6 use them. RS *Done in 16dae78:* removed
   `ordered-float` and `proptest` (core), `thiserror` and `approx` (io, found
