@@ -21,7 +21,6 @@
 //! as n^3. No hot loop converts between them. Neither appears in a public
 //! signature (`tests/python/test_dependencies.py`).
 
-
 pub mod admixture;
 pub mod dates;
 pub mod error;
