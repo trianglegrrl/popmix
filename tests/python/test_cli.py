@@ -43,8 +43,10 @@ class TestCLIHelp:
     def test_help_shows_usage(self):
         """popmix --help should show usage information."""
         result = run_cli("--help")
-        assert "Usage:" in result.stdout or "usage:" in result.stdout.lower()
-        assert "popmix" in result.stdout.lower()
+        usage, _, about = result.stdout.partition("\n\n")
+        assert usage.startswith("Usage: ")
+        assert usage.endswith(" [OPTIONS] COMMAND [ARGS]...")
+        assert about.startswith("  Popmix: Population genetics F-statistics")
 
     def test_version_shows_version(self):
         """popmix --version should show version number."""
@@ -52,10 +54,10 @@ class TestCLIHelp:
         assert result.stdout.strip() == f"popmix, version {pm.__version__}"
 
     def test_no_args_shows_help(self):
-        """popmix with no args should show help or error."""
+        """popmix with no args shows its help and succeeds."""
         result = run_cli(check=False)
-        # Should either show help or indicate missing command
-        assert result.returncode == 0 or "Usage" in result.stderr or "Error" in result.stderr
+        assert result.returncode == 0
+        assert result.stdout == run_cli("--help").stdout
 
 
 class TestInfoCommand:
@@ -66,17 +68,14 @@ class TestInfoCommand:
         """popmix info should show dataset information for PACKEDANCESTRYMAP."""
         result = run_cli("info", AADR_PREFIX)
 
-        # Should show format
-        assert "packedancestrymap" in result.stdout.lower() or "format" in result.stdout.lower()
-        # Should show counts
-        assert "sample" in result.stdout.lower() or "snp" in result.stdout.lower()
+        assert "Format: packedancestrymap\nSamples: 1201\nSNPs: 1233013\n" in result.stdout
 
     @pytest.mark.skipif(not os.path.exists(f"{AADR_HO_PREFIX}.bed"), reason="AADR HO data not available")
     def test_info_plink(self):
         """popmix info should show dataset information for PLINK."""
         result = run_cli("info", AADR_HO_PREFIX)
 
-        assert "plink" in result.stdout.lower() or "format" in result.stdout.lower()
+        assert "Format: plink\nSamples: 20503\nSNPs: 597573\n" in result.stdout
 
     def test_info_missing_file_errors(self):
         """popmix info on missing file should error."""

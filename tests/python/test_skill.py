@@ -357,7 +357,8 @@ def test_examples_run(path, tmp_path):
         r = subprocess.run(["bash", "-e", "-o", "pipefail", "-c", body], cwd=work, env=run_env(tmp_path),
                            capture_output=True, text=True, timeout=300)
         assert r.returncode == 0, f"{path.name}:{line} failed:\n{body}\n--- stdout\n{r.stdout}\n--- stderr\n{r.stderr}"
-    assert not (tmp_path / ".claude").exists() or path.stem == "install-skill"
+    if path.stem != "install-skill":
+        assert not (tmp_path / ".claude").exists()
 
 
 # ---------------------------------------------------------------- shipping (N4)

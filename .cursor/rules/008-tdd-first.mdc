@@ -98,6 +98,10 @@ mod tests {
 2. **Test files should be committed BEFORE or WITH implementation**
 3. **CI must pass all tests before merge**
 4. **No "TODO: add tests later" comments allowed**
+5. **Done means reachable:** the CLI or `popmix.__all__` reaches the feature
+   and an end-to-end test runs it there on a real result object
+6. **No mock result classes, no `assert a or b`** (one expectation per
+   assertion); `tests/python/test_process_rules.py` checks both
 
 ## When You Think "I'll Add Tests Later"
 

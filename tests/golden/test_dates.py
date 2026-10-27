@@ -10,6 +10,7 @@ Test structure:
 """
 
 import json
+import math
 import os
 
 import pytest
@@ -168,7 +169,8 @@ def test_dates_chr20_22_subset():
 
     # Verify fit was computed
     assert result.fit is not None
-    assert result.generations > 0 or result.generations != result.generations  # > 0 or NaN
+    assert math.isfinite(result.generations)
+    assert result.generations > 0
 
     print("\nChr20-22 subset results:")
     print(f"  LD bins: {len(result.ld_bins)}")

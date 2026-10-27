@@ -114,6 +114,22 @@ admixtools2 checkout at `/home/a/popmix/admixtools/` (gitignored) is there to
 run, and for its documentation (`man/`, vignettes), not to read its code.
 Record where a module's method came from in its module doc comment.
 
+## Process Rules
+
+`tests/python/test_process_rules.py` enforces those a machine can check.
+
+- **Done means reachable.** A feature is done only when the CLI or
+  `popmix.__all__` reaches it and an end-to-end test runs it there on a real
+  result object.
+- **No mock result classes** when the real type can be built: tests run the
+  real code on small bundled data.
+- **One expectation per assertion.** Never `assert a or b`, which passes when
+  either half does; assert the exact value, or each part on its own line.
+- **Small files, one concern each.** No source file past about 800 lines; put
+  new code in a new module rather than growing a long one, and keep long test
+  modules in their own files (`#[cfg(test)] mod tests;` with `tests.rs`).
+  Files over the limit when the rule came in may only shrink (TASKS.md I7).
+
 ## Code Style
 
 ### Rust
