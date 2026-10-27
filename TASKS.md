@@ -493,8 +493,11 @@ thread count.
   few called samples. PR
   *Done in 20f146e:* `source_alleles` (mean observed alleles per SNP used)
   in the result and JSON; `Warning::FewSourceAlleles` below 10.
-- [ ] **G11. Kinship caveats:** KING −∞ for pseudohaploid samples, fixed READ
+- [x] **G11. Kinship caveats:** KING −∞ for pseudohaploid samples, fixed READ
   thresholds; document coverage-dependent bias and contamination. PR
+  *Done in 965bfd3:* warnings for KING samples without heterozygotes and
+  READ norms from fewer than 10 pairs; coverage, contamination and
+  background relatedness documented.
 - [x] **G12. Jackknife docstring:** the est/tot order in
   `fstats/jackknife.rs:186` is valid only for additive statistics (as
   admixtools2 `jack_pairarr_stats`); say so. PR [reviewer-verified algebra]
