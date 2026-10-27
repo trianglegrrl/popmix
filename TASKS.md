@@ -668,7 +668,10 @@ thread count.
   The Rust qpadm_rotate, qpwave_pairs and qpadm_multi bindings and their
   four result classes, used by no public function, are gone (the
   public ones are written in Python).
-- [ ] **J5. `f4` help text** says "D-statistic / ABBA-BABA" but prints f4. PG
+- [x] **J5. `f4` help text** says "D-statistic / ABBA-BABA" but prints f4. PG
+  *Done in 5ef6a52:* the help, the command list and the README say
+  f4(pop1, pop2; pop3, pop4) and point to `qpdstat --d-mode` for D
+  (`test_cli_help.py`).
 
 ## K. Tests, CI and process (P1)
 
