@@ -348,9 +348,9 @@ thread count.
   (`threading.rs:47`). Own a pool and `install` each entry point. RS
   [reviewer-verified]
   Done: popmix owns its pool (4 threads until `init_threads(n)`, which works at any time), d7be64f.
-- [ ] **F8. Fixed-order reductions everywhere,** with a thread-count
+- [x] **F8. Fixed-order reductions everywhere,** with a thread-count
   determinism test for every parallel sum (A9 first).
-  Progress: thread-count determinism tests for PCA, KING, f2 blocks, the frequency pass and the genotype f-statistics (all byte-identical in the benchmarks).
+  Progress: thread-count determinism tests for PCA, KING, f2 blocks, the frequency pass and the genotype f-statistics (all byte-identical in the benchmarks). Done: tests/python/test_thread_determinism.py runs PCA, KING, READ, ADMIXTURE, ROLLOFF, DATES, f2 blocks, convertf to every streamed format and merge at 1, 4 and 7 threads and requires the same bytes.
 - [ ] **F9. Graph search:** compute `precompute_f3` once per population set,
   not per candidate (`graph_search.rs:483-495`); `HashMap` population index
   instead of linear `pop_index` scans; port the Python evolutionary search
