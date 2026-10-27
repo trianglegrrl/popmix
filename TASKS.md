@@ -330,13 +330,13 @@ thread count.
   55.7 s / 3.48 GB; ~1,000 pops extrapolates to ~35 GB. PD
   [reviewer-verified]
   Progress: block sums are matrix products and the kept SNPs are indexed in place (10dd2f5): `--maxmiss 1`, 4 threads, 128 populations 47.7 s to 15.7 s, 497 populations 676 s / 19.8 GB to 158 s / 13.8 GB; no block value differs from admixtools2 (16-256 populations). Left: pair chunking with a memory limit; the frequency table (6.9 GB at 497 populations) and the assembled blocks dominate memory.
-- [ ] **F5. PCA eigensolver.** nalgebra `SymmetricEigen` is dense,
+- [x] **F5. PCA eigensolver.** nalgebra `SymmetricEigen` is dense,
   single-threaded, O(n³), rerun every outlier iteration (n = 2000: 9.9 s;
   ~20 min per iteration at 10k). Use a parallel solver (faer) or a partial
   top-K Lanczos/randomized solver plus the trace for Tracy-Widom; bound the
   n×n accumulators per in-flight group (~800 MB each at n = 10k). PD
   [reviewer-verified]
-  Progress: faer's sequential eigensolver (5x nalgebra's at 2,000 samples), 27f0ab6. A partial top-K solver is not needed at the sizes measured.
+  Progress: faer's sequential eigensolver (5x nalgebra's at 2,000 samples), 27f0ab6. A partial top-K solver is not needed at the sizes measured. Done: at 2,000 samples the eigensolver takes 2.8 s of 115 s; X X' is accumulated in disjoint tiles of its upper triangle (n^2/2 values in all), not one n x n matrix per thread.
 - [x] **F6. Release the GIL** in every long-running `lib.rs` function
   (`extract_f2`, `qpadm`, `qpadm_rotate`, `qpgraph`, `find_graphs`,
   `convertf`, `merge`, `read_*`); 0 `allow_threads` there today. RS
@@ -384,7 +384,7 @@ thread count.
 - [x] **F16. ADMIXTURE speed:** popmix 19.3 s against ADMIXTURE's 13.9 s in
   the E benchmark.
   Progress: no passes for settled samples and SNPs, P-step log-likelihood reused (577c8fc): 53.0 s to 21.9 s (1 thread), 22.7 s to 6.3 s (4); ADMIXTURE 13.6 s on one thread. Rerun (2026-10-26): E benchmark 6.8 s on 4 threads (ADMIXTURE 13.9 s), 16.7 s on 1. Then one logarithm per genotype (ln a^h b^(2-h), chosen without a branch), reciprocals for the derivative weights, per-SNP and per-sample products shared, the inner loops specialized on K (2-8): one thread 15.7 s to 10.0 s against ADMIXTURE's 14.2 s, the same log-likelihood, identical at 1, 4 and 16 threads. (One-thread runs vary with the core they land on: 84 ms for a Q-step's sums on a P core, 150 ms on an E core.) Done.
-- [ ] **F17. PCA cost grows with the square of the samples:** in the sample
+- [x] **F17. PCA cost grows with the square of the samples:** in the sample
   scaling curve popmix takes about 4x per doubling (5.8 s at 250 samples,
   62.7 s at 1,000, 225 s at 2,000, 1,079 s at 3,970) and smartpca about 2x
   (63, 174, 406, 1,385 s); at 2,000 samples popmix uses 2.3x smartpca's CPU
@@ -393,7 +393,7 @@ thread count.
   3,029 s, so the extra threads spin or contend instead of working. Profile
   the PCA path (the samples x samples product, its eigensolver, the parallel
   split), and make it scale like smartpca's with samples and threads.
-  Progress: tiled upper-triangle X X', panel products for loadings and projections (27f0ab6): 1,000 samples 100 s to 65 s (1 thread), 53 s to 42 s (4). The GEMM runs at about 30 GFLOP/s per core. On this machine (i7-1360P, 4 P + 8 E cores, 16 logical CPUs, about 1.5 of them busy with other processes) FLOP-bound work stops scaling at 4-8 threads, and at 14-16 threads rayon workers are descheduled while the others spin, so 16 threads is slower than 4 for every kernel: the CPU-time growth in the scaling curves comes from that, not from popmix. Rerun (2026-10-26): 5.9, 14.3, 38.3, 143, 516 s at 250 to 3,970 samples (smartpca 63, 94, 174, 406, 1,385 s); at 2,000 samples 213 s on 1 thread, 119 s on 4, 136 s on 16. Faster than smartpca at every size, but its lead shrinks with samples (10.7x at 250, 2.7x at 3,970): the n² product still dominates.
+  Progress: tiled upper-triangle X X', panel products for loadings and projections (27f0ab6): 1,000 samples 100 s to 65 s (1 thread), 53 s to 42 s (4). The GEMM runs at about 30 GFLOP/s per core. On this machine (i7-1360P, 4 P + 8 E cores, 16 logical CPUs, about 1.5 of them busy with other processes) FLOP-bound work stops scaling at 4-8 threads, and at 14-16 threads rayon workers are descheduled while the others spin, so 16 threads is slower than 4 for every kernel: the CPU-time growth in the scaling curves comes from that, not from popmix. Rerun (2026-10-26): 5.9, 14.3, 38.3, 143, 516 s at 250 to 3,970 samples (smartpca 63, 94, 174, 406, 1,385 s); at 2,000 samples 213 s on 1 thread, 119 s on 4, 136 s on 16. Faster than smartpca at every size, but its lead shrinks with samples (10.7x at 250, 2.7x at 3,970): the n^2 product still dominates. Measured (2026-10-27, 2,000 samples, 4 threads): X X' 97-108 s of 115 s (decoding 3 s, eigensolver 2.8 s), 49 GFLOP/s. That is this laptop's sustained ceiling: the same tiles run 85 GFLOP/s on 4 P cores for the first seconds and settle at 45 when its power limit sets in (OpenBLAS: 42 GFLOP/s on one P core, 18 on an E core). faer's GEMM in place of matrixmultiply gave nothing sustained. Both tools cost n^2 m; smartpca's lead-shrinking curve is its fixed costs dominating at few samples. Done: what is left is hardware, or a different method (randomized top-K), which would no longer give smartpca's full spectrum.
 - [x] **F18. `extract_f2` runs on one core:** 128 populations take 16 s at
   every thread count from 1 to 16, CPU time equal to wall time. Parallelize
   the per-SNP frequencies and the per-block pair sums (populations x
