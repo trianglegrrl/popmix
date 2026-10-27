@@ -36,8 +36,10 @@ def test_long_computations_release_the_gil():
     took = []
 
     def work() -> None:
+        # repeated, so that the run is long enough to tell however fast one is
         start = time.perf_counter()
-        pm.smartpca(prefix, pops, [])
+        while time.perf_counter() - start < 0.3:
+            pm.smartpca(prefix, pops, [])
         took.append(time.perf_counter() - start)
 
     worker = threading.Thread(target=work)

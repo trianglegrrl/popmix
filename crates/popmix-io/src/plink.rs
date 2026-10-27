@@ -278,36 +278,17 @@ pub fn read_fam_file(path: &str) -> Result<Vec<Sample>> {
 /// position is in Morgans, or in centimorgans if any exceeds 10 (see
 /// [`crate::to_morgans`]).
 fn read_bim_file(path: &str) -> Result<Vec<Snp>> {
-    use rayon::prelude::*;
     let content = std::fs::read_to_string(path).map_err(|e| PopmixError::io_with_path(e, path))?;
-    // the non-empty lines parsed in parallel; the first bad line in file
-    // order is the error
-    let lines: Vec<(usize, &str)> = content
-        .lines()
-        .enumerate()
-        .map(|(n, l)| (n, l.trim()))
-        .filter(|(_, l)| !l.is_empty())
-        .collect();
-    let parsed: Vec<Result<Snp>> = lines
-        .par_iter()
-        .map(|&(line_num, line)| parse_bim_line(path, line_num, line))
-        .collect();
-    let mut snps = parsed.into_iter().collect::<Result<Vec<Snp>>>()?;
+    let mut snps = crate::parse_lines(&content, |line_num, line| {
+        parse_bim_line(path, line_num, line)
+    })?;
     crate::to_morgans(&mut snps);
     Ok(snps)
 }
 
 /// One line of a .bim file (`line_num` from 0).
 fn parse_bim_line(path: &str, line_num: usize, line: &str) -> Result<Snp> {
-    let fields: Vec<&str> = line.split_whitespace().collect();
-    if fields.len() < 6 {
-        return Err(PopmixError::parse(
-            path,
-            line_num + 1,
-            format!("Expected 6 fields, got {}", fields.len()),
-        ));
-    }
-
+    let fields = crate::six_fields(path, line_num, line)?;
     let chromosome = Chromosome::parse(fields[0]);
     let id = fields[1].to_string();
     // Morgans, as EIGENSOFT and admixtools2 write and read it; rescaled
