@@ -593,7 +593,7 @@ thread count.
   qpadm test (`qpadm_impl.rs:227-269`). Most go with D1. AI, PD
 - [ ] **K6. Mutation testing** (`cargo-mutants`, `mutmut`) on core statistics
   and Python helpers, to find tests that cannot fail. AI
-- [x] **K7. Process rules in CLAUDE.md:** *Done in COMMIT (`tests/python/test_process_rules.py` checks the mock, `or`-assertion and file-size rules).* a feature is done only when it is
+- [x] **K7. Process rules in CLAUDE.md:** *Done in d68dc3d (`tests/python/test_process_rules.py` checks the mock, `or`-assertion and file-size rules).* a feature is done only when it is
   reachable from the CLI or `popmix.__all__` and an end-to-end test runs it
   on a real result object; no mock result classes when the real type can be
   built; no `or`-chained assertions. AI
