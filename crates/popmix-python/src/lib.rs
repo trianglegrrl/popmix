@@ -38,40 +38,16 @@ use vcf_input::open_vcf;
 // ============================================================================
 
 fn to_py_err(e: popmix_core::PopmixError) -> PyErr {
-    use popmix_core::PopmixError as E;
+    use popmix_core::ErrorKind as K;
     use pyo3::exceptions::{PyFileNotFoundError, PyOSError, PyRuntimeError, PyValueError};
-    match e {
-        E::FileNotFound { .. } => PyFileNotFoundError::new_err(e.to_string()),
-        E::Io(ref io) if io.kind() == std::io::ErrorKind::NotFound => {
-            PyFileNotFoundError::new_err(e.to_string())
-        }
-        E::Io(_) => PyOSError::new_err(e.to_string()),
+    let msg = e.to_string();
+    match e.kind() {
+        K::NotFound => PyFileNotFoundError::new_err(msg),
+        K::Io => PyOSError::new_err(msg),
         // the caller's input: a bad name, value or file
-        E::PopulationNotFound(_)
-        | E::DuplicatePopulation(_)
-        | E::Validation(_)
-        | E::InvalidFileFormat { .. }
-        | E::UnexpectedFileSize { .. }
-        | E::ParseError { .. }
-        | E::InsufficientPopulations { .. }
-        | E::InsufficientData { .. }
-        | E::DimensionMismatch { .. }
-        | E::InvalidSubset { .. }
-        | E::InvalidValue { .. }
-        | E::InvalidGraph { .. }
-        | E::InvalidAdmixtureNode { .. }
-        | E::CycleDetected { .. }
-        | E::InvalidConfig { .. }
-        | E::InvalidThreadCount(_)
-        | E::NoSnpsRemaining
-        | E::NoRootNode => PyValueError::new_err(e.to_string()),
-        // the computation: a singular system, no convergence, ...
-        E::SingularMatrix { .. }
-        | E::ConvergenceFailure { .. }
-        | E::Infeasible { .. }
-        | E::NumericalOverflow { .. }
-        | E::Numerical(_)
-        | E::LinAlg { .. } => PyRuntimeError::new_err(e.to_string()),
+        K::Input => PyValueError::new_err(msg),
+        // the computation (a singular system, no convergence), or a bug
+        K::Computation | K::Internal => PyRuntimeError::new_err(msg),
     }
 }
 

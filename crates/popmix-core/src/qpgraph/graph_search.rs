@@ -352,15 +352,16 @@ fn unique_label(mut label: String, taken: &HashSet<&str>) -> String {
 
 fn check_leaves(leaves: &[&str]) -> Result<()> {
     if leaves.len() < 2 {
-        return Err(PopmixError::Validation(
-            "a graph needs at least two populations".to_string(),
+        return Err(PopmixError::too_few(
+            "a graph",
+            "populations",
+            2,
+            leaves.len(),
         ));
     }
     let mut seen = HashSet::new();
     if let Some(dup) = leaves.iter().find(|l| !seen.insert(**l)) {
-        return Err(PopmixError::Validation(format!(
-            "population {dup} is listed twice"
-        )));
+        return Err(PopmixError::DuplicatePopulation(dup.to_string()));
     }
     Ok(())
 }
@@ -443,15 +444,16 @@ pub fn graph_key(edges: &[(String, String)]) -> Result<Vec<String>> {
         edges: edge_ids,
     };
     if !t.is_valid() {
-        return Err(PopmixError::Validation(
-            "not a valid admixture graph (admixtools2 is_valid)".to_string(),
-        ));
+        return Err(PopmixError::InvalidGraph {
+            details: "not a valid admixture graph (admixtools2 is_valid)".to_string(),
+        });
     }
     let (indeg, outdeg) = t.degrees();
     if (0..t.n()).any(|v| indeg[v] == 1 && outdeg[v] == 1) {
-        return Err(PopmixError::Validation(
-            "graph_key needs a simplified graph: no node with one parent and one child".to_string(),
-        ));
+        return Err(PopmixError::InvalidGraph {
+            details: "graph_key needs a simplified graph: no node with one parent and one child"
+                .to_string(),
+        });
     }
     for v in 0..t.n() {
         if !t.is_leaf(&outdeg, v) {
@@ -498,10 +500,10 @@ fn score_all(
         .filter_map(|(score, i)| score.map(|s| (s, i)))
         .collect();
     if ranked.is_empty() {
-        return Err(PopmixError::Numerical(format!(
-            "none of the {} candidate graphs could be fit",
-            graphs.len()
-        )));
+        return Err(PopmixError::numerical(
+            "find_graphs",
+            format!("none of the {} candidate graphs could be fit", graphs.len()),
+        ));
     }
     ranked.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
     Ok(ranked)
@@ -519,8 +521,11 @@ pub fn find_graphs(
     let opts = options.unwrap_or_default();
     check_leaves(populations)?;
     if populations.len() < 3 {
-        return Err(PopmixError::Validation(
-            "find_graphs needs at least three populations".to_string(),
+        return Err(PopmixError::too_few(
+            "find_graphs",
+            "populations",
+            3,
+            populations.len(),
         ));
     }
     for pop in populations {
@@ -530,9 +535,10 @@ pub fn find_graphs(
     }
     if let Some(og) = &opts.outgroup {
         if !populations.contains(&og.as_str()) {
-            return Err(PopmixError::Validation(format!(
-                "outgroup {og} is not one of the populations"
-            )));
+            return Err(PopmixError::parameter(
+                "outgroup",
+                format!("{og} is not one of the populations"),
+            ));
         }
     }
     let base = populations[0];
@@ -566,16 +572,14 @@ pub fn find_graphs(
         }
         GraphSearchMethod::Stepwise { beam_width } => {
             if beam_width == 0 {
-                return Err(PopmixError::Validation(
-                    "beam_width must be at least 1".to_string(),
-                ));
+                return Err(PopmixError::parameter("beam_width", "must be at least 1"));
             }
             let mut n_evaluated = 0;
             let mut step = |candidates: Vec<Topology>| -> Result<(Vec<Topology>, Ranked)> {
                 let candidates = keep(dedup(candidates));
                 if candidates.is_empty() {
-                    return Err(PopmixError::Validation(
-                        "no graph satisfies the outgroup constraint".to_string(),
+                    return Err(PopmixError::data(
+                        "no graph satisfies the outgroup constraint",
                     ));
                 }
                 let ranked = score_all(f2_blocks, &candidates, base, &opts.qpgraph)?;

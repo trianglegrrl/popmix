@@ -775,10 +775,10 @@ fn random_start(n: usize, m: usize, k: usize, seed: u64) -> (Vec<f64>, Vec<f64>)
 
 fn check(geno: &PackedGenotypes, k: usize) -> Result<()> {
     if k < 1 {
-        return Err(PopmixError::Validation("K must be at least 1".to_string()));
+        return Err(PopmixError::parameter("K", "must be at least 1"));
     }
     if geno.n_samples() < 2 || geno.n_snps() < 1 {
-        return Err(PopmixError::Validation(format!(
+        return Err(PopmixError::data(format!(
             "{} samples and {} SNPs: too few to fit",
             geno.n_samples(),
             geno.n_snps()
@@ -828,9 +828,7 @@ pub fn admixture_supervised(
         });
     }
     if let Some(bad) = labels.iter().flatten().find(|&&l| l >= k) {
-        return Err(PopmixError::Validation(format!(
-            "label {bad} out of range for K = {k}"
-        )));
+        return Err(PopmixError::out_of_range("label", *bad, k));
     }
     let (mut q, p) = random_start(geno.n_samples(), geno.n_snps(), k, options.seed);
     for (i, l) in labels.iter().enumerate() {
@@ -908,9 +906,10 @@ pub fn admixture_cv(
 ) -> Result<f64> {
     // each genotype's fold is kept in a byte
     if !(2..=256).contains(&folds) {
-        return Err(PopmixError::Validation(format!(
-            "cross-validation takes 2 to 256 folds, not {folds}"
-        )));
+        return Err(PopmixError::parameter(
+            "folds",
+            format!("cross-validation takes 2 to 256 folds, not {folds}"),
+        ));
     }
     let (n, m, k) = (geno.n_samples(), geno.n_snps(), full.k);
     let mut rng = Rng(options.seed ^ 0xC0FF_EE00_D15E_A5E5);

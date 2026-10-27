@@ -100,25 +100,24 @@ impl PlinkReader {
         }
         {
             let bed_path = format!("{}.bed", self.prefix);
-            let file =
-                File::open(&bed_path).map_err(|e| PopmixError::io_with_path(e, &bed_path))?;
+            let file = File::open(&bed_path).map_err(|e| PopmixError::io(e, &bed_path))?;
 
             let mmap =
                 // SAFETY: the map is only read; like every reader of these files,
             // popmix assumes no other process truncates the file while it is open.
-            unsafe { Mmap::map(&file).map_err(|e| PopmixError::io_with_path(e, &bed_path))? };
+            unsafe { Mmap::map(&file).map_err(|e| PopmixError::io(e, &bed_path))? };
 
             // Verify magic number and mode
             if mmap.len() < 3 {
                 return Err(PopmixError::InvalidFileFormat {
-                    file: bed_path,
+                    path: bed_path.into(),
                     details: "File too small to contain PLINK header".to_string(),
                 });
             }
 
             if mmap[0..3] != PLINK_MAGIC {
                 return Err(PopmixError::InvalidFileFormat {
-                    file: bed_path,
+                    path: bed_path.into(),
                     details: format!(
                         "Invalid PLINK magic number: {:02x} {:02x} {:02x}",
                         mmap[0], mmap[1], mmap[2]
@@ -130,7 +129,7 @@ impl PlinkReader {
             let expected_size = 3 + self.snps.len() * self.bytes_per_snp;
             if mmap.len() != expected_size {
                 return Err(PopmixError::UnexpectedFileSize {
-                    file: bed_path,
+                    path: bed_path.into(),
                     expected: expected_size as u64,
                     actual: mmap.len() as u64,
                 });
@@ -243,7 +242,7 @@ impl PlinkReader {
 /// Format: FID IID PID MID SEX PHENO (space-separated)
 /// We use FID as population and IID as sample ID.
 pub fn read_fam_file(path: &str) -> Result<Vec<Sample>> {
-    let content = std::fs::read_to_string(path).map_err(|e| PopmixError::io_with_path(e, path))?;
+    let content = std::fs::read_to_string(path).map_err(|e| PopmixError::io(e, path))?;
 
     let mut samples = Vec::new();
 
@@ -278,7 +277,7 @@ pub fn read_fam_file(path: &str) -> Result<Vec<Sample>> {
 /// position is in Morgans, or in centimorgans if any exceeds 10 (see
 /// [`crate::to_morgans`]).
 fn read_bim_file(path: &str) -> Result<Vec<Snp>> {
-    let content = std::fs::read_to_string(path).map_err(|e| PopmixError::io_with_path(e, path))?;
+    let content = std::fs::read_to_string(path).map_err(|e| PopmixError::io(e, path))?;
     let mut snps = crate::parse_lines(&content, |line_num, line| {
         parse_bim_line(path, line_num, line)
     })?;

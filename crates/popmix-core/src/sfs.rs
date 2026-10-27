@@ -289,9 +289,11 @@ impl SfsSummary {
     /// From an unfolded one-population spectrum.
     pub fn of(sfs: &Spectrum) -> Result<SfsSummary> {
         if sfs.dims.len() != 1 {
-            return Err(PopmixError::Validation(
-                "summary statistics need a one-population spectrum".to_string(),
-            ));
+            return Err(PopmixError::DimensionMismatch {
+                context: "summary statistics".to_string(),
+                expected: "a one-population spectrum".to_string(),
+                actual: format!("{} populations", sfs.dims.len()),
+            });
         }
         let n = sfs.dims[0] - 1;
         let visible = |i: usize| {

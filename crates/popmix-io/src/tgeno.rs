@@ -28,12 +28,12 @@ pub const HEADER_LEN: usize = 48;
 /// Does this .geno file start with the TGENO magic word?
 pub fn is_tgeno_format(geno_path: &str) -> Result<bool> {
     use std::io::Read;
-    let mut file = File::open(geno_path).map_err(|e| PopmixError::io_with_path(e, geno_path))?;
+    let mut file = File::open(geno_path).map_err(|e| PopmixError::io(e, geno_path))?;
     let mut magic = [0u8; 5];
     match file.read_exact(&mut magic) {
         Ok(()) => Ok(&magic == b"TGENO"),
         Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => Ok(false),
-        Err(e) => Err(PopmixError::io_with_path(e, geno_path)),
+        Err(e) => Err(PopmixError::io(e, geno_path)),
     }
 }
 
@@ -55,7 +55,7 @@ impl TgenoReader {
         let geno_path = format!("{prefix}.geno");
         if !is_tgeno_format(&geno_path)? {
             return Err(PopmixError::InvalidFileFormat {
-                file: geno_path,
+                path: geno_path.into(),
                 details: "expected a TGENO header".to_string(),
             });
         }
@@ -65,16 +65,15 @@ impl TgenoReader {
             samples.len(),
             snps.len(),
         )?;
-        let file = File::open(&geno_path).map_err(|e| PopmixError::io_with_path(e, &geno_path))?;
+        let file = File::open(&geno_path).map_err(|e| PopmixError::io(e, &geno_path))?;
         // SAFETY: the map is only read; like every reader of these files,
         // popmix assumes no other process truncates the file while it is open.
-        let geno =
-            unsafe { Mmap::map(&file) }.map_err(|e| PopmixError::io_with_path(e, &geno_path))?;
+        let geno = unsafe { Mmap::map(&file) }.map_err(|e| PopmixError::io(e, &geno_path))?;
         let record_len = snps.len().div_ceil(4);
         let expected = HEADER_LEN + samples.len() * record_len;
         if geno.len() != expected {
             return Err(PopmixError::UnexpectedFileSize {
-                file: geno_path,
+                path: geno_path.into(),
                 expected: expected as u64,
                 actual: geno.len() as u64,
             });
@@ -111,10 +110,7 @@ impl TgenoReader {
     pub fn read(&self, indices: &[usize], snps: std::ops::Range<usize>) -> Result<GenotypeMatrix> {
         crate::check_snp_range(&snps, self.snps.len())?;
         if let Some(&bad) = indices.iter().find(|&&i| i >= self.samples.len()) {
-            return Err(PopmixError::Validation(format!(
-                "sample {bad} out of range for {} samples",
-                self.samples.len()
-            )));
+            return Err(PopmixError::out_of_range("sample", bad, self.samples.len()));
         }
         let mut data = Array2::<u8>::zeros((snps.len(), indices.len()));
         for (col, &sample) in indices.iter().enumerate() {

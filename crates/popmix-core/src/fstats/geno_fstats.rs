@@ -76,7 +76,7 @@ impl<'a> MatrixRows<'a> {
 impl GenotypeRows for MatrixRows<'_> {
     fn next_row(&mut self, out: &mut [u8]) -> Result<()> {
         let snp = *self.snps.get(self.next).ok_or_else(|| {
-            PopmixError::Numerical("read past the last SNP of the genotype matrix".to_string())
+            PopmixError::Internal("read past the last SNP of the genotype matrix".to_string())
         })?;
         let row = self.matrix.snp_raw(snp);
         for (o, &s) in out.iter_mut().zip(&self.samples) {
@@ -224,22 +224,18 @@ fn blocks_for(snps: &[Snp], block_size: f64) -> Vec<usize> {
 fn check_indices(pops: &GenoPopulations, stats: &[&[usize]]) -> Result<()> {
     let n = pops.names.len();
     if pops.sample_pop.len() != pops.ploidy.len() {
-        return Err(PopmixError::Validation(format!(
-            "{} sample populations but {} ploidies",
-            pops.sample_pop.len(),
-            pops.ploidy.len()
-        )));
+        return Err(PopmixError::DimensionMismatch {
+            context: "sample ploidies".to_string(),
+            expected: format!("{}, one per sample", pops.sample_pop.len()),
+            actual: pops.ploidy.len().to_string(),
+        });
     }
     if let Some(&bad) = pops.sample_pop.iter().find(|&&p| p >= n) {
-        return Err(PopmixError::Validation(format!(
-            "sample population index {bad} out of range for {n} populations"
-        )));
+        return Err(PopmixError::out_of_range("sample population index", bad, n));
     }
     for s in stats {
         if let Some(&bad) = s.iter().find(|&&p| p >= n) {
-            return Err(PopmixError::Validation(format!(
-                "population index {bad} out of range for {n} populations"
-            )));
+            return Err(PopmixError::out_of_range("population index", bad, n));
         }
     }
     Ok(())

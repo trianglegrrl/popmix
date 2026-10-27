@@ -46,7 +46,7 @@ fn r_optim_lbfgsb<'py>(
     let mut f = |x: &[f64]| -> popmix_core::Result<f64> {
         fn_.call1(py, (x.to_vec(),))
             .and_then(|v| v.extract::<f64>(py))
-            .map_err(|e| PopmixError::Numerical(format!("objective failed: {e}")))
+            .map_err(|e| PopmixError::numerical("optim", format!("the objective failed: {e}")))
     };
     let opts = LbfgsbOptions {
         lmm,

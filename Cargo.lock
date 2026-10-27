@@ -1151,7 +1151,6 @@ dependencies = [
 name = "popmix-io"
 version = "1.0.0"
 dependencies = [
- "byteorder",
  "flate2",
  "memmap2",
  "ndarray",

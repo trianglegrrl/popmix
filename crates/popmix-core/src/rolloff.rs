@@ -332,10 +332,10 @@ pub fn rolloff(
         });
     }
     if options.runmode > 1 {
-        return Err(PopmixError::Validation(format!(
-            "runmode {} is not supported",
-            options.runmode
-        )));
+        return Err(PopmixError::parameter(
+            "runmode",
+            format!("{} is not supported", options.runmode),
+        ));
     }
     let counts = |g: &PackedGenotypes, s: usize| -> [f64; 3] {
         let mut x = [0.0; 3];
@@ -381,10 +381,7 @@ pub fn rolloff(
         .collect();
     let used: Vec<usize> = (0..m).filter(|&s| weights[s].is_some()).collect();
     if used.len() < 100 {
-        return Err(PopmixError::Validation(format!(
-            "too few SNPs: {}",
-            used.len()
-        )));
+        return Err(PopmixError::too_few("ROLLOFF", "SNPs", 100, used.len()));
     }
     let numbins = (options.maxdis / options.binsize).round() as usize + 5;
     let out_bins = numbins - 5;

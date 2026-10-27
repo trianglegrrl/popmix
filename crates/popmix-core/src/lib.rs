@@ -32,7 +32,7 @@ pub use admixture::{
     admixture, admixture_cv, admixture_loglik, admixture_projection, admixture_supervised,
     AdmixtureFit, AdmixtureOptions,
 };
-pub use error::{PopmixError, Result};
+pub use error::{ErrorKind, IoResultExt, PopmixError, Result};
 pub use fstats::{
     f2_estimate, f2_single_snp, f3_from_genotypes, f4_from_genotypes, BlockAssignment,
     BlockDefinition, CoordinateEvidence, F2Blocks, F2Options, F2Result, F3GenoOptions, F3Result,

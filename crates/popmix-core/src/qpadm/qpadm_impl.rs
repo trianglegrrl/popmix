@@ -93,13 +93,19 @@ pub fn qpadm(
     let opts = options.unwrap_or_default();
 
     if sources.is_empty() {
-        return Err(crate::PopmixError::Validation(
-            "qpAdm requires at least one source population".to_string(),
+        return Err(crate::PopmixError::too_few(
+            "qpAdm",
+            "source populations",
+            1,
+            0,
         ));
     }
     if right.len() < 2 {
-        return Err(crate::PopmixError::Validation(
-            "qpAdm requires at least 2 right populations".to_string(),
+        return Err(crate::PopmixError::too_few(
+            "qpAdm",
+            "right populations",
+            2,
+            right.len(),
         ));
     }
 
@@ -129,7 +135,7 @@ pub fn qpadm(
         .find(|r| r.rank == rnk)
         .map(|r| (r.chi_sq, r.df, r.p_value))
         .ok_or_else(|| {
-            crate::PopmixError::Numerical(format!("no qpWave rank test at rank {rnk}"))
+            crate::PopmixError::Internal(format!("no qpWave rank test at rank {rnk}"))
         })?;
 
     Ok(QpAdmResult {

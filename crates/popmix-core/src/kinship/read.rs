@@ -314,9 +314,7 @@ pub fn read_kinship(
     }
     let n = g.n_samples();
     if n < 2 {
-        return Err(PopmixError::Numerical(
-            "READ needs at least two samples".to_string(),
-        ));
+        return Err(PopmixError::too_few("READ", "samples", 2, n));
     }
     let compat = options.compat;
     let jk_wins = windows(positions, chroms, options.window_size, compat);
@@ -375,8 +373,8 @@ pub fn read_kinship(
         })
         .collect();
     if raw.is_empty() {
-        return Err(PopmixError::Numerical(
-            "no pair of samples has a SNP called in both".to_string(),
+        return Err(PopmixError::data(
+            "no pair of samples has a SNP called in both",
         ));
     }
 
@@ -388,7 +386,7 @@ pub fn read_kinship(
         ReadNorm::Value(v) => v,
     };
     if norm_value <= 0.0 || !norm_value.is_finite() {
-        return Err(PopmixError::Numerical(format!(
+        return Err(PopmixError::data(format!(
             "READ normalization value is {norm_value} (are most samples duplicates?)"
         )));
     }

@@ -44,10 +44,13 @@ pub(crate) fn parse_genetic_position(field: &str, path: &str, line: usize) -> Re
 /// Check that `range` is a range of SNP indices of a file with `n_snps` SNPs.
 pub(crate) fn check_snp_range(range: &std::ops::Range<usize>, n_snps: usize) -> Result<()> {
     if range.start > range.end || range.end > n_snps {
-        return Err(PopmixError::Validation(format!(
-            "SNP range {}..{} is not within the {n_snps} SNPs of the file",
-            range.start, range.end
-        )));
+        return Err(PopmixError::parameter(
+            "SNP range",
+            format!(
+                "{}..{} is not within the {n_snps} SNPs of the file",
+                range.start, range.end
+            ),
+        ));
     }
     Ok(())
 }
@@ -146,7 +149,7 @@ impl GenoFormat {
         }
 
         Err(PopmixError::FileNotFound {
-            path: format!("{} (no recognized genotype files found)", prefix_str),
+            path: format!("{} (no recognized genotype files found)", prefix_str).into(),
         })
     }
 
@@ -165,7 +168,7 @@ impl GenoFormat {
             "vcf" => Ok(GenoFormat::Vcf),
             "tgeno" | "transpose_packed" => Ok(GenoFormat::Tgeno),
             _ => Err(PopmixError::InvalidFileFormat {
-                file: s.to_string(),
+                path: s.to_string().into(),
                 details: format!(
                     "Unknown format '{}'. Valid formats: ancestrymap, eigenstrat, ped, packedped, packedancestrymap, tgeno, vcf",
                     s

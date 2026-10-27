@@ -518,12 +518,22 @@ thread count.
 
 ## I. Rust API and error design (P1)
 
-- [ ] **I1. `PopmixError`:** `#[non_exhaustive]`; `PathBuf` paths with
+- [x] **I1. `PopmixError`:** `#[non_exhaustive]`; `PathBuf` paths with
   `#[source]` io errors (`io_with_path`, `error.rs:118`, drops the path except
   for NotFound; bare `?` in `npy.rs`); real variants instead of
   `Validation(String)` (31 uses) and `Numerical(String)` (40); remove the ten
   never-constructed variants; NPY format errors as `InvalidFileFormat`. RS
   [reviewer-verified]
+  *Done in COMMIT:* `#[non_exhaustive]`; `PathBuf` paths; `Io { path,
+  source }` with the io error as `#[source]` and no `From<io::Error>`, so a
+  bare `?` cannot drop the path (`IoResultExt::with_path`); `Validation`
+  and `Numerical` replaced by `TooFew`, `IndexOutOfRange`,
+  `InvalidParameter`, `InvalidData`, `NumericalFailure`, `ThreadPool` and
+  `Internal`, population lookups as `PopulationNotFound`; seven
+  never-built variants removed; NPY and f2-directory problems are
+  `InvalidFileFormat` naming the file. `PopmixError::kind()` (a closed
+  `ErrorKind`) is what the bindings map to Python exceptions. The
+  seven files that grew moved their tests to `tests.rs` (I7).
 - [ ] **I2. Typed Python exceptions:** `FileNotFoundError`, `OSError`,
   `KeyError`/`ValueError` for populations and validation, popmix exception
   subclasses; `From<PopmixError> for PyErr` so `.map_err(to_py_err)` becomes

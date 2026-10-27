@@ -14,6 +14,7 @@ use std::path::Path;
 use popmix_core::error::{PopmixError, Result};
 use popmix_core::genotype_matrix::GenotypeMatrix;
 use popmix_core::genotypes::{Genotype, Sample, Snp};
+use popmix_core::IoResultExt;
 
 use crate::eigenstrat::{read_ind_file, read_snp_file};
 
@@ -37,7 +38,9 @@ impl AncestryMapReader {
         // Check for .ancestrymapgeno file
         let geno_path = format!("{}.ancestrymapgeno", prefix_str);
         if !Path::new(&geno_path).exists() {
-            return Err(PopmixError::FileNotFound { path: geno_path });
+            return Err(PopmixError::FileNotFound {
+                path: geno_path.into(),
+            });
         }
 
         // Read SNP and sample metadata (same format as EIGENSTRAT)
@@ -98,11 +101,11 @@ impl AncestryMapReader {
         let mut data = ndarray::Array2::<u8>::from_elem((n_snps, n_samples), 3);
 
         // Read sparse genotypes
-        let file = File::open(&self.geno_path)?;
+        let file = File::open(&self.geno_path).with_path(&self.geno_path)?;
         let reader = BufReader::new(file);
 
         for (line_num, line) in reader.lines().enumerate() {
-            let line = line?;
+            let line = line.with_path(&self.geno_path)?;
             let line = line.trim();
             if line.is_empty() || line.starts_with('#') {
                 continue;
@@ -111,7 +114,7 @@ impl AncestryMapReader {
             let fields: Vec<&str> = line.split_whitespace().collect();
             if fields.len() < 3 {
                 return Err(PopmixError::ParseError {
-                    file: self.geno_path.clone(),
+                    path: self.geno_path.clone().into(),
                     line: line_num + 1,
                     details: format!("Expected 3 columns, got {}", fields.len()),
                 });
@@ -120,7 +123,7 @@ impl AncestryMapReader {
             let snp_id = fields[0];
             let sample_id = fields[1];
             let count: u8 = fields[2].parse().map_err(|_| PopmixError::ParseError {
-                file: self.geno_path.clone(),
+                path: self.geno_path.clone().into(),
                 line: line_num + 1,
                 details: format!("Invalid genotype count: {}", fields[2]),
             })?;
@@ -130,7 +133,7 @@ impl AncestryMapReader {
                 .snp_index
                 .get(snp_id)
                 .ok_or_else(|| PopmixError::ParseError {
-                    file: self.geno_path.clone(),
+                    path: self.geno_path.clone().into(),
                     line: line_num + 1,
                     details: format!("Unknown SNP ID: {}", snp_id),
                 })?;
@@ -139,7 +142,7 @@ impl AncestryMapReader {
                 self.sample_index
                     .get(sample_id)
                     .ok_or_else(|| PopmixError::ParseError {
-                        file: self.geno_path.clone(),
+                        path: self.geno_path.clone().into(),
                         line: line_num + 1,
                         details: format!("Unknown sample ID: {}", sample_id),
                     })?;

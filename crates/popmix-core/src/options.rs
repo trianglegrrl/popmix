@@ -11,9 +11,10 @@ pub(crate) fn check_positive(name: &str, value: f64) -> Result<()> {
     if value.is_finite() && value > 0.0 {
         Ok(())
     } else {
-        Err(PopmixError::Validation(format!(
-            "{name} must be a finite number greater than 0, not {value}"
-        )))
+        Err(PopmixError::parameter(
+            name,
+            format!("must be a finite number greater than 0, not {value}"),
+        ))
     }
 }
 
@@ -23,10 +24,13 @@ pub(crate) fn check_bins(bin_name: &str, binsize: f64, max_name: &str, maxdis: f
     check_positive(bin_name, binsize)?;
     check_positive(max_name, maxdis)?;
     if maxdis / binsize > MAX_BINS {
-        return Err(PopmixError::Validation(format!(
-            "{bin_name} {binsize} makes {:.0} bins out to {max_name} {maxdis}; at most {MAX_BINS:.0} are allowed",
-            maxdis / binsize
-        )));
+        return Err(PopmixError::parameter(
+            bin_name,
+            format!(
+                "{binsize} makes {:.0} bins out to {max_name} {maxdis}; at most {MAX_BINS:.0} are allowed",
+                maxdis / binsize
+            ),
+        ));
     }
     Ok(())
 }

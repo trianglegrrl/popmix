@@ -135,11 +135,12 @@ pub fn dates(
 
     let weights = compute_weights(af, source1, source2, Some(opts.min_source_count))?;
     if weights.n_valid == 0 {
-        return Err(PopmixError::InsufficientData {
-            context: "No SNPs with valid weights".to_string(),
-            required: 100,
-            actual: 0,
-        });
+        return Err(PopmixError::too_few(
+            "DATES",
+            "SNPs with valid weights",
+            1,
+            0,
+        ));
     }
     let i1 = af
         .pop_index(source1)
@@ -164,11 +165,7 @@ pub fn dates(
         Some(ld_options),
     )?;
     if ld.bins.is_empty() {
-        return Err(PopmixError::InsufficientData {
-            context: "No LD bins computed".to_string(),
-            required: 10,
-            actual: 0,
-        });
+        return Err(PopmixError::too_few("DATES", "LD bins", 1, 0));
     }
 
     let rounded = opts.compat.fit_printed_values;

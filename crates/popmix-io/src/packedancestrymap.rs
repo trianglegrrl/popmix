@@ -33,11 +33,11 @@ use popmix_core::{Genotype, GenotypeMatrix, Ploidy, PopmixError, Result, Sample,
 pub fn is_packed_format(geno_path: &str) -> Result<bool> {
     use std::io::Read;
 
-    let mut file = File::open(geno_path).map_err(|e| PopmixError::io_with_path(e, geno_path))?;
+    let mut file = File::open(geno_path).map_err(|e| PopmixError::io(e, geno_path))?;
 
     let mut magic = [0u8; 4];
     file.read_exact(&mut magic)
-        .map_err(|e| PopmixError::io_with_path(e, geno_path))?;
+        .map_err(|e| PopmixError::io(e, geno_path))?;
 
     Ok(&magic == b"GENO")
 }
@@ -69,9 +69,9 @@ pub(crate) fn check_header_counts(
     n_snps: usize,
 ) -> Result<()> {
     let mut head = [0u8; 64];
-    let mut file = File::open(geno_path).map_err(|e| PopmixError::io_with_path(e, geno_path))?;
-    let read = std::io::Read::read(&mut file, &mut head)
-        .map_err(|e| PopmixError::io_with_path(e, geno_path))?;
+    let mut file = File::open(geno_path).map_err(|e| PopmixError::io(e, geno_path))?;
+    let read =
+        std::io::Read::read(&mut file, &mut head).map_err(|e| PopmixError::io(e, geno_path))?;
     let text = String::from_utf8_lossy(&head[..read]);
     let fields: Vec<&str> = text
         .trim_end_matches('\0')
@@ -84,13 +84,13 @@ pub(crate) fn check_header_counts(
     };
     let Some((header_samples, header_snps)) = counts else {
         return Err(PopmixError::InvalidFileFormat {
-            file: geno_path.to_string(),
+            path: geno_path.to_string().into(),
             details: format!("no \"{magic} <samples> <snps>\" header"),
         });
     };
     if (header_samples, header_snps) != (n_samples, n_snps) {
         return Err(PopmixError::InvalidFileFormat {
-            file: geno_path.to_string(),
+            path: geno_path.to_string().into(),
             details: format!(
                 "the header gives {header_samples} samples and {header_snps} SNPs, but the \
                  .ind file lists {n_samples} samples and the .snp file {n_snps} SNPs"
@@ -118,7 +118,7 @@ impl PackedAncestryMapReader {
         let geno_path = format!("{}.geno", prefix);
         if !is_packed_format(&geno_path)? {
             return Err(PopmixError::InvalidFileFormat {
-                file: geno_path,
+                path: geno_path.into(),
                 details: "Expected PACKEDANCESTRYMAP format, found EIGENSTRAT text format"
                     .to_string(),
             });
@@ -171,18 +171,17 @@ impl PackedAncestryMapReader {
         }
         {
             let geno_path = format!("{}.geno", self.prefix);
-            let file =
-                File::open(&geno_path).map_err(|e| PopmixError::io_with_path(e, &geno_path))?;
+            let file = File::open(&geno_path).map_err(|e| PopmixError::io(e, &geno_path))?;
 
             let mmap =
                 // SAFETY: the map is only read; like every reader of these files,
             // popmix assumes no other process truncates the file while it is open.
-            unsafe { Mmap::map(&file).map_err(|e| PopmixError::io_with_path(e, &geno_path))? };
+            unsafe { Mmap::map(&file).map_err(|e| PopmixError::io(e, &geno_path))? };
 
             // Verify magic number
             if mmap.len() < 4 || &mmap[0..4] != b"GENO" {
                 return Err(PopmixError::InvalidFileFormat {
-                    file: geno_path,
+                    path: geno_path.into(),
                     details: "Invalid PACKEDANCESTRYMAP magic number".to_string(),
                 });
             }
@@ -191,7 +190,7 @@ impl PackedAncestryMapReader {
             let expected_size = self.bytes_per_snp + self.snps.len() * self.bytes_per_snp;
             if mmap.len() != expected_size {
                 return Err(PopmixError::UnexpectedFileSize {
-                    file: geno_path,
+                    path: geno_path.into(),
                     expected: expected_size as u64,
                     actual: mmap.len() as u64,
                 });

@@ -424,7 +424,7 @@ pub fn check_sorted(snps: &[Snp]) -> crate::Result<()> {
             })
         };
         if let Some(problem) = problem {
-            return Err(crate::PopmixError::Validation(format!(
+            return Err(crate::PopmixError::data(format!(
                 "SNPs are not sorted by chromosome and position: at {}, {problem}; sort them \
                  first (plink2 --sort-vars, for one)",
                 snp.id

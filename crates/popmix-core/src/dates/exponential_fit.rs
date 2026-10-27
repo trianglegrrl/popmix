@@ -206,22 +206,22 @@ pub fn fit_exponential(ld_bins: &[LdBin], options: Option<FitOptions>) -> Result
         .map(|b| b.correlation)
         .collect();
     if y.len() < 4 {
-        return Err(PopmixError::InsufficientData {
-            context: "exponential fit (bins in fitting range)".to_string(),
-            required: 4,
-            actual: y.len(),
-        });
+        return Err(PopmixError::too_few(
+            "the exponential fit",
+            "bins in the fitting range",
+            4,
+            y.len(),
+        ));
     }
     if let Some(i) = y.iter().position(|v| !v.is_finite()) {
-        return Err(PopmixError::InvalidValue {
-            context: "exponential fit".to_string(),
-            details: format!("non-finite correlation in fitted bin {i}"),
-        });
+        return Err(PopmixError::numerical(
+            "exponential fit",
+            format!("non-finite correlation in fitted bin {i}"),
+        ));
     }
 
-    let r = minimise(&y, opts.use_affine).ok_or_else(|| PopmixError::InvalidValue {
-        context: "exponential fit".to_string(),
-        details: "no minimum of the fit error found".to_string(),
+    let r = minimise(&y, opts.use_affine).ok_or_else(|| {
+        PopmixError::numerical("exponential fit", "no minimum of the fit error found")
     })?;
     let fit = solve_at(&y, r, opts.use_affine);
 
@@ -257,11 +257,12 @@ pub fn weighted_jackknife(full_estimate: f64, estimates: &[(f64, f64)]) -> Resul
         .collect();
     let g = blocks.len();
     if g <= 1 {
-        return Err(PopmixError::InsufficientData {
-            context: "weighted jackknife (blocks with positive weight)".to_string(),
-            required: 2,
-            actual: g,
-        });
+        return Err(PopmixError::too_few(
+            "the weighted jackknife",
+            "blocks with positive weight",
+            2,
+            g,
+        ));
     }
     let total: f64 = blocks.iter().map(|&(w, _)| w).sum();
     let bias: f64 = blocks.iter().map(|&(_, t)| full_estimate - t).sum();

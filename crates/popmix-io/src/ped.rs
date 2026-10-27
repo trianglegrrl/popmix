@@ -12,6 +12,7 @@ use std::path::Path;
 use popmix_core::error::{PopmixError, Result};
 use popmix_core::genotype_matrix::GenotypeMatrix;
 use popmix_core::genotypes::{Chromosome, Genotype, Sample, Sex, Snp};
+use popmix_core::IoResultExt;
 
 /// Reader for PED format files.
 pub struct PedReader {
@@ -34,7 +35,9 @@ impl PedReader {
         // Find .ped file
         let ped_path = format!("{}.ped", prefix_str);
         if !Path::new(&ped_path).exists() {
-            return Err(PopmixError::FileNotFound { path: ped_path });
+            return Err(PopmixError::FileNotFound {
+                path: ped_path.into(),
+            });
         }
 
         // Find .map or .pedsnp file
@@ -46,7 +49,7 @@ impl PedReader {
             pedsnp_path
         } else {
             return Err(PopmixError::FileNotFound {
-                path: format!("{}.map or {}.pedsnp", prefix_str, prefix_str),
+                path: format!("{}.map or {}.pedsnp", prefix_str, prefix_str).into(),
             });
         };
 
@@ -109,11 +112,11 @@ impl PedReader {
         let mut data = ndarray::Array2::<u8>::zeros((n_snps, n_samples));
 
         // Read .ped file
-        let file = File::open(&self.ped_path)?;
+        let file = File::open(&self.ped_path).with_path(&self.ped_path)?;
         let reader = BufReader::new(file);
 
         for (sample_idx, line) in reader.lines().enumerate() {
-            let line = line?;
+            let line = line.with_path(&self.ped_path)?;
             let fields: Vec<&str> = line.split_whitespace().collect();
 
             // Skip first 6 columns (FID, IID, PID, MID, SEX, PHENO)
@@ -124,7 +127,7 @@ impl PedReader {
                 7
             } else {
                 return Err(PopmixError::ParseError {
-                    file: self.ped_path.clone(),
+                    path: self.ped_path.clone().into(),
                     line: sample_idx + 1,
                     details: format!(
                         "Expected {} or {} columns, got {}",
@@ -215,13 +218,13 @@ fn parse_allele(s: &str) -> Option<char> {
 /// Read .map file (PED SNP format).
 /// Format: CHR ID CM BP [A1 A2]
 fn read_map_file(path: &str) -> Result<(Vec<Snp>, bool)> {
-    let file = File::open(path)?;
+    let file = File::open(path).with_path(path)?;
     let reader = BufReader::new(file);
     let mut snps = Vec::new();
     let mut has_alleles = true;
 
     for (line_num, line) in reader.lines().enumerate() {
-        let line = line?;
+        let line = line.with_path(path)?;
         let line = line.trim();
         if line.is_empty() || line.starts_with('#') {
             continue;
@@ -230,7 +233,7 @@ fn read_map_file(path: &str) -> Result<(Vec<Snp>, bool)> {
         let fields: Vec<&str> = line.split_whitespace().collect();
         if fields.len() < 4 {
             return Err(PopmixError::ParseError {
-                file: path.to_string(),
+                path: path.to_string().into(),
                 line: line_num + 1,
                 details: format!("Expected at least 4 columns, got {}", fields.len()),
             });
@@ -239,12 +242,12 @@ fn read_map_file(path: &str) -> Result<(Vec<Snp>, bool)> {
         let chromosome = Chromosome::parse(fields[0]);
         let id = fields[1].to_string();
         let position_morgans: f64 = fields[2].parse().map_err(|_| PopmixError::ParseError {
-            file: path.to_string(),
+            path: path.to_string().into(),
             line: line_num + 1,
             details: format!("Invalid genetic position: {}", fields[2]),
         })?;
         let position_bp: u32 = fields[3].parse().map_err(|_| PopmixError::ParseError {
-            file: path.to_string(),
+            path: path.to_string().into(),
             line: line_num + 1,
             details: format!("Invalid physical position: {}", fields[3]),
         })?;
@@ -278,12 +281,12 @@ fn read_map_file(path: &str) -> Result<(Vec<Snp>, bool)> {
 /// Read .pedind file.
 /// Format: FID IID PID MID SEX PHENO [1]
 fn read_pedind_file(path: &str) -> Result<Vec<Sample>> {
-    let file = File::open(path)?;
+    let file = File::open(path).with_path(path)?;
     let reader = BufReader::new(file);
     let mut samples = Vec::new();
 
     for (line_num, line) in reader.lines().enumerate() {
-        let line = line?;
+        let line = line.with_path(path)?;
         let line = line.trim();
         if line.is_empty() || line.starts_with('#') {
             continue;
@@ -292,7 +295,7 @@ fn read_pedind_file(path: &str) -> Result<Vec<Sample>> {
         let fields: Vec<&str> = line.split_whitespace().collect();
         if fields.len() < 6 {
             return Err(PopmixError::ParseError {
-                file: path.to_string(),
+                path: path.to_string().into(),
                 line: line_num + 1,
                 details: format!("Expected at least 6 columns, got {}", fields.len()),
             });
@@ -310,12 +313,12 @@ fn read_pedind_file(path: &str) -> Result<Vec<Sample>> {
 
 /// Read sample info from first columns of .ped file.
 fn read_samples_from_ped(path: &str) -> Result<Vec<Sample>> {
-    let file = File::open(path)?;
+    let file = File::open(path).with_path(path)?;
     let reader = BufReader::new(file);
     let mut samples = Vec::new();
 
     for (line_num, line) in reader.lines().enumerate() {
-        let line = line?;
+        let line = line.with_path(path)?;
         let line = line.trim();
         if line.is_empty() || line.starts_with('#') {
             continue;
@@ -324,7 +327,7 @@ fn read_samples_from_ped(path: &str) -> Result<Vec<Sample>> {
         let fields: Vec<&str> = line.split_whitespace().collect();
         if fields.len() < 6 {
             return Err(PopmixError::ParseError {
-                file: path.to_string(),
+                path: path.to_string().into(),
                 line: line_num + 1,
                 details: format!("Expected at least 6 columns, got {}", fields.len()),
             });

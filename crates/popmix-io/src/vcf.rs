@@ -314,7 +314,7 @@ fn scan_vcf(path: &str, is_gzipped: bool) -> Result<Scan> {
     use rayon::prelude::*;
     use std::sync::mpsc::sync_channel;
 
-    let file = File::open(path).map_err(|e| PopmixError::io_with_path(e, path))?;
+    let file = File::open(path).map_err(|e| PopmixError::io(e, path))?;
     let mut reader: Box<dyn BufRead + Send> = if is_gzipped {
         // bgzip (the usual .vcf.gz) is a series of gzip members
         Box::new(BufReader::with_capacity(1 << 20, MultiGzDecoder::new(file)))
@@ -330,7 +330,7 @@ fn scan_vcf(path: &str, is_gzipped: bool) -> Result<Scan> {
         line.clear();
         let n = reader
             .read_until(b'\n', &mut line)
-            .map_err(|e| PopmixError::io_with_path(e, path))?;
+            .map_err(|e| PopmixError::io(e, path))?;
         if n == 0 {
             break;
         }
@@ -407,7 +407,7 @@ fn scan_vcf(path: &str, is_gzipped: bool) -> Result<Scan> {
             }
         });
         for batch in rx {
-            let (buf, ends, start) = batch.map_err(|e| PopmixError::io_with_path(e, path))?;
+            let (buf, ends, start) = batch.map_err(|e| PopmixError::io(e, path))?;
             let parsed: Vec<Result<Line>> = (0..ends.len())
                 .into_par_iter()
                 .map(|i| {

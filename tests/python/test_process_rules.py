@@ -18,21 +18,16 @@ TEST_DIRS = [ROOT / "tests"]
 SOURCE_DIRS = [ROOT / d for d in ("crates", "python", "tests", "benchmarks")]
 MAX_LINES = 800
 
-# over MAX_LINES on 2026-10-27, with their line counts then (TASKS.md I7)
+# over MAX_LINES when the rule came in (2026-10-27), with their sizes now:
+# lower each as the file shrinks (TASKS.md I7)
 TOO_LONG = {
-    "crates/popmix-python/src/lib.rs": 3152,
-    "crates/popmix-core/src/rcompat/lbfgsb.rs": 2127,
+    "crates/popmix-python/src/lib.rs": 3128,
+    "crates/popmix-core/src/rcompat/lbfgsb.rs": 1786,
     "python/popmix/cli/__init__.py": 1540,
-    "crates/popmix-core/src/fstats/f2_blocks.rs": 1527,
-    "crates/popmix-core/src/admixture.rs": 1159,
-    "crates/popmix-io/src/writers.rs": 1117,
+    "crates/popmix-core/src/fstats/f2_blocks.rs": 1521,
+    "crates/popmix-core/src/admixture.rs": 1158,
     "benchmarks/cases.py": 1064,
-    "crates/popmix-core/src/dates/ld_decay.rs": 1003,
     "crates/popmix-io/src/streaming.rs": 954,
-    "crates/popmix-core/src/pca/smartpca.rs": 930,
-    "crates/popmix-core/src/qpgraph/qpgraph_fit.rs": 922,
-    "crates/popmix-io/src/merge.rs": 848,
-    "crates/popmix-core/src/qpadm/fit.rs": 845,
 }
 
 

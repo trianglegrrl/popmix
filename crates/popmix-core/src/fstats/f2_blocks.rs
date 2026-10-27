@@ -374,9 +374,11 @@ impl F2Blocks {
                     .all(|r| r.len() == n && r.iter().all(|b| b.len() == nb))
         };
         if !shape_ok(means) || !shape_ok(counts) {
-            return Err(crate::PopmixError::Validation(format!(
-                "from_block_means: means and counts must be {n} x {n} x {nb}"
-            )));
+            return Err(crate::PopmixError::DimensionMismatch {
+                context: "from_block_means: means and counts".to_string(),
+                expected: format!("{n} x {n} x {nb}"),
+                actual: "nested lists of other lengths".to_string(),
+            });
         }
         let n_pairs = n * (n + 1) / 2;
         let mut sums = Array2::zeros((nb, n_pairs));
@@ -410,11 +412,8 @@ impl F2Blocks {
         let idx: Vec<usize> = pops
             .iter()
             .map(|p| {
-                self.pop_index(p).ok_or_else(|| {
-                    crate::PopmixError::Validation(format!(
-                        "population {p:?} is not in the f2 blocks"
-                    ))
-                })
+                self.pop_index(p)
+                    .ok_or_else(|| crate::PopmixError::PopulationNotFound(p.to_string()))
             })
             .collect::<crate::Result<_>>()?;
         let pairs: Vec<usize> = (0..idx.len())
@@ -449,15 +448,10 @@ impl F2Blocks {
     /// FST blocks, on their own SNP set, are not carried over.
     pub fn select_blocks(&self, blocks: &[usize]) -> crate::Result<F2Blocks> {
         if blocks.is_empty() {
-            return Err(crate::PopmixError::Validation(
-                "select_blocks: no blocks selected".to_string(),
-            ));
+            return Err(crate::PopmixError::too_few("select_blocks", "block", 1, 0));
         }
         if let Some(&b) = blocks.iter().find(|&&b| b >= self.n_blocks) {
-            return Err(crate::PopmixError::Validation(format!(
-                "select_blocks: block {b} out of range ({} blocks)",
-                self.n_blocks
-            )));
+            return Err(crate::PopmixError::out_of_range("block", b, self.n_blocks));
         }
         Ok(F2Blocks {
             block_sums: self.block_sums.select(Axis(0), blocks),

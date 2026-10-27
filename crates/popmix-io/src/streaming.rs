@@ -38,13 +38,13 @@ fn decode_packed_byte(byte: u8) -> [u8; 4] {
 fn record_length(geno_path: &str, n_samples: usize, n_snps: usize) -> Result<usize> {
     crate::packedancestrymap::check_header(geno_path, n_samples, n_snps)?;
     let len = std::fs::metadata(geno_path)
-        .map_err(|e| PopmixError::io_with_path(e, geno_path))?
+        .map_err(|e| PopmixError::io(e, geno_path))?
         .len() as usize;
     let records = n_snps + 1;
     let bytes = len / records;
     if !len.is_multiple_of(records) || bytes < n_samples.div_ceil(4) {
         return Err(PopmixError::InvalidFileFormat {
-            file: geno_path.to_string(),
+            path: geno_path.to_string().into(),
             details: format!(
                 "{len} bytes is not {records} records (header and {n_snps} SNPs) of at least {} bytes",
                 n_samples.div_ceil(4)
@@ -92,18 +92,18 @@ pub fn detect_ploidy_packedancestrymap(
     let n_check = n_snps_check.min(n_snps_total);
     let bytes_per_snp = record_length(geno_path, n_samples, n_snps_total)?;
 
-    let mut file = File::open(geno_path).map_err(|e| PopmixError::io_with_path(e, geno_path))?;
+    let mut file = File::open(geno_path).map_err(|e| PopmixError::io(e, geno_path))?;
 
     // Skip header
     file.seek(SeekFrom::Start(bytes_per_snp as u64))
-        .map_err(|e| PopmixError::io_with_path(e, geno_path))?;
+        .map_err(|e| PopmixError::io(e, geno_path))?;
 
     let mut has_het = vec![false; n_samples];
     let mut snp_buffer = vec![0u8; bytes_per_snp];
 
     for _ in 0..n_check {
         file.read_exact(&mut snp_buffer)
-            .map_err(|e| PopmixError::io_with_path(e, geno_path))?;
+            .map_err(|e| PopmixError::io(e, geno_path))?;
 
         for (sample_idx, found_het) in has_het.iter_mut().enumerate() {
             if *found_het {
@@ -205,10 +205,10 @@ const TEXT_CODES: [u8; 256] = {
 
 impl SnpMajor {
     fn map(path: &str) -> Result<Mmap> {
-        let file = File::open(path).map_err(|e| PopmixError::io_with_path(e, path))?;
+        let file = File::open(path).map_err(|e| PopmixError::io(e, path))?;
         // SAFETY: the map is only read; like every reader of these files,
         // popmix assumes no other process truncates the file while it is open.
-        unsafe { Mmap::map(&file) }.map_err(|e| PopmixError::io_with_path(e, path))
+        unsafe { Mmap::map(&file) }.map_err(|e| PopmixError::io(e, path))
     }
 
     /// A PACKEDANCESTRYMAP .geno of `n_samples` samples and `n_snps` SNPs.
@@ -217,7 +217,7 @@ impl SnpMajor {
         let map = Self::map(geno_path)?;
         if map.len() < 4 || &map[..4] != b"GENO" {
             return Err(PopmixError::InvalidFileFormat {
-                file: geno_path.to_string(),
+                path: geno_path.to_string().into(),
                 details: "Expected PACKEDANCESTRYMAP format".to_string(),
             });
         }
@@ -238,7 +238,7 @@ impl SnpMajor {
         let map = Self::map(bed_path)?;
         if map.len() < 3 || map[..3] != [0x6c, 0x1b, 0x01] {
             return Err(PopmixError::InvalidFileFormat {
-                file: bed_path.to_string(),
+                path: bed_path.to_string().into(),
                 details: "not a SNP-major PLINK .bed (magic 6c 1b 01)".to_string(),
             });
         }
@@ -246,7 +246,7 @@ impl SnpMajor {
         let expected = 3 + n_snps * bytes_per_snp;
         if map.len() != expected {
             return Err(PopmixError::UnexpectedFileSize {
-                file: bed_path.to_string(),
+                path: bed_path.to_string().into(),
                 expected: expected as u64,
                 actual: map.len() as u64,
             });
@@ -534,13 +534,13 @@ impl SnpMajorRows {
         let n_samples = file.n_samples;
         if let Some(&bad) = samples.iter().find(|&&s| s >= n_samples) {
             return Err(PopmixError::InvalidFileFormat {
-                file: file.path.clone(),
+                path: file.path.clone().into(),
                 details: format!("sample {bad} out of range for {n_samples} samples"),
             });
         }
         if keep.len() != file.n_snps {
             return Err(PopmixError::InvalidFileFormat {
-                file: file.path.clone(),
+                path: file.path.clone().into(),
                 details: format!("{} SNPs selected of {}", keep.len(), file.n_snps),
             });
         }
@@ -586,7 +586,7 @@ impl popmix_core::GenotypeRows for SnpMajorRows {
             }
             if self.next_snp >= self.keep.len() {
                 return Err(PopmixError::InvalidFileFormat {
-                    file: self.file.path.clone(),
+                    path: self.file.path.clone().into(),
                     details: "read past the last SNP".to_string(),
                 });
             }
@@ -610,7 +610,7 @@ impl popmix_core::GenotypeRows for SnpMajorRows {
         }
         if self.next_snp >= self.keep.len() {
             return Err(PopmixError::InvalidFileFormat {
-                file: self.file.path.clone(),
+                path: self.file.path.clone().into(),
                 details: "read past the last SNP".to_string(),
             });
         }

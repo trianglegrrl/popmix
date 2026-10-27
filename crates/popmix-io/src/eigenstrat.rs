@@ -39,7 +39,9 @@ impl EigenstratReader {
         // Verify .geno file exists
         let geno_path = format!("{}.geno", prefix);
         if !Path::new(&geno_path).exists() {
-            return Err(PopmixError::FileNotFound { path: geno_path });
+            return Err(PopmixError::FileNotFound {
+                path: geno_path.into(),
+            });
         }
 
         Ok(EigenstratReader {
@@ -88,7 +90,7 @@ impl EigenstratReader {
     pub fn read_snp_range(&self, range: std::ops::Range<usize>) -> Result<GenotypeMatrix> {
         crate::check_snp_range(&range, self.snps.len())?;
         let geno_path = format!("{}.geno", self.prefix);
-        let file = File::open(&geno_path).map_err(|e| PopmixError::io_with_path(e, &geno_path))?;
+        let file = File::open(&geno_path).map_err(|e| PopmixError::io(e, &geno_path))?;
         let reader = BufReader::new(file);
 
         let n_samples = self.samples.len();
@@ -109,7 +111,7 @@ impl EigenstratReader {
                 break;
             }
 
-            let line = line_result.map_err(|e| PopmixError::io_with_path(e, &geno_path))?;
+            let line = line_result.map_err(|e| PopmixError::io(e, &geno_path))?;
             let line = line.trim();
 
             // Verify line length matches expected samples (using bytes since we're ASCII)
@@ -152,7 +154,7 @@ impl EigenstratReader {
     /// Read genotypes for a single SNP.
     pub fn read_snp(&self, snp_idx: usize) -> Result<Vec<Genotype>> {
         let geno_path = format!("{}.geno", self.prefix);
-        let file = File::open(&geno_path).map_err(|e| PopmixError::io_with_path(e, &geno_path))?;
+        let file = File::open(&geno_path).map_err(|e| PopmixError::io(e, &geno_path))?;
         let reader = BufReader::new(file);
 
         let n_samples = self.samples.len();
@@ -163,7 +165,7 @@ impl EigenstratReader {
                 continue;
             }
 
-            let line = line_result.map_err(|e| PopmixError::io_with_path(e, &geno_path))?;
+            let line = line_result.map_err(|e| PopmixError::io(e, &geno_path))?;
             let line = line.trim();
 
             let line_bytes = line.as_bytes();
@@ -197,7 +199,7 @@ impl EigenstratReader {
         let n_check = n_snps_check.min(self.snps.len());
 
         let geno_path = format!("{}.geno", self.prefix);
-        let file = File::open(&geno_path).map_err(|e| PopmixError::io_with_path(e, &geno_path))?;
+        let file = File::open(&geno_path).map_err(|e| PopmixError::io(e, &geno_path))?;
         let reader = BufReader::new(file);
 
         let mut has_het = vec![false; n_samples];
@@ -207,7 +209,7 @@ impl EigenstratReader {
                 break;
             }
 
-            let line = line_result.map_err(|e| PopmixError::io_with_path(e, &geno_path))?;
+            let line = line_result.map_err(|e| PopmixError::io(e, &geno_path))?;
             let line = line.trim();
 
             for (sample_idx, byte) in line.bytes().enumerate() {
@@ -237,7 +239,7 @@ impl EigenstratReader {
 ///
 /// Format: SAMPLE_ID SEX POPULATION (whitespace-separated)
 pub fn read_ind_file(path: &str) -> Result<Vec<Sample>> {
-    let content = std::fs::read_to_string(path).map_err(|e| PopmixError::io_with_path(e, path))?;
+    let content = std::fs::read_to_string(path).map_err(|e| PopmixError::io(e, path))?;
 
     let mut samples = Vec::new();
 
@@ -272,7 +274,7 @@ pub fn read_ind_file(path: &str) -> Result<Vec<Sample>> {
 /// Format: SNP_ID CHR CM BP A1 A2 (whitespace-separated)
 /// Note: Column order differs from PLINK .bim (SNP_ID is first, CHR is second)
 pub fn read_snp_file(path: &str) -> Result<Vec<Snp>> {
-    let content = std::fs::read_to_string(path).map_err(|e| PopmixError::io_with_path(e, path))?;
+    let content = std::fs::read_to_string(path).map_err(|e| PopmixError::io(e, path))?;
     crate::parse_lines(&content, |line_num, line| {
         parse_snp_line(path, line_num, line)
     })

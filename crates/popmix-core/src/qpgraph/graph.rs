@@ -261,8 +261,11 @@ impl AdmixGraph {
             let in_count = self.graph.edges_directed(idx, Direction::Incoming).count();
 
             if node.is_admixed && in_count != 2 {
-                return Err(PopmixError::InvalidAdmixtureNode {
-                    node: node.name.clone(),
+                return Err(PopmixError::InvalidGraph {
+                    details: format!(
+                        "admixture node '{}' does not have exactly 2 incoming edges",
+                        node.name
+                    ),
                 });
             }
         }

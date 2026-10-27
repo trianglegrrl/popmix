@@ -16,152 +16,83 @@
 //! - `'fortran_order'`: Whether data is in Fortran order (always `False` for us)
 //! - `'shape'`: Tuple of dimensions (e.g., `(100, 6)`)
 
-use std::fs::File;
-use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::Path;
 
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use ndarray::Array2;
 
-use popmix_core::{PopmixError, Result};
+use popmix_core::{IoResultExt, PopmixError, Result};
 
 /// Magic bytes that identify a .npy file.
 const NPY_MAGIC: &[u8] = b"\x93NUMPY";
 
 /// Write a 2D f64 array to a .npy file.
 pub fn write_npy_f64(path: &Path, array: &Array2<f64>) -> Result<()> {
-    let file = File::create(path).map_err(|e| {
-        PopmixError::Io(std::io::Error::new(
-            e.kind(),
-            format!("Failed to create {}: {}", path.display(), e),
-        ))
-    })?;
-    let mut writer = BufWriter::new(file);
-
-    // Write magic number
-    writer.write_all(NPY_MAGIC)?;
-
-    // Write version (1.0)
-    writer.write_u8(1)?;
-    writer.write_u8(0)?;
-
-    // Build header dict
     let (rows, cols) = (array.nrows(), array.ncols());
     let header = format!(
         "{{'descr': '<f8', 'fortran_order': False, 'shape': ({}, {}), }}",
         rows, cols
     );
-
-    // Calculate padding to align data to 64 bytes
-    // Header length includes the header string plus newline
-    let header_len = header.len() + 1; // +1 for newline
-    let total_header_size = 10 + header_len; // 6 magic + 2 version + 2 len + header + newline
-    let padding_needed = (64 - (total_header_size % 64)) % 64;
-    let padded_header_len = header_len + padding_needed;
-
-    // Write header length (little-endian u16)
-    writer.write_u16::<LittleEndian>(padded_header_len as u16)?;
-
-    // Write header with padding
-    writer.write_all(header.as_bytes())?;
-    for _ in 0..padding_needed {
-        writer.write_u8(b' ')?;
+    // the header, then a newline, padded with spaces so that the data
+    // starts at a multiple of 64 bytes (6 magic + 2 version + 2 length)
+    let header_len = header.len() + 1;
+    let padding = (64 - (10 + header_len) % 64) % 64;
+    let mut bytes = Vec::with_capacity(10 + header_len + padding + 8 * rows * cols);
+    bytes.extend_from_slice(NPY_MAGIC);
+    bytes.extend_from_slice(&[1, 0]);
+    bytes.extend_from_slice(&((header_len + padding) as u16).to_le_bytes());
+    bytes.extend_from_slice(header.as_bytes());
+    bytes.resize(bytes.len() + padding, b' ');
+    bytes.push(b'\n');
+    // data in C order (row-major)
+    for &val in array.iter() {
+        bytes.extend_from_slice(&val.to_le_bytes());
     }
-    writer.write_u8(b'\n')?;
-
-    // Write data in C order (row-major)
-    for row in array.rows() {
-        for &val in row.iter() {
-            writer.write_f64::<LittleEndian>(val)?;
-        }
-    }
-
-    writer.flush()?;
-    Ok(())
+    std::fs::write(path, bytes).with_path(path)
 }
 
 /// Read a 2D f64 array from a .npy file.
 pub fn read_npy_f64(path: &Path) -> Result<Array2<f64>> {
-    let file = File::open(path).map_err(|e| {
-        PopmixError::Io(std::io::Error::new(
-            e.kind(),
-            format!("Failed to open {}: {}", path.display(), e),
-        ))
-    })?;
-    let mut reader = BufReader::new(file);
-
-    // Read and verify magic number
-    let mut magic = [0u8; 6];
-    reader.read_exact(&mut magic)?;
-    if magic != NPY_MAGIC {
-        return Err(PopmixError::Io(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!("Invalid NPY magic number in {}", path.display()),
-        )));
-    }
-
-    // Read version
-    let major = reader.read_u8()?;
-    let minor = reader.read_u8()?;
-
-    // Read header length based on version
-    let header_len = if major == 1 {
-        reader.read_u16::<LittleEndian>()? as usize
-    } else if major == 2 {
-        reader.read_u32::<LittleEndian>()? as usize
-    } else {
-        return Err(PopmixError::Io(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!(
-                "Unsupported NPY version {}.{} in {}",
-                major,
-                minor,
-                path.display()
-            ),
-        )));
+    let bytes = std::fs::read(path).with_path(path)?;
+    let bad = |details: String| PopmixError::format(path, details);
+    let take = |at: usize, n: usize| {
+        bytes
+            .get(at..at + n)
+            .ok_or_else(|| bad(format!("truncated: {} bytes", bytes.len())))
     };
 
-    // Read header
-    let mut header_bytes = vec![0u8; header_len];
-    reader.read_exact(&mut header_bytes)?;
-    let header = String::from_utf8_lossy(&header_bytes);
+    if bytes.get(..6) != Some(NPY_MAGIC) {
+        return Err(bad("not a .npy file (no NPY magic number)".to_string()));
+    }
+    let head = take(0, 10)?;
+    let (major, minor) = (head[6], head[7]);
+    // the header length: 2 bytes in version 1, 4 in version 2
+    let (header_len, header_at) = match major {
+        1 => (u16::from_le_bytes([head[8], head[9]]) as usize, 10),
+        2 => {
+            let b = take(8, 4)?;
+            (u32::from_le_bytes([b[0], b[1], b[2], b[3]]) as usize, 12)
+        }
+        _ => return Err(bad(format!("unsupported NPY version {major}.{minor}"))),
+    };
+    let header = String::from_utf8_lossy(take(header_at, header_len)?);
 
-    // Parse shape from header
-    let (rows, cols) = parse_shape(&header).ok_or_else(|| {
-        PopmixError::Io(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!(
-                "Failed to parse shape from NPY header in {}",
-                path.display()
-            ),
-        ))
-    })?;
-
-    // Verify dtype is f64
-    if !header.contains("'<f8'") && !header.contains("'<f8'") {
-        return Err(PopmixError::Io(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!(
-                "Expected dtype '<f8' (float64) in {}, got: {}",
-                path.display(),
-                header.trim()
-            ),
+    let (rows, cols) =
+        parse_shape(&header).ok_or_else(|| bad("no 2-D shape in the NPY header".to_string()))?;
+    if !header.contains("'<f8'") {
+        return Err(bad(format!(
+            "expected dtype '<f8' (float64), got: {}",
+            header.trim()
         )));
     }
 
-    // Read data
-    let mut data = Vec::with_capacity(rows * cols);
-    for _ in 0..(rows * cols) {
-        data.push(reader.read_f64::<LittleEndian>()?);
-    }
+    let data = take(header_at + header_len, 8 * rows * cols)?
+        .as_chunks::<8>()
+        .0
+        .iter()
+        .map(|&b| f64::from_le_bytes(b))
+        .collect();
 
-    // Convert to Array2
-    Array2::from_shape_vec((rows, cols), data).map_err(|e| {
-        PopmixError::Io(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!("Failed to create array from NPY data: {}", e),
-        ))
-    })
+    Array2::from_shape_vec((rows, cols), data).map_err(|e| bad(e.to_string()))
 }
 
 /// Parse shape tuple from NPY header string.
@@ -234,9 +165,54 @@ mod tests {
     }
 
     #[test]
-    fn test_read_nonexistent_errors() {
-        let result = read_npy_f64(Path::new("/nonexistent/file.npy"));
-        assert!(result.is_err());
+    fn a_missing_file_is_file_not_found() {
+        let err = read_npy_f64(Path::new("/nonexistent/file.npy")).unwrap_err();
+        assert!(
+            matches!(err, PopmixError::FileNotFound { ref path } if path == Path::new("/nonexistent/file.npy"))
+        );
+    }
+
+    #[test]
+    fn a_damaged_file_is_an_invalid_format_naming_the_file() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("x.npy");
+        write_npy_f64(&path, &Array2::from_elem((4, 3), 1.5)).unwrap();
+        let whole = std::fs::read(&path).unwrap();
+        // not .npy at all, a header cut short, the data cut short
+        for bytes in [
+            &b"PK\x03\x04 a zip file"[..],
+            &whole[..8],
+            &whole[..whole.len() - 1],
+        ] {
+            std::fs::write(&path, bytes).unwrap();
+            let err = read_npy_f64(&path).unwrap_err();
+            assert!(
+                matches!(err, PopmixError::InvalidFileFormat { path: ref p, .. } if *p == path),
+                "{err}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_layout_is_numpys() {
+        // numpy.save of a 2 x 3 float64 array: header padded so data starts at 128
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("x.npy");
+        write_npy_f64(
+            &path,
+            &Array2::from_shape_fn((2, 3), |(i, j)| (3 * i + j) as f64),
+        )
+        .unwrap();
+        let bytes = std::fs::read(&path).unwrap();
+        let header_len = u16::from_le_bytes([bytes[8], bytes[9]]) as usize;
+        assert_eq!(&bytes[..8], b"\x93NUMPY\x01\x00");
+        assert_eq!((10 + header_len) % 64, 0);
+        assert_eq!(bytes[10 + header_len - 1], b'\n');
+        assert_eq!(bytes.len(), 10 + header_len + 6 * 8);
+        assert_eq!(
+            &bytes[10 + header_len + 8..10 + header_len + 16],
+            &1.0f64.to_le_bytes()
+        );
     }
 
     #[test]

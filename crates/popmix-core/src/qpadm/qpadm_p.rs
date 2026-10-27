@@ -48,7 +48,7 @@ pub fn qpadm_p(
     let rnk = match rnk {
         Some(r) => r,
         None => others.len().checked_sub(1).ok_or_else(|| {
-            PopmixError::Validation("qpadm_p: no left populations besides the target".to_string())
+            PopmixError::too_few("qpadm_p", "left populations besides the target", 1, 0)
         })?,
     };
     let f4 = F4Matrix::from_f2_blocks(f2_blocks, &full, right)?;

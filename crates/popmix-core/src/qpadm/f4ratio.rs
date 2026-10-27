@@ -143,12 +143,15 @@ pub fn f4ratio(
         }
     }
     if num.len() < 2 {
-        return Err(PopmixError::Numerical(format!(
-            "f4ratio: {} block(s) with a denominator of at least {} in absolute value; \
-             the jackknife needs two",
+        return Err(PopmixError::too_few(
+            "the f4ratio jackknife",
+            format!(
+                "blocks with a denominator of at least {} in absolute value",
+                opts.min_denominator
+            ),
+            2,
             num.len(),
-            opts.min_denominator
-        )));
+        ));
     }
 
     let total: f64 = lengths.iter().sum();
@@ -162,9 +165,8 @@ pub fn f4ratio(
         .zip(leave_one_out(&den, &lengths))
         .map(|(n, d)| n / d)
         .collect();
-    let (alpha, std_err) = jackknife_with_total(&loo, &lengths, tot).ok_or_else(|| {
-        PopmixError::Numerical("f4ratio: no block has a finite leave-one-out ratio".to_string())
-    })?;
+    let (alpha, std_err) = jackknife_with_total(&loo, &lengths, tot)
+        .ok_or_else(|| PopmixError::data("f4ratio: no block has a finite leave-one-out ratio"))?;
 
     Ok(F4RatioResult {
         test: PopulationId::new(test),

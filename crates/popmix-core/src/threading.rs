@@ -43,7 +43,8 @@ pub fn init_thread_pool(threads: Option<usize>) -> Result<bool> {
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(n)
         .build()
-        .map_err(|e| PopmixError::Numerical(format!("cannot start {n} threads: {e}")))?;
+        .map_err(|e| PopmixError::ThreadPool(format!("cannot start {n} threads: {e}")))?;
+
     *POOL.write().unwrap_or_else(|e| e.into_inner()) = Some((n, Arc::new(pool)));
     Ok(true)
 }

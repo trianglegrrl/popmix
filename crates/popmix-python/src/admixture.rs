@@ -136,10 +136,11 @@ pub fn admixture_py(
                 }
             }
             if order.len() != k {
-                return Err(popmix_core::PopmixError::Validation(format!(
-                    "{} reference populations found for K = {k}",
-                    order.len()
-                )));
+                return Err(popmix_core::PopmixError::DimensionMismatch {
+                    context: "supervised ADMIXTURE".to_string(),
+                    expected: format!("{k} reference populations, one per K"),
+                    actual: order.len().to_string(),
+                });
             }
             let labels: Vec<Option<usize>> = samples
                 .iter()

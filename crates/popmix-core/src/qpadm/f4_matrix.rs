@@ -51,13 +51,19 @@ impl F4Matrix {
     /// F4Matrix with values, standard errors, and covariance matrix
     pub fn from_f2_blocks(f2_blocks: &F2Blocks, left: &[&str], right: &[&str]) -> Result<Self> {
         if left.len() < 2 {
-            return Err(crate::PopmixError::Validation(
-                "qpWave/qpAdm requires at least 2 left populations".to_string(),
+            return Err(crate::PopmixError::too_few(
+                "qpWave/qpAdm",
+                "left populations",
+                2,
+                left.len(),
             ));
         }
         if right.len() < 2 {
-            return Err(crate::PopmixError::Validation(
-                "qpWave/qpAdm requires at least 2 right populations".to_string(),
+            return Err(crate::PopmixError::too_few(
+                "qpWave/qpAdm",
+                "right populations",
+                2,
+                right.len(),
             ));
         }
 
@@ -77,7 +83,7 @@ impl F4Matrix {
                     values[[i, j]] = result.estimate;
                     std_errors[[i, j]] = result.std_err;
                 } else {
-                    return Err(crate::PopmixError::Validation(format!(
+                    return Err(crate::PopmixError::data(format!(
                         "Missing data for f4({}, {}; {}, {})",
                         left[i + 1],
                         left[0],
@@ -147,8 +153,9 @@ impl F4Matrix {
                         block_f4s.push(f4_blocks);
                     }
                     _ => {
-                        return Err(crate::PopmixError::Validation(format!(
-                            "Missing block data for f4({}, {}; {}, {})",
+                        return Err(crate::PopmixError::data(format!(
+                            "Missing block data for f4(
+{}, {}; {}, {})",
                             pop_a, pop_b, pop_c, pop_d
                         )));
                     }

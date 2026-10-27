@@ -16,15 +16,16 @@
 //!   metadata (v4+)
 
 use std::fs::{self, File};
-use std::io::{BufReader, BufWriter};
+use std::io::BufReader;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
 use crate::npy::{read_npy_f64, write_npy_f64};
+use ndarray::Array2;
 use popmix_core::fstats::{F2Blocks, FstBlocks};
 use popmix_core::genotypes::PopulationId;
-use popmix_core::{PopmixError, Result};
+use popmix_core::{IoResultExt, PopmixError, Result};
 
 /// Metadata structure for F2 block storage.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -65,91 +66,39 @@ struct F2Metadata {
 pub fn read_f2_blocks(dir: &Path) -> Result<F2Blocks> {
     // Read metadata
     let metadata_path = dir.join("metadata.json");
-    let file = File::open(&metadata_path).map_err(|e| {
-        PopmixError::Io(std::io::Error::new(
-            e.kind(),
-            format!("Failed to open {}: {}", metadata_path.display(), e),
-        ))
-    })?;
-    let reader = BufReader::new(file);
-    let metadata: F2Metadata = serde_json::from_reader(reader).map_err(|e| {
-        PopmixError::Io(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!("Failed to parse {}: {}", metadata_path.display(), e),
-        ))
-    })?;
-
-    // Validate version
+    let file = File::open(&metadata_path).with_path(&metadata_path)?;
+    let metadata: F2Metadata = serde_json::from_reader(BufReader::new(file))
+        .map_err(|e| PopmixError::format(&metadata_path, e.to_string()))?;
     if metadata.version < 1 || metadata.version > 4 {
-        return Err(PopmixError::Io(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!(
-                "Unsupported F2 storage version {} in {}",
-                metadata.version,
-                dir.display()
-            ),
-        )));
+        return Err(PopmixError::format(
+            &metadata_path,
+            format!("unsupported F2 storage version {}", metadata.version),
+        ));
     }
 
-    // Read F2 arrays
-    let block_sums = read_npy_f64(&dir.join("block_sums.npy"))?;
-    let block_weights = read_npy_f64(&dir.join("block_weights.npy"))?;
-
-    // Validate F2 array shapes
-    if block_sums.nrows() != metadata.n_blocks || block_sums.ncols() != metadata.n_pairs {
-        return Err(PopmixError::Io(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!(
-                "block_sums shape {:?} doesn't match metadata ({}, {})",
-                block_sums.shape(),
-                metadata.n_blocks,
-                metadata.n_pairs
-            ),
-        )));
-    }
-
-    if block_weights.shape() != block_sums.shape() {
-        return Err(PopmixError::Io(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!(
-                "block_weights shape {:?} doesn't match block_sums {:?}",
-                block_weights.shape(),
-                block_sums.shape()
-            ),
-        )));
-    }
+    let pairs = (metadata.n_blocks, metadata.n_pairs);
+    let read = |name: &str, shape: (usize, usize)| -> Result<Array2<f64>> {
+        let path = dir.join(name);
+        let arr = read_npy_f64(&path)?;
+        if arr.dim() != shape {
+            return Err(PopmixError::format(
+                &path,
+                format!("shape {:?}, the metadata says {shape:?}", arr.dim()),
+            ));
+        }
+        Ok(arr)
+    };
+    let block_sums = read("block_sums.npy", pairs)?;
+    let block_weights = read("block_weights.npy", pairs)?;
 
     // Read heterozygosity arrays (v2+) or create zeros for v1
     let n_pops = metadata.populations.len();
     let (block_het_sums, block_het_weights) = if metadata.version >= 2 {
-        let het_sums = read_npy_f64(&dir.join("block_het_sums.npy"))?;
-        let het_weights = read_npy_f64(&dir.join("block_het_weights.npy"))?;
-
-        // Validate heterozygosity array shapes
-        if het_sums.nrows() != metadata.n_blocks || het_sums.ncols() != n_pops {
-            return Err(PopmixError::Io(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                format!(
-                    "block_het_sums shape {:?} doesn't match metadata ({}, {})",
-                    het_sums.shape(),
-                    metadata.n_blocks,
-                    n_pops
-                ),
-            )));
-        }
-
-        if het_weights.shape() != het_sums.shape() {
-            return Err(PopmixError::Io(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                format!(
-                    "block_het_weights shape {:?} doesn't match block_het_sums {:?}",
-                    het_weights.shape(),
-                    het_sums.shape()
-                ),
-            )));
-        }
-
-        (het_sums, het_weights)
+        let pops = (metadata.n_blocks, n_pops);
+        (
+            read("block_het_sums.npy", pops)?,
+            read("block_het_weights.npy", pops)?,
+        )
     } else {
         // v1 format: create zero arrays for heterozygosity (FST will return None)
         (
@@ -160,7 +109,7 @@ pub fn read_f2_blocks(dir: &Path) -> Result<F2Blocks> {
 
     // Read raw F2 arrays (v3+) or create zeros for older versions
     let block_raw_sums = if metadata.version >= 3 {
-        read_npy_f64(&dir.join("block_raw_sums.npy"))?
+        read("block_raw_sums.npy", pairs)?
     } else {
         // For older versions, use block_sums as approximation (won't give exact FST)
         block_sums.clone()
@@ -176,20 +125,9 @@ pub fn read_f2_blocks(dir: &Path) -> Result<F2Blocks> {
     // FST blocks on admixtools2's FST SNP set (v4+)
     let fst = match (metadata.version >= 4, metadata.fst_block_lengths) {
         (true, Some(fst_block_lengths)) => {
-            let num = read_npy_f64(&dir.join("block_fst_num.npy"))?;
-            let den = read_npy_f64(&dir.join("block_fst_den.npy"))?;
-            let expected = (fst_block_lengths.len(), metadata.n_pairs);
-            for (name, arr) in [("block_fst_num", &num), ("block_fst_den", &den)] {
-                if arr.dim() != expected {
-                    return Err(PopmixError::Io(std::io::Error::new(
-                        std::io::ErrorKind::InvalidData,
-                        format!(
-                            "{name} shape {:?} doesn't match metadata {expected:?}",
-                            arr.shape()
-                        ),
-                    )));
-                }
-            }
+            let shape = (fst_block_lengths.len(), metadata.n_pairs);
+            let num = read("block_fst_num.npy", shape)?;
+            let den = read("block_fst_den.npy", shape)?;
             Some(FstBlocks {
                 block_lengths: fst_block_lengths,
                 num,
@@ -227,12 +165,7 @@ pub fn read_f2_blocks(dir: &Path) -> Result<F2Blocks> {
 /// * `source` - Optional source file path for metadata
 pub fn write_f2_blocks(f2_blocks: &F2Blocks, dir: &Path, source: Option<&str>) -> Result<()> {
     // Create directory if needed
-    fs::create_dir_all(dir).map_err(|e| {
-        PopmixError::Io(std::io::Error::new(
-            e.kind(),
-            format!("Failed to create directory {}: {}", dir.display(), e),
-        ))
-    })?;
+    fs::create_dir_all(dir).with_path(dir)?;
 
     // Calculate n_pairs and n_populations
     let n_pairs = f2_blocks.block_sums.ncols();
@@ -256,20 +189,11 @@ pub fn write_f2_blocks(f2_blocks: &F2Blocks, dir: &Path, source: Option<&str>) -
 
     // Write metadata
     let metadata_path = dir.join("metadata.json");
-    let file = File::create(&metadata_path).map_err(|e| {
-        PopmixError::Io(std::io::Error::new(
-            e.kind(),
-            format!("Failed to create {}: {}", metadata_path.display(), e),
-        ))
-    })?;
-    let writer = BufWriter::new(file);
-    serde_json::to_writer_pretty(writer, &metadata).map_err(|e| {
-        PopmixError::Io(std::io::Error::other(format!(
-            "Failed to write {}: {}",
-            metadata_path.display(),
-            e
-        )))
-    })?;
+    // written whole, so that an error writing it (a full disk) is reported
+    // rather than lost when a buffered writer is dropped
+    let json = serde_json::to_string_pretty(&metadata)
+        .map_err(|e| PopmixError::Internal(format!("F2 metadata as JSON: {e}")))?;
+    fs::write(&metadata_path, json).with_path(&metadata_path)?;
 
     // Write F2 arrays
     write_npy_f64(&dir.join("block_sums.npy"), &f2_blocks.block_sums)?;
