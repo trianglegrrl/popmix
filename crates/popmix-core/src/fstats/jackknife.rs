@@ -66,10 +66,6 @@ fn estimate_and_se(loo: &[f64], lengths: &[f64], tot: f64) -> (f64, f64) {
     (est, var.sqrt())
 }
 
-/// Jackknife estimate and standard error of a block mean.
-///
-/// Blocks whose value is not finite are left out entirely; `None` if none
-/// remains.
 /// z of an estimate and its standard error: est / se, NaN when the SE is 0
 /// or not finite (no information, not "no effect").
 pub fn z_score(est: f64, se: f64) -> f64 {
@@ -85,6 +81,10 @@ pub fn p_from_z(z: f64) -> f64 {
     libm::erfc(z.abs() / std::f64::consts::SQRT_2)
 }
 
+/// Jackknife estimate and standard error of a block mean.
+///
+/// Blocks whose value is not finite are left out entirely; `None` if none
+/// remains.
 pub fn block_jackknife(values: &[f64], lengths: &[f64]) -> Option<(f64, f64)> {
     let (x, m) = finite_blocks(values, lengths);
     if x.is_empty() {
@@ -145,9 +145,17 @@ pub fn jackknife_with_total(loo: &[f64], lengths: &[f64], tot: f64) -> Option<(f
 /// given (the genotype f-statistics).
 ///
 /// The total θ is the mean of the finite θ_(k) weighted by 1 − m_k / n,
-/// n the total length of **all** blocks (for a block mean this is the
-/// full-data mean exactly); then as [`jackknife_with_total`]. From
-/// `docs/cleanroom/small-helpers.md`, section 2.
+/// n the total length of **all** blocks; then as [`jackknife_with_total`].
+/// From `docs/cleanroom/small-helpers.md`, section 2.
+///
+/// That θ is the full-data value only for an additive statistic (a block
+/// mean, or a linear combination of block means such as f3 and f4). For a
+/// ratio of block means, such as D, it is the weighted mean of the
+/// leave-one-out ratios, which differs from the full-data ratio by a term of
+/// order 1/g: this is admixtools2's estimate for such statistics (as its
+/// `jack_pairarr_stats` and `qpdstat`), matched for parity, not a bias
+/// correction. Give the full-data value to [`jackknife_with_total`] where it
+/// is known.
 pub fn jackknife_from_loo(loo: &[f64], lengths: &[f64]) -> Option<(f64, f64)> {
     let n: f64 = lengths.iter().sum();
     let (s, w) = loo.iter().zip(lengths).filter(|(t, _)| t.is_finite()).fold(
@@ -205,7 +213,8 @@ pub fn block_jackknife_cov(stats: &[Vec<f64>], lengths: &[f64]) -> Option<(Vec<f
 /// than two). Each statistic's θ is the mean of its θ_(k) over those blocks
 /// weighted by 1 − m_k / n, n the total length of **all** blocks: for a
 /// block mean this is the full-data mean exactly, as in
-/// [`jackknife_from_loo`]. For a block mean θ_J = θ, so the estimate is θ,
+/// [`jackknife_from_loo`]; everything below holds only for additive
+/// statistics (block means and their linear combinations), not ratios. For a block mean θ_J = θ, so the estimate is θ,
 /// and τ_k − θ_J = (h_k − 1)(θ − θ_(k)): the covariance of statistics s and
 /// t is (1/g) Σ_k u_sk u_tk with u_sk = sqrt(h_k − 1)(θ_s − θ_(k),s), h_k
 /// and g over the blocks used. That is [`block_jackknife_cov`]'s covariance,
@@ -249,6 +258,35 @@ pub fn jackknife_cov_from_loo(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use approx::assert_relative_eq;
+
+    #[test]
+    fn the_total_from_leave_one_out_values_is_exact_only_for_additive_statistics() {
+        // G12: θ rebuilt from the θ_(k) is the full-data value for a block
+        // mean, but not for a ratio of block means
+        let lengths = [10.0, 30.0, 20.0, 40.0];
+        let num = [1.0, 3.0, 2.0, 5.0];
+        let den = [2.0, 4.0, 7.0, 6.0];
+        let (full_num, _) = weighted_mean(&num, &lengths);
+        let (full_den, _) = weighted_mean(&den, &lengths);
+        let loo_num = leave_one_out(&num, &lengths);
+        let (est, _) = jackknife_from_loo(&loo_num, &lengths).unwrap();
+        assert_relative_eq!(est, full_num, max_relative = 1e-14);
+
+        let loo_den = leave_one_out(&den, &lengths);
+        let loo_ratio: Vec<f64> = loo_num.iter().zip(&loo_den).map(|(a, b)| a / b).collect();
+        let (est, _) = jackknife_from_loo(&loo_ratio, &lengths).unwrap();
+        let full_ratio = full_num / full_den;
+        assert!(
+            (est - full_ratio).abs() > 1e-4 * full_ratio,
+            "{est} {full_ratio}"
+        );
+        assert!(
+            (est - full_ratio).abs() < 1e-2 * full_ratio,
+            "{est} {full_ratio}"
+        );
+    }
 
     #[test]
     fn z_is_nan_without_a_standard_error_and_p_is_two_sided() {
@@ -261,8 +299,6 @@ mod tests {
         assert!((p_from_z(-1.96) - p_from_z(1.96)).abs() < 1e-18);
         assert!(p_from_z(f64::NAN).is_nan());
     }
-    use super::*;
-    use approx::assert_relative_eq;
 
     #[test]
     fn test_equal_blocks_give_the_standard_jackknife() {
