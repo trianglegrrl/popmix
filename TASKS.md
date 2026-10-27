@@ -20,7 +20,9 @@ from the code, not yet shown.
   popmix must be fast, flexible, and use what safe Rust can buy (section F).
 - Results against the reference tools, with timings and their variation,
   must be visible: a benchmark report (section E).
-- The 1.0.0 release waits for sections A to E and O.
+- The 1.0.0 release waits for **every task in this file** (2026-10-27),
+  C7 (legal review) alone excepted; L4-L6 are the release itself, done
+  last. Order: "Path to 1.0" below.
 - Reference data is **AADR v66.p1** from now on (section O). It removes 161
   modern individuals of Jacobs et al. 2019 (Cell 177:1010) that v62.0 and
   v66.0 contained; none of them, nor their 27 populations, appear in the
@@ -29,6 +31,25 @@ from the code, not yet shown.
 - popmix ships an agent skill documenting every CLI command (section N).
 - `popmix convertf` becomes a full replacement for EIGENSOFT/AdmixTools
   convertf (section P).
+
+## Path to 1.0
+
+Work in this order; within a phase, top to bottom. Each phase makes the next
+cheaper: the refactors come first because every later task edits the code
+they move, and the public API is settled before features add to it.
+
+1. **Foundations.** K7 (process rules), L3 (PyO3 upgrade), L2, L1, I1, I2,
+   I4 (pipeline out of the bindings, `lib.rs` split), I3, I5, M2, M1.
+2. **The API 1.0 freezes.** G13 (warnings channel), J1, J2, J4, J3, J5, M4,
+   H6, I6, M3.
+3. **Honest science.** G8, G12, G2, G1, G3, G4, G5, G7, G10, G11, G6, G14,
+   G9.
+4. **Practitioner features.** H3, H9, H1, H2 with P3, H4, H5, H11, P1 (VCF
+   out), P2, H8, H10, H7.
+5. **Performance left over.** F4 (pair chunks past ~1,000 populations, on
+   I4's pipeline), F14 (KING at 3,970 samples).
+6. **Tests and CI.** K5, K4, K3 with P5, P4, K6, K1, K2, K8.
+7. **Release.** L4, L5, L6. C7 stays open.
 
 ## A. Wrong results (P0)
 
@@ -557,7 +578,7 @@ thread count.
 - [ ] **K8. Tests that pin the release workflow by running it:** a test tag
   run of `release.yml` on every platform before 1.0.0. AI
 
-## L. Packaging and release (after A-E)
+## L. Packaging and release (last)
 
 - [ ] **L1. popmix-io/core publishable:** `version` on the path dependency,
   `publish = false` on popmix-python, `rust-version` on every crate. RS
