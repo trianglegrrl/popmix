@@ -30,7 +30,7 @@ from popmix import _core
 from popmix.dstats import qp3pop, qpdstat
 
 
-def loo_list(f2_blocks: _core.PyF2Blocks) -> list[_core.PyF2Blocks]:
+def loo_list(f2_blocks: _core.F2Blocks) -> list[_core.F2Blocks]:
     """The f2 blocks with each block left out in turn (admixtools2 ``loo_list``)."""
     n = f2_blocks.n_blocks
     return [f2_blocks.select_blocks([b for b in range(n) if b != i]) for i in range(n)]
@@ -42,7 +42,7 @@ def _boot_draws(n: int, nboot: int, seed: int | None) -> list[list[int]]:
     return _core.r_sample_replace(seed, n, n, nboot)
 
 
-def boo_list(f2_blocks: _core.PyF2Blocks, *, nboot: int | None = None, seed: int | None = None) -> dict[str, list]:
+def boo_list(f2_blocks: _core.F2Blocks, *, nboot: int | None = None, seed: int | None = None) -> dict[str, list]:
     """Bootstrap resamples of the f2 blocks (admixtools2 ``boo_list``).
 
     Parameters
@@ -66,7 +66,7 @@ def boo_list(f2_blocks: _core.PyF2Blocks, *, nboot: int | None = None, seed: int
     return {"boo": [f2_blocks.select_blocks(s) for s in sel], "sel": sel, "test": test}
 
 
-def _resamples(f2_blocks: _core.PyF2Blocks, boot: bool | int, boot_seed: int | None) -> tuple[list, list]:
+def _resamples(f2_blocks: _core.F2Blocks, boot: bool | int, boot_seed: int | None) -> tuple[list, list]:
     if boot:
         nboot = f2_blocks.n_blocks if boot is True or boot == 1 else int(boot)
         b = boo_list(f2_blocks, nboot=nboot, seed=boot_seed)
@@ -108,7 +108,7 @@ def _qpgraph_row(r: _core.PyQpGraphResult) -> dict:
 
 
 def qpgraph_resample_snps(
-    f2_blocks: _core.PyF2Blocks,
+    f2_blocks: _core.F2Blocks,
     edges: Sequence[tuple[str, str]],
     *, boot: bool | int = False,
     boot_seed: int | None = None,
@@ -140,7 +140,7 @@ def qpgraph_resample_snps(
 
 
 def qpgraph_resample_multi(
-    f2_blocks: _core.PyF2Blocks,
+    f2_blocks: _core.F2Blocks,
     graphs: Sequence[Sequence[tuple[str, str]]],
     nboot: int,
     *, boot_seed: int | None = None,
@@ -232,7 +232,7 @@ def compare_fits(scores1: Sequence[float], scores2: Sequence[float]) -> dict[str
 
 
 def qpadm_resample_snps(
-    f2_blocks: _core.PyF2Blocks,
+    f2_blocks: _core.F2Blocks,
     left: Sequence[str],
     right: Sequence[str],
     target: str,
@@ -253,7 +253,7 @@ def qpadm_resample_snps(
 
 
 def qpwave_resample_snps(
-    f2_blocks: _core.PyF2Blocks,
+    f2_blocks: _core.F2Blocks,
     left: Sequence[str],
     right: Sequence[str],
     *, boot: bool | int = False,
@@ -284,7 +284,7 @@ def _fstat_resample(fun: Callable, f2_blocks, boot, boot_seed, pops: dict, args:
 
 
 def qpdstat_resample_snps(
-    f2_blocks: _core.PyF2Blocks,
+    f2_blocks: _core.F2Blocks,
     pop1: Any = None,
     pop2: Any = None,
     pop3: Any = None,
@@ -301,7 +301,7 @@ def qpdstat_resample_snps(
 
 
 def qp3pop_resample_snps(
-    f2_blocks: _core.PyF2Blocks,
+    f2_blocks: _core.F2Blocks,
     pop1: Any = None,
     pop2: Any = None,
     pop3: Any = None,

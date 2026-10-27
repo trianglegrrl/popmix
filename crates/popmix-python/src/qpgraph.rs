@@ -7,7 +7,7 @@ use popmix_core::python::input_error;
 use pyo3::prelude::*;
 
 /// An admixture graph representing population relationships.
-#[pyclass(skip_from_py_object)]
+#[pyclass(name = "AdmixGraph", module = "popmix._core", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct PyAdmixGraph {
     inner: popmix_core::AdmixGraph,
@@ -89,7 +89,7 @@ pub(crate) fn build_tree(
 }
 
 /// One graph found by find_graphs.
-#[pyclass(skip_from_py_object)]
+#[pyclass(module = "popmix._core", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct PyScoredGraph {
     /// The graph as (from, to) pairs; the path from the root to the first
@@ -222,7 +222,7 @@ pub(crate) fn graph_key(edges: Vec<(String, String)>) -> PyResult<Vec<String>> {
 }
 
 /// One fitted qpgraph edge.
-#[pyclass(skip_from_py_object)]
+#[pyclass(module = "popmix._core", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct PyQpGraphEdge {
     #[pyo3(get)]
@@ -243,7 +243,7 @@ pub(crate) struct PyQpGraphEdge {
 }
 
 /// One fitted f3(pop1; pop2, pop3) of a qpgraph fit.
-#[pyclass(skip_from_py_object)]
+#[pyclass(module = "popmix._core", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct PyQpGraphF3 {
     #[pyo3(get)]
@@ -267,7 +267,7 @@ pub(crate) struct PyQpGraphF3 {
 }
 
 /// One random start of the qpgraph admixture weight optimization.
-#[pyclass(skip_from_py_object)]
+#[pyclass(module = "popmix._core", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct PyQpGraphStart {
     #[pyo3(get)]
@@ -294,7 +294,7 @@ impl PyQpGraphStart {
 }
 
 /// Result of qpgraph().
-#[pyclass(skip_from_py_object)]
+#[pyclass(module = "popmix._core", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct PyQpGraphResult {
     /// Leaves in graph order; the first is the f3 base population.

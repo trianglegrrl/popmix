@@ -16,7 +16,7 @@ from popmix import _core
 METHODS = ("stepwise", "exhaustive")
 
 
-def find_graphs(f2_blocks: _core.PyF2Blocks, populations: Sequence[str], *, nadmix: int = 0,
+def find_graphs(f2_blocks: _core.F2Blocks, populations: Sequence[str], *, nadmix: int = 0,
                 outgroup: str | None = None, method: str = "stepwise", **kwargs: Any):
     """Search for the admixture graphs that best fit the data.
 
@@ -42,6 +42,10 @@ def find_graphs(f2_blocks: _core.PyF2Blocks, populations: Sequence[str], *, nadm
         (graphs, n_evaluated): the graphs, best first, and the number of
         graphs fitted.
     """
+    from popmix.errors import InputError
+    from popmix.results import scored_graph
+
     if method not in METHODS:
-        raise ValueError(f"method must be one of {', '.join(METHODS)}, not {method!r}")
-    return _core.find_graphs(f2_blocks, list(populations), nadmix, outgroup, method, **kwargs)
+        raise InputError(f"method must be one of {', '.join(METHODS)}, not {method!r}")
+    graphs, n_evaluated = _core.find_graphs(f2_blocks, list(populations), nadmix, outgroup, method, **kwargs)
+    return [scored_graph(g) for g in graphs], n_evaluated

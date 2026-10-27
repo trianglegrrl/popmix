@@ -710,7 +710,7 @@ class TestFindGraphsCommand:
         graphs, n = pm.find_graphs(f2, self.POPS.split(","), method="exhaustive")
         assert out["n_evaluated"] == n == 15
         assert [g["score"] for g in out["graphs"]] == [g.score for g in graphs[:3]]
-        assert [[tuple(e) for e in g["edges"]] for g in out["graphs"]] == [g.edges for g in graphs[:3]]
+        assert [tuple(tuple(e) for e in g["edges"]) for g in out["graphs"]] == [g.edges for g in graphs[:3]]
 
     @small_data
     def test_best_graph_file_refits_with_qpgraph(self, tmp_path):

@@ -137,7 +137,7 @@ def test_dates_chr20_22_subset():
 
     # Verify basic result structure
     assert result.admixed == "Simulation"
-    assert result.sources == ["French", "Yoruba"]
+    assert result.sources == ("French", "Yoruba")
 
     # Verify LD bins were computed
     assert len(result.ld_bins) > 0

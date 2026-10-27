@@ -641,8 +641,22 @@ thread count.
   Tested in `test_api_conventions.py`.
 - [ ] **J3. Type hints and NumPy-format docstrings** on the raw PyO3
   functions (CLAUDE.md rule). PD
-- [ ] **J4. pyclass `module="popmix._core"`, names, `frozen` where possible,
+- [x] **J4. pyclass `module="popmix._core"`, names, `frozen` where possible,
   pickling** (reprs show `builtins.PyQpAdmRotateResult`). RS, AI
+  *Done in COMMIT:* analysis results are frozen dataclasses in
+  `popmix.results` (QpWaveResult, QpAdmResult with PopDropRow,
+  F4RatioResult, QpGraphResult with its edges, f3 and starts, ScoredGraph,
+  DatesResult with LdBin and DecayFit): they compare by value, pickle, and
+  their lists are tuples and arrays read-only, as PcaResult, Sfs,
+  RolloffResult and AdmixtureResult already were. The data containers are
+  Rust classes named as in Python (`F2Blocks`, `GenotypeMatrix`,
+  `AlleleFrequencies`, `Sample`, `Snp`, `AdmixGraph`) in `popmix._core`,
+  frozen, and pickle (F2Blocks through its arrays, checked again on
+  loading); `Sample`, `Snp` and `GenotypeMatrix` gained constructors.
+  `QpAdmResult.is_good_fit` (a p-alone verdict, G1) did not carry over.
+  The Rust qpadm_rotate, qpwave_pairs and qpadm_multi bindings and their
+  four result classes, used by no public function, are gone (the
+  public ones are written in Python).
 - [ ] **J5. `f4` help text** says "D-statistic / ABBA-BABA" but prints f4. PG
 
 ## K. Tests, CI and process (P1)

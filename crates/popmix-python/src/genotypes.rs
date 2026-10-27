@@ -11,9 +11,20 @@ use popmix_io::tgeno::{is_tgeno_format, TgenoReader};
 use popmix_io::{is_packed_format, EigenstratReader, PackedAncestryMapReader, PlinkReader};
 use pyo3::prelude::*;
 
-/// A sample (individual) with metadata.
-#[pyclass(skip_from_py_object)]
-#[derive(Clone)]
+/// What `__reduce__` returns: the callable that rebuilds an object, and its
+/// arguments.
+type Reduce<'py, F, A> = (Bound<'py, F>, A);
+
+/// A SNP's stored fields: ID, chromosome, position (bp, Morgans), alleles.
+type SnpFields = (String, String, u32, f64, char, char);
+
+/// A genotype matrix's parts: genotypes (SNPs x samples), samples, SNPs.
+type MatrixParts<'py> = (Bound<'py, PyArray2<u8>>, Vec<PySample>, Vec<PySnp>);
+
+/// A sample (individual): its ID, population and ploidy ("diploid" or
+/// "pseudohaploid").
+#[pyclass(name = "Sample", module = "popmix._core", frozen, eq, from_py_object)]
+#[derive(Clone, PartialEq)]
 pub(crate) struct PySample {
     #[pyo3(get)]
     id: String,
@@ -21,6 +32,51 @@ pub(crate) struct PySample {
     population: String,
     #[pyo3(get)]
     ploidy: String,
+}
+
+#[pymethods]
+impl PySample {
+    #[new]
+    #[pyo3(signature = (id, population, ploidy = "diploid"))]
+    fn new(id: String, population: String, ploidy: &str) -> PyResult<Self> {
+        if !matches!(ploidy, "diploid" | "pseudohaploid") {
+            return Err(input_error(format!(
+                "ploidy must be \"diploid\" or \"pseudohaploid\", got {ploidy:?}"
+            )));
+        }
+        Ok(PySample {
+            id,
+            population,
+            ploidy: ploidy.to_string(),
+        })
+    }
+
+    fn __reduce__<'py>(
+        slf: &Bound<'py, Self>,
+    ) -> (Bound<'py, pyo3::types::PyType>, (String, String, String)) {
+        let s = slf.get();
+        (
+            slf.get_type(),
+            (s.id.clone(), s.population.clone(), s.ploidy.clone()),
+        )
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "Sample(id={:?}, population={:?}, ploidy={:?})",
+            self.id, self.population, self.ploidy
+        )
+    }
+}
+
+impl PySample {
+    pub(crate) fn to_core(&self) -> popmix_core::Sample {
+        let mut s = popmix_core::Sample::new(&self.id, self.population.as_str());
+        if self.ploidy == "pseudohaploid" {
+            s.ploidy = Ploidy::Pseudohaploid;
+        }
+        s
+    }
 }
 
 impl From<&popmix_core::Sample> for PySample {
@@ -40,9 +96,10 @@ impl From<&popmix_core::Sample> for PySample {
 // SNP wrapper
 // ============================================================================
 
-/// A SNP (variant) with metadata.
-#[pyclass(skip_from_py_object)]
-#[derive(Clone)]
+/// A SNP: its ID, chromosome, position (base pairs and centimorgans) and
+/// alleles.
+#[pyclass(name = "Snp", module = "popmix._core", frozen, eq, from_py_object)]
+#[derive(Clone, PartialEq)]
 pub(crate) struct PySnp {
     #[pyo3(get)]
     id: String,
@@ -50,12 +107,98 @@ pub(crate) struct PySnp {
     chromosome: String,
     #[pyo3(get)]
     position_bp: u32,
-    #[pyo3(get)]
-    position_cm: f64,
+    /// kept in Morgans, as stored, so that pickling is exact
+    position_morgans: f64,
     #[pyo3(get)]
     allele_ref: char,
     #[pyo3(get)]
     allele_alt: char,
+}
+
+#[pymethods]
+impl PySnp {
+    #[new]
+    #[pyo3(signature = (id, chromosome, position_bp, position_cm = 0.0, allele_ref = 'N', allele_alt = 'N'))]
+    fn new(
+        id: String,
+        chromosome: String,
+        position_bp: u32,
+        position_cm: f64,
+        allele_ref: char,
+        allele_alt: char,
+    ) -> Self {
+        PySnp {
+            id,
+            chromosome,
+            position_bp,
+            position_morgans: position_cm / 100.0,
+            allele_ref,
+            allele_alt,
+        }
+    }
+
+    /// Genetic position in centimorgans.
+    #[getter]
+    fn position_cm(&self) -> f64 {
+        self.position_morgans * 100.0
+    }
+
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<Reduce<'py, PyAny, SnpFields>> {
+        Ok((
+            py.import("popmix._core")?.getattr("_snp")?,
+            (
+                self.id.clone(),
+                self.chromosome.clone(),
+                self.position_bp,
+                self.position_morgans,
+                self.allele_ref,
+                self.allele_alt,
+            ),
+        ))
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "Snp(id={:?}, chromosome={:?}, position_bp={}, position_cm={})",
+            self.id,
+            self.chromosome,
+            self.position_bp,
+            self.position_cm()
+        )
+    }
+}
+
+/// A SNP from its stored fields (genetic position in Morgans), for pickling.
+#[pyfunction]
+pub(crate) fn _snp(
+    id: String,
+    chromosome: String,
+    position_bp: u32,
+    position_morgans: f64,
+    allele_ref: char,
+    allele_alt: char,
+) -> PySnp {
+    PySnp {
+        id,
+        chromosome,
+        position_bp,
+        position_morgans,
+        allele_ref,
+        allele_alt,
+    }
+}
+
+impl PySnp {
+    pub(crate) fn to_core(&self) -> popmix_core::Snp {
+        popmix_core::Snp::new(
+            &self.id,
+            popmix_core::Chromosome::parse(&self.chromosome),
+            self.position_bp,
+            self.position_morgans,
+            self.allele_ref,
+            self.allele_alt,
+        )
+    }
 }
 
 impl From<&popmix_core::Snp> for PySnp {
@@ -64,8 +207,7 @@ impl From<&popmix_core::Snp> for PySnp {
             id: s.id.clone(),
             chromosome: s.chromosome.to_string(),
             position_bp: s.position_bp,
-            // Convert from Morgans (internal storage) to cM (Python API)
-            position_cm: s.position_morgans * 100.0,
+            position_morgans: s.position_morgans,
             allele_ref: s.allele_ref,
             allele_alt: s.allele_alt,
         }
@@ -76,14 +218,47 @@ impl From<&popmix_core::Snp> for PySnp {
 // GenotypeMatrix wrapper
 // ============================================================================
 
-/// A matrix of genotypes with sample and SNP metadata.
-#[pyclass]
+/// A matrix of genotypes, SNPs by samples, with the samples and SNPs.
+#[pyclass(name = "GenotypeMatrix", module = "popmix._core", frozen)]
 pub(crate) struct PyGenotypeMatrix {
     pub(crate) inner: GenotypeMatrix,
 }
 
 #[pymethods]
 impl PyGenotypeMatrix {
+    /// A genotype matrix from its genotypes, SNPs by samples (0, 1, 2 copies
+    /// of the counted allele, 3 missing), its samples and its SNPs.
+    #[new]
+    fn new(
+        data: numpy::PyReadonlyArray2<'_, u8>,
+        samples: Vec<PySample>,
+        snps: Vec<PySnp>,
+    ) -> PyResult<Self> {
+        Ok(PyGenotypeMatrix {
+            inner: GenotypeMatrix::new(
+                data.as_array().to_owned(),
+                samples.iter().map(PySample::to_core).collect(),
+                snps.iter().map(PySnp::to_core).collect(),
+            )?,
+        })
+    }
+
+    fn __reduce__<'py>(
+        slf: &Bound<'py, Self>,
+    ) -> Reduce<'py, pyo3::types::PyType, MatrixParts<'py>> {
+        let g = slf.get();
+        let py = slf.py();
+        (slf.get_type(), (g.to_numpy(py), g.samples(), g.snps()))
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "GenotypeMatrix({} SNPs x {} samples)",
+            self.inner.n_snps(),
+            self.inner.n_samples()
+        )
+    }
+
     /// Get the number of samples.
     #[getter]
     fn n_samples(&self) -> usize {
@@ -160,14 +335,55 @@ impl PyGenotypeMatrix {
 // AlleleFrequencies wrapper
 // ============================================================================
 
-/// Allele frequencies computed per population.
-#[pyclass]
+/// Allele frequencies per population, SNPs by populations.
+#[pyclass(name = "AlleleFrequencies", module = "popmix._core", frozen)]
 pub(crate) struct PyAlleleFrequencies {
     pub(crate) inner: AlleleFrequencies,
 }
 
+/// Allele frequencies from their arrays, for pickling.
+#[pyfunction]
+pub(crate) fn _allele_frequencies(
+    frequencies: numpy::PyReadonlyArray2<'_, f64>,
+    counts: numpy::PyReadonlyArray2<'_, u32>,
+    populations: Vec<String>,
+    snps: Vec<PySnp>,
+) -> PyResult<PyAlleleFrequencies> {
+    Ok(PyAlleleFrequencies {
+        inner: AlleleFrequencies::new(
+            frequencies.as_array().to_owned(),
+            counts.as_array().to_owned(),
+            populations
+                .iter()
+                .map(|p| popmix_core::PopulationId::from(p.as_str()))
+                .collect(),
+            snps.iter().map(PySnp::to_core).collect(),
+        )?,
+    })
+}
+
 #[pymethods]
 impl PyAlleleFrequencies {
+    fn __reduce__<'py>(
+        &self,
+        py: Python<'py>,
+    ) -> PyResult<(Bound<'py, PyAny>, Bound<'py, pyo3::types::PyTuple>)> {
+        let snps: Vec<PySnp> = self.inner.snps().iter().map(PySnp::from).collect();
+        let args = pyo3::types::PyTuple::new(
+            py,
+            [
+                self.inner.frequencies().clone().into_pyarray(py).into_any(),
+                self.inner.counts().clone().into_pyarray(py).into_any(),
+                pyo3::IntoPyObjectExt::into_bound_py_any(self.populations(), py)?,
+                pyo3::IntoPyObjectExt::into_bound_py_any(snps, py)?,
+            ],
+        )?;
+        Ok((
+            py.import("popmix._core")?.getattr("_allele_frequencies")?,
+            args,
+        ))
+    }
+
     /// Get the number of SNPs.
     #[getter]
     fn n_snps(&self) -> usize {

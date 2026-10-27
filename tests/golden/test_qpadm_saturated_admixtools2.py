@@ -47,7 +47,6 @@ def test_the_saturated_model_has_no_p_value(result):
     assert full["dof"] == 0 and full["p"] == "NA"
     assert result.dof == 0
     assert math.isnan(result.p)
-    assert not result.is_good_fit()
 
 
 def test_popdrop_matches_admixtools2(result):

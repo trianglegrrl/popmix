@@ -7,7 +7,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
 /// Result of a single LD bin from DATES.
-#[pyclass(skip_from_py_object)]
+#[pyclass(module = "popmix._core", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct PyLdBin {
     #[pyo3(get)]
@@ -41,7 +41,7 @@ impl From<&popmix_core::LdBin> for PyLdBin {
 }
 
 /// Result of exponential decay fitting.
-#[pyclass(skip_from_py_object)]
+#[pyclass(module = "popmix._core", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct PyDecayFit {
     #[pyo3(get)]
@@ -72,7 +72,7 @@ impl From<&popmix_core::DecayFit> for PyDecayFit {
 }
 
 /// Result of DATES admixture dating analysis.
-#[pyclass]
+#[pyclass(module = "popmix._core")]
 pub(crate) struct PyDatesResult {
     #[pyo3(get, name = "admixed")]
     test_pop: String,

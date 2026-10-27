@@ -12,7 +12,7 @@ use crate::geno_fstats::{open_source, rows_of};
 type TwRow = (f64, Option<f64>, Option<f64>, Option<f64>);
 
 /// Result of ``smartpca``: PCA samples and projected samples together.
-#[pyclass]
+#[pyclass(module = "popmix._core")]
 pub struct PyPcaResult {
     /// Every eigenvalue, decreasing (smartpca's evaloutname).
     #[pyo3(get)]

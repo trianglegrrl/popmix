@@ -8,7 +8,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
 /// Result of a single rank test from qpWave.
-#[pyclass(skip_from_py_object)]
+#[pyclass(module = "popmix._core", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct PyRankTest {
     #[pyo3(get)]
@@ -22,7 +22,7 @@ pub(crate) struct PyRankTest {
 }
 
 /// Result of qpWave analysis.
-#[pyclass]
+#[pyclass(module = "popmix._core")]
 pub(crate) struct PyQpWaveResult {
     #[pyo3(get)]
     rank_tests: Vec<PyRankTest>,
@@ -57,7 +57,7 @@ impl PyQpWaveResult {
 }
 
 /// Result of f4 ratio analysis for admixture proportion estimation.
-#[pyclass]
+#[pyclass(module = "popmix._core")]
 pub(crate) struct PyF4RatioResult {
     #[pyo3(get)]
     test: String,
@@ -151,7 +151,7 @@ pub(crate) fn qpf4ratio(
 }
 
 /// Result of qpAdm analysis.
-#[pyclass]
+#[pyclass(module = "popmix._core")]
 pub(crate) struct PyQpAdmResult {
     #[pyo3(get)]
     target: String,
@@ -182,7 +182,7 @@ pub(crate) struct PyQpAdmResult {
 /// ``p_nested`` compare a step with the model it came from. With
 /// ``compat="admixtools2-2.0.10"`` they reproduce admixtools2's columns
 /// instead (DEVIATIONS.md, ADMIXTOOLS2-0001).
-#[pyclass(skip_from_py_object)]
+#[pyclass(module = "popmix._core", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct PyPopDropRow {
     #[pyo3(get)]
@@ -272,186 +272,6 @@ impl PyQpAdmResult {
     }
 }
 
-/// A single model result from qpAdm rotation.
-#[pyclass(skip_from_py_object)]
-#[derive(Clone)]
-pub(crate) struct PyRotationModel {
-    #[pyo3(get)]
-    sources: Vec<String>,
-    #[pyo3(get)]
-    weights: Vec<f64>,
-    #[pyo3(get, name = "weight_se")]
-    weight_std_errors: Vec<f64>,
-    #[pyo3(get, name = "p")]
-    p_value: f64,
-    #[pyo3(get, name = "chisq")]
-    chi_sq: f64,
-    #[pyo3(get, name = "dof")]
-    df: usize,
-    #[pyo3(get, name = "feasible")]
-    is_feasible: bool,
-}
-
-#[pymethods]
-impl PyRotationModel {
-    fn __repr__(&self) -> String {
-        format!(
-            "RotationModel(sources={:?}, p_value={:.4}, is_feasible={})",
-            self.sources, self.p_value, self.is_feasible
-        )
-    }
-
-    /// Get weights as a dictionary mapping source name to weight, in source order.
-    fn weights_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
-        let dict = PyDict::new(py);
-        for (source, weight) in self.sources.iter().zip(&self.weights) {
-            dict.set_item(source, weight)?;
-        }
-        Ok(dict)
-    }
-}
-
-/// Result of qpAdm rotation analysis.
-#[pyclass]
-pub(crate) struct PyQpAdmRotateResult {
-    #[pyo3(get)]
-    target: String,
-    #[pyo3(get)]
-    candidates: Vec<String>,
-    #[pyo3(get)]
-    outgroups: Vec<String>,
-    #[pyo3(get)]
-    models: Vec<PyRotationModel>,
-    #[pyo3(get)]
-    n_combinations: usize,
-    #[pyo3(get)]
-    n_feasible: usize,
-    /// Combinations not fit: more sources than outgroups, or a singular or
-    /// infeasible system.
-    #[pyo3(get)]
-    n_skipped: usize,
-}
-
-#[pymethods]
-impl PyQpAdmRotateResult {
-    /// Get the best model (highest p-value).
-    fn best_model(&self) -> Option<PyRotationModel> {
-        self.models.first().cloned()
-    }
-
-    /// Get models passing a p-value threshold.
-    #[pyo3(signature = (p_threshold=0.05))]
-    fn passing_models(&self, p_threshold: f64) -> Vec<PyRotationModel> {
-        self.models
-            .iter()
-            .filter(|m| m.p_value > p_threshold)
-            .cloned()
-            .collect()
-    }
-
-    /// Get feasible models only.
-    fn feasible_models(&self) -> Vec<PyRotationModel> {
-        self.models
-            .iter()
-            .filter(|m| m.is_feasible)
-            .cloned()
-            .collect()
-    }
-}
-
-/// Run qpAdm rotation to test all source combinations.
-///
-/// Tests all combinations of candidate source populations to find
-/// the best-fitting admixture models.
-///
-/// Args:
-///     f2_blocks: Precomputed F2 blocks
-///     target: Target population name
-///     candidates: Candidate source population names
-///     outgroups: Outgroup population names
-///     min_sources: Minimum number of sources to test (default: 1)
-///     max_sources: Maximum number of sources to test (default: all)
-///     feasible_only: Only return feasible models (default: False)
-///     fudge: Regularization factor (default: 1e-4)
-///
-/// Returns:
-///     PyQpAdmRotateResult with all tested models sorted by p-value
-#[pyfunction]
-#[pyo3(signature = (f2_blocks, target, candidates, outgroups, min_sources=None, max_sources=None, feasible_only=None, fudge=None))]
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn qpadm_rotate(
-    py: Python<'_>,
-    f2_blocks: &PyF2Blocks,
-    target: String,
-    candidates: Vec<String>,
-    outgroups: Vec<String>,
-    min_sources: Option<usize>,
-    max_sources: Option<usize>,
-    feasible_only: Option<bool>,
-    fudge: Option<f64>,
-) -> PyResult<PyQpAdmRotateResult> {
-    compute(py, move || {
-        let candidates_refs: Vec<&str> =
-            candidates.iter().map(std::string::String::as_str).collect();
-        let outgroups_refs: Vec<&str> = outgroups.iter().map(std::string::String::as_str).collect();
-
-        let opts = {
-            let mut o = popmix_core::QpAdmRotateOptions::default();
-            o.min_sources = min_sources.unwrap_or(1);
-            o.max_sources = max_sources;
-            o.p_threshold = 0.05;
-            o.feasible_only = feasible_only.unwrap_or(false);
-            o.qpadm_opts.fudge = fudge.unwrap_or(1e-4);
-
-            o
-        };
-
-        let result = popmix_core::qpadm_rotate(
-            &f2_blocks.inner,
-            &target,
-            &candidates_refs,
-            &outgroups_refs,
-            &opts,
-        )?;
-
-        let models = result
-            .models
-            .into_iter()
-            .map(|m| PyRotationModel {
-                sources: m
-                    .sources
-                    .iter()
-                    .map(std::string::ToString::to_string)
-                    .collect(),
-                weights: m.weights,
-                weight_std_errors: m.weight_std_errors,
-                p_value: m.p_value,
-                chi_sq: m.chi_sq,
-                df: m.df,
-                is_feasible: m.is_feasible,
-            })
-            .collect();
-
-        Ok(PyQpAdmRotateResult {
-            target: result.target.to_string(),
-            candidates: result
-                .candidates
-                .iter()
-                .map(std::string::ToString::to_string)
-                .collect(),
-            outgroups: result
-                .outgroups
-                .iter()
-                .map(std::string::ToString::to_string)
-                .collect(),
-            models,
-            n_combinations: result.n_combinations,
-            n_feasible: result.n_feasible,
-            n_skipped: result.n_skipped,
-        })
-    })
-}
-
 /// Run qpWave analysis.
 ///
 /// Tests whether left populations can be modeled as mixtures of ancestral
@@ -507,150 +327,6 @@ pub(crate) fn qpwave(
             f4_matrix: rows(&result.f4_matrix.values),
             f4_covariance: rows(&result.f4_matrix.covariance),
         })
-    })
-}
-
-/// Result of qpWave test for a single population pair.
-#[pyclass(skip_from_py_object)]
-#[derive(Clone)]
-pub(crate) struct PyQpWavePairResult {
-    #[pyo3(get)]
-    pop_a: String,
-    #[pyo3(get)]
-    pop_b: String,
-    #[pyo3(get, name = "p")]
-    p_value: f64,
-    #[pyo3(get, name = "chisq")]
-    chi_sq: f64,
-    #[pyo3(get, name = "dof")]
-    df: usize,
-}
-
-#[pymethods]
-impl PyQpWavePairResult {
-    fn __repr__(&self) -> String {
-        format!(
-            "QpWavePairResult(pop_a='{}', pop_b='{}', p_value={:.4})",
-            self.pop_a, self.pop_b, self.p_value
-        )
-    }
-
-    /// Check if this pair forms a clade (p > threshold).
-    #[pyo3(signature = (p_threshold=0.05))]
-    fn is_clade(&self, p_threshold: f64) -> bool {
-        self.p_value > p_threshold
-    }
-}
-
-impl From<&popmix_core::QpWavePairResult> for PyQpWavePairResult {
-    fn from(p: &popmix_core::QpWavePairResult) -> Self {
-        PyQpWavePairResult {
-            pop_a: p.pop_a.to_string(),
-            pop_b: p.pop_b.to_string(),
-            p_value: p.p_value,
-            chi_sq: p.chi_sq,
-            df: p.df,
-        }
-    }
-}
-
-/// Result of pairwise qpWave analysis.
-#[pyclass]
-pub(crate) struct PyQpWavePairsResult {
-    inner: popmix_core::QpWavePairsResult,
-}
-
-#[pymethods]
-impl PyQpWavePairsResult {
-    #[getter]
-    fn populations(&self) -> Vec<String> {
-        self.inner
-            .populations
-            .iter()
-            .map(std::string::ToString::to_string)
-            .collect()
-    }
-
-    #[getter]
-    fn outgroups(&self) -> Vec<String> {
-        self.inner
-            .outgroups
-            .iter()
-            .map(std::string::ToString::to_string)
-            .collect()
-    }
-
-    #[getter]
-    fn pairs(&self) -> Vec<PyQpWavePairResult> {
-        self.inner.pairs.iter().map(Into::into).collect()
-    }
-
-    #[getter]
-    fn n_pairs(&self) -> usize {
-        self.inner.n_pairs
-    }
-
-    /// Pairs whose qpWave system was singular, left out of `pairs`.
-    #[getter]
-    fn n_skipped(&self) -> usize {
-        self.inner.n_skipped
-    }
-
-    /// Get pairs that pass the cladality test (p > threshold).
-    #[pyo3(signature = (p_threshold=0.05))]
-    fn clades(&self, p_threshold: f64) -> Vec<PyQpWavePairResult> {
-        self.inner
-            .clades(p_threshold)
-            .into_iter()
-            .map(Into::into)
-            .collect()
-    }
-
-    /// Get the pair with highest p-value (most likely clade); pairs with no
-    /// p-value (0 degrees of freedom) are not candidates.
-    fn best_clade(&self) -> Option<PyQpWavePairResult> {
-        self.inner.best_clade().map(Into::into)
-    }
-}
-
-/// Run qpWave for all population pairs (cladality screening).
-///
-/// Tests whether each pair of populations forms a clade relative to
-/// the outgroup populations.
-///
-/// Args:
-///     f2_blocks: Precomputed F2 blocks
-///     populations: Population names to test pairwise
-///     outgroups: Outgroup population names
-///     fudge: Regularization factor (default: 1e-4)
-///
-/// Returns:
-///     PyQpWavePairsResult with all pairwise test results
-#[pyfunction]
-#[pyo3(signature = (f2_blocks, populations, outgroups, fudge=None))]
-pub(crate) fn qpwave_pairs(
-    py: Python<'_>,
-    f2_blocks: &PyF2Blocks,
-    populations: Vec<String>,
-    outgroups: Vec<String>,
-    fudge: Option<f64>,
-) -> PyResult<PyQpWavePairsResult> {
-    compute(py, move || {
-        let pop_refs: Vec<&str> = populations
-            .iter()
-            .map(std::string::String::as_str)
-            .collect();
-        let outgroup_refs: Vec<&str> = outgroups.iter().map(std::string::String::as_str).collect();
-
-        let opts = {
-            let mut o = popmix_core::QpWaveOptions::default();
-            o.fudge = fudge.unwrap_or(1e-4);
-            o.max_rank = None;
-            o
-        };
-
-        let inner = popmix_core::qpwave_pairs(&f2_blocks.inner, &pop_refs, &outgroup_refs, &opts)?;
-        Ok(PyQpWavePairsResult { inner })
     })
 }
 
@@ -715,66 +391,3 @@ pub(crate) fn qpadm(
         Ok(PyQpAdmResult::from(result))
     })
 }
-
-/// Run qpAdm for multiple targets with the same sources and outgroups.
-///
-/// This is a convenience function for testing multiple target populations
-/// against the same admixture model.
-///
-/// Args:
-///     f2_blocks: Pre-computed F2 blocks
-///     targets: List of target populations to test
-///     sources: Source populations for the admixture model
-///     right: Right (outgroup) populations
-///     constrained: Use constrained optimization (weights in [0,1])
-///     fudge: Regularization parameter
-///     compat: "admixtools2-2.0.10" to reproduce admixtools2's quirks (see
-///         qpadm)
-///
-/// Returns:
-///     List of qpAdm results for each target
-#[pyfunction]
-#[pyo3(signature = (f2_blocks, targets, sources, right, constrained=None, fudge=None, compat=None))]
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn qpadm_multi(
-    py: Python<'_>,
-    f2_blocks: &PyF2Blocks,
-    targets: Vec<String>,
-    sources: Vec<String>,
-    right: Vec<String>,
-    constrained: Option<bool>,
-    fudge: Option<f64>,
-    compat: Option<&str>,
-) -> PyResult<Vec<PyQpAdmResult>> {
-    compute(py, move || {
-        let sources_refs: Vec<&str> = sources.iter().map(std::string::String::as_str).collect();
-        let right_refs: Vec<&str> = right.iter().map(std::string::String::as_str).collect();
-
-        let opts = {
-            let mut o = popmix_core::QpAdmOptions::default();
-            o.fudge = fudge.unwrap_or(1e-4);
-            o.constrained = constrained.unwrap_or(false);
-            o.compat = admixtools2_compat(compat)?;
-            o
-        };
-
-        let mut results = Vec::with_capacity(targets.len());
-
-        for target in &targets {
-            match popmix_core::qpadm(&f2_blocks.inner, target, &sources_refs, &right_refs, &opts) {
-                Ok(result) => {
-                    results.push(PyQpAdmResult::from(result));
-                }
-                Err(e) => {
-                    return Err(PyErr::from(e));
-                }
-            }
-        }
-
-        Ok(results)
-    })
-}
-
-// ============================================================================
-// qpGraph wrappers
-// ============================================================================

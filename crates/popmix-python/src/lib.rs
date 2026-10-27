@@ -30,10 +30,7 @@ use pyo3::prelude::*;
 use crate::dates::{PyDatesResult, PyDecayFit, PyLdBin};
 use crate::f2::PyF2Blocks;
 use crate::genotypes::{PyAlleleFrequencies, PyGenotypeMatrix, PySample, PySnp};
-use crate::qpadm::{
-    PyF4RatioResult, PyPopDropRow, PyQpAdmResult, PyQpAdmRotateResult, PyQpWavePairResult,
-    PyQpWavePairsResult, PyQpWaveResult, PyRankTest, PyRotationModel,
-};
+use crate::qpadm::{PyF4RatioResult, PyPopDropRow, PyQpAdmResult, PyQpWaveResult, PyRankTest};
 use crate::qpgraph::{
     PyAdmixGraph, PyQpGraphEdge, PyQpGraphF3, PyQpGraphResult, PyQpGraphStart, PyScoredGraph,
 };
@@ -124,6 +121,10 @@ fn version() -> &'static str {
 #[pymodule(gil_used = true)]
 fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Threading functions
+    // rebuilders for pickling
+    m.add_function(wrap_pyfunction!(genotypes::_snp, m)?)?;
+    m.add_function(wrap_pyfunction!(genotypes::_allele_frequencies, m)?)?;
+    m.add_function(wrap_pyfunction!(f2::_f2_blocks, m)?)?;
     m.add_function(wrap_pyfunction!(init_threads, m)?)?;
     m.add_function(wrap_pyfunction!(get_threads, m)?)?;
     m.add_function(wrap_pyfunction!(version, m)?)?;
@@ -157,10 +158,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // qpAdm/qpWave functions
     m.add_function(wrap_pyfunction!(qpadm::qpwave, m)?)?;
     m.add_function(wrap_pyfunction!(qpadm::qpadm, m)?)?;
-    m.add_function(wrap_pyfunction!(qpadm::qpadm_multi, m)?)?;
     m.add_function(wrap_pyfunction!(qpadm::qpf4ratio, m)?)?;
-    m.add_function(wrap_pyfunction!(qpadm::qpadm_rotate, m)?)?;
-    m.add_function(wrap_pyfunction!(qpadm::qpwave_pairs, m)?)?;
 
     // qpGraph functions
     m.add_function(wrap_pyfunction!(qpgraph::build_tree, m)?)?;
@@ -187,10 +185,6 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyQpGraphF3>()?;
     m.add_class::<PyQpGraphStart>()?;
     m.add_class::<PyF4RatioResult>()?;
-    m.add_class::<PyRotationModel>()?;
-    m.add_class::<PyQpAdmRotateResult>()?;
-    m.add_class::<PyQpWavePairResult>()?;
-    m.add_class::<PyQpWavePairsResult>()?;
     m.add_class::<PyAdmixGraph>()?;
     m.add_class::<PyScoredGraph>()?;
     m.add_class::<PyLdBin>()?;

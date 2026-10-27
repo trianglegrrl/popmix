@@ -22,9 +22,6 @@ def f2():
 def test_unknown_compat_is_rejected(f2):
     with pytest.raises(ValueError, match="admixtools2-2.0.10"):
         pm.qpadm(f2, ["French"], ["Yoruba", "Simulation.1"], "Simulation", compat="admixtools2-9")
-    with pytest.raises(ValueError, match="admixtools2-2.0.10"):
-        pm._core.qpadm_multi(f2, ["Simulation"], ["French"], ["Yoruba", "Simulation.1"],
-                       compat="dates-v753")
 
 
 def test_compat_leaves_a_one_source_model_unchanged(f2):

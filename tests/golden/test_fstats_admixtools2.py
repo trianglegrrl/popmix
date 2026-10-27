@@ -410,7 +410,7 @@ def _check_qpgraph_f3(name: str):
     for g in _qpgraph_reference(name):
         # the f3 statistics do not depend on the admixture weights
         r = pm.qpgraph(f2, [tuple(e) for e in g["edges"]], numstart=1)
-        if r.pops != g["pops"]:
+        if list(r.pops) != g["pops"]:
             mismatches.append(f"{g['name']}: pops {r.pops} != {g['pops']}")
             continue
         for x, row in zip(r.f3, g["f3"]):
@@ -483,7 +483,7 @@ def _check_qpgraph_fit(name: str):
         assert len(r.opt) == len(g["opt"] or [])
         for k, (o, row) in enumerate(zip(r.opt, g["opt"] or [])):  # noqa: B905
             where = f"{g['name']} start {k}"
-            if o.start != [row[c] for c in row if c.startswith("i.")]:
+            if list(o.start) != [row[c] for c in row if c.startswith("i.")]:
                 mismatches.append(f"{where}: start {o.start} differs")
             if not np.isclose(o.score, row["value"], rtol=score_rtol, atol=0):
                 mismatches.append(f"{where}: score {o.score!r} != {row['value']!r}")

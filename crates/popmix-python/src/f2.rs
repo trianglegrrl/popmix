@@ -8,7 +8,8 @@ use popmix_core::fstats::{p_from_z, z_score};
 use popmix_core::{BlockDefinition, F2Blocks};
 use popmix_io::{read_f2_blocks, write_f2_blocks};
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
+use pyo3::types::{PyDict, PyTuple};
+use pyo3::IntoPyObjectExt;
 
 /// Load precomputed F2 blocks from a directory.
 ///
@@ -34,13 +35,52 @@ pub(crate) fn read_f2(py: Python<'_>, path: &str) -> PyResult<PyF2Blocks> {
 ///
 /// This is the main data structure for computing f-statistics.
 /// Create using `extract_f2()` or from allele frequencies.
-#[pyclass]
+#[pyclass(name = "F2Blocks", module = "popmix._core", frozen)]
 pub(crate) struct PyF2Blocks {
     pub(crate) inner: F2Blocks,
 }
 
 #[pymethods]
 impl PyF2Blocks {
+    fn __reduce__<'py>(
+        &self,
+        py: Python<'py>,
+    ) -> PyResult<(Bound<'py, PyAny>, Bound<'py, PyTuple>)> {
+        let f = &self.inner;
+        let array = |a: &ndarray::Array2<f64>| a.clone().into_pyarray(py).into_any();
+        let fst = match f.fst_blocks() {
+            Some(fst) => (
+                fst.block_lengths().to_vec(),
+                array(fst.num()),
+                array(fst.den()),
+            )
+                .into_bound_py_any(py)?,
+            None => py.None().into_bound(py),
+        };
+        let args = PyTuple::new(
+            py,
+            [
+                array(f.block_sums()),
+                array(f.block_raw_sums()),
+                array(f.block_weights()),
+                array(f.block_het_sums()),
+                array(f.block_het_weights()),
+                self.populations().into_bound_py_any(py)?,
+                f.block_lengths().to_vec().into_bound_py_any(py)?,
+                fst,
+            ],
+        )?;
+        Ok((py.import("popmix._core")?.getattr("_f2_blocks")?, args))
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "F2Blocks({} populations, {} blocks)",
+            self.inner.populations().len(),
+            self.inner.n_blocks()
+        )
+    }
+
     /// Get the number of populations.
     #[getter]
     fn n_populations(&self) -> usize {
@@ -306,4 +346,43 @@ fn stat_dict<'py>(
     d.set_item("p", p_from_z(z))?;
     d.set_item(count.0, count.1)?;
     Ok(d)
+}
+
+type Arr<'a> = numpy::PyReadonlyArray2<'a, f64>;
+
+/// F2 blocks from their arrays, for pickling (`F2Blocks.__reduce__`).
+#[pyfunction]
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn _f2_blocks(
+    block_sums: Arr<'_>,
+    block_raw_sums: Arr<'_>,
+    block_weights: Arr<'_>,
+    block_het_sums: Arr<'_>,
+    block_het_weights: Arr<'_>,
+    populations: Vec<String>,
+    block_lengths: Vec<usize>,
+    fst: Option<(Vec<usize>, Arr<'_>, Arr<'_>)>,
+) -> PyResult<PyF2Blocks> {
+    let fst = match fst {
+        Some((lengths, num, den)) => Some(popmix_core::fstats::FstBlocks::new(
+            lengths,
+            num.as_array().to_owned(),
+            den.as_array().to_owned(),
+        )?),
+        None => None,
+    };
+    let inner = F2Blocks::from_arrays(popmix_core::F2Arrays {
+        block_sums: block_sums.as_array().to_owned(),
+        block_raw_sums: block_raw_sums.as_array().to_owned(),
+        block_weights: block_weights.as_array().to_owned(),
+        block_het_sums: block_het_sums.as_array().to_owned(),
+        block_het_weights: block_het_weights.as_array().to_owned(),
+        populations: populations
+            .iter()
+            .map(|p| popmix_core::PopulationId::from(p.as_str()))
+            .collect(),
+        block_lengths,
+        fst,
+    })?;
+    Ok(PyF2Blocks { inner })
 }

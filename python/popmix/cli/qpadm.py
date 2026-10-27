@@ -78,7 +78,7 @@ def qpadm(target: str, left: list, right: list, constrained: bool, input_prefix:
             if math.isnan(result.p):
                 click.echo("=> Model not tested: it has 0 degrees of freedom (as many right populations as"
                            " left), so the data cannot reject it")
-            elif result.is_good_fit():
+            elif result.p > 0.05:  # G1 replaces this verdict
                 click.echo("=> Good model fit (p > 0.05)")
             else:
                 click.echo("=> Poor model fit (p <= 0.05)")

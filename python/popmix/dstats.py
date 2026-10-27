@@ -20,7 +20,7 @@ import pandas as pd
 from popmix import _core
 
 # Union, not X | Y: aliases are evaluated at runtime, and popmix supports Python 3.9
-Data = Union[str, "os.PathLike[str]", "_core.PyF2Blocks"]  # noqa: UP007
+Data = Union[str, "os.PathLike[str]", "_core.F2Blocks"]  # noqa: UP007
 Pops = Union[str, Sequence[str], None]  # noqa: UP007
 
 def _as_list(pops: Pops) -> list[str] | None:

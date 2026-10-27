@@ -54,7 +54,7 @@ def _rotations(leftright: Sequence[str], rightfix: Sequence[str], fixed_first: b
 
 
 def qpadm_p(
-    f2_blocks: _core.PyF2Blocks,
+    f2_blocks: _core.F2Blocks,
     left: str | Sequence[str],
     right: str | Sequence[str],
     target: str | None = None,
@@ -102,7 +102,7 @@ def qpadm_p(
 
 
 def test_cladality(
-    f2_blocks: _core.PyF2Blocks, left: Sequence[str], right: Sequence[str], *, fudge: float = 1e-4
+    f2_blocks: _core.F2Blocks, left: Sequence[str], right: Sequence[str], *, fudge: float = 1e-4
 ) -> dict[str, Any]:
     """Whether ``left`` forms a clade with respect to ``right``: ``qpadm_p`` at rank 0."""
     return qpadm_p(f2_blocks, left, right, rnk=0, fudge=fudge)
@@ -113,7 +113,7 @@ test_cladality.__test__ = False  # type: ignore[attr-defined]
 
 
 def qpwave_pairs(
-    f2_blocks: _core.PyF2Blocks, left: Sequence[str], right: Sequence[str], *, fudge: float = 1e-4
+    f2_blocks: _core.F2Blocks, left: Sequence[str], right: Sequence[str], *, fudge: float = 1e-4
 ) -> pd.DataFrame:
     """Test every pair of ``left`` populations for cladality with respect to
     ``right`` (admixtools2 ``qpwave_pairs``): qpWave at rank 0.
@@ -156,7 +156,7 @@ def rotate_models(
 
 
 def qpadm_rotate(
-    f2_blocks: _core.PyF2Blocks,
+    f2_blocks: _core.F2Blocks,
     leftright: Sequence[str],
     target: str,
     rightfix: str | Sequence[str] | None = None,
@@ -220,7 +220,7 @@ def _model_rows(models: pd.DataFrame | Mapping[str, Sequence] | Sequence[Mapping
 
 
 def qpadm_multi(
-    f2_blocks: _core.PyF2Blocks,
+    f2_blocks: _core.F2Blocks,
     models: pd.DataFrame | Mapping[str, Sequence] | Sequence[Mapping[str, Any]],
     *, full_results: bool = True,
     fudge: float = 1e-4,

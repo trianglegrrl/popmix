@@ -81,6 +81,6 @@ def test_results_use_admixtools2_names(name, cls):
 
 def test_admixture_dates_name_their_populations_as_their_inputs():
     r = pm.dates("tests/golden/dates/family_chr20_22", "Simulation.1", ["French", "Yoruba"], jackknife=False)
-    assert (r.admixed, r.sources) == ("Simulation.1", ["French", "Yoruba"])
+    assert (r.admixed, r.sources) == ("Simulation.1", ("French", "Yoruba"))
     assert list(r.to_ld_dataframe().columns)[:2] == ["distance_cm", "n_pairs"]
     assert "se" in r.to_ld_dataframe().columns

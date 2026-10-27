@@ -10,32 +10,18 @@ import types
 from typing import TYPE_CHECKING
 
 from popmix._core import (
-    PyAdmixGraph,
-    PyAlleleFrequencies,
-    PyDatesResult,
-    PyDecayFit,
-    PyF2Blocks,
-    PyF4RatioResult,
-    PyGenotypeMatrix,
-    PyLdBin,
-    PyQpAdmResult,
-    PyQpAdmRotateResult,
-    PyQpWavePairResult,
-    PyQpWavePairsResult,
-    PyQpWaveResult,
-    PyRankTest,
-    PyRotationModel,
-    # Classes
-    PySample,
-    PyScoredGraph,
-    PySnp,
+    AdmixGraph,
+    AlleleFrequencies,
+    F2Blocks,
+    GenotypeMatrix,
+    Sample,
+    Snp,
     __version__,
     all_graphs,
     build_tree,
     convertf,
     dataset_info,
     # DATES functions
-    dates,
     detect_format,
     # F-statistics functions
     extract_f2,
@@ -46,12 +32,8 @@ from popmix._core import (
     init_threads,
     list_populations,
     merge,
-    qpadm,
-    qpf4ratio,
     # qpGraph functions
-    qpgraph,
     # qpAdm/qpWave functions
-    qpwave,
     read_eigenstrat,
     read_f2,
     read_genotypes,
@@ -77,14 +59,28 @@ from popmix.errors import (
 # longer to import than the rest of popmix, and `popmix --help` needs none.
 _LAZY = {
     "AdmixtureResult": "admixture",
+    "DatesResult": "results",
+    "DecayFit": "results",
+    "F4RatioResult": "results",
+    "LdBin": "results",
     "PcaResult": "pca",
+    "PopDropRow": "results",
+    "QpAdmResult": "results",
+    "QpGraphEdge": "results",
+    "QpGraphF3": "results",
+    "QpGraphResult": "results",
+    "QpGraphStart": "results",
+    "QpWaveResult": "results",
+    "RankTest": "results",
     "RolloffResult": "rolloff",
+    "ScoredGraph": "results",
     "Sfs": "sfs",
     "admixture": "admixture",
     "admixture_loglik": "admixture",
     "boo_list": "resample",
     "cluster_order": "dstats",
     "compare_fits": "resample",
+    "dates": "ld_dating",
     "dstat_matrix": "dstats",
     "extract_f2_subset": "f2_dirs",
     "f3blockdat_from_geno": "dstats",
@@ -99,6 +95,7 @@ _LAZY = {
     "qp3pop": "dstats",
     "qp3pop_resample_inds": "resample",
     "qp3pop_resample_snps": "resample",
+    "qpadm": "fits",
     "qpadm_models": "qpadm_models",
     "qpadm_multi": "qpadm_models",
     "qpadm_p": "qpadm_models",
@@ -108,9 +105,12 @@ _LAZY = {
     "qpdstat": "dstats",
     "qpdstat_resample_inds": "resample",
     "qpdstat_resample_snps": "resample",
+    "qpf4ratio": "fits",
+    "qpgraph": "fits",
     "qpgraph_resample_inds": "resample",
     "qpgraph_resample_multi": "resample",
     "qpgraph_resample_snps": "resample",
+    "qpwave": "fits",
     "qpwave_pairs": "qpadm_models",
     "qpwave_resample_inds": "resample",
     "qpwave_resample_snps": "resample",
@@ -168,8 +168,10 @@ if TYPE_CHECKING:
         sample_ploidy,
     )
     from popmix.f2_dirs import extract_f2_subset, read_admixtools2_f2, write_admixtools2_f2
+    from popmix.fits import qpadm, qpf4ratio, qpgraph, qpwave
     from popmix.graph_search import find_graphs
     from popmix.kinship import king, read_kinship
+    from popmix.ld_dating import dates
     from popmix.pca import PcaResult, smartpca
     from popmix.qpadm_models import (
         qpadm_models,
@@ -196,28 +198,23 @@ if TYPE_CHECKING:
         qpwave_resample_inds,
         qpwave_resample_snps,
     )
+    from popmix.results import (
+        DatesResult,
+        DecayFit,
+        F4RatioResult,
+        LdBin,
+        PopDropRow,
+        QpAdmResult,
+        QpGraphEdge,
+        QpGraphF3,
+        QpGraphResult,
+        QpGraphStart,
+        QpWaveResult,
+        RankTest,
+        ScoredGraph,
+    )
     from popmix.rolloff import RolloffResult, rolloff
     from popmix.sfs import Sfs, joint_sfs, sfs
-
-# Convenient aliases
-Sample = PySample
-Snp = PySnp
-GenotypeMatrix = PyGenotypeMatrix
-AlleleFrequencies = PyAlleleFrequencies
-F2Blocks = PyF2Blocks
-RankTest = PyRankTest
-QpWaveResult = PyQpWaveResult
-QpAdmResult = PyQpAdmResult
-F4RatioResult = PyF4RatioResult
-RotationModel = PyRotationModel
-QpAdmRotateResult = PyQpAdmRotateResult
-QpWavePairResult = PyQpWavePairResult
-QpWavePairsResult = PyQpWavePairsResult
-AdmixGraph = PyAdmixGraph
-ScoredGraph = PyScoredGraph
-LdBin = PyLdBin
-DecayFit = PyDecayFit
-DatesResult = PyDatesResult
 
 __all__ = [
     # Errors
@@ -319,14 +316,15 @@ __all__ = [
     "RankTest",
     "QpWaveResult",
     "QpAdmResult",
+    "PopDropRow",
     "F4RatioResult",
-    "RotationModel",
-    "QpAdmRotateResult",
-    "QpWavePairResult",
-    "QpWavePairsResult",
     "AdmixGraph",
     "ScoredGraph",
     "LdBin",
     "DecayFit",
     "DatesResult",
+    "QpGraphResult",
+    "QpGraphEdge",
+    "QpGraphF3",
+    "QpGraphStart",
 ]
