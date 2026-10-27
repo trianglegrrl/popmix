@@ -2,6 +2,11 @@
 //!
 //! Core algorithms for population genetics F-statistics and admixture analysis.
 //!
+//! popmix's internals, behind its Python package and CLI: the crate can be
+//! built on, but its Rust API has no stability promise and changes with
+//! popmix as needed, even within 1.x. The stable interfaces are the Python
+//! package and the CLI (README, "API stability").
+//!
 //! This crate provides the computational foundation for popmix, implementing:
 //! - F-statistics (f2, f3, f4, Fst)
 //! - qpAdm/qpWave admixture weight estimation

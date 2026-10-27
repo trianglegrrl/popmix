@@ -899,6 +899,18 @@ pytest tests/ -v                 # Python quick tests (~5 min)
 pytest tests/ -v --run-slow      # Full test suite (~30 min)
 ```
 
+## API stability
+
+From 1.0, popmix follows semantic versioning for its Python package (the
+names in `popmix.__all__`, their parameters and their results) and its
+CLI (commands, options and output formats): a 1.x release adds to them
+but does not break them. Analyses may still correct a result against its
+reference tool; each such change is listed in DEVIATIONS.md.
+
+The Rust crates (`popmix-core`, `popmix-io`, `popmix-python`) are
+popmix's internals. The two libraries can be built on, but their Rust API
+has no stability promise: it may change in any release, 1.x included.
+
 ## Citation
 
 If you use Popmix in your research, please cite:

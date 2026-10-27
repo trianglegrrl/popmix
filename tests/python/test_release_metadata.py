@@ -129,3 +129,16 @@ for args in (["--version"], ["--help"]):
         [sys.executable, "-c", script], capture_output=True, text=True
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_only_the_python_package_and_cli_promise_a_stable_api() -> None:
+    """1.0 is the Python package and the CLI; the Rust crates are its
+    internals, without a stability promise (TASKS.md I6)."""
+    readme = _read("README.md")
+    stability = " ".join(readme.split("## API stability", 1)[1].split("\n## ", 1)[0].split())
+    assert "Rust crates" in stability
+    assert "no stability promise" in stability
+    for crate in ("popmix-core", "popmix-io"):
+        doc = " ".join(line[3:].strip() for line in _read(f"crates/{crate}/src/lib.rs").splitlines()
+                       if line.startswith("//!"))
+        assert "no stability promise" in doc, crate

@@ -2,6 +2,11 @@
 //!
 //! File format I/O for population genetics data.
 //!
+//! popmix's internals, behind its Python package and CLI: the crate can be
+//! built on, but its Rust API has no stability promise and changes with
+//! popmix as needed, even within 1.x. The stable interfaces are the Python
+//! package and the CLI (README, "API stability").
+//!
 //! This crate handles reading and writing of:
 //! - ANCESTRYMAP sparse format (.ancestrymapgeno, .snp, .ind)
 //! - EIGENSTRAT text format (.geno, .snp, .ind)
