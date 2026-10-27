@@ -639,8 +639,19 @@ thread count.
   `qp3pop` and `d_stat`, copies of `pm.qpdstat`/`pm.qp3pop` under other
   names, are gone. p-values use musl's erfc, to the last bit of R's.
   Tested in `test_api_conventions.py`.
-- [ ] **J3. Type hints and NumPy-format docstrings** on the raw PyO3
+- [x] **J3. Type hints and NumPy-format docstrings** on the raw PyO3
   functions (CLAUDE.md rule). PD
+  *Done in 02c6f2e:* every public function, class and method has a NumPy
+  docstring (Parameters, Returns), the Rust bindings' Google-style
+  `Args:` included; `popmix/_core.pyi` types the compiled module and
+  `py.typed` marks the package typed. `test_docs.py` checks both, the
+  stub against the module's real parameter names. Old docs that were
+  wrong are corrected (`merge`'s keys, `convertf`'s, `detect_format`'s
+  formats, the exception `filter_populations` raises). `extract_f2` and
+  `f2_from_frequencies` show `block_size=0.05` rather than None for it.
+  `AlleleFrequencies.get` panicked on a SNP index out of range and
+  returned None for an unknown population: they raise `IndexError` and
+  `PopulationNotFoundError`.
 - [x] **J4. pyclass `module="popmix._core"`, names, `frozen` where possible,
   pickling** (reprs show `builtins.PyQpAdmRotateResult`). RS, AI
   *Done in 631ddda:* analysis results are frozen dataclasses in
