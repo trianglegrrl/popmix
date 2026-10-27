@@ -3,7 +3,7 @@
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-use crate::PyF2Blocks;
+use crate::f2::PyF2Blocks;
 
 /// admixtools2 ``qpadm_p``: one qpAdm model's fit at rank ``rnk``.
 ///

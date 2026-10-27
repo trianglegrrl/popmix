@@ -11,8 +11,8 @@ use popmix_core::{
 };
 use popmix_io::{PackedRows, SnpMajorRows};
 
+use crate::genotypes::read_genotypes_of;
 use crate::ploidy::{mapped, ploidy_rule, PloidyRule};
-use crate::read_genotypes_of;
 
 /// The SNPs, samples and row source for statistics on `populations`.
 pub(crate) enum Source {

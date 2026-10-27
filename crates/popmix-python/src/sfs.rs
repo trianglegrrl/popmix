@@ -8,6 +8,7 @@ use pyo3::types::PyDict;
 
 use popmix_core::{joint_sfs, projected_sfs, AlleleFrequencies, JointSfsCompat, Spectrum};
 
+use crate::genotypes::read_genotypes_of;
 use crate::ploidy::{ploidy_rule, PloidyRule};
 
 /// Allele frequencies and counts of `populations`, in that order, with
@@ -24,7 +25,7 @@ fn allele_frequencies(
         m.file
             .allele_frequencies(&m.samples, &m.snps, &pops, auto_only)
     } else {
-        let mut geno = crate::read_genotypes_of(prefix, populations)?;
+        let mut geno = read_genotypes_of(prefix, populations)?;
         rule.apply(&mut geno);
         let geno = if auto_only {
             geno.filter_autosomal()?
