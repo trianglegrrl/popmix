@@ -702,9 +702,9 @@ Bad input gives a one-line `Error: ...` and exit code 1; `popmix --debug
 
 ## Performance Tips
 
-1. **Use PACKEDANCESTRYMAP or PLINK .bed input**: both are memory-mapped
-   and read only for the populations asked for. VCF and text EIGENSTRAT are
-   read into memory first, so convert large datasets once:
+1. **Use PACKEDANCESTRYMAP, PLINK .bed or EIGENSTRAT input**: all three are
+   memory-mapped and read only for the populations asked for. VCF is read
+   into memory first, so convert a large VCF once:
    ```bash
    popmix convertf -i data -o data_packed -of packedancestrymap
    popmix extract-f2 -i data_packed -o f2/ --populations Pop1,Pop2,Pop3

@@ -314,7 +314,7 @@ thread count.
   straight into allele frequencies, as packed `.geno` does; today
   `extract_f2` fallback (`lib.rs:1464`), `geno_fstats.rs:53`, `sfs.rs:78` call
   `read_all()` into `Array2<u8>` (21.7 GB for AADR). PD [reviewer-verified]
-  Progress: PLINK .bed is read in place like packed .geno (memory-mapped SNP-major reader: rows, ploidy, parallel frequencies) by extract_f2, the SFS, KING/READ, PCA, ADMIXTURE and the genotype f-statistics (5ef0734): KING at 1,000 samples 17.7 s / 2.1 GB to 13.3 s / 1.0 GB. Left: VCF and text EIGENSTRAT still load the matrix.
+  Progress: PLINK .bed is read in place like packed .geno (memory-mapped SNP-major reader: rows, ploidy, parallel frequencies) by extract_f2, the SFS, KING/READ, PCA, ADMIXTURE and the genotype f-statistics (5ef0734): KING at 1,000 samples 17.7 s / 2.1 GB to 13.3 s / 1.0 GB. Text EIGENSTRAT whose lines are one character per sample (as popmix, convertf and admixtools2 write it) is read in place too, by every analysis above and by convertf and merge: extract_f2 of 16 populations from 473 x 1.2M text 6.9 s / 2.0 GB to 0.9 s / 1.2 GB; other text (CRLF, padded) goes through the reader. Left: VCF still loads the matrix.
 - [x] **F2. DATES/ALDER/ROLLOFF read only the samples they need** from a
   prefix (`popmix dates` loads the whole matrix, `cli/__init__.py:1198`). PD
   Done: `read_genotypes(prefix, populations=[...])` reads only those samples; `popmix dates` uses it; ROLLOFF already streamed (9f0a1ac).

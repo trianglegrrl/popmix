@@ -645,13 +645,23 @@ fn convertf(
 }
 
 /// A genotype file mapped to be read in place, with its samples and SNPs.
-type MappedInput = (popmix_io::SnpMajor, Vec<Sample>, Vec<Snp>);
+pub(crate) type MappedInput = (popmix_io::SnpMajor, Vec<Sample>, Vec<Snp>);
 
-/// A packed .geno or PLINK .bed input, mapped to be read in place; None for
-/// the other formats.
-fn mapped_input(prefix: &str, format: GenoFormat) -> PyResult<Option<MappedInput>> {
+/// A packed .geno, PLINK .bed or text EIGENSTRAT input, mapped to be read in
+/// place; None for the other formats, and for text whose lines are not all
+/// one character per sample.
+pub(crate) fn mapped_input(prefix: &str, format: GenoFormat) -> PyResult<Option<MappedInput>> {
     use popmix_io::SnpMajor;
     Ok(match format {
+        GenoFormat::Eigenstrat => {
+            let samples = popmix_io::eigenstrat::read_ind_file(&format!("{prefix}.ind"))
+                .map_err(to_py_err)?;
+            let snps = popmix_io::eigenstrat::read_snp_file(&format!("{prefix}.snp"))
+                .map_err(to_py_err)?;
+            SnpMajor::open_text(&format!("{prefix}.geno"), samples.len(), snps.len())
+                .map_err(to_py_err)?
+                .map(|file| (file, samples, snps))
+        }
         GenoFormat::PackedAncestrymap => {
             let samples = popmix_io::eigenstrat::read_ind_file(&format!("{prefix}.ind"))
                 .map_err(to_py_err)?;

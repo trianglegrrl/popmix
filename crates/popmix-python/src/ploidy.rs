@@ -4,7 +4,7 @@
 use pyo3::prelude::*;
 
 use popmix_core::{GenotypeMatrix, Ploidy, Sample, Snp};
-use popmix_io::{is_packed_format, SnpMajor};
+use popmix_io::{is_packed_format, GenoFormat, SnpMajor};
 
 use crate::to_py_err;
 
@@ -61,7 +61,8 @@ impl PloidyRule {
 }
 
 /// A dataset whose genotypes can be read in place: a PACKEDANCESTRYMAP
-/// .geno or a PLINK .bed, with its samples and SNPs.
+/// .geno, a PLINK .bed or a text EIGENSTRAT .geno of even lines, with its
+/// samples and SNPs.
 pub(crate) struct Mapped {
     pub file: SnpMajor,
     pub samples: Vec<Sample>,
@@ -69,40 +70,27 @@ pub(crate) struct Mapped {
 }
 
 /// `prefix` as a [`Mapped`] dataset, or None if it is in another format (as
-/// the readers choose: packed .geno, then VCF, then .bed).
+/// the readers choose: packed .geno first, then as `GenoFormat::detect`).
 pub(crate) fn mapped(prefix: &str) -> PyResult<Option<Mapped>> {
-    use std::path::Path;
     let geno_path = format!("{prefix}.geno");
-    if Path::new(&geno_path).exists() && is_packed_format(&geno_path).map_err(to_py_err)? {
-        let samples =
-            popmix_io::eigenstrat::read_ind_file(&format!("{prefix}.ind")).map_err(to_py_err)?;
-        let snps =
-            popmix_io::eigenstrat::read_snp_file(&format!("{prefix}.snp")).map_err(to_py_err)?;
-        let file =
-            SnpMajor::open_packed(&geno_path, samples.len(), snps.len()).map_err(to_py_err)?;
-        return Ok(Some(Mapped {
+    let format = if std::path::Path::new(&geno_path).exists()
+        && is_packed_format(&geno_path).map_err(to_py_err)?
+    {
+        GenoFormat::PackedAncestrymap
+    } else {
+        // no recognised files: the reader that follows says so
+        match GenoFormat::detect(prefix) {
+            Ok(format) => format,
+            Err(_) => return Ok(None),
+        }
+    };
+    Ok(
+        crate::mapped_input(prefix, format)?.map(|(file, samples, snps)| Mapped {
             file,
             samples,
             snps,
-        }));
-    }
-    let vcf = [".vcf", ".vcf.gz"]
-        .iter()
-        .any(|e| Path::new(&format!("{prefix}{e}")).exists())
-        || ((prefix.ends_with(".vcf") || prefix.ends_with(".vcf.gz"))
-            && Path::new(prefix).exists());
-    let bed_path = format!("{prefix}.bed");
-    if vcf || !Path::new(&bed_path).exists() {
-        return Ok(None);
-    }
-    let reader = popmix_io::PlinkReader::new(prefix).map_err(to_py_err)?;
-    let (samples, snps) = (reader.samples().to_vec(), reader.snps().to_vec());
-    let file = SnpMajor::open_bed(&bed_path, samples.len(), snps.len()).map_err(to_py_err)?;
-    Ok(Some(Mapped {
-        file,
-        samples,
-        snps,
-    }))
+        }),
+    )
 }
 
 /// Parse the `pseudohaploid` option.

@@ -147,8 +147,20 @@ pub fn detect_ploidy_packedancestrymap_selected(
     Ok(())
 }
 
-/// A memory-mapped file of 2-bit genotypes stored SNP by SNP: a
-/// PACKEDANCESTRYMAP .geno or a PLINK .bed (SNP-major).
+/// How a [`SnpMajor`] file stores a genotype.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Encoding {
+    /// PACKEDANCESTRYMAP: 2 bits, the first sample in a byte's high bits
+    Packed,
+    /// PLINK .bed: 2 bits, the first sample in a byte's low bits
+    Bed,
+    /// Text EIGENSTRAT: one character, a line per SNP
+    Text,
+}
+
+/// A memory-mapped file of genotypes stored SNP by SNP: a PACKEDANCESTRYMAP
+/// .geno, a PLINK .bed (SNP-major) or a text EIGENSTRAT .geno whose lines all
+/// hold one character per sample.
 pub struct SnpMajor {
     path: String,
     map: Mmap,
@@ -157,12 +169,22 @@ pub struct SnpMajor {
     bytes_per_snp: usize,
     n_samples: usize,
     n_snps: usize,
-    bed: bool,
+    encoding: Encoding,
 }
 
 /// popmix genotype codes (0, 1, 2; 3 missing) of PLINK's 2-bit values:
 /// 00 homozygous A1, 01 missing, 10 heterozygous, 11 homozygous A2.
 const BED_CODES: [u8; 4] = [2, 3, 1, 0];
+
+/// popmix genotype codes of text EIGENSTRAT characters: 0, 1, 2, and
+/// missing for 9 and anything else, as the text reader reads them.
+const TEXT_CODES: [u8; 256] = {
+    let mut codes = [3u8; 256];
+    codes[b'0' as usize] = 0;
+    codes[b'1' as usize] = 1;
+    codes[b'2' as usize] = 2;
+    codes
+};
 
 impl SnpMajor {
     fn map(path: &str) -> Result<Mmap> {
@@ -190,7 +212,7 @@ impl SnpMajor {
             bytes_per_snp,
             n_samples,
             n_snps,
-            bed: false,
+            encoding: Encoding::Packed,
         })
     }
 
@@ -219,8 +241,29 @@ impl SnpMajor {
             bytes_per_snp,
             n_samples,
             n_snps,
-            bed: true,
+            encoding: Encoding::Bed,
         })
+    }
+
+    /// A text EIGENSTRAT .geno of `n_samples` samples and `n_snps` SNPs, if
+    /// every line holds exactly `n_samples` characters and a `\n` (as popmix,
+    /// convertf and admixtools2 write them); None otherwise, for the text
+    /// reader, which also takes padded or CRLF lines.
+    pub fn open_text(geno_path: &str, n_samples: usize, n_snps: usize) -> Result<Option<Self>> {
+        let map = Self::map(geno_path)?;
+        let line = n_samples + 1;
+        if map.len() != n_snps * line || (0..n_snps).any(|i| map[i * line + n_samples] != b'\n') {
+            return Ok(None);
+        }
+        Ok(Some(SnpMajor {
+            path: geno_path.to_string(),
+            map,
+            start: 0,
+            bytes_per_snp: line,
+            n_samples,
+            n_snps,
+            encoding: Encoding::Text,
+        }))
     }
 
     pub fn n_snps(&self) -> usize {
@@ -241,12 +284,11 @@ impl SnpMajor {
     /// The genotype code (0, 1, 2; 3 missing) of sample `s` in a record.
     #[inline]
     pub fn code(&self, record: &[u8], s: usize) -> u8 {
-        let byte = record[s / 4];
-        if self.bed {
-            BED_CODES[((byte >> (2 * (s % 4))) & 0b11) as usize]
-        } else {
+        match self.encoding {
+            Encoding::Bed => BED_CODES[((record[s / 4] >> (2 * (s % 4))) & 0b11) as usize],
             // the first sample of a byte is in its high bits
-            (byte >> (6 - 2 * (s % 4))) & 0b11
+            Encoding::Packed => (record[s / 4] >> (6 - 2 * (s % 4))) & 0b11,
+            Encoding::Text => TEXT_CODES[record[s] as usize],
         }
     }
 
@@ -602,6 +644,88 @@ mod tests {
                 .zip(b)
                 .all(|(x, y)| x.to_bits() == y.to_bits() || (x.is_nan() && y.is_nan())));
         }
+    }
+
+    /// The family data as text EIGENSTRAT in a fresh directory, and its prefix.
+    fn family_text() -> (tempfile::TempDir, String) {
+        let dir = tempfile::tempdir().unwrap();
+        let prefix = dir.path().join("family").to_string_lossy().to_string();
+        let geno = PackedAncestryMapReader::new(SMALL)
+            .unwrap()
+            .read_all()
+            .unwrap();
+        crate::writers::write_eigenstrat(&prefix, &geno).unwrap();
+        (dir, prefix)
+    }
+
+    #[test]
+    fn text_geno_is_read_in_place() {
+        use popmix_core::GenotypeRows;
+        let (_dir, text) = family_text();
+        let mut geno = crate::EigenstratReader::new(&text)
+            .unwrap()
+            .read_all()
+            .unwrap();
+        let path = format!("{text}.geno");
+        let file = SnpMajor::open_text(&path, 54, geno.n_snps())
+            .unwrap()
+            .unwrap();
+        let keep: Vec<bool> = (0..geno.n_snps()).map(|i| i % 3 != 1).collect();
+        let samples = vec![53, 0, 7, 20];
+        let mut rows = SnpMajorRows::from_file(
+            SnpMajor::open_text(&path, 54, geno.n_snps())
+                .unwrap()
+                .unwrap(),
+            keep.clone(),
+            samples.clone(),
+        )
+        .unwrap();
+        let mut row = vec![0u8; samples.len()];
+        for snp in (0..geno.n_snps()).filter(|&i| keep[i]) {
+            rows.next_row(&mut row).unwrap();
+            let want: Vec<u8> = samples.iter().map(|&s| geno.snp_raw(snp)[s]).collect();
+            assert_eq!(row, want, "SNP {snp}");
+        }
+
+        geno.detect_ploidy(geno.n_snps());
+        let mut samples = geno.samples().to_vec();
+        samples.iter_mut().for_each(|s| s.ploidy = Ploidy::Diploid);
+        let all: Vec<usize> = (0..54).collect();
+        file.detect_ploidy(&mut samples, &all, geno.n_snps());
+        let ploidy = |s: &[Sample]| s.iter().map(|x| x.ploidy).collect::<Vec<_>>();
+        assert_eq!(ploidy(&samples), ploidy(geno.samples()));
+        let pops = ["French", "Yoruba"];
+        let streamed = file.allele_frequencies(&samples, geno.snps(), &pops, false);
+        let in_memory = AlleleFrequencies::from_genotypes_for_populations(&geno, Some(&pops));
+        for (col, pop) in pops.iter().enumerate() {
+            let other = in_memory.pop_index(pop).unwrap();
+            assert_eq!(streamed.counts.column(col), in_memory.counts.column(other));
+        }
+    }
+
+    #[test]
+    fn text_geno_with_uneven_lines_is_left_to_the_reader() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("x.geno");
+        // CRLF line ends: the right size for neither layout
+        std::fs::write(&path, b"012\r\n929\r\n").unwrap();
+        assert!(SnpMajor::open_text(path.to_str().unwrap(), 3, 2)
+            .unwrap()
+            .is_none());
+        // the right size, but a line one short and the next one long
+        std::fs::write(&path, b"01\n2929\n").unwrap();
+        assert!(SnpMajor::open_text(path.to_str().unwrap(), 3, 2)
+            .unwrap()
+            .is_none());
+        std::fs::write(&path, b"012\n929\n").unwrap();
+        let file = SnpMajor::open_text(path.to_str().unwrap(), 3, 2)
+            .unwrap()
+            .unwrap();
+        let r = file.record(1);
+        assert_eq!(
+            (0..3).map(|s| file.code(r, s)).collect::<Vec<_>>(),
+            vec![3, 2, 3]
+        );
     }
 
     #[test]

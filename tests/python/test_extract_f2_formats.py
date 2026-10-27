@@ -202,3 +202,11 @@ def test_cli_pseudohaploid_option(late_hets):
 
     assert f2() == f2("--pseudohaploid", "diploid")
     assert f2() != f2("--pseudohaploid", "admixtools2")
+
+
+def test_text_with_crlf_lines_gives_the_same_f2_blocks(tmp_path):
+    """Text .geno of even lines is read in place; other text goes through the reader."""
+    text = _convert(tmp_path, "eigenstrat")
+    geno = Path(f"{text}.geno")
+    geno.write_bytes(geno.read_bytes().replace(b"\n", b"\r\n"))
+    _assert_same_blocks(pm.extract_f2(text, POPS), pm.extract_f2(SMALL, POPS))
