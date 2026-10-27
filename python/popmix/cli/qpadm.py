@@ -6,6 +6,7 @@ import dataclasses
 import json
 import math
 import sys
+import textwrap
 
 import click
 
@@ -120,16 +121,30 @@ def _echo_popdrop(rows: tuple[pm.PopDropRow, ...]) -> None:
                    f"{str(r.feasible):>8} {best:>5} {weights}")
 
 
+def _rank_reading(rank: int, max_rank: int) -> str:
+    """What qpWave's estimated rank shows: a lower bound, never a clade (G2)."""
+    more = f"other right populations or more data can show more streams (the rank can be at most {max_rank} here)."
+    if rank == 0:
+        text = ("=> Rank 0 not rejected: these right populations do not distinguish the left ones. "
+                f"That does not show that they form a clade: {more}")
+    else:
+        text = (f"=> At least {rank + 1} streams of ancestry, as seen from these right populations: a lower "
+                f"bound, as {more}")
+    return textwrap.fill(text, width=79, subsequent_indent="   ")
+
+
 @click.command()
 @click.option("--left", required=True, callback=parse_population_list, help="Left populations (comma-separated)")
 @click.option("--right", required=True, callback=parse_population_list, help="Right populations (comma-separated)")
 @click.option("--fudge", type=float, default=1e-4,
               help="Regularisation of the f4 covariance, added to its diagonal as a fraction of its trace "
                    "(admixtools2 fudge; default: 1e-4)")
+@click.option("--alpha", type=click.FloatRange(0, 1, min_open=True, max_open=True), default=0.05,
+              help="Significance level of the rank tests (default: 0.05)")
 @f2_source_options
 @click.option("--format", "output_format", type=click.Choice(["text", "json", "tsv"]), default="text",
               help="Output format")
-def qpwave(left: list, right: list, fudge: float, input_prefix: str | None, f2_dir: str | None,
+def qpwave(left: list, right: list, fudge: float, alpha: float, input_prefix: str | None, f2_dir: str | None,
            block_size: float, maxmiss: float, all_chromosomes: bool, output_format: str):
     """Test admixture wave count using qpWave.
 
@@ -147,18 +162,18 @@ def qpwave(left: list, right: list, fudge: float, input_prefix: str | None, f2_d
     try:
         f2_blocks = load_f2_blocks(input_prefix, f2_dir, all_pops, block_size, maxmiss, all_chromosomes)
 
-        result = pm.qpwave(f2_blocks, left, right, fudge=fudge)
+        result = pm.qpwave(f2_blocks, left, right, fudge=fudge, alpha=alpha)
 
         if output_format == "json":
             output = {
                 "left": result.left,
                 "right": result.right,
+                "alpha": result.alpha,
                 "estimated_rank": result.estimated_rank,
                 "rank_tests": [
                     {"rank": t.rank, "chisq": t.chisq, "dof": t.dof, "p": _json_number(t.p)}
                     for t in result.rank_tests
                 ],
-                "is_clade": result.is_clade(),
             }
             click.echo(json.dumps(output, indent=2))
         elif output_format == "tsv":
@@ -169,17 +184,14 @@ def qpwave(left: list, right: list, fudge: float, input_prefix: str | None, f2_d
             click.echo(f"qpWave: {', '.join(left)}")
             click.echo(f"Outgroups: {', '.join(right)}")
             click.echo()
-            click.echo("Rank tests:")
+            click.echo(f"Rank tests (* rejected at alpha {alpha:g}):")
             click.echo("  Rank   chisq    dof          p")
             for t in result.rank_tests:
-                sig = "*" if t.p < 0.05 else " "
+                sig = "*" if t.p <= alpha else " "
                 click.echo(f"  {t.rank:4d}  {t.chisq:8.4f}  {t.dof:4d}  {_p_text(t.p, 6):>8} {sig}")
             click.echo()
-            click.echo(f"Estimated rank: {result.estimated_rank}")
-            if result.is_clade():
-                click.echo("=> Populations form a clade (rank 0 not rejected)")
-            else:
-                click.echo(f"=> {result.estimated_rank + 1} independent ancestry streams")
+            click.echo(f"Estimated rank: {result.estimated_rank} (the lowest rank not rejected)")
+            click.echo(_rank_reading(result.estimated_rank, min(len(left), len(right)) - 1))
 
     except EXPECTED_ERRORS as e:
         fail(e)

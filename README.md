@@ -502,7 +502,7 @@ compares siblings rather than nested models (DEVIATIONS.md).
 
 ### `popmix qpwave`
 
-Test the number of independent ancestry streams.
+Test how many streams of ancestry relate the left populations, as seen from the right ones.
 
 ```bash
 popmix qpwave \
@@ -516,13 +516,15 @@ popmix qpwave \
 qpWave: French.DG, Sardinian.DG, Basque.DG
 Outgroups: Mbuti.DG, Han.DG, Papuan.DG, Karitiana.DG, Ulchi.DG
 
-Rank tests:
+Rank tests (* rejected at alpha 0.05):
   Rank   chisq    dof          p
      0  327.8390     8  0.000000 *
      1    5.2071     3  0.157243
 
-Estimated rank: 1
-=> 2 independent ancestry streams
+Estimated rank: 1 (the lowest rank not rejected)
+=> At least 2 streams of ancestry, as seen from these right populations: a
+   lower bound, as other right populations or more data can show more streams
+   (the rank can be at most 2 here).
 ```
 
 ### `popmix dates`

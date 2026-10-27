@@ -36,31 +36,21 @@ class QpWaveResult:
     """qpWave: rank tests of the f4 matrix of ``left`` against ``right``.
 
     ``rank_tests`` go from rank 0 up; ``estimated_rank`` is the lowest rank
-    not rejected at 0.05.
+    not rejected at ``alpha`` (one above the highest rank tested if every
+    test is rejected). Rank r means at least r + 1 streams of ancestry as
+    seen from ``right``: a lower bound, since the rank is at most
+    min(len(left), len(right)) - 1, right populations alike in their
+    relation to ``left`` hide streams, and a test without power reads as
+    "not rejected". Not rejecting rank 0 does not show a clade.
     """
 
     left: tuple[str, ...]
     right: tuple[str, ...]
     rank_tests: tuple[RankTest, ...]
     estimated_rank: int
+    alpha: float
     f4_matrix: np.ndarray
     f4_covariance: np.ndarray
-
-    def is_clade(self, p_threshold: float = 0.05) -> bool:
-        """Whether rank 0 is not rejected at ``p_threshold``.
-
-        Parameters
-        ----------
-        p_threshold
-            Significance level.
-
-        Returns
-        -------
-        bool
-            True when the rank-0 test's ``p`` exceeds ``p_threshold``;
-            False when it does not or there are no rank tests.
-        """
-        return bool(self.rank_tests) and self.rank_tests[0].p > p_threshold
 
     def full_rank(self) -> RankTest | None:
         """The test of the highest rank.

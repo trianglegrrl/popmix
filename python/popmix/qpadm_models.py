@@ -121,7 +121,8 @@ def test_cladality(
     -------
     dict
         As ``qpadm_p``: ``f4rank``, ``dof``, ``chisq``, ``p`` and
-        ``feasible``; a small ``p`` rejects cladality.
+        ``feasible``; a small ``p`` rejects cladality, and a large one does
+        not show it (other right populations can reject it).
     """
     return qpadm_p(f2_blocks, left, right, rnk=0, fudge=fudge)
 

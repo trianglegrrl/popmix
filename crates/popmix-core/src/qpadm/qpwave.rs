@@ -7,6 +7,12 @@
 //! The test works by computing an F4 matrix and testing whether its rank
 //! is less than expected under a null hypothesis of shared ancestry. Rank
 //! tests follow admixtools2 `qpwave` / `drop_ranks`; see [`super::fit`].
+//!
+//! The estimated rank r (r + 1 streams of ancestry) is a lower bound: the
+//! f4 matrix has rank at most min(left, right) − 1, right populations that
+//! do not differ in their relation to the left ones hide streams, and a
+//! test without the power to reject reads as "not rejected". Not rejecting
+//! rank 0 does not show that the left populations form a clade.
 
 use super::{fit, F4Matrix};
 use crate::fstats::F2Blocks;
@@ -22,6 +28,9 @@ pub struct QpWaveOptions {
     /// Highest rank to test. Default: number of left populations - 2, as
     /// admixtools2 `drop_ranks`.
     pub max_rank: Option<usize>,
+    /// Significance level of the rank tests: the estimated rank is the
+    /// lowest one whose p exceeds it (default 0.05).
+    pub alpha: f64,
 }
 
 impl Default for QpWaveOptions {
@@ -29,6 +38,7 @@ impl Default for QpWaveOptions {
         Self {
             fudge: 1e-4,
             max_rank: None,
+            alpha: 0.05,
         }
     }
 }
@@ -52,7 +62,9 @@ pub struct RankTest {
 pub struct QpWaveResult {
     /// Series of rank tests from 0 to max possible.
     pub rank_tests: Vec<RankTest>,
-    /// Estimated number of independent ancestry streams.
+    /// The lowest rank not rejected at `alpha` (one above the highest rank
+    /// tested if every test is rejected): at least this many plus one
+    /// streams of ancestry, as seen from the right populations.
     pub estimated_rank: usize,
     /// The F4 matrix used for analysis.
     pub f4_matrix: F4Matrix,
@@ -62,16 +74,6 @@ impl QpWaveResult {
     /// Get the full rank test result.
     pub fn full_rank(&self) -> Option<&RankTest> {
         self.rank_tests.last()
-    }
-
-    /// Check if populations share a common ancestral pattern.
-    ///
-    /// Returns true if rank 0 test is not significant (p > threshold),
-    /// meaning left populations cannot be distinguished by right populations.
-    pub fn is_clade(&self, p_threshold: f64) -> bool {
-        self.rank_tests
-            .first()
-            .is_some_and(|r| r.p_value > p_threshold)
     }
 }
 
@@ -106,7 +108,7 @@ pub fn qpwave(
     // Perform rank tests
     let rank_tests = compute_rank_tests(&f4_matrix, max_rank, opts.fudge)?;
 
-    let estimated_rank = estimate_rank(&rank_tests, max_rank);
+    let estimated_rank = estimate_rank(&rank_tests, max_rank, opts.alpha);
 
     Ok(QpWaveResult {
         rank_tests,
@@ -115,12 +117,12 @@ pub fn qpwave(
     })
 }
 
-/// The lowest rank whose test is not rejected (p > 0.05); with every rank
+/// The lowest rank whose test is not rejected (p > alpha); with every rank
 /// rejected, the rank is above `max_rank`.
-fn estimate_rank(rank_tests: &[RankTest], max_rank: usize) -> usize {
+fn estimate_rank(rank_tests: &[RankTest], max_rank: usize, alpha: f64) -> usize {
     rank_tests
         .iter()
-        .find(|r| r.p_value > 0.05)
+        .find(|r| r.p_value > alpha)
         .map_or(max_rank + 1, |r| r.rank)
 }
 
@@ -225,22 +227,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_qpwave_clade_detection() {
-        let f2_blocks = create_test_f2_blocks();
-
-        // Pop1 and Pop2 should form a clade (similar frequencies)
-        let left = vec!["Pop1", "Pop2"];
-        let right = vec!["Pop4", "Pop5"];
-
-        let result = qpwave(&f2_blocks, &left, &right, &Default::default()).unwrap();
-
-        // With similar populations, rank 0 p-value should be high
-        // (though this depends on the synthetic data structure)
-        println!("Rank tests: {:?}", result.rank_tests);
-        println!("Estimated rank: {}", result.estimated_rank);
-    }
-
     fn rank_test(rank: usize, p_value: f64) -> RankTest {
         RankTest {
             rank,
@@ -253,15 +239,23 @@ mod tests {
     #[test]
     fn test_estimated_rank_is_lowest_rank_not_rejected() {
         let tests = [rank_test(0, 0.01), rank_test(1, 0.3), rank_test(2, 0.9)];
-        assert_eq!(estimate_rank(&tests, 2), 1);
+        assert_eq!(estimate_rank(&tests, 2, 0.05), 1);
+    }
+
+    #[test]
+    fn alpha_is_the_level_of_the_rank_tests() {
+        let tests = [rank_test(0, 0.01), rank_test(1, 0.067), rank_test(2, 0.9)];
+        assert_eq!(estimate_rank(&tests, 2, 0.05), 1);
+        assert_eq!(estimate_rank(&tests, 2, 0.1), 2);
+        assert_eq!(estimate_rank(&tests, 2, 0.001), 0);
     }
 
     #[test]
     fn test_estimated_rank_with_every_rank_rejected_is_above_max_rank() {
         // --left French_1,French_2: rank 0, the only rank tested, has p = 0.039
-        assert_eq!(estimate_rank(&[rank_test(0, 0.039)], 0), 1);
+        assert_eq!(estimate_rank(&[rank_test(0, 0.039)], 0, 0.05), 1);
         let tests = [rank_test(0, 1e-9), rank_test(1, 0.01)];
-        assert_eq!(estimate_rank(&tests, 1), 2);
+        assert_eq!(estimate_rank(&tests, 1, 0.05), 2);
     }
 
     #[test]

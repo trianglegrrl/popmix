@@ -118,7 +118,7 @@ pub fn qpadm(
 
     let qpwave_opts = QpWaveOptions {
         fudge: opts.fudge,
-        max_rank: None,
+        ..QpWaveOptions::default()
     };
     let qpwave_result = qpwave(f2_blocks, &left, right, &qpwave_opts)?;
     let f4 = &qpwave_result.f4_matrix;

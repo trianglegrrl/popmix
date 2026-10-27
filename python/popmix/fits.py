@@ -18,7 +18,7 @@ from popmix.results import (
 
 
 def qpwave(f2_blocks: _core.F2Blocks, left: Sequence[str], right: Sequence[str], *,
-           fudge: float = 1e-4) -> QpWaveResult:
+           fudge: float = 1e-4, alpha: float = 0.05) -> QpWaveResult:
     """qpWave (admixtools2 ``qpwave``): how many waves of ancestry, as seen
     from ``right``, ``left`` descends from.
 
@@ -30,13 +30,17 @@ def qpwave(f2_blocks: _core.F2Blocks, left: Sequence[str], right: Sequence[str],
         The left and right (outgroup) populations.
     fudge
         Added to the diagonal of the f4 covariance, times its trace.
+    alpha
+        Significance level of the rank tests: the estimated rank is the
+        lowest rank whose ``p`` exceeds it.
 
     Returns
     -------
     QpWaveResult
-        The rank tests, rank 0 first, and the estimated rank.
+        The rank tests, rank 0 first, and the estimated rank: a lower
+        bound on the number of streams minus one (see ``QpWaveResult``).
     """
-    return qpwave_result(_core.qpwave(f2_blocks, list(left), list(right), fudge=fudge))
+    return qpwave_result(_core.qpwave(f2_blocks, list(left), list(right), fudge=fudge, alpha=alpha))
 
 
 def qpadm(f2_blocks: _core.F2Blocks, left: Sequence[str], right: Sequence[str], target: str, *,

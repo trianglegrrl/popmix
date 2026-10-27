@@ -113,7 +113,6 @@ popmix qpadm --f2-dir f2_eu --target Spain_EN --left Turkey_N,Serbia_IronGates_M
 - Classic ADMIXTOOLS qpAdm uses a different SNP rule and covariance
   estimate, so its numbers differ slightly
   ([ADMIXTOOLS 7.0.2 (qpAdm)](https://github.com/trianglegrrl/popmix/blob/main/DEVIATIONS.md#admixtools-702-qpadm)).
-- The regularization (fudge 1e-4) is fixed on the CLI.
 
 ## Reference
 

@@ -28,6 +28,9 @@ pub(crate) struct PyQpWaveResult {
     rank_tests: Vec<PyRankTest>,
     #[pyo3(get)]
     estimated_rank: usize,
+    /// The significance level of the rank tests.
+    #[pyo3(get)]
+    alpha: f64,
     #[pyo3(get, name = "left")]
     left_pops: Vec<String>,
     #[pyo3(get, name = "right")]
@@ -42,14 +45,6 @@ pub(crate) struct PyQpWaveResult {
 
 #[pymethods]
 impl PyQpWaveResult {
-    /// Check if populations form a clade (rank 0 p-value > threshold).
-    #[pyo3(signature = (p_threshold=0.05))]
-    fn is_clade(&self, p_threshold: f64) -> bool {
-        self.rank_tests
-            .first()
-            .is_some_and(|r| r.p_value > p_threshold)
-    }
-
     /// Get the full rank test.
     fn full_rank(&self) -> Option<PyRankTest> {
         self.rank_tests.last().cloned()
@@ -280,13 +275,14 @@ impl PyQpAdmResult {
 /// Returns:
 ///     PyQpWaveResult with rank tests and estimated rank
 #[pyfunction]
-#[pyo3(signature = (f2_blocks, left, right, *, fudge=1e-4))]
+#[pyo3(signature = (f2_blocks, left, right, *, fudge=1e-4, alpha=0.05))]
 pub(crate) fn qpwave(
     py: Python<'_>,
     f2_blocks: &PyF2Blocks,
     left: Vec<String>,
     right: Vec<String>,
     fudge: f64,
+    alpha: f64,
 ) -> PyResult<PyQpWaveResult> {
     compute(py, move || {
         let left_refs: Vec<&str> = left.iter().map(std::string::String::as_str).collect();
@@ -295,7 +291,7 @@ pub(crate) fn qpwave(
         let opts = {
             let mut o = popmix_core::QpWaveOptions::default();
             o.fudge = fudge;
-            o.max_rank = None;
+            o.alpha = alpha;
             o
         };
 
@@ -316,6 +312,7 @@ pub(crate) fn qpwave(
         Ok(PyQpWaveResult {
             rank_tests,
             estimated_rank: result.estimated_rank,
+            alpha,
             left_pops: left,
             right_pops: right,
             f4_matrix: rows(&result.f4_matrix.values),
