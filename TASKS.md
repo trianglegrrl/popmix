@@ -435,10 +435,15 @@ thread count.
 
 ## G. Scientific guardrails and honest reporting (P1)
 
-- [ ] **G1. qpAdm verdict:** combine p, feasibility and SEs; no PASS/FAIL or
+- [x] **G1. qpAdm verdict:** combine p, feasibility and SEs; no PASS/FAIL or
   "Good model fit" from p alone (`cli/__init__.py:974-975`); report the
   number of models tested in rotations and model sets (multiple testing,
   Harney et al. 2021). PR, PG
+  *Done in 4226c29:* `QpAdmResult.assess(alpha)` (status not tested /
+  rejected / infeasible / not rejected, notes for weights within 2 SE of 0
+  and simpler popdrop models that also fit); the CLI prints it, takes
+  `--alpha`, JSON `assessment`; rotations and model sets warn with the
+  number of models and set `attrs["n_models"]`.
 - [x] **G2. qpWave wording:** rank is a lower bound limited by the right
   set; not rejecting rank 0 is not "Populations form a clade"
   (`qpwave.rs:103-108` hard-codes 0.05; `cli/__init__.py:1038-1040`). PR
