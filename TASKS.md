@@ -612,7 +612,7 @@ thread count.
 
 - [x] **J1. One input convention:** `dates()` takes a matrix while `alder`,
   `smartpca`, `king` take a prefix; `qpadm` `sources` vs `qpwave` `left`. PD
-  *Done in COMMIT:* every option of every public function is
+  *Done in 2438245:* every option of every public function is
   keyword-only, with its real default in the signature (`fudge=1e-4`, not
   `None`), so 1.x can add options without breaking calls; only the
   populations of a statistic may be given in order, as in admixtools2.
