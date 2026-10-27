@@ -489,8 +489,10 @@ thread count.
 - [ ] **G9. qpGraph and find_graphs:** report overfitting and
   identifiability (penalized score with an admixture-count penalty,
   out-of-sample score by default; `compare_fits` exists). PR
-- [ ] **G10. DATES `min_source_count` of 1:** warn when sources have very
+- [x] **G10. DATES `min_source_count` of 1:** warn when sources have very
   few called samples. PR
+  *Done in 20f146e:* `source_alleles` (mean observed alleles per SNP used)
+  in the result and JSON; `Warning::FewSourceAlleles` below 10.
 - [ ] **G11. Kinship caveats:** KING −∞ for pseudohaploid samples, fixed READ
   thresholds; document coverage-dependent bias and contamination. PR
 - [x] **G12. Jackknife docstring:** the est/tot order in
