@@ -21,7 +21,6 @@ MAX_LINES = 800
 # over MAX_LINES when the rule came in (2026-10-27), with their sizes now:
 # lower each as the file shrinks (TASKS.md I7)
 TOO_LONG = {
-    "python/popmix/cli/__init__.py": 1523,
     "benchmarks/cases.py": 1064,
 }
 
