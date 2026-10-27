@@ -143,10 +143,6 @@ impl Topology {
             .expect("a DAG has a root")
     }
 
-    fn is_leaf(&self, outdeg: &[usize], v: usize) -> bool {
-        outdeg[v] == 0
-    }
-
     /// Shortest directed path lengths from `v`, `None` where unreachable.
     fn distances_from(&self, children: &[Vec<usize>], v: usize) -> Vec<Option<usize>> {
         let mut dist = vec![None; self.n()];
@@ -239,7 +235,7 @@ impl Topology {
         }
         let degrees_ok = (0..self.n())
             .filter(|&v| v != roots[0])
-            .all(|v| matches!((indeg[v], outdeg[v]), (1, 0) | (1, 1) | (1, 2) | (2, 1)));
+            .all(|v| matches!((indeg[v], outdeg[v]), (1, 0..=2) | (2, 1)));
         let distinct: HashSet<&(usize, usize)> = self.edges.iter().collect();
         if !degrees_ok || distinct.len() != self.edges.len() {
             return false;
@@ -268,12 +264,12 @@ impl Topology {
         let (_, outdeg) = self.degrees();
         let children = self.children();
         let mut leaves: Vec<(String, usize)> = (0..self.n())
-            .filter(|&v| self.is_leaf(&outdeg, v))
+            .filter(|&v| outdeg[v] == 0)
             .map(|v| (self.names[v].clone().expect("leaves are named"), v))
             .collect();
         leaves.sort();
         let mut rows: Vec<String> = (0..self.n())
-            .filter(|&v| !self.is_leaf(&outdeg, v))
+            .filter(|&v| outdeg[v] != 0)
             .map(|v| {
                 let dist = self.distances_from(&children, v);
                 leaves
@@ -298,7 +294,12 @@ impl Topology {
     /// Internal vertices are "R" (the root) and "n1", "n2", ... in vertex
     /// order, avoiding the leaf names.
     fn edge_list(&self, base: &str) -> Vec<(String, String)> {
-        let leaf_names: HashSet<&str> = self.names.iter().flatten().map(|s| s.as_str()).collect();
+        let leaf_names: HashSet<&str> = self
+            .names
+            .iter()
+            .flatten()
+            .map(std::string::String::as_str)
+            .collect();
         let root = self.root();
         let mut labels = Vec::with_capacity(self.n());
         let mut k = 0;
@@ -457,11 +458,13 @@ pub fn graph_key(edges: &[(String, String)]) -> Result<Vec<String>> {
                 .to_string(),
         });
     }
-    for v in 0..t.n() {
-        if !t.is_leaf(&outdeg, v) {
-            t.names[v] = None;
+    // only the leaves keep their names
+    for (name, &out) in t.names.iter_mut().zip(&outdeg) {
+        if out != 0 {
+            *name = None;
         }
     }
+
     Ok(t.key())
 }
 
@@ -640,7 +643,7 @@ mod tests {
     fn tree_counts_are_the_rooted_binary_tree_counts() {
         for (n, count) in [(2, 1), (3, 3), (4, 15), (5, 105), (6, 945)] {
             let leaves = names(n);
-            let refs: Vec<&str> = leaves.iter().map(|s| s.as_str()).collect();
+            let refs: Vec<&str> = leaves.iter().map(std::string::String::as_str).collect();
             assert_eq!(all_graphs(&refs, 0).unwrap().len(), count, "{n} leaves");
         }
     }
@@ -650,7 +653,7 @@ mod tests {
         // admixtools2 2.0.10: length(generate_all_graphs(LETTERS[1:n], nadmix))
         for (n, nadmix, count) in [(4, 1, 84), (5, 1, 1485), (4, 2, 1302), (6, 1, 24615)] {
             let leaves = names(n);
-            let refs: Vec<&str> = leaves.iter().map(|s| s.as_str()).collect();
+            let refs: Vec<&str> = leaves.iter().map(std::string::String::as_str).collect();
             let graphs = all_graphs(&refs, nadmix).unwrap();
             assert_eq!(graphs.len(), count, "{n} leaves, {nadmix} admixture");
             for g in &graphs {
@@ -784,7 +787,7 @@ mod tests {
             assert!(t.is_valid());
             for g in t.plus_one() {
                 assert!(g.is_valid());
-                assert!(g.plus_one().iter().all(|h| h.is_valid()));
+                assert!(g.plus_one().iter().all(super::Topology::is_valid));
             }
         }
     }

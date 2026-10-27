@@ -23,8 +23,8 @@ fn qpadm_p<'py>(
     fudge: f64,
     constrained: bool,
 ) -> PyResult<Bound<'py, PyDict>> {
-    let left_refs: Vec<&str> = left.iter().map(|s| s.as_str()).collect();
-    let right_refs: Vec<&str> = right.iter().map(|s| s.as_str()).collect();
+    let left_refs: Vec<&str> = left.iter().map(std::string::String::as_str).collect();
+    let right_refs: Vec<&str> = right.iter().map(std::string::String::as_str).collect();
     let r = popmix_core::qpadm_p(
         &f2_blocks.inner,
         &left_refs,

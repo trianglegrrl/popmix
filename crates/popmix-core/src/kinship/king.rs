@@ -66,9 +66,9 @@ impl BitGenotypes {
                     for (bit, r) in rows.enumerate() {
                         let row = &batch[r * n_samples..(r + 1) * n_samples];
                         for (b, &code) in bits.iter_mut().zip(row) {
-                            b[0] |= ((code == 1) as u64) << bit;
-                            b[1] |= ((code == 0) as u64) << bit;
-                            b[2] |= ((code == 2) as u64) << bit;
+                            b[0] |= u64::from(code == 1) << bit;
+                            b[1] |= u64::from(code == 0) << bit;
+                            b[2] |= u64::from(code == 2) << bit;
                         }
                     }
                     bits
@@ -227,11 +227,11 @@ fn counts((het_i, a0, a2): Masks, (het_j, b0, b2): Masks) -> [u64; 5] {
         let called_j = het_j[w] | b0[w] | b2[w];
         let hom_i = a0[w] | a2[w];
         let hom_j = b0[w] | b2[w];
-        nsnp += (called_i & called_j).count_ones() as u64;
-        hethet += (het_i[w] & het_j[w]).count_ones() as u64;
-        ibs0 += ((a0[w] & b2[w]) | (a2[w] & b0[w])).count_ones() as u64;
-        h1 += (het_i[w] & hom_j).count_ones() as u64;
-        h2 += (het_j[w] & hom_i).count_ones() as u64;
+        nsnp += u64::from((called_i & called_j).count_ones());
+        hethet += u64::from((het_i[w] & het_j[w]).count_ones());
+        ibs0 += u64::from(((a0[w] & b2[w]) | (a2[w] & b0[w])).count_ones());
+        h1 += u64::from((het_i[w] & hom_j).count_ones());
+        h2 += u64::from((het_j[w] & hom_i).count_ones());
     }
     [nsnp, hethet, ibs0, h1, h2]
 }
@@ -368,10 +368,10 @@ mod tests {
                         continue;
                     }
                     nsnp += 1;
-                    hethet += (a == 1 && b == 1) as u64;
-                    ibs0 += (a.abs_diff(b) == 2) as u64;
-                    h1 += (a == 1 && b != 1) as u64;
-                    h2 += (b == 1 && a != 1) as u64;
+                    hethet += u64::from(a == 1 && b == 1);
+                    ibs0 += u64::from(a.abs_diff(b) == 2);
+                    h1 += u64::from(a == 1 && b != 1);
+                    h2 += u64::from(b == 1 && a != 1);
                 }
                 assert_eq!(
                     (p.nsnp, p.hethet, p.ibs0, p.het1_hom2, p.het2_hom1),

@@ -378,25 +378,25 @@ mod tests {
         // Create 4 populations with distinct frequency patterns
         let mut samples = Vec::new();
         for i in 0..10 {
-            samples.push(Sample::new(format!("A{}", i), PopulationId::new("PopA")));
+            samples.push(Sample::new(format!("A{i}"), PopulationId::new("PopA")));
         }
         for i in 0..10 {
-            samples.push(Sample::new(format!("B{}", i), PopulationId::new("PopB")));
+            samples.push(Sample::new(format!("B{i}"), PopulationId::new("PopB")));
         }
         for i in 0..10 {
-            samples.push(Sample::new(format!("C{}", i), PopulationId::new("PopC")));
+            samples.push(Sample::new(format!("C{i}"), PopulationId::new("PopC")));
         }
         for i in 0..10 {
-            samples.push(Sample::new(format!("D{}", i), PopulationId::new("PopD")));
+            samples.push(Sample::new(format!("D{i}"), PopulationId::new("PopD")));
         }
 
         let snps: Vec<Snp> = (0..40)
             .map(|i| {
                 Snp::new(
-                    format!("rs{}", i),
+                    format!("rs{i}"),
                     Chromosome::Autosome(1),
                     (i * 1000) as u32,
-                    i as f64 * 0.2, // 0.2 cM spacing
+                    f64::from(i) * 0.2, // 0.2 cM spacing
                     'A',
                     'G',
                 )

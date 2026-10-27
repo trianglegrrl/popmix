@@ -33,7 +33,7 @@ impl PedReader {
         let prefix_str = prefix.to_string_lossy();
 
         // Find .ped file
-        let ped_path = format!("{}.ped", prefix_str);
+        let ped_path = format!("{prefix_str}.ped");
         if !Path::new(&ped_path).exists() {
             return Err(PopmixError::FileNotFound {
                 path: ped_path.into(),
@@ -41,15 +41,15 @@ impl PedReader {
         }
 
         // Find .map or .pedsnp file
-        let map_path = format!("{}.map", prefix_str);
-        let pedsnp_path = format!("{}.pedsnp", prefix_str);
+        let map_path = format!("{prefix_str}.map");
+        let pedsnp_path = format!("{prefix_str}.pedsnp");
         let snp_path = if Path::new(&map_path).exists() {
             map_path
         } else if Path::new(&pedsnp_path).exists() {
             pedsnp_path
         } else {
             return Err(PopmixError::FileNotFound {
-                path: format!("{}.map or {}.pedsnp", prefix_str, prefix_str).into(),
+                path: format!("{prefix_str}.map or {prefix_str}.pedsnp").into(),
             });
         };
 
@@ -57,7 +57,7 @@ impl PedReader {
         let (snps, map_has_alleles) = read_map_file(&snp_path)?;
 
         // Read samples from .ped file (first 6 columns) or .pedind if present
-        let pedind_path = format!("{}.pedind", prefix_str);
+        let pedind_path = format!("{prefix_str}.pedind");
         let samples = if Path::new(&pedind_path).exists() {
             read_pedind_file(&pedind_path)?
         } else {
@@ -193,7 +193,7 @@ fn parse_ped_genotype(a1: &str, a2: &str, (ref_allele, alt_allele): (char, char)
     }
 
     // Count reference alleles
-    let ref_count = (if c1 == ref_allele { 1 } else { 0 }) + (if c2 == ref_allele { 1 } else { 0 });
+    let ref_count = i32::from(c1 == ref_allele) + i32::from(c2 == ref_allele);
 
     match ref_count {
         0 => Genotype::HomAlt,

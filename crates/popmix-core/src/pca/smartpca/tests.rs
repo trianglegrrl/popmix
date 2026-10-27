@@ -31,10 +31,8 @@ fn two_groups(n_per: usize, n_snps: usize) -> PackedGenotypes {
         let u = h as f64 / 7.0;
         if u < p * p {
             2
-        } else if u < p * p + 2.0 * p * (1.0 - p) {
-            1
         } else {
-            0
+            u8::from(u < p * p + 2.0 * p * (1.0 - p))
         }
     });
     let m = GenotypeMatrix::new(data, samples, snps).unwrap();

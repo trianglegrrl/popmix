@@ -544,7 +544,7 @@ fn minimize(prob: &Problem, x: &mut [f64], obj: &mut Objective) -> Result<(Stop,
             ddum = -gdold;
         } else {
             dr = (gd - gdold) * stp;
-            for v in d.iter_mut() {
+            for v in &mut d {
                 *v *= stp;
             }
             ddum = -gdold * stp;

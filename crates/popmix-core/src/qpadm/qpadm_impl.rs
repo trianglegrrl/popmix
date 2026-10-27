@@ -236,8 +236,7 @@ mod tests {
         let sum: f64 = result.weights.iter().sum();
         assert!(
             (sum - 1.0).abs() < 0.01,
-            "Weights should sum to 1, got {}",
-            sum
+            "Weights should sum to 1, got {sum}"
         );
 
         // Both weights should be positive (since Pop3 is mixture of both)
@@ -267,15 +266,14 @@ mod tests {
 
         // All weights should be in [0, 1]
         for w in &result.weights {
-            assert!(*w >= 0.0 && *w <= 1.0, "Weight {} out of bounds", w);
+            assert!(*w >= 0.0 && *w <= 1.0, "Weight {w} out of bounds");
         }
 
         // Weights should sum to 1
         let sum: f64 = result.weights.iter().sum();
         assert!(
             (sum - 1.0).abs() < 0.01,
-            "Weights should sum to 1, got {}",
-            sum
+            "Weights should sum to 1, got {sum}"
         );
     }
 

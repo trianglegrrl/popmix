@@ -400,7 +400,7 @@ fn individual_values(
 ) -> Vec<Vec<(usize, f64)>> {
     let called = |i: usize| -> Option<f64> {
         let g = geno.snp_raw(i)[sample];
-        (g <= 2).then(|| g as f64 / 2.0)
+        (g <= 2).then(|| f64::from(g) / 2.0)
     };
     let (mut num, mut den) = (0.0, 0.0);
     for c in chroms {

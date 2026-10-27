@@ -139,7 +139,7 @@ pub(super) fn subsm(
     if dtrsl(&mem.wn, 0, m2, col2, &mut wv[..col2], true) != 0 {
         return 1;
     }
-    for v in wv[..col].iter_mut() {
+    for v in &mut wv[..col] {
         *v = -*v;
     }
     if dtrsl(&mem.wn, 0, m2, col2, &mut wv[..col2], false) != 0 {
@@ -157,7 +157,7 @@ pub(super) fn subsm(
         pointr = next(pointr, m);
     }
     let s = 1.0 / theta;
-    for v in d[..nsub].iter_mut() {
+    for v in &mut d[..nsub] {
         *v *= s;
     }
 

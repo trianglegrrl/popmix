@@ -47,8 +47,7 @@ impl PyQpWaveResult {
     fn is_clade(&self, p_threshold: f64) -> bool {
         self.rank_tests
             .first()
-            .map(|r| r.p_value > p_threshold)
-            .unwrap_or(false)
+            .is_some_and(|r| r.p_value > p_threshold)
     }
 
     /// Get the full rank test.
@@ -216,7 +215,11 @@ impl From<popmix_core::QpAdmResult> for PyQpAdmResult {
     fn from(result: popmix_core::QpAdmResult) -> Self {
         PyQpAdmResult {
             target: result.target.to_string(),
-            sources: result.sources.iter().map(|s| s.to_string()).collect(),
+            sources: result
+                .sources
+                .iter()
+                .map(std::string::ToString::to_string)
+                .collect(),
             weights: result.weights,
             weight_std_errors: result.weight_std_errors,
             chi_sq: result.chi_sq,
@@ -387,8 +390,9 @@ pub(crate) fn qpadm_rotate(
     fudge: Option<f64>,
 ) -> PyResult<PyQpAdmRotateResult> {
     compute(py, move || {
-        let candidates_refs: Vec<&str> = candidates.iter().map(|s| s.as_str()).collect();
-        let outgroups_refs: Vec<&str> = outgroups.iter().map(|s| s.as_str()).collect();
+        let candidates_refs: Vec<&str> =
+            candidates.iter().map(std::string::String::as_str).collect();
+        let outgroups_refs: Vec<&str> = outgroups.iter().map(std::string::String::as_str).collect();
 
         let opts = {
             let mut o = popmix_core::QpAdmRotateOptions::default();
@@ -413,7 +417,11 @@ pub(crate) fn qpadm_rotate(
             .models
             .into_iter()
             .map(|m| PyRotationModel {
-                sources: m.sources.iter().map(|s| s.to_string()).collect(),
+                sources: m
+                    .sources
+                    .iter()
+                    .map(std::string::ToString::to_string)
+                    .collect(),
                 weights: m.weights,
                 weight_std_errors: m.weight_std_errors,
                 p_value: m.p_value,
@@ -425,8 +433,16 @@ pub(crate) fn qpadm_rotate(
 
         Ok(PyQpAdmRotateResult {
             target: result.target.to_string(),
-            candidates: result.candidates.iter().map(|s| s.to_string()).collect(),
-            outgroups: result.outgroups.iter().map(|s| s.to_string()).collect(),
+            candidates: result
+                .candidates
+                .iter()
+                .map(std::string::ToString::to_string)
+                .collect(),
+            outgroups: result
+                .outgroups
+                .iter()
+                .map(std::string::ToString::to_string)
+                .collect(),
             models,
             n_combinations: result.n_combinations,
             n_feasible: result.n_feasible,
@@ -458,8 +474,8 @@ pub(crate) fn qpwave(
     fudge: Option<f64>,
 ) -> PyResult<PyQpWaveResult> {
     compute(py, move || {
-        let left_refs: Vec<&str> = left.iter().map(|s| s.as_str()).collect();
-        let right_refs: Vec<&str> = right.iter().map(|s| s.as_str()).collect();
+        let left_refs: Vec<&str> = left.iter().map(std::string::String::as_str).collect();
+        let right_refs: Vec<&str> = right.iter().map(std::string::String::as_str).collect();
 
         let opts = {
             let mut o = popmix_core::QpWaveOptions::default();
@@ -550,13 +566,17 @@ impl PyQpWavePairsResult {
         self.inner
             .populations
             .iter()
-            .map(|s| s.to_string())
+            .map(std::string::ToString::to_string)
             .collect()
     }
 
     #[getter]
     fn outgroups(&self) -> Vec<String> {
-        self.inner.outgroups.iter().map(|s| s.to_string()).collect()
+        self.inner
+            .outgroups
+            .iter()
+            .map(std::string::ToString::to_string)
+            .collect()
     }
 
     #[getter]
@@ -615,8 +635,11 @@ pub(crate) fn qpwave_pairs(
     fudge: Option<f64>,
 ) -> PyResult<PyQpWavePairsResult> {
     compute(py, move || {
-        let pop_refs: Vec<&str> = populations.iter().map(|s| s.as_str()).collect();
-        let outgroup_refs: Vec<&str> = outgroups.iter().map(|s| s.as_str()).collect();
+        let pop_refs: Vec<&str> = populations
+            .iter()
+            .map(std::string::String::as_str)
+            .collect();
+        let outgroup_refs: Vec<&str> = outgroups.iter().map(std::string::String::as_str).collect();
 
         let opts = {
             let mut o = popmix_core::QpWaveOptions::default();
@@ -673,8 +696,8 @@ pub(crate) fn qpadm(
     compat: Option<&str>,
 ) -> PyResult<PyQpAdmResult> {
     compute(py, move || {
-        let sources_refs: Vec<&str> = sources.iter().map(|s| s.as_str()).collect();
-        let right_refs: Vec<&str> = right.iter().map(|s| s.as_str()).collect();
+        let sources_refs: Vec<&str> = sources.iter().map(std::string::String::as_str).collect();
+        let right_refs: Vec<&str> = right.iter().map(std::string::String::as_str).collect();
 
         let opts = {
             let mut o = popmix_core::QpAdmOptions::default();
@@ -722,8 +745,8 @@ pub(crate) fn qpadm_multi(
     compat: Option<&str>,
 ) -> PyResult<Vec<PyQpAdmResult>> {
     compute(py, move || {
-        let sources_refs: Vec<&str> = sources.iter().map(|s| s.as_str()).collect();
-        let right_refs: Vec<&str> = right.iter().map(|s| s.as_str()).collect();
+        let sources_refs: Vec<&str> = sources.iter().map(std::string::String::as_str).collect();
+        let right_refs: Vec<&str> = right.iter().map(std::string::String::as_str).collect();
 
         let opts = {
             let mut o = popmix_core::QpAdmOptions::default();

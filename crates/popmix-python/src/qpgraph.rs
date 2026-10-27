@@ -179,7 +179,10 @@ pub(crate) fn find_graphs(
             };
             o
         };
-        let pop_refs: Vec<&str> = populations.iter().map(|s| s.as_str()).collect();
+        let pop_refs: Vec<&str> = populations
+            .iter()
+            .map(std::string::String::as_str)
+            .collect();
         let result = popmix_core::find_graphs(&f2_blocks.inner, &pop_refs, &opts)?;
         let graphs = result
             .graphs
@@ -206,7 +209,7 @@ pub(crate) fn all_graphs(
     nadmix: usize,
 ) -> PyResult<Vec<Vec<(String, String)>>> {
     compute(py, move || {
-        let refs: Vec<&str> = leaves.iter().map(|s| s.as_str()).collect();
+        let refs: Vec<&str> = leaves.iter().map(std::string::String::as_str).collect();
         popmix_core::all_graphs(&refs, nadmix).map_err(PyErr::from)
     })
 }

@@ -10,7 +10,7 @@ use popmix_io::PlinkReader;
 const AADR_HO_PREFIX: &str = "/references/aadr_v54.1.p1/HO_public";
 
 fn data_available() -> bool {
-    Path::new(&format!("{}.bed", AADR_HO_PREFIX)).exists()
+    Path::new(&format!("{AADR_HO_PREFIX}.bed")).exists()
 }
 
 /// Test that we can open and read basic metadata from AADR HO dataset.
@@ -89,8 +89,7 @@ fn test_read_snps_aadr_ho() {
     // Missing rate should be reasonable (typically <50% for ancient DNA)
     assert!(
         missing_rate < 0.9,
-        "Missing rate {} is too high",
-        missing_rate
+        "Missing rate {missing_rate} is too high"
     );
 }
 
@@ -117,10 +116,7 @@ fn test_detect_ploidy_aadr_ho() {
         }
     }
 
-    println!(
-        "Ploidy: {} diploid, {} pseudohaploid",
-        diploid_count, pseudohaploid_count
-    );
+    println!("Ploidy: {diploid_count} diploid, {pseudohaploid_count} pseudohaploid");
 
     // Ancient DNA typically has a mix
     assert!(

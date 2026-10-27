@@ -431,7 +431,9 @@ pub(crate) fn qpadm_weight_std_errors(
     constrained: bool,
 ) -> Result<Vec<f64>> {
     if leave_one_out.len() < 2 {
-        let m = leave_one_out.first().map_or(rnk + 1, |x| x.nrows());
+        let m = leave_one_out
+            .first()
+            .map_or(rnk + 1, ndarray::ArrayBase::nrows);
         return Ok(vec![f64::NAN; m]);
     }
     let reps = leave_one_out

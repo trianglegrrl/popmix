@@ -19,3 +19,6 @@ popmix-io = { path = "../popmix-io", version = "=1.0.0" }
 pyo3 = { workspace = true }
 numpy = { workspace = true }
 ndarray = { workspace = true }
+
+[lints]
+workspace = true

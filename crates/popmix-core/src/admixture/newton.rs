@@ -60,7 +60,7 @@ pub(super) fn q_terms_chunk<const K: usize>(
             }
             let gi = &mut grad[i * k..(i + 1) * k];
             let hi = &mut hess[i * k * k..(i + 1) * k * k];
-            let h = 2.0 - g as f64;
+            let h = 2.0 - f64::from(g);
             let (ra, rb) = (1.0 / a, 1.0 / b);
             let (wa, wb) = (h * ra, (2.0 - h) * rb);
             let (wa2, wb2) = (wa * ra, wb * rb);
@@ -230,7 +230,7 @@ pub(super) fn p_terms<const K: usize>(
     for i in 0..n {
         let Some(gc) = d.g(j, i) else { continue };
         any = true;
-        let h = 2.0 - gc as f64;
+        let h = 2.0 - f64::from(gc);
         let qi = &q[i * k..(i + 1) * k];
         let x: f64 = qi.iter().zip(pj).map(|(x, y)| x * y).sum();
         let y: f64 = qi.iter().zip(&np).map(|(x, y)| x * y).sum();
@@ -312,7 +312,9 @@ pub(super) fn p_newton(d: &Data, q: &[f64], p: &[f64], k: usize) -> (Vec<f64>, f
                 if ll >= ll0 {
                     return (cand, ll);
                 }
-                step.iter_mut().for_each(|x| *x *= 0.5);
+                for x in &mut step {
+                    *x *= 0.5;
+                }
             }
             (pj.to_vec(), ll0)
         })

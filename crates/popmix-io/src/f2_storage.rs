@@ -193,7 +193,7 @@ pub fn write_f2_blocks(f2_blocks: &F2Blocks, dir: &Path, source: Option<&str>) -
         n_populations,
         block_lengths: f2_blocks.block_lengths().to_vec(),
         fst_block_lengths: f2_blocks.fst_blocks().map(|f| f.block_lengths().to_vec()),
-        source: source.map(|s| s.to_string()),
+        source: source.map(std::string::ToString::to_string),
     };
 
     // Write metadata
@@ -319,23 +319,17 @@ mod tests {
                 assert_eq!(
                     loaded.block_sums()[[i, j]],
                     f2_blocks.block_sums()[[i, j]],
-                    "block_sums mismatch at [{}, {}]",
-                    i,
-                    j
+                    "block_sums mismatch at [{i}, {j}]"
                 );
                 assert_eq!(
                     loaded.block_raw_sums()[[i, j]],
                     f2_blocks.block_raw_sums()[[i, j]],
-                    "block_raw_sums mismatch at [{}, {}]",
-                    i,
-                    j
+                    "block_raw_sums mismatch at [{i}, {j}]"
                 );
                 assert_eq!(
                     loaded.block_weights()[[i, j]],
                     f2_blocks.block_weights()[[i, j]],
-                    "block_weights mismatch at [{}, {}]",
-                    i,
-                    j
+                    "block_weights mismatch at [{i}, {j}]"
                 );
             }
         }
@@ -355,16 +349,12 @@ mod tests {
                 assert_eq!(
                     loaded.block_het_sums()[[i, j]],
                     f2_blocks.block_het_sums()[[i, j]],
-                    "block_het_sums mismatch at [{}, {}]",
-                    i,
-                    j
+                    "block_het_sums mismatch at [{i}, {j}]"
                 );
                 assert_eq!(
                     loaded.block_het_weights()[[i, j]],
                     f2_blocks.block_het_weights()[[i, j]],
-                    "block_het_weights mismatch at [{}, {}]",
-                    i,
-                    j
+                    "block_het_weights mismatch at [{i}, {j}]"
                 );
             }
         }

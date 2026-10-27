@@ -61,7 +61,7 @@ fn pca(c: &mut Criterion) {
             o
         };
         group.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, _| {
-            b.iter(|| smartpca(&packed, &roles, &opts).unwrap())
+            b.iter(|| smartpca(&packed, &roles, &opts).unwrap());
         });
     }
     group.finish();
@@ -74,7 +74,7 @@ fn king(c: &mut Criterion) {
         let g = genotypes(n, 50_000);
         let bits = BitGenotypes::read(&mut rows(&g), n, g.n_snps()).unwrap();
         group.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, _| {
-            b.iter(|| king_robust(&bits))
+            b.iter(|| king_robust(&bits));
         });
     }
     group.finish();
@@ -93,7 +93,7 @@ fn f2_blocks(c: &mut Criterion) {
     };
     let def = BlockDefinition::new(0.005);
     group.bench_function("4 populations, maxmiss 1", |b| {
-        b.iter(|| F2Blocks::from_allele_frequencies_with_options(&af, &def, &opts))
+        b.iter(|| F2Blocks::from_allele_frequencies_with_options(&af, &def, &opts));
     });
     // many populations: one per pair of samples
     let k = 100;
@@ -108,7 +108,7 @@ fn f2_blocks(c: &mut Criterion) {
     .unwrap();
 
     group.bench_function("100 populations, maxmiss 1", |b| {
-        b.iter(|| F2Blocks::from_allele_frequencies_with_options(&wide, &def, &opts))
+        b.iter(|| F2Blocks::from_allele_frequencies_with_options(&wide, &def, &opts));
     });
     group.finish();
 }
@@ -124,7 +124,7 @@ fn admixture_fit(c: &mut Criterion) {
         o
     };
     group.bench_function("K=3, 5 iterations", |b| {
-        b.iter(|| admixture(&packed, 3, &opts).unwrap())
+        b.iter(|| admixture(&packed, 3, &opts).unwrap());
     });
     group.finish();
 }

@@ -71,8 +71,7 @@ impl QpWaveResult {
     pub fn is_clade(&self, p_threshold: f64) -> bool {
         self.rank_tests
             .first()
-            .map(|r| r.p_value > p_threshold)
-            .unwrap_or(false)
+            .is_some_and(|r| r.p_value > p_threshold)
     }
 }
 
@@ -122,8 +121,7 @@ fn estimate_rank(rank_tests: &[RankTest], max_rank: usize) -> usize {
     rank_tests
         .iter()
         .find(|r| r.p_value > 0.05)
-        .map(|r| r.rank)
-        .unwrap_or(max_rank + 1)
+        .map_or(max_rank + 1, |r| r.rank)
 }
 
 /// Rank tests 0..=max_rank, as admixtools2 `drop_ranks` / `qpadm_fit`.

@@ -78,7 +78,10 @@ pub fn sample_labels(inds: Vec<String>, pops: Vec<String>) -> Result<HashMap<Str
 }
 
 /// Give the listed samples their populations and leave out the rest.
-pub fn relabel_samples(samples: &mut [Sample], labels: &HashMap<String, String>) -> Result<()> {
+pub fn relabel_samples<S: std::hash::BuildHasher>(
+    samples: &mut [Sample],
+    labels: &HashMap<String, String, S>,
+) -> Result<()> {
     let known: HashSet<&str> = samples.iter().map(|s| s.id.as_str()).collect();
     if let Some(missing) = labels.keys().find(|id| !known.contains(id.as_str())) {
         return Err(PopmixError::data(format!(
@@ -98,9 +101,10 @@ fn prepare_samples(samples: &mut [Sample], opts: &ExtractOptions) -> Result<()> 
         relabel_samples(samples, labels)?;
     }
     let present: HashSet<&str> = samples.iter().map(|s| s.population.as_str()).collect();
-    check_populations(opts.populations.iter().map(|p| p.as_str()), |p| {
-        present.contains(p)
-    })
+    check_populations(
+        opts.populations.iter().map(std::string::String::as_str),
+        |p| present.contains(p),
+    )
 }
 
 /// The f2 blocks of `opts.populations` in the dataset at `prefix`.
@@ -115,7 +119,11 @@ pub fn extract_f2(
             format!("must be between 0 and 1, got {}", opts.f2.max_missing),
         ));
     }
-    let pops: Vec<&str> = opts.populations.iter().map(|s| s.as_str()).collect();
+    let pops: Vec<&str> = opts
+        .populations
+        .iter()
+        .map(std::string::String::as_str)
+        .collect();
     if let Some(mapped) = open_mapped(prefix, warn)? {
         return from_mapped(mapped, opts, &pops);
     }

@@ -346,11 +346,11 @@ impl Chromosome {
 impl fmt::Display for Chromosome {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Chromosome::Autosome(n) => write!(f, "{}", n),
+            Chromosome::Autosome(n) => write!(f, "{n}"),
             Chromosome::X => write!(f, "X"),
             Chromosome::Y => write!(f, "Y"),
             Chromosome::MT => write!(f, "MT"),
-            Chromosome::Other(s) => write!(f, "{}", s),
+            Chromosome::Other(s) => write!(f, "{s}"),
         }
     }
 }
@@ -493,7 +493,7 @@ mod tests {
         let unknown = check_populations(["A", "X", "Y"], known)
             .unwrap_err()
             .to_string();
-        assert!(unknown.contains("X") && unknown.contains("Y"), "{unknown}");
+        assert!(unknown.contains('X') && unknown.contains('Y'), "{unknown}");
     }
 
     #[test]

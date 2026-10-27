@@ -185,13 +185,14 @@ impl BlockTable {
         let mut count = vec![0.0f64; n_pops];
         for snp in 0..n_snps {
             let row = &raw[snp * n_samples..(snp + 1) * n_samples];
-            sum.iter_mut().for_each(|x| *x = 0.0);
-            count.iter_mut().for_each(|x| *x = 0.0);
+            sum.fill(0.0);
+            count.fill(0.0);
+
             for ((&g, &p), &ploidy) in row.iter().zip(&pops.sample_pop).zip(&pops.ploidy) {
                 if g > 2 {
                     continue;
                 }
-                let g = g as f64;
+                let g = f64::from(g);
                 sum[p] += g;
                 count[p] += 1.0;
                 let i = snp * n_pops + p;
@@ -485,7 +486,7 @@ mod tests {
 
     fn populations(m: &GenotypeMatrix, names: &[&str], ploidy: u8) -> GenoPopulations {
         GenoPopulations {
-            names: names.iter().map(|s| s.to_string()).collect(),
+            names: names.iter().map(std::string::ToString::to_string).collect(),
             sample_pop: m
                 .samples()
                 .iter()
@@ -571,7 +572,7 @@ mod tests {
         .unwrap();
         assert_eq!(out.block_lengths, vec![4; 10]);
         let af = |s: usize, p: usize| {
-            (pseudo_random(s, 2 * p) + pseudo_random(s, 2 * p + 1)) as f64 / 4.0
+            f64::from(pseudo_random(s, 2 * p) + pseudo_random(s, 2 * p + 1)) / 4.0
         };
         let mean = (0..40)
             .map(|s| (af(s, 0) - af(s, 1)) * (af(s, 2) - af(s, 3)))
@@ -658,7 +659,7 @@ mod tests {
         };
         let out =
             f3_from_genotypes(&mut rows(&m), m.snps(), &pops, &[[0, 1, 2]], opts, BLOCK).unwrap();
-        let g = |s: usize, k: usize| pseudo_random(s, k) as f64;
+        let g = |s: usize, k: usize| f64::from(pseudo_random(s, k));
         let mean = (0..20)
             .map(|s| {
                 let af = |p: usize| (g(s, 2 * p) + g(s, 2 * p + 1)) / 4.0;

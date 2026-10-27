@@ -3,9 +3,9 @@ use popmix_core::genotypes::{Chromosome, Ploidy, PopulationId};
 
 fn make_snp(chr: u8, pos: u32, ref_allele: char, alt_allele: char) -> Snp {
     Snp {
-        id: format!("snp_{}_{}", chr, pos),
+        id: format!("snp_{chr}_{pos}"),
         chromosome: Chromosome::Autosome(chr),
-        position_morgans: pos as f64 / 1_000_000.0,
+        position_morgans: f64::from(pos) / 1_000_000.0,
         position_bp: pos,
         allele_ref: ref_allele,
         allele_alt: alt_allele,

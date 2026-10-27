@@ -56,7 +56,7 @@ impl RRng {
         // The first word R fills is its position counter, reset to N.
         s = lcg(s);
         let mut state = [0u32; N];
-        for word in state.iter_mut() {
+        for word in &mut state {
             s = lcg(s);
             *word = s;
         }

@@ -155,15 +155,14 @@ impl F4Matrix {
                     _ => {
                         return Err(crate::PopmixError::data(format!(
                             "Missing block data for f4(
-{}, {}; {}, {})",
-                            pop_a, pop_b, pop_c, pop_d
+{pop_a}, {pop_b}; {pop_c}, {pop_d})"
                         )));
                     }
                 }
             }
         }
 
-        let stats: Vec<Vec<f64>> = block_f4s.iter().map(|b| b.to_vec()).collect();
+        let stats: Vec<Vec<f64>> = block_f4s.iter().map(ndarray::ArrayBase::to_vec).collect();
         let lengths: Vec<f64> = f2_blocks.block_lengths.iter().map(|&l| l as f64).collect();
         let covariance = match block_jackknife_cov(&stats, &lengths) {
             Some((_, cov)) => cov,
@@ -338,9 +337,7 @@ mod tests {
             for j in 0..cov.ncols() {
                 assert!(
                     (cov[[i, j]] - cov[[j, i]]).abs() < 1e-15,
-                    "Covariance not symmetric at ({}, {})",
-                    i,
-                    j
+                    "Covariance not symmetric at ({i}, {j})"
                 );
             }
         }

@@ -235,20 +235,17 @@ mod tests {
         // Create test data with 3 populations
         let mut samples = Vec::new();
         for i in 0..20 {
-            samples.push(Sample::new(
-                format!("test_{}", i),
-                PopulationId::new("test"),
-            ));
+            samples.push(Sample::new(format!("test_{i}"), PopulationId::new("test")));
         }
         for i in 0..10 {
             samples.push(Sample::new(
-                format!("src1_{}", i),
+                format!("src1_{i}"),
                 PopulationId::new("source1"),
             ));
         }
         for i in 0..10 {
             samples.push(Sample::new(
-                format!("src2_{}", i),
+                format!("src2_{i}"),
                 PopulationId::new("source2"),
             ));
         }
@@ -258,10 +255,10 @@ mod tests {
         for chrom in 1..=3 {
             for i in 0..100 {
                 snps.push(Snp::new(
-                    format!("rs{}_{}", chrom, i),
+                    format!("rs{chrom}_{i}"),
                     Chromosome::Autosome(chrom),
                     (i * 10000) as u32,
-                    i as f64 * 0.003, // 0.3 cM = 0.003 M spacing
+                    f64::from(i) * 0.003, // 0.3 cM = 0.003 M spacing
                     'A',
                     'G',
                 ));
@@ -280,7 +277,7 @@ mod tests {
             }
             // Source2 pattern (lower frequency)
             for sample_idx in 30..40 {
-                data[[snp_idx, sample_idx]] = if snp_idx % 3 == 0 { 0 } else { 1 };
+                data[[snp_idx, sample_idx]] = u8::from(snp_idx % 3 != 0);
             }
             // Test population (admixed - mix of patterns with some LD)
             for sample_idx in 0..20 {
@@ -307,7 +304,7 @@ mod tests {
         let result = dates(&geno, None, "test", "source1", "source2", &opts);
 
         // Should complete without error
-        assert!(result.is_ok(), "DATES should complete: {:?}", result);
+        assert!(result.is_ok(), "DATES should complete: {result:?}");
 
         let result = result.unwrap();
 

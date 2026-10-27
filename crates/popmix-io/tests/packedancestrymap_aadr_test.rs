@@ -123,8 +123,7 @@ fn test_read_snps_aadr_packedancestrymap() {
     // Missing rate should be reasonable (typically <90% for ancient DNA with coverage issues)
     assert!(
         missing_rate < 0.95,
-        "Missing rate {} is too high",
-        missing_rate
+        "Missing rate {missing_rate} is too high"
     );
 
     // Should have some non-missing genotypes of each type
@@ -156,10 +155,7 @@ fn test_detect_ploidy_aadr_packedancestrymap() {
         }
     }
 
-    println!(
-        "Ploidy: {} diploid, {} pseudohaploid",
-        diploid_count, pseudohaploid_count
-    );
+    println!("Ploidy: {diploid_count} diploid, {pseudohaploid_count} pseudohaploid");
 
     // Should detect at least some samples
     assert!(

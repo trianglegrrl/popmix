@@ -141,7 +141,7 @@ pub struct JointSfsSnps {
 
 /// The allele count, if it is (within rounding) an integer.
 fn integer_count(f: f64, n: u32, exact: bool) -> Option<u32> {
-    let x = f * n as f64;
+    let x = f * f64::from(n);
     let r = x.round();
     let ok = if exact { x == r } else { (x - r).abs() < 1e-6 };
     ok.then_some(r as u32)

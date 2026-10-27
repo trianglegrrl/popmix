@@ -221,9 +221,9 @@ fn prefix_counts(g: &BitGenotypes, i: usize, j: usize, points: &[usize]) -> Vec<
         let cj = hj[w] | aj[w] | bj[w];
         let called = ci & cj & mask;
         [
-            called.count_ones() as u64,
-            ((hi[w] | hj[w]) & called).count_ones() as u64,
-            (((ai[w] & bj[w]) | (bi[w] & aj[w])) & mask).count_ones() as u64,
+            u64::from(called.count_ones()),
+            u64::from(((hi[w] | hj[w]) & called).count_ones()),
+            u64::from((((ai[w] & bj[w]) | (bi[w] & aj[w])) & mask).count_ones()),
         ]
     };
     for &p in points {
@@ -290,7 +290,7 @@ fn median(mut x: Vec<f64>) -> f64 {
     if n % 2 == 1 {
         x[n / 2]
     } else {
-        (x[n / 2 - 1] + x[n / 2]) / 2.0
+        f64::midpoint(x[n / 2 - 1], x[n / 2])
     }
 }
 

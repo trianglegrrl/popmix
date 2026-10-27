@@ -45,7 +45,9 @@ pub fn init_thread_pool(threads: Option<usize>) -> Result<bool> {
         .build()
         .map_err(|e| PopmixError::ThreadPool(format!("cannot start {n} threads: {e}")))?;
 
-    *POOL.write().unwrap_or_else(|e| e.into_inner()) = Some((n, Arc::new(pool)));
+    *POOL
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some((n, Arc::new(pool)));
     Ok(true)
 }
 
@@ -53,7 +55,7 @@ pub fn init_thread_pool(threads: Option<usize>) -> Result<bool> {
 /// [`init_thread_pool`] sets it); asking starts no thread.
 pub fn current_threads() -> usize {
     POOL.read()
-        .unwrap_or_else(|e| e.into_inner())
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
         .as_ref()
         .map_or(DEFAULT_THREADS, |(n, _)| *n)
 }
@@ -63,19 +65,17 @@ pub fn current_threads() -> usize {
 pub fn install<R: Send>(f: impl FnOnce() -> R + Send) -> R {
     let configured = POOL
         .read()
-        .unwrap_or_else(|e| e.into_inner())
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
         .as_ref()
         .map(|(_, p)| Arc::clone(p));
-    let pool = match configured {
-        Some(p) => p,
-        None => {
-            // a failure to start threads surfaces on the next explicit init
-            if init_thread_pool(None).is_err() {
-                return f();
-            }
-            return install(f);
+    let Some(pool) = configured else {
+        // a failure to start threads surfaces on the next explicit init
+        if init_thread_pool(None).is_err() {
+            return f();
         }
+        return install(f);
     };
+
     pool.install(f)
 }
 

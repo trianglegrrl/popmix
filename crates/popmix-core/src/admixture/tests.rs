@@ -47,7 +47,7 @@ fn unsupervised_recovers_the_proportions() {
     let fit = admixture(&g, 2, &opts).unwrap();
     assert!(fit.converged);
     // cluster labels are arbitrary
-    let col = if fit.q[0] > 0.5 { 0 } else { 1 };
+    let col = usize::from(fit.q[0] <= 0.5);
     for (i, &want) in qs.iter().enumerate() {
         assert!(
             (fit.q[i * 2 + col] - want).abs() < 0.05,
@@ -146,7 +146,7 @@ fn cross_validation_folds_are_checked() {
 fn one_logarithm_terms_are_the_definition() {
     for (a, b) in [(0.3, 0.7), (1e-5, 1.0 - 1e-5), (0.999, 0.001), (0.5, 0.25)] {
         for g in 0..3u8 {
-            let h = 2.0 - g as f64;
+            let h = 2.0 - f64::from(g);
             let want = h * f64::ln(a) + (2.0 - h) * f64::ln(b);
             // the product rounds by one ulp, which moves its logarithm
             // by about epsilon however small the logarithm is

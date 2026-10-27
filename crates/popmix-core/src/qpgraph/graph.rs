@@ -180,12 +180,7 @@ impl AdmixGraph {
     pub fn leaves(&self) -> Vec<NodeId> {
         self.graph
             .node_indices()
-            .filter(|&idx| {
-                self.graph
-                    .node_weight(idx)
-                    .map(|n| n.is_leaf)
-                    .unwrap_or(false)
-            })
+            .filter(|&idx| self.graph.node_weight(idx).is_some_and(|n| n.is_leaf))
             .collect()
     }
 
@@ -292,8 +287,7 @@ impl AdmixGraph {
                         let name = self.graph.node_weight(idx).map(|n| &n.name).unwrap();
                         return Err(PopmixError::InvalidGraph {
                             details: format!(
-                                "Admixture proportions for {} sum to {} (expected 1.0)",
-                                name, sum
+                                "Admixture proportions for {name} sum to {sum} (expected 1.0)"
                             ),
                         });
                     }
@@ -675,7 +669,7 @@ mod tests {
 
         // f2(A, B) = drift(R->A) + drift(R->B) = 0.1 + 0.2 = 0.3
         let f2 = graph.expected_f2("A", "B").unwrap();
-        assert!((f2 - 0.3).abs() < 1e-10, "Expected 0.3, got {}", f2);
+        assert!((f2 - 0.3).abs() < 1e-10, "Expected 0.3, got {f2}");
     }
 
     #[test]
@@ -684,7 +678,7 @@ mod tests {
 
         // f2(A, A) = 0
         let f2 = graph.expected_f2("A", "A").unwrap();
-        assert!(f2.abs() < 1e-10, "Expected 0, got {}", f2);
+        assert!(f2.abs() < 1e-10, "Expected 0, got {f2}");
     }
 
     #[test]
@@ -694,7 +688,7 @@ mod tests {
         // f2(A, B) = drift(I->A) + drift(I->B) = 0.1 + 0.2 = 0.3
         // (shared drift R->I doesn't contribute)
         let f2 = graph.expected_f2("A", "B").unwrap();
-        assert!((f2 - 0.3).abs() < 1e-10, "Expected 0.3, got {}", f2);
+        assert!((f2 - 0.3).abs() < 1e-10, "Expected 0.3, got {f2}");
     }
 
     #[test]

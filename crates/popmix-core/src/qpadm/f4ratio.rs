@@ -200,19 +200,19 @@ mod tests {
 
         let mut samples = Vec::new();
         for i in 0..20 {
-            samples.push(Sample::new(format!("A{}", i), PopulationId::new("PopA")));
+            samples.push(Sample::new(format!("A{i}"), PopulationId::new("PopA")));
         }
         for i in 0..20 {
-            samples.push(Sample::new(format!("B{}", i), PopulationId::new("PopB")));
+            samples.push(Sample::new(format!("B{i}"), PopulationId::new("PopB")));
         }
         for i in 0..20 {
-            samples.push(Sample::new(format!("X{}", i), PopulationId::new("PopX")));
+            samples.push(Sample::new(format!("X{i}"), PopulationId::new("PopX")));
         }
         for i in 0..20 {
-            samples.push(Sample::new(format!("O{}", i), PopulationId::new("PopO")));
+            samples.push(Sample::new(format!("O{i}"), PopulationId::new("PopO")));
         }
         for i in 0..20 {
-            samples.push(Sample::new(format!("C{}", i), PopulationId::new("PopC")));
+            samples.push(Sample::new(format!("C{i}"), PopulationId::new("PopC")));
         }
 
         // Create SNPs across multiple blocks
@@ -220,10 +220,10 @@ mod tests {
         let snps: Vec<Snp> = (0..200)
             .map(|i| {
                 Snp::new(
-                    format!("rs{}", i),
+                    format!("rs{i}"),
                     Chromosome::Autosome(1),
                     (i * 1000) as u32,
-                    i as f64 * 0.1, // 0.1 cM spacing
+                    f64::from(i) * 0.1, // 0.1 cM spacing
                     'A',
                     'G',
                 )

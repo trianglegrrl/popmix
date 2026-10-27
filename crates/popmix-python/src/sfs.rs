@@ -18,7 +18,10 @@ fn allele_frequencies(
     auto_only: bool,
     rule: PloidyRule,
 ) -> PyResult<AlleleFrequencies> {
-    let pops: Vec<&str> = populations.iter().map(|s| s.as_str()).collect();
+    let pops: Vec<&str> = populations
+        .iter()
+        .map(std::string::String::as_str)
+        .collect();
     let af = if let Some(mut m) = crate::ploidy::mapped(prefix)? {
         rule.apply_mapped(&m.file, &mut m.samples, &pops);
         m.file

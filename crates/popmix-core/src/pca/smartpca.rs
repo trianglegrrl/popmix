@@ -203,8 +203,8 @@ fn column_norm(geno: &PackedGenotypes, snp: usize, used: &[usize]) -> ColumnNorm
         if g > 2 {
             nmiss += 1;
         } else {
-            c0 += g as u64;
-            c1 += 2 - g as u64;
+            c0 += u64::from(g);
+            c1 += 2 - u64::from(g);
         }
     }
     if nmiss == used.len() {
@@ -233,7 +233,7 @@ fn row_value(g: u8, norm: &ColumnNorm) -> f64 {
     if g > 2 {
         0.0
     } else {
-        g as f64 * norm.fancy - norm.mean
+        f64::from(g) * norm.fancy - norm.mean
     }
 }
 

@@ -69,7 +69,7 @@ impl BlockDefinition {
                 n_blocks: 0,
             };
         }
-        let bp = |s: &Snp| s.position_bp as f64;
+        let bp = |s: &Snp| f64::from(s.position_bp);
         let morgans = |s: &Snp| s.position_morgans;
         let (size, coord): (f64, &dyn Fn(&Snp) -> f64) = match coordinate {
             BlockCoordinate::BasePairs(size) => (size, &bp),
@@ -208,7 +208,7 @@ mod tests {
         (0..n)
             .map(|i| {
                 Snp::new(
-                    format!("rs{}", i),
+                    format!("rs{i}"),
                     Chromosome::Autosome(1),
                     (i * 1000) as u32,
                     i as f64 * morgans_spacing,
@@ -295,7 +295,7 @@ mod tests {
                 format!("rs{}", 100 + i),
                 Chromosome::Autosome(2),
                 (i * 1000) as u32,
-                i as f64 * 0.01, // 1 cM = 0.01 Morgans
+                f64::from(i) * 0.01, // 1 cM = 0.01 Morgans
                 'A',
                 'G',
             ));

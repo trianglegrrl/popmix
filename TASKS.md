@@ -690,9 +690,17 @@ thread count.
 - [ ] **M1. Duplicated logic:** three confidence-interval implementations
   (`formatters.py:34`, `rich_output.py:27`, `statistics.py:26`; go with D1).
   AI
-- [ ] **M2. Idiom:** `f64::midpoint` (9 places), `let … else` instead of
+- [x] **M2. Idiom:** `f64::midpoint` (9 places), `let … else` instead of
   `unwrap` after `is_none` (`ped.rs:184`, `graph.rs:240`), worthwhile
   `clippy::pedantic` lints (1,782 warnings, mostly noise). RS
+  *Done in COMMIT:* 21 of clippy's pedantic lints are on for the
+  workspace (`[workspace.lints.clippy]`: midpoint, let-else, file
+  extensions compared case-blind, `Option<&T>`, needless `Result`,
+  unused `self`, hashers, inlined format arguments, `From` for lossless
+  casts, ...) and the 288 places they found are fixed; the rest of
+  pedantic (casts of counts, doc style, `must_use` on getters) stays off.
+  Found doing it: a VCF given with an upper-case extension was not taken
+  for one, and a SNP range of a VCF was ignored (fixed before this).
 - [ ] **M3. Document why graph search is split across Rust and Python** (or
   resolve it with F9). AI
 - [ ] **M4. CLI consistency** (found writing the skill, N): `sfs` with one

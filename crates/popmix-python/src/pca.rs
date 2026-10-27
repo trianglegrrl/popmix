@@ -50,7 +50,7 @@ impl PyPcaResult {
     /// Coordinates, samples x components.
     #[getter]
     fn coords<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray2<f64>>> {
-        let k = self.coords.first().map_or(0, |c| c.len());
+        let k = self.coords.first().map_or(0, std::vec::Vec::len);
         let flat: Vec<f64> = self.coords.iter().flatten().copied().collect();
         let arr = ndarray::Array2::from_shape_vec((self.coords.len(), k), flat)
             .map_err(|e| internal_error(e.to_string()))?;

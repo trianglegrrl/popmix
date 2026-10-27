@@ -162,7 +162,9 @@ fn bed_frequencies_and_ploidy_match_the_in_memory_ones() {
     let mut geno = crate::PlinkReader::new(&bed).unwrap().read_all().unwrap();
     geno.detect_ploidy(geno.n_snps());
     let mut samples = geno.samples().to_vec();
-    samples.iter_mut().for_each(|s| s.ploidy = Ploidy::Diploid);
+    for s in &mut samples {
+        s.ploidy = Ploidy::Diploid;
+    }
     let file = SnpMajor::open_bed(format!("{bed}.bed"), 54, geno.n_snps()).unwrap();
     let all: Vec<usize> = (0..54).collect();
     file.detect_ploidy(&mut samples, &all, geno.n_snps());
@@ -231,7 +233,9 @@ fn text_geno_is_read_in_place() {
 
     geno.detect_ploidy(geno.n_snps());
     let mut samples = geno.samples().to_vec();
-    samples.iter_mut().for_each(|s| s.ploidy = Ploidy::Diploid);
+    for s in &mut samples {
+        s.ploidy = Ploidy::Diploid;
+    }
     let all: Vec<usize> = (0..54).collect();
     file.detect_ploidy(&mut samples, &all, geno.n_snps());
     let ploidy = |s: &[Sample]| s.iter().map(|x| x.ploidy).collect::<Vec<_>>();

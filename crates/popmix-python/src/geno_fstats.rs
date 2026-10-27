@@ -61,7 +61,10 @@ fn open_source_filtered_with(
     keep_snp: &dyn Fn(&Snp) -> bool,
     rule: PloidyRule,
 ) -> PyResult<(Source, Vec<Snp>, GenoPopulations, Vec<Sample>)> {
-    let pop_refs: Vec<&str> = populations.iter().map(|p| p.as_str()).collect();
+    let pop_refs: Vec<&str> = populations
+        .iter()
+        .map(std::string::String::as_str)
+        .collect();
     let index = |pop: &str| populations.iter().position(|p| p == pop);
     let (samples, snps, file, matrix) = if let Some(mut m) = mapped(prefix)? {
         rule.apply_mapped(&m.file, &mut m.samples, &pop_refs);
@@ -93,7 +96,7 @@ fn open_source_filtered_with(
     let missing: Vec<&str> = populations
         .iter()
         .filter(|p| !sample_pop.iter().any(|&k| populations[k] == **p))
-        .map(|p| p.as_str())
+        .map(std::string::String::as_str)
         .collect();
     if !missing.is_empty() {
         return Err(popmix_exception(
@@ -288,7 +291,10 @@ pub fn sample_ploidy(
     pseudohaploid: &str,
 ) -> PyResult<Vec<(String, u8)>> {
     let rule = ploidy_rule(pseudohaploid)?;
-    let pop_refs: Vec<&str> = populations.iter().map(|p| p.as_str()).collect();
+    let pop_refs: Vec<&str> = populations
+        .iter()
+        .map(std::string::String::as_str)
+        .collect();
     let samples = if let Some(mut m) = mapped(prefix)? {
         rule.apply_mapped(&m.file, &mut m.samples, &pop_refs);
         m.samples

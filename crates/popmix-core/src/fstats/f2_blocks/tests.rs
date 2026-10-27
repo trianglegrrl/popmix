@@ -72,22 +72,22 @@ fn make_test_data() -> AlleleFrequencies {
     // Create test data with 3 populations, 20 SNPs across 2 cM
     let mut samples = Vec::new();
     for i in 0..10 {
-        samples.push(Sample::new(format!("A{}", i), PopulationId::new("PopA")));
+        samples.push(Sample::new(format!("A{i}"), PopulationId::new("PopA")));
     }
     for i in 0..10 {
-        samples.push(Sample::new(format!("B{}", i), PopulationId::new("PopB")));
+        samples.push(Sample::new(format!("B{i}"), PopulationId::new("PopB")));
     }
     for i in 0..10 {
-        samples.push(Sample::new(format!("C{}", i), PopulationId::new("PopC")));
+        samples.push(Sample::new(format!("C{i}"), PopulationId::new("PopC")));
     }
 
     let snps: Vec<Snp> = (0..20)
         .map(|i| {
             Snp::new(
-                format!("rs{}", i),
+                format!("rs{i}"),
                 Chromosome::Autosome(1),
                 (i * 1000) as u32,
-                i as f64 * 0.1, // 0.1 cM spacing
+                f64::from(i) * 0.1, // 0.1 cM spacing
                 'A',
                 'G',
             )
@@ -100,7 +100,7 @@ fn make_test_data() -> AlleleFrequencies {
     for snp_idx in 0..20 {
         // PopA (columns 0-9): mostly 0
         for j in 0..10 {
-            data[[snp_idx, j]] = if snp_idx % 5 == 0 { 1 } else { 0 };
+            data[[snp_idx, j]] = u8::from(snp_idx % 5 == 0);
         }
         // PopB (columns 10-19): mostly 2
         for j in 10..20 {
@@ -154,7 +154,7 @@ fn af_from(rows: &[(f64, [(f64, u32); 3])]) -> AlleleFrequencies {
 
 /// Per-SNP bias-corrected f2: (p1 - p2)^2 - p1(1-p1)/(n1-1) - p2(1-p2)/(n2-1).
 fn snp_f2(a: (f64, u32), b: (f64, u32)) -> f64 {
-    let corr = |(p, n): (f64, u32)| p * (1.0 - p) / (n as f64 - 1.0).max(1.0);
+    let corr = |(p, n): (f64, u32)| p * (1.0 - p) / (f64::from(n) - 1.0).max(1.0);
     (a.0 - b.0).powi(2) - corr(a) - corr(b)
 }
 
@@ -169,7 +169,7 @@ fn direct_fst_block(af: &AlleleFrequencies, rows: &[usize]) -> (Vec<f64>, Vec<f6
         for i in 0..n_pops {
             for j in i..n_pops {
                 let (p1, p2) = (p[i], p[j]);
-                let (n1, n2) = (n[i] as f64, n[j] as f64);
+                let (n1, n2) = (f64::from(n[i]), f64::from(n[j]));
                 let (h1, h2) = (p1 * (1.0 - p1), p2 * (1.0 - p2));
                 let nm = (p1 - p2).powi(2) - h1 / (n1 - 1.0) - h2 / (n2 - 1.0);
                 let dn = nm + h1 * n1 / (n1 - 1.0) + h2 * n2 / (n2 - 1.0);
@@ -203,7 +203,7 @@ fn random_af(n_snps: usize, n_pops: usize) -> AlleleFrequencies {
             let n = [0u32, 1, 2, 5, 10, 20, 20, 20][(next() % 8) as usize];
             if n > 0 {
                 counts[[i, j]] = n;
-                frequencies[[i, j]] = (next() % (n as u64 + 1)) as f64 / n as f64;
+                frequencies[[i, j]] = (next() % (u64::from(n) + 1)) as f64 / f64::from(n);
             }
         }
     }
@@ -368,7 +368,10 @@ fn test_snp_missing_in_any_population_is_dropped_for_every_pair() {
     let f2 = F2Blocks::from_allele_frequencies(&af_from(&rows), &BlockDefinition::new(0.05));
     assert_eq!(f2.block_lengths, vec![1, 1]);
     let (est, _, n_snps) = f2.f2("PopA", "PopB").unwrap();
-    let expected = (snp_f2(rows[0].1[0], rows[0].1[1]) + snp_f2(rows[2].1[0], rows[2].1[1])) / 2.0;
+    let expected = f64::midpoint(
+        snp_f2(rows[0].1[0], rows[0].1[1]),
+        snp_f2(rows[2].1[0], rows[2].1[1]),
+    );
     assert_relative_eq!(est, expected, max_relative = 1e-12);
     assert_eq!(n_snps, 2);
 }
@@ -407,7 +410,7 @@ fn test_fst_blocks_keep_monomorphic_snps() {
         .iter()
         .map(|&i| {
             let ((p1, n1), (p2, n2)) = (rows[i].1[0], rows[i].1[1]);
-            let (n1, n2) = (n1 as f64, n2 as f64);
+            let (n1, n2) = (f64::from(n1), f64::from(n2));
             let (h1, h2) = (p1 * (1.0 - p1), p2 * (1.0 - p2));
             let num = (p1 - p2).powi(2) - h1 / (n1 - 1.0) - h2 / (n2 - 1.0);
             (num, num + h1 * n1 / (n1 - 1.0) + h2 * n2 / (n2 - 1.0))
@@ -491,7 +494,10 @@ fn test_f2_estimate_and_se_weight_blocks_by_length() {
     let x2 = snp(3);
     let est = (3.0 * x1 + x2) / 4.0;
     // Leaving out block 1 leaves block 2, and vice versa.
-    let var = ((4.0 / 3.0 - 1.0) * (est - x2).powi(2) + (4.0 - 1.0) * (est - x1).powi(2)) / 2.0;
+    let var = f64::midpoint(
+        (4.0 / 3.0 - 1.0) * (est - x2).powi(2),
+        (4.0 - 1.0) * (est - x1).powi(2),
+    );
 
     let (got_est, got_se, _) = f2.f2("PopA", "PopB").unwrap();
     assert_relative_eq!(got_est, est, max_relative = 1e-12);
@@ -502,7 +508,11 @@ fn test_f2_estimate_and_se_weight_blocks_by_length() {
 fn test_from_block_means_round_trips_the_block_values() {
     let af = make_test_data();
     let f2 = F2Blocks::from_allele_frequencies(&af, &BlockDefinition::new(0.005));
-    let names: Vec<String> = f2.populations.iter().map(|p| p.to_string()).collect();
+    let names: Vec<String> = f2
+        .populations
+        .iter()
+        .map(std::string::ToString::to_string)
+        .collect();
     let grid = |f: &dyn Fn(&str, &str) -> Vec<f64>| -> Vec<Vec<Vec<f64>>> {
         names
             .iter()
@@ -605,11 +615,7 @@ fn test_f2_self_pair_near_zero() {
 
     // f2(A,A) should be close to 0
     let (f2_aa, _, _) = f2_blocks.f2("PopA", "PopA").unwrap();
-    assert!(
-        f2_aa.abs() < 0.01,
-        "f2(A,A) should be near 0, got {}",
-        f2_aa
-    );
+    assert!(f2_aa.abs() < 0.01, "f2(A,A) should be near 0, got {f2_aa}");
 }
 
 #[test]
@@ -634,7 +640,7 @@ fn test_f2_different_populations() {
 
     // f2(A,B) should be positive (different populations)
     let (f2_ab, std_err, n_snps) = f2_blocks.f2("PopA", "PopB").unwrap();
-    assert!(f2_ab > 0.0, "f2(A,B) should be positive, got {}", f2_ab);
+    assert!(f2_ab > 0.0, "f2(A,B) should be positive, got {f2_ab}");
     assert!(std_err >= 0.0);
     assert!(n_snps > 0);
 }
@@ -673,7 +679,7 @@ fn test_f2_matrix() {
     assert_eq!(matrix.shape(), &[3, 3]);
 
     // Print matrix for debugging
-    println!("F2 matrix:\n{:?}", matrix);
+    println!("F2 matrix:\n{matrix:?}");
 
     // Diagonal should be near 0 (but can be slightly negative due to bias correction)
     for i in 0..3 {

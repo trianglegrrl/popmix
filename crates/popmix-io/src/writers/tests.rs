@@ -150,9 +150,7 @@ fn test_eigenstrat_roundtrip() {
             assert_eq!(
                 reloaded.get(snp_idx, sample_idx),
                 matrix.get(snp_idx, sample_idx),
-                "Mismatch at SNP {} sample {}",
-                snp_idx,
-                sample_idx
+                "Mismatch at SNP {snp_idx} sample {sample_idx}"
             );
         }
     }
@@ -182,9 +180,7 @@ fn test_packedancestrymap_roundtrip() {
             assert_eq!(
                 reloaded.get(snp_idx, sample_idx),
                 matrix.get(snp_idx, sample_idx),
-                "Mismatch at SNP {} sample {}",
-                snp_idx,
-                sample_idx
+                "Mismatch at SNP {snp_idx} sample {sample_idx}"
             );
         }
     }
@@ -214,9 +210,7 @@ fn test_packedped_roundtrip() {
             assert_eq!(
                 reloaded.get(snp_idx, sample_idx),
                 matrix.get(snp_idx, sample_idx),
-                "Mismatch at SNP {} sample {}",
-                snp_idx,
-                sample_idx
+                "Mismatch at SNP {snp_idx} sample {sample_idx}"
             );
         }
     }
@@ -298,9 +292,7 @@ fn test_eigenstrat_to_packedped_conversion() {
             assert_eq!(
                 plink_matrix.get(snp_idx, sample_idx),
                 matrix.get(snp_idx, sample_idx),
-                "Mismatch at SNP {} sample {}",
-                snp_idx,
-                sample_idx
+                "Mismatch at SNP {snp_idx} sample {sample_idx}"
             );
         }
     }
@@ -336,9 +328,7 @@ fn test_packedped_to_packedancestrymap_conversion() {
             assert_eq!(
                 packed_matrix.get(snp_idx, sample_idx),
                 matrix.get(snp_idx, sample_idx),
-                "Mismatch at SNP {} sample {}",
-                snp_idx,
-                sample_idx
+                "Mismatch at SNP {snp_idx} sample {sample_idx}"
             );
         }
     }

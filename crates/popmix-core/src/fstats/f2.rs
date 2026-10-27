@@ -44,9 +44,8 @@ pub fn f2_single_snp(
     count_b: u32,
 ) -> (f64, f64) {
     // Both populations need data
-    let (pa, pb) = match (freq_a, freq_b) {
-        (Some(a), Some(b)) => (a, b),
-        _ => return (0.0, 0.0),
+    let (Some(pa), Some(pb)) = (freq_a, freq_b) else {
+        return (0.0, 0.0);
     };
 
     // Need at least 1 allele in each population
@@ -56,8 +55,8 @@ pub fn f2_single_snp(
 
     // Use max(1, count-1) for denominator, matching admixtools2 behavior
     // This allows single-sample populations (count=1) to work
-    let denom_a = (count_a as f64 - 1.0).max(1.0);
-    let denom_b = (count_b as f64 - 1.0).max(1.0);
+    let denom_a = (f64::from(count_a) - 1.0).max(1.0);
+    let denom_b = (f64::from(count_b) - 1.0).max(1.0);
 
     // Raw squared difference
     let diff = pa - pb;

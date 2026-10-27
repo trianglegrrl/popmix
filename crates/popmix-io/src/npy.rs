@@ -28,10 +28,7 @@ const NPY_MAGIC: &[u8] = b"\x93NUMPY";
 /// Write a 2D f64 array to a .npy file.
 pub fn write_npy_f64(path: &Path, array: &Array2<f64>) -> Result<()> {
     let (rows, cols) = (array.nrows(), array.ncols());
-    let header = format!(
-        "{{'descr': '<f8', 'fortran_order': False, 'shape': ({}, {}), }}",
-        rows, cols
-    );
+    let header = format!("{{'descr': '<f8', 'fortran_order': False, 'shape': ({rows}, {cols}), }}");
     // the header, then a newline, padded with spaces so that the data
     // starts at a multiple of 64 bytes (6 magic + 2 version + 2 length)
     let header_len = header.len() + 1;
@@ -44,7 +41,7 @@ pub fn write_npy_f64(path: &Path, array: &Array2<f64>) -> Result<()> {
     bytes.resize(bytes.len() + padding, b' ');
     bytes.push(b'\n');
     // data in C order (row-major)
-    for &val in array.iter() {
+    for &val in array {
         bytes.extend_from_slice(&val.to_le_bytes());
     }
     std::fs::write(path, bytes).with_path(path)

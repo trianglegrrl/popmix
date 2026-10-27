@@ -115,7 +115,7 @@ pub fn read_kinship_py(
         o
     };
     let (mut source, snps, _, samples) = open_source(prefix, &populations, auto_only)?;
-    let positions: Vec<u64> = snps.iter().map(|s| s.position_bp as u64).collect();
+    let positions: Vec<u64> = snps.iter().map(|s| u64::from(s.position_bp)).collect();
     let mut chroms = Vec::with_capacity(snps.len());
     let mut run = 0u32;
     for (k, s) in snps.iter().enumerate() {

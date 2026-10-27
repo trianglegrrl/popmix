@@ -109,8 +109,8 @@ impl GenoFormat {
         }
 
         // Check for VCF format with prefix (add .vcf or .vcf.gz)
-        let vcf_path = format!("{}.vcf", prefix_str);
-        let vcf_gz_path = format!("{}.vcf.gz", prefix_str);
+        let vcf_path = format!("{prefix_str}.vcf");
+        let vcf_gz_path = format!("{prefix_str}.vcf.gz");
         if Path::new(&vcf_gz_path).exists() {
             return Ok(GenoFormat::Vcf);
         }
@@ -119,25 +119,25 @@ impl GenoFormat {
         }
 
         // Check for PACKEDPED (PLINK) format: .bed file
-        let bed_path = format!("{}.bed", prefix_str);
+        let bed_path = format!("{prefix_str}.bed");
         if Path::new(&bed_path).exists() {
             return Ok(GenoFormat::PackedPed);
         }
 
         // Check for PED format: .ped file
-        let ped_path = format!("{}.ped", prefix_str);
+        let ped_path = format!("{prefix_str}.ped");
         if Path::new(&ped_path).exists() {
             return Ok(GenoFormat::Ped);
         }
 
         // Check for ANCESTRYMAP format: .ancestrymapgeno file
-        let ancestrymap_path = format!("{}.ancestrymapgeno", prefix_str);
+        let ancestrymap_path = format!("{prefix_str}.ancestrymapgeno");
         if Path::new(&ancestrymap_path).exists() {
             return Ok(GenoFormat::Ancestrymap);
         }
 
         // Check for EIGENSTRAT or PACKEDANCESTRYMAP format: .geno file
-        let geno_path = format!("{}.geno", prefix_str);
+        let geno_path = format!("{prefix_str}.geno");
         if Path::new(&geno_path).exists() {
             // Distinguish by checking for the TGENO or GENO magic header
             if tgeno::is_tgeno_format(&geno_path)? {
@@ -145,13 +145,12 @@ impl GenoFormat {
             }
             if packedancestrymap::is_packed_format(&geno_path)? {
                 return Ok(GenoFormat::PackedAncestrymap);
-            } else {
-                return Ok(GenoFormat::Eigenstrat);
             }
+            return Ok(GenoFormat::Eigenstrat);
         }
 
         Err(PopmixError::FileNotFound {
-            path: format!("{} (no recognized genotype files found)", prefix_str).into(),
+            path: format!("{prefix_str} (no recognized genotype files found)").into(),
         })
     }
 
@@ -330,9 +329,11 @@ mod parse_lines_tests {
     #[test]
     fn lines_keep_their_order_and_numbers_across_pieces() {
         // about 3 MB: several pieces, with blank and CRLF lines among them
+        use std::fmt::Write;
         let mut text = String::new();
         for i in 0..300_000 {
-            text.push_str(&format!("{i} x\n"));
+            writeln!(text, "{i} x").unwrap();
+
             if i % 1000 == 0 {
                 text.push_str("  \r\n");
             }

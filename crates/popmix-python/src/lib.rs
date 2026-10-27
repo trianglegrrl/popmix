@@ -50,7 +50,11 @@ fn require_populations(f2: &F2Blocks, pops: &[&str]) -> PyResult<()> {
     if unknown.is_empty() {
         return Ok(());
     }
-    let have: Vec<String> = f2.populations().iter().map(|p| p.to_string()).collect();
+    let have: Vec<String> = f2
+        .populations()
+        .iter()
+        .map(std::string::ToString::to_string)
+        .collect();
     Err(popmix_exception(
         "PopulationNotFoundError",
         format!(
@@ -65,7 +69,7 @@ fn require_populations(f2: &F2Blocks, pops: &[&str]) -> PyResult<()> {
 fn require_sample_populations(samples: &[popmix_core::Sample], pops: &[String]) -> PyResult<()> {
     let present: std::collections::HashSet<&str> =
         samples.iter().map(|s| s.population.as_str()).collect();
-    popmix_core::genotypes::check_populations(pops.iter().map(|p| p.as_str()), |p| {
+    popmix_core::genotypes::check_populations(pops.iter().map(std::string::String::as_str), |p| {
         present.contains(p)
     })
     .map_err(PyErr::from)

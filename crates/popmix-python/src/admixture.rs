@@ -16,17 +16,17 @@ fn load(
     py: Python<'_>,
     prefix: &str,
     populations: &[String],
-    chromosomes: &Option<Vec<String>>,
-    snp_ids: &Option<Vec<String>>,
+    chromosomes: Option<&[String]>,
+    snp_ids: Option<&[String]>,
 ) -> PyResult<(PackedGenotypes, Vec<Snp>, Vec<Sample>)> {
-    let chroms: Option<Vec<popmix_core::Chromosome>> = chromosomes.as_ref().map(|c| {
+    let chroms: Option<Vec<popmix_core::Chromosome>> = chromosomes.map(|c| {
         c.iter()
             .map(|x| popmix_core::Chromosome::parse(x))
             .collect()
     });
     let wanted: Option<std::collections::HashSet<&str>> = snp_ids
         .as_ref()
-        .map(|v| v.iter().map(|s| s.as_str()).collect());
+        .map(|v| v.iter().map(std::string::String::as_str).collect());
     let keep = |s: &Snp| {
         chroms.as_ref().is_none_or(|c| c.contains(&s.chromosome))
             && wanted.as_ref().is_none_or(|w| w.contains(s.id.as_str()))
@@ -115,7 +115,13 @@ pub fn admixture_py(
     tolerance: f64,
     max_iterations: usize,
 ) -> PyResult<Py<PyAny>> {
-    let (geno, snps, samples) = load(py, prefix, &populations, &chromosomes, &snps)?;
+    let (geno, snps, samples) = load(
+        py,
+        prefix,
+        &populations,
+        chromosomes.as_deref(),
+        snps.as_deref(),
+    )?;
     let options = {
         let mut o = AdmixtureOptions::default();
         o.tolerance = tolerance;
@@ -171,7 +177,13 @@ pub fn admixture_loglik(
     chromosomes: Option<Vec<String>>,
     snps: Option<Vec<String>>,
 ) -> PyResult<f64> {
-    let (geno, _, _) = load(py, prefix, &populations, &chromosomes, &snps)?;
+    let (geno, _, _) = load(
+        py,
+        prefix,
+        &populations,
+        chromosomes.as_deref(),
+        snps.as_deref(),
+    )?;
     let k = q.as_array().ncols();
     let q: Vec<f64> = q.as_array().iter().copied().collect();
     let p: Vec<f64> = p.as_array().iter().copied().collect();

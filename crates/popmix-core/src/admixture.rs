@@ -135,7 +135,9 @@ fn normalize_q(q: &mut [f64], k: usize) {
             *x = x.max(BOUND);
         }
         let s: f64 = row.iter().sum();
-        row.iter_mut().for_each(|x| *x /= s);
+        for x in row {
+            *x /= s;
+        }
     }
 }
 
@@ -214,7 +216,9 @@ fn fit(
             }
         }
         normalize_q(q, k);
-        p.iter_mut().for_each(|x| *x = clamp(*x));
+        for x in p.iter_mut() {
+            *x = clamp(*x);
+        }
     };
     while iterations < options.max_iterations {
         iterations += 1;
@@ -370,7 +374,7 @@ pub fn admixture_supervised(
         }
     }
     normalize_q(&mut q, k);
-    let fixed: Vec<bool> = labels.iter().map(|l| l.is_some()).collect();
+    let fixed: Vec<bool> = labels.iter().map(std::option::Option::is_some).collect();
     let d = Data {
         geno,
         held_out: None,
@@ -475,7 +479,7 @@ pub fn admixture_cv(
                 if g > 2 || !held.contains(j, i) {
                     continue;
                 }
-                let h = 2.0 - g as f64;
+                let h = 2.0 - f64::from(g);
                 let a: f64 = (0..k)
                     .map(|t| refit.q[i * k + t] * refit.p[j * k + t])
                     .sum();

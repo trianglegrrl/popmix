@@ -36,7 +36,7 @@ impl AncestryMapReader {
         let prefix_str = prefix.to_string_lossy();
 
         // Check for .ancestrymapgeno file
-        let geno_path = format!("{}.ancestrymapgeno", prefix_str);
+        let geno_path = format!("{prefix_str}.ancestrymapgeno");
         if !Path::new(&geno_path).exists() {
             return Err(PopmixError::FileNotFound {
                 path: geno_path.into(),
@@ -44,8 +44,8 @@ impl AncestryMapReader {
         }
 
         // Read SNP and sample metadata (same format as EIGENSTRAT)
-        let snp_path = format!("{}.snp", prefix_str);
-        let ind_path = format!("{}.ind", prefix_str);
+        let snp_path = format!("{prefix_str}.snp");
+        let ind_path = format!("{prefix_str}.ind");
 
         let snps = read_snp_file(&snp_path)?;
         let samples = read_ind_file(&ind_path)?;
@@ -135,7 +135,7 @@ impl AncestryMapReader {
                 .ok_or_else(|| PopmixError::ParseError {
                     path: self.geno_path.clone().into(),
                     line: line_num + 1,
-                    details: format!("Unknown SNP ID: {}", snp_id),
+                    details: format!("Unknown SNP ID: {snp_id}"),
                 })?;
 
             let sample_idx =
@@ -144,7 +144,7 @@ impl AncestryMapReader {
                     .ok_or_else(|| PopmixError::ParseError {
                         path: self.geno_path.clone().into(),
                         line: line_num + 1,
-                        details: format!("Unknown sample ID: {}", sample_id),
+                        details: format!("Unknown sample ID: {sample_id}"),
                     })?;
 
             // ANCESTRYMAP count is number of reference alleles (0, 1, or 2)
@@ -175,17 +175,17 @@ mod tests {
         let prefix_str = prefix.to_string_lossy().to_string();
 
         // Write .ind file
-        let mut ind = File::create(format!("{}.ind", prefix_str)).unwrap();
+        let mut ind = File::create(format!("{prefix_str}.ind")).unwrap();
         writeln!(ind, "Sample1 M Pop1").unwrap();
         writeln!(ind, "Sample2 F Pop2").unwrap();
 
         // Write .snp file
-        let mut snp = File::create(format!("{}.snp", prefix_str)).unwrap();
+        let mut snp = File::create(format!("{prefix_str}.snp")).unwrap();
         writeln!(snp, "rs1 1 0.001 100 A G").unwrap();
         writeln!(snp, "rs2 1 0.002 200 C T").unwrap();
 
         // Write .ancestrymapgeno file
-        let mut geno = File::create(format!("{}.ancestrymapgeno", prefix_str)).unwrap();
+        let mut geno = File::create(format!("{prefix_str}.ancestrymapgeno")).unwrap();
         writeln!(geno, "rs1 Sample1 2").unwrap(); // HomRef
         writeln!(geno, "rs1 Sample2 1").unwrap(); // Het
         writeln!(geno, "rs2 Sample1 0").unwrap(); // HomAlt

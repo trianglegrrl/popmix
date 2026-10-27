@@ -128,7 +128,7 @@ fn first_above(tab: &[f64], lo: usize, hi: usize, val: f64) -> usize {
     if val < tab[lo] {
         return lo;
     }
-    let k = (lo + hi) / 2;
+    let k = usize::midpoint(lo, hi);
     if val <= tab[k] {
         first_above(tab, lo + 1, k, val)
     } else {

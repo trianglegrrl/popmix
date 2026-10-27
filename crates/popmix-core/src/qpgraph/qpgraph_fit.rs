@@ -387,7 +387,8 @@ fn precompute_f3(f2_blocks: &F2Blocks, pops: &[&str], diag_f3: f64) -> Result<F3
                 .map(|b| f2_blocks.block_mean(b, idx[i], idx[j]))
                 .collect();
             let loo = leave_one_out(&means, &lengths);
-            f2_loo[j][i] = loo.clone();
+            f2_loo[j][i].clone_from(&loo);
+
             f2_loo[i][j] = loo;
         }
     }
@@ -602,7 +603,7 @@ pub fn qpgraph(
             pops.len(),
         ));
     }
-    let pop_refs: Vec<&str> = pops.iter().map(|s| s.as_str()).collect();
+    let pop_refs: Vec<&str> = pops.iter().map(std::string::String::as_str).collect();
     let model = Model {
         paths: Paths::new(&g),
         f3: precompute_f3(f2_blocks, &pop_refs, opts.diag_f3)?,

@@ -187,7 +187,7 @@ fn test_lbfgsb_matches_r_optim() {
             "{name}: counts"
         );
         assert_eq!(
-            res.convergence as f64,
+            f64::from(res.convergence),
             num(&case["convergence"]),
             "{name}: convergence"
         );

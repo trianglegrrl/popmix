@@ -110,14 +110,14 @@ impl PackedAncestryMapReader {
         let prefix = prefix.as_ref().to_string_lossy().to_string();
 
         // Use EIGENSTRAT functions for .ind and .snp files (same format)
-        let ind_path = format!("{}.ind", prefix);
+        let ind_path = format!("{prefix}.ind");
         let samples = crate::eigenstrat::read_ind_file(&ind_path)?;
 
-        let snp_path = format!("{}.snp", prefix);
+        let snp_path = format!("{prefix}.snp");
         let snps = crate::eigenstrat::read_snp_file(&snp_path)?;
 
         // Verify the .geno file is in packed format
-        let geno_path = format!("{}.geno", prefix);
+        let geno_path = format!("{prefix}.geno");
         if !is_packed_format(&geno_path)? {
             return Err(PopmixError::InvalidFileFormat {
                 path: geno_path.into(),
@@ -425,17 +425,18 @@ mod tests {
         let text = std::fs::read_to_string(&ind).unwrap();
         std::fs::write(
             &ind,
-            text.lines()
-                .skip(1)
-                .map(|l| format!("{l}\n"))
-                .collect::<String>(),
+            text.lines().skip(1).fold(String::new(), |mut out, l| {
+                out.push_str(l);
+                out.push('\n');
+                out
+            }),
         )
         .unwrap();
         let err = PackedAncestryMapReader::new(&prefix)
             .err()
             .unwrap()
             .to_string();
-        assert!(err.contains("5 samples") && err.contains("4"), "{err}");
+        assert!(err.contains("5 samples") && err.contains('4'), "{err}");
         let samples = crate::eigenstrat::read_ind_file(ind.to_str().unwrap()).unwrap();
         let err =
             crate::streaming::detect_ploidy_packedancestrymap(&geno, &mut samples.clone(), 1000, 4)

@@ -33,7 +33,7 @@ pub(crate) fn informative(w: f64, p1: f64, p2: f64) -> bool {
     if !w.is_finite() || w.abs() < MIN_WEIGHT {
         return false;
     }
-    let m = (p1 + p2) * 0.5;
+    let m = f64::midpoint(p1, p2);
     m * (1.0 - m) >= MIN_MEAN_HET
 }
 
@@ -101,10 +101,10 @@ mod tests {
         let snps: Vec<Snp> = (0..10)
             .map(|i| {
                 Snp::new(
-                    format!("rs{}", i),
+                    format!("rs{i}"),
                     Chromosome::Autosome(1),
                     (i * 1000) as u32,
-                    i as f64 * 0.1,
+                    f64::from(i) * 0.1,
                     'A',
                     'G',
                 )
@@ -148,9 +148,9 @@ mod tests {
             let w = result.weights[idx];
             assert!(w.is_finite());
             // pop1 has higher freq than pop2, so weights should be positive
-            assert!(w > 0.0, "Weight at {} should be positive, got {}", idx, w);
+            assert!(w > 0.0, "Weight at {idx} should be positive, got {w}");
             // Check approximate value
-            assert!((w - 4.0 / 6.0).abs() < 0.01, "Expected ~0.666, got {}", w);
+            assert!((w - 4.0 / 6.0).abs() < 0.01, "Expected ~0.666, got {w}");
         }
     }
 

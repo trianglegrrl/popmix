@@ -56,7 +56,10 @@ impl PyF2Blocks {
     /// These populations only, in this order (admixtools2
     /// ``extract_f2_subset``); FST blocks are kept.
     fn subset(&self, populations: Vec<String>) -> PyResult<PyF2Blocks> {
-        let refs: Vec<&str> = populations.iter().map(|s| s.as_str()).collect();
+        let refs: Vec<&str> = populations
+            .iter()
+            .map(std::string::String::as_str)
+            .collect();
         Ok(PyF2Blocks {
             inner: self.inner.subset_populations(&refs)?,
         })
@@ -134,7 +137,7 @@ impl PyF2Blocks {
         self.inner
             .populations()
             .iter()
-            .map(|p| p.to_string())
+            .map(std::string::ToString::to_string)
             .collect()
     }
 
@@ -285,10 +288,10 @@ impl PyF2Blocks {
         pop3: Vec<String>,
         pop4: Vec<String>,
     ) -> PyResult<Vec<HashMap<String, Py<PyAny>>>> {
-        let pop1_refs: Vec<&str> = pop1.iter().map(|s| s.as_str()).collect();
-        let pop2_refs: Vec<&str> = pop2.iter().map(|s| s.as_str()).collect();
-        let pop3_refs: Vec<&str> = pop3.iter().map(|s| s.as_str()).collect();
-        let pop4_refs: Vec<&str> = pop4.iter().map(|s| s.as_str()).collect();
+        let pop1_refs: Vec<&str> = pop1.iter().map(std::string::String::as_str).collect();
+        let pop2_refs: Vec<&str> = pop2.iter().map(std::string::String::as_str).collect();
+        let pop3_refs: Vec<&str> = pop3.iter().map(std::string::String::as_str).collect();
+        let pop4_refs: Vec<&str> = pop4.iter().map(std::string::String::as_str).collect();
         Python::attach(|py| {
             self.inner
                 .qpdstat(&pop1_refs, &pop2_refs, &pop3_refs, &pop4_refs)
@@ -330,9 +333,9 @@ impl PyF2Blocks {
         source1: Vec<String>,
         source2: Vec<String>,
     ) -> PyResult<Vec<HashMap<String, Py<PyAny>>>> {
-        let targets_refs: Vec<&str> = targets.iter().map(|s| s.as_str()).collect();
-        let source1_refs: Vec<&str> = source1.iter().map(|s| s.as_str()).collect();
-        let source2_refs: Vec<&str> = source2.iter().map(|s| s.as_str()).collect();
+        let targets_refs: Vec<&str> = targets.iter().map(std::string::String::as_str).collect();
+        let source1_refs: Vec<&str> = source1.iter().map(std::string::String::as_str).collect();
+        let source2_refs: Vec<&str> = source2.iter().map(std::string::String::as_str).collect();
         Python::attach(|py| {
             self.inner
                 .qp3pop(&targets_refs, &source1_refs, &source2_refs)
@@ -372,11 +375,10 @@ impl PyF2Blocks {
         py: Python<'py>,
         pop_a: &str,
         pop_b: &str,
-    ) -> PyResult<Option<Bound<'py, PyArray1<f64>>>> {
-        match self.inner.get_block_f2_values(pop_a, pop_b) {
-            Some(values) => Ok(Some(values.into_pyarray(py))),
-            None => Ok(None),
-        }
+    ) -> Option<Bound<'py, PyArray1<f64>>> {
+        self.inner
+            .get_block_f2_values(pop_a, pop_b)
+            .map(|values| values.into_pyarray(py))
     }
 
     /// Save F2 blocks to a directory.

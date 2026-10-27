@@ -294,8 +294,8 @@ mod tests {
         let mut bins = Vec::new();
         // Generate bins from 0.5 to 30 cM
         for i in 5..=300 {
-            let distance_cm = i as f64 * 0.1;
-            let bin_idx = (i - 5) as f64;
+            let distance_cm = f64::from(i) * 0.1;
+            let bin_idx = f64::from(i - 5);
             let true_ld = amplitude * true_r.powf(bin_idx) + intercept;
 
             bins.push(LdBin {

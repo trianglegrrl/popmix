@@ -436,7 +436,7 @@ impl SnpMajor {
         let mut pop_sample_info: Vec<Vec<(usize, u32)>> = vec![Vec::new(); n_pops];
         for (sample_idx, sample) in samples.iter().enumerate() {
             if let Some(&col) = pop_to_col.get(sample.population.as_str()) {
-                let ploidy = sample.ploidy.effective_ploidy() as u32;
+                let ploidy = u32::from(sample.ploidy.effective_ploidy());
                 pop_sample_info[col].push((sample_idx, ploidy));
             }
         }
@@ -459,8 +459,8 @@ impl SnpMajor {
                     for &(sample_idx, ploidy) in sample_info {
                         let g = self.code(record, sample_idx);
                         // without a branch, as missing calls are common
-                        let called = (g != 3) as u64 * ploidy as u64;
-                        twice_alt += g as u64 * called;
+                        let called = u64::from(g != 3) * u64::from(ploidy);
+                        twice_alt += u64::from(g) * called;
                         observed += called;
                     }
                     if observed > 0 {

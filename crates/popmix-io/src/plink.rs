@@ -44,11 +44,11 @@ impl PlinkReader {
         let prefix = prefix.as_ref().to_string_lossy().to_string();
 
         // Read .fam file (samples)
-        let fam_path = format!("{}.fam", prefix);
+        let fam_path = format!("{prefix}.fam");
         let samples = read_fam_file(&fam_path)?;
 
         // Read .bim file (SNPs)
-        let bim_path = format!("{}.bim", prefix);
+        let bim_path = format!("{prefix}.bim");
         let snps = read_bim_file(Path::new(&bim_path))?;
 
         // Calculate bytes per SNP (ceil(n_samples / 4))

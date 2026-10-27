@@ -29,15 +29,15 @@ impl EigenstratReader {
         let prefix = prefix.as_ref().to_string_lossy().to_string();
 
         // Read .ind file (samples)
-        let ind_path = format!("{}.ind", prefix);
+        let ind_path = format!("{prefix}.ind");
         let samples = read_ind_file(&ind_path)?;
 
         // Read .snp file (SNPs)
-        let snp_path = format!("{}.snp", prefix);
+        let snp_path = format!("{prefix}.snp");
         let snps = read_snp_file(&snp_path)?;
 
         // Verify .geno file exists
-        let geno_path = format!("{}.geno", prefix);
+        let geno_path = format!("{prefix}.geno");
         if !Path::new(&geno_path).exists() {
             return Err(PopmixError::FileNotFound {
                 path: geno_path.into(),
@@ -138,10 +138,7 @@ impl EigenstratReader {
             return Err(PopmixError::parse(
                 &geno_path,
                 0,
-                format!(
-                    "Expected {} SNPs in range, but only read {}",
-                    n_snps, out_idx
-                ),
+                format!("Expected {n_snps} SNPs in range, but only read {out_idx}"),
             ));
         }
 
@@ -186,7 +183,7 @@ impl EigenstratReader {
         Err(PopmixError::parse(
             &geno_path,
             0,
-            format!("SNP index {} out of range", snp_idx),
+            format!("SNP index {snp_idx} out of range"),
         ))
     }
 

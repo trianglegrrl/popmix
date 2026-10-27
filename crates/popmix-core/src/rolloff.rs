@@ -364,7 +364,7 @@ pub fn rolloff(
             if diff.abs() < 0.001 {
                 return None;
             }
-            let mean = 0.5 * (pa + pb);
+            let mean = f64::midpoint(pa, pb);
             if mean * (1.0 - mean) < 0.001 {
                 return None;
             }
@@ -535,7 +535,7 @@ pub fn fit_rolloff(d_cm: &[f64], y: &[f64], lval: f64, hval: f64) -> RolloffFit 
     };
     // a fine logarithmic grid, then golden-section refinement around the best
     let grid: Vec<f64> = (0..=4000)
-        .map(|k| 0.01 * (500.0f64 / 0.01).powf(k as f64 / 4000.0))
+        .map(|k| 0.01 * (500.0f64 / 0.01).powf(f64::from(k) / 4000.0))
         .collect();
     let best = grid
         .iter()
@@ -564,7 +564,7 @@ pub fn fit_rolloff(d_cm: &[f64], y: &[f64], lval: f64, hval: f64) -> RolloffFit 
             break;
         }
     }
-    at((lo + hi) / 2.0)
+    at(f64::midpoint(lo, hi))
 }
 
 #[cfg(test)]
@@ -598,7 +598,7 @@ mod tests {
 
     #[test]
     fn the_fit_recovers_an_exponential() {
-        let d: Vec<f64> = (1..=200).map(|k| k as f64 * 0.1).collect();
+        let d: Vec<f64> = (1..=200).map(|k| f64::from(k) * 0.1).collect();
         let y: Vec<f64> = d
             .iter()
             .map(|x| 0.002 + 0.03 * (-25.0 * x / 100.0).exp())

@@ -661,7 +661,7 @@ fn f2_block(af: &AlleleFrequencies, rows: &[usize]) -> BlockResult {
             }
             let f = af.frequencies[[snp, a]];
             let h = f * (1.0 - f);
-            let bias = h / (n as f64 - 1.0).max(1.0);
+            let bias = h / (f64::from(n) - 1.0).max(1.0);
             p[[r, a]] = f;
             q[[r, a]] = f * f;
             c[[r, a]] = bias;
@@ -684,7 +684,7 @@ fn f2_block(af: &AlleleFrequencies, rows: &[usize]) -> BlockResult {
     // raw sums only over populations with at least two alleles
     let (raw_pp, raw_qm) = if single {
         let r = Array2::from_shape_fn(m.raw_dim().f(), |(i, a)| {
-            (af.counts[[rows[i], a]] >= 2) as u8 as f64
+            f64::from(u8::from(af.counts[[rows[i], a]] >= 2))
         });
         let (pr, qr) = (&p * &r, &q * &r);
         (cross(&pr, &pr), cross(&qr, &r))
@@ -737,7 +737,7 @@ fn fst_block(af: &AlleleFrequencies, rows: &[usize]) -> (Vec<f64>, Vec<f64>) {
     let mut self_den = vec![0.0; n_pops];
     for (r, &snp) in rows.iter().enumerate() {
         for a in 0..n_pops {
-            let n = af.counts[[snp, a]] as f64;
+            let n = f64::from(af.counts[[snp, a]]);
             if n < 2.0 {
                 continue;
             }

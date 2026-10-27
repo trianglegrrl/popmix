@@ -209,7 +209,7 @@ mod tests {
         ] {
             for i in 0..count {
                 samples.push(Sample::new(
-                    format!("{}_{}", pop_name, i),
+                    format!("{pop_name}_{i}"),
                     PopulationId::new(pop_name),
                 ));
             }
@@ -219,10 +219,10 @@ mod tests {
         let snps: Vec<Snp> = (0..100)
             .map(|i| {
                 Snp::new(
-                    format!("rs{}", i),
+                    format!("rs{i}"),
                     Chromosome::Autosome(1),
                     (i * 1000) as u32,
-                    i as f64 * 0.2, // 0.2 cM spacing
+                    f64::from(i) * 0.2, // 0.2 cM spacing
                     'A',
                     'G',
                 )

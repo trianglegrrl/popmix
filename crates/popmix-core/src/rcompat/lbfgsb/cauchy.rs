@@ -66,7 +66,7 @@ pub(super) fn cauchy(
     let mut bkmin = 0.0;
     let col2 = 2 * col;
     let mut f1 = 0.0;
-    for v in w.p[..col2].iter_mut() {
+    for v in &mut w.p[..col2] {
         *v = 0.0;
     }
     for i in 1..=n {
@@ -133,7 +133,7 @@ pub(super) fn cauchy(
         }
     }
     if theta != 1.0 {
-        for v in w.p[col..col2].iter_mut() {
+        for v in &mut w.p[col..col2] {
             *v *= theta;
         }
     }
@@ -141,7 +141,7 @@ pub(super) fn cauchy(
     if nbreak == 0 && nfree == n + 1 {
         return 0;
     }
-    for v in w.c[..col2].iter_mut() {
+    for v in &mut w.c[..col2] {
         *v = 0.0;
     }
     let mut f2 = -theta * f1;

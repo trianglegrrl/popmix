@@ -11,20 +11,17 @@ fn create_test_data_with_spacing(
 ) -> (GenotypeMatrix, AlleleFrequencies, Vec<f64>) {
     let mut samples = Vec::new();
     for i in 0..10 {
-        samples.push(Sample::new(
-            format!("test_{}", i),
-            PopulationId::new("test"),
-        ));
+        samples.push(Sample::new(format!("test_{i}"), PopulationId::new("test")));
     }
     for i in 0..5 {
         samples.push(Sample::new(
-            format!("src1_{}", i),
+            format!("src1_{i}"),
             PopulationId::new("source1"),
         ));
     }
     for i in 0..5 {
         samples.push(Sample::new(
-            format!("src2_{}", i),
+            format!("src2_{i}"),
             PopulationId::new("source2"),
         ));
     }
@@ -32,10 +29,10 @@ fn create_test_data_with_spacing(
     let snps: Vec<Snp> = (0..50)
         .map(|i| {
             Snp::new(
-                format!("rs{}", i),
+                format!("rs{i}"),
                 Chromosome::Autosome(1),
                 (i * 10000) as u32,
-                i as f64 * spacing_morgans,
+                f64::from(i) * spacing_morgans,
                 'A',
                 'G',
             )
@@ -91,7 +88,7 @@ fn bins_do_not_depend_on_the_thread_count() {
                 format!("rs{i}"),
                 Chromosome::Autosome(1 + (i / 100) as u8),
                 (i * 7919) as u32,
-                (i % 100) as f64 * 0.0031,
+                f64::from(i % 100) * 0.0031,
                 'A',
                 'G',
             )

@@ -38,6 +38,31 @@ itertools = "0.13"
 approx = "0.5"
 criterion = "0.5"
 
+# clippy::pedantic lints worth having (TASKS.md M2); the rest of pedantic
+# is noise here (casts of counts, doc style, must_use on every getter)
+[workspace.lints.clippy]
+manual_midpoint = "warn"
+manual_let_else = "warn"
+case_sensitive_file_extension_comparisons = "warn"
+ref_option = "warn"
+unnecessary_wraps = "warn"
+unused_self = "warn"
+implicit_hasher = "warn"
+semicolon_if_nothing_returned = "warn"
+redundant_else = "warn"
+single_char_pattern = "warn"
+unnested_or_patterns = "warn"
+uninlined_format_args = "warn"
+redundant_closure_for_method_calls = "warn"
+cast_lossless = "warn"
+map_unwrap_or = "warn"
+explicit_iter_loop = "warn"
+needless_for_each = "warn"
+bool_to_int_with_if = "warn"
+format_push_string = "warn"
+format_collect = "warn"
+assigning_clones = "warn"
+
 [profile.release]
 lto = true
 codegen-units = 1
