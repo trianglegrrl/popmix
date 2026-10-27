@@ -628,7 +628,7 @@ thread count.
   Also: `pm.qpwave_pairs` is the Python, admixtools2-shaped table; the
   Rust `_core.qpwave_pairs` and the exported `QpWavePairsResult` are
   returned by no public function. Keep one.
-  *Done in COMMIT:* statistics carry admixtools2's names everywhere in
+  *Done in dcd788e:* statistics carry admixtools2's names everywhere in
   Python and in the CLI's JSON and TSV: `est, se, z, p, chisq, dof`
   (`weight_se`, `feasible`; qpWave's `left`, `right`; DATES's `admixed`,
   `sources`). Tables are DataFrames; one statistic is a dict with the keys
