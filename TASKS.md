@@ -605,7 +605,7 @@ thread count.
 - [ ] **L1. popmix-io/core publishable:** `version` on the path dependency,
   `publish = false` on popmix-python, `rust-version` on every crate. RS
 - [x] **L2. Unused dependencies:** `ordered-float`; `proptest` and
-  `criterion` unless F12/B6 use them. RS *Done in COMMIT:* removed
+  `criterion` unless F12/B6 use them. RS *Done in 16dae78:* removed
   `ordered-float` and `proptest` (core), `thiserror` and `approx` (io, found
   by the new test); `criterion` stays for the F12 benches.
   `tests/python/test_dependencies.py` fails on a declared dependency a
