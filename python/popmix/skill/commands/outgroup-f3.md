@@ -52,7 +52,7 @@ popmix outgroup-f3 -i family --outgroup Yoruba --populations French,Simulation,S
 
 ```bash
 # not run: needs the AADR
-popmix outgroup-f3 -i /references/aadr/v62.0_1240k_public --outgroup Mbuti.DG \
+popmix outgroup-f3 -i aadr_v66p1 --outgroup Mbuti.DG \
   --populations French.DG,Sardinian.DG,Han.DG,Papuan.DG,Karitiana.DG --order cluster --heatmap og.pdf
 ```
 

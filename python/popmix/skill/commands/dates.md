@@ -61,7 +61,7 @@ popmix dates -i family --admixed Simulation.1 --sources French,Yoruba --compat d
 
 ```bash
 # not run: needs the AADR
-popmix --threads 8 dates -i /references/aadr/v62.0_1240k_public --admixed French.DG \
+popmix --threads 8 dates -i aadr_v66p1 --admixed French.DG \
   --sources Sardinian.DG,Russia_Samara_EBA_Yamnaya --qbin 10 --max-distance 50
 ```
 

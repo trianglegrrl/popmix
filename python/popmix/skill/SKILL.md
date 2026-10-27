@@ -179,7 +179,11 @@ small data bundled in the repository, so the examples cannot go stale:
   `merge_b.*` (two EIGENSTRAT sets that share 3 SNPs).
 
 Examples marked `# not run: ...` need large data such as the AADR
-(`/references/aadr/v62.0_1240k_public` in these files); adapt the path, and check the population names, which are illustrative, with `popmix populations PREFIX --filter`.
+(`aadr_v66p1` in these files: AADR v66.p1 with each population labelled by
+its data type, as `French.DG`); adapt the path, and check the population
+names, which are illustrative, with `popmix populations PREFIX --filter`.
+Use AADR v66.p1 or later, never v62.0 or v66.0: those hold the 161 genomes
+of Jacobs et al. 2019 that v66.p1 withdrew.
 
 ```bash
 # runs

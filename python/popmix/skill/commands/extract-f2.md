@@ -55,7 +55,7 @@ popmix extract-f2 -i family6 -o f2_six --all-chromosomes --maxmiss 0.1 --block-s
 
 ```bash
 # not run: needs the AADR
-popmix --threads 8 extract-f2 -i /references/aadr/v62.0_1240k_public -o f2_project \
+popmix --threads 8 extract-f2 -i aadr_v66p1 -o f2_project \
   --populations Mbuti.DG,Han.DG,French.DG,Yoruba.DG,Russia_Samara_EBA_Yamnaya,Turkey_N \
   --maxmiss 0.1
 ```

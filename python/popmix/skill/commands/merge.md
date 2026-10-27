@@ -50,7 +50,7 @@ popmix merge -a merge_a -b merge_b -o merged_plink -of plink
 
 ```bash
 # not run: needs the AADR and your own VCF
-popmix merge -a /references/aadr/v62.0_1240k_public -b my_samples.vcf.gz \
+popmix merge -a aadr_v66p1 -b my_samples.vcf.gz \
   -o panel_plus_mine -of packedancestrymap
 ```
 

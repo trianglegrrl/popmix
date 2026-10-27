@@ -43,7 +43,7 @@ popmix info small_vcf.vcf
 
 ```bash
 # not run: needs the AADR
-popmix info /references/aadr/v62.0_1240k_public -p
+popmix info aadr_v66p1 -p
 ```
 
 ## Reading the result

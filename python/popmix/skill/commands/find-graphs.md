@@ -53,7 +53,7 @@ popmix find-graphs -i family --populations Yoruba,French,Simulation,Simulation.1
 
 ```bash
 # not run: needs the AADR
-popmix find-graphs -i /references/aadr/v62.0_1240k_public \
+popmix find-graphs -i aadr_v66p1 \
   --populations Mbuti.DG,Han.DG,French.DG,Karitiana.DG,Papuan.DG --nadmix 2 --outgroup Mbuti.DG \
   --method exhaustive --plot best.png --output-graph best.graph
 ```

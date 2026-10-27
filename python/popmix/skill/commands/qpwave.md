@@ -53,7 +53,7 @@ popmix qpwave -i family6 --left French_1,French_2 --right Yoruba_1,Yoruba_2,Yoru
 
 ```bash
 # not run: needs the AADR
-popmix qpwave -i /references/aadr/v62.0_1240k_public --left French.DG,Sardinian.DG \
+popmix qpwave -i aadr_v66p1 --left French.DG,Sardinian.DG \
   --right Mbuti.DG,Han.DG,Karitiana.DG,Papuan.DG
 ```
 

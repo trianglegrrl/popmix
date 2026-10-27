@@ -44,7 +44,7 @@ popmix qp3pop -i family --pop1 Yoruba --pop2 French --pop3 Simulation,Simulation
 
 ```bash
 # not run: needs the AADR
-popmix qp3pop -i /references/aadr/v62.0_1240k_public --pop1 Uygur.DG,Hazara.DG \
+popmix qp3pop -i aadr_v66p1 --pop1 Uygur.DG,Hazara.DG \
   --pop2 Han.DG --pop3 French.DG,Sardinian.DG
 ```
 

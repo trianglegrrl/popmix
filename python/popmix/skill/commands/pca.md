@@ -51,7 +51,7 @@ popmix pca -i family --pca-pops French,Yoruba --project-pops Simulation,Simulati
 
 ```bash
 # not run: needs the AADR
-popmix --threads 8 pca -i /references/aadr/v62.0_1240k_public \
+popmix --threads 8 pca -i aadr_v66p1 \
   --pca-pops French.DG,Sardinian.DG,Basque.DG,Russian.DG,Han.DG \
   --project-pops Russia_Samara_EBA_Yamnaya,Turkey_N --lsqproject -o west_eurasia
 ```

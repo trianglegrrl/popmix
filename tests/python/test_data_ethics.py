@@ -85,3 +85,18 @@ def test_not_in_the_reference_cache():
             if text and (hits := _hits(text)):
                 found[str(path)] = hits
     assert not found, f"removed v66.p1 data found: {sorted(found)}"
+
+
+# reads v62.0's annotation only to list the names v66.p1 removed
+READS_V62_TO_HASH = {"tests/data_ethics/generate_removed.py"}
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not available")
+def test_no_example_points_at_a_release_with_the_withdrawn_genomes():
+    """Docs and examples name v66.p1 data, never a v62.0 or v66.0 path."""
+    files = subprocess.run(["git", "ls-files", "-z"], cwd=ROOT, capture_output=True, text=True,
+                           check=True).stdout.split("\0")
+    path = re.compile(r"v6[26]\.0_1240[kK]")
+    found = sorted(name for name in filter(None, files)
+                   if name not in READS_V62_TO_HASH and (text := _text(ROOT / name)) and path.search(text))
+    assert found == []

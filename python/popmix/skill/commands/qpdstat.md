@@ -50,7 +50,7 @@ popmix qpdstat --f2-dir f2_family --pop1 Yoruba,French,Simulation,Simulation.1 -
 
 ```bash
 # not run: needs the AADR
-popmix qpdstat -i /references/aadr/v62.0_1240k_public --d-mode \
+popmix qpdstat -i aadr_v66p1 --d-mode \
   --pop1 Mbuti.DG --pop2 French.DG,Sardinian.DG,Basque.DG --pop3 Han.DG --pop4 Karitiana.DG
 ```
 

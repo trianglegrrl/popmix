@@ -72,7 +72,7 @@ popmix qpadm -i family6 --target Simulation.1 --left French_1,Yoruba_1,Simulatio
 
 ```bash
 # not run: needs the AADR
-popmix extract-f2 -i /references/aadr/v62.0_1240k_public -o f2_eu --maxmiss 0.1 \
+popmix extract-f2 -i aadr_v66p1 -o f2_eu --maxmiss 0.1 \
   --populations Spain_EN,Turkey_N,Serbia_IronGates_Mesolithic,Mbuti.DG,Onge.DG,Papuan.DG,Han.DG,Karitiana.DG,Ami.DG
 popmix qpadm --f2-dir f2_eu --target Spain_EN --left Turkey_N,Serbia_IronGates_Mesolithic \
   --right Mbuti.DG,Onge.DG,Papuan.DG,Han.DG,Karitiana.DG,Ami.DG

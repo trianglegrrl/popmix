@@ -82,7 +82,7 @@ popmix qpgraph -i family --graph tree.graph --plot tree.png --plot-fit tree_fit.
 
 ```bash
 # not run: needs the AADR
-popmix extract-f2 -i /references/aadr/v62.0_1240k_public -o f2_graph \
+popmix extract-f2 -i aadr_v66p1 -o f2_graph \
   --populations Mbuti.DG,Han.DG,French.DG,Karitiana.DG,Papuan.DG
 popmix qpgraph --f2-dir f2_graph --graph my.graph --numstart 50 --plot my.pdf
 ```

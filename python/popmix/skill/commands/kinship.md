@@ -51,7 +51,7 @@ popmix kinship -i family --populations French --method read --norm max --window-
 
 ```bash
 # not run: needs ancient data
-popmix kinship -i /references/aadr/v62.0_1240k_public --populations France_Gurgy_MN --method read -o gurgy.tsv
+popmix kinship -i aadr_v66p1 --populations France_Gurgy_MN --method read -o gurgy.tsv
 ```
 
 ## Reading the result

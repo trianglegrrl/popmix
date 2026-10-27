@@ -56,7 +56,7 @@ popmix sfs -i family --populations French,Yoruba --joint --compat admixtools2-2.
 
 ```bash
 # not run: needs the AADR
-popmix sfs -i /references/aadr/v62.0_1240k_public --populations Yoruba.DG --projection 20 --folded
+popmix sfs -i aadr_v66p1 --populations Yoruba.DG --projection 20 --folded
 ```
 
 ## Reading the result

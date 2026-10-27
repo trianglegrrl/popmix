@@ -34,7 +34,7 @@ popmix populations family --filter "Sim*" --format json
 
 ```bash
 # not run: needs the AADR
-popmix populations /references/aadr/v62.0_1240k_public --filter "*Yamnaya*"
+popmix populations aadr_v66p1 --filter "*Yamnaya*"
 ```
 
 ## Reading the result

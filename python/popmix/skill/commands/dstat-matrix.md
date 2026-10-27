@@ -52,7 +52,7 @@ popmix dstat-matrix --f2-dir f2_family --f4-mode --populations French,Simulation
 
 ```bash
 # not run: needs the AADR
-popmix dstat-matrix -i /references/aadr/v62.0_1240k_public --pop1 Mbuti.DG --pop2 Han.DG \
+popmix dstat-matrix -i aadr_v66p1 --pop1 Mbuti.DG --pop2 Han.DG \
   --populations French.DG,Sardinian.DG,Karitiana.DG,Papuan.DG --value z --heatmap d.png
 ```
 

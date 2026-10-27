@@ -51,7 +51,7 @@ popmix rolloff -i family --admixed Simulation.1 --sources French,Yoruba --chromo
 
 ```bash
 # not run: needs the AADR
-popmix rolloff -i /references/aadr/v62.0_1240k_public --admixed ASW.DG --sources CEU.DG,YRI.DG -o asw
+popmix rolloff -i aadr_v66p1 --admixed ASW.DG --sources CEU.DG,YRI.DG -o asw
 ```
 
 ## Reading the result
