@@ -16,7 +16,7 @@
 //!   to full precision. On chr20_22_q0, DATES stops at 3.164539 (prints 3.165)
 //!   while the true minimum, with lower mean squared error, is 3.164450.
 
-use popmix_core::dates::{fit_exponential, weighted_jackknife, FitOptions, LdBin};
+use popmix_core::dates::{fit_exponential, weighted_jackknife, DecayFitOptions, LdBin};
 use std::fs;
 use std::path::PathBuf;
 
@@ -79,10 +79,10 @@ fn read_jout(name: &str) -> (f64, f64) {
     (f[0], f[1])
 }
 
-fn dates_fit_options() -> FitOptions {
+fn dates_fit_options() -> DecayFitOptions {
     // dates_expfit -l 0.450 -a -s 0.001 as run by dates_wtjack
     {
-        let mut o = FitOptions::default();
+        let mut o = DecayFitOptions::default();
         o.min_distance_cm = 0.45;
         o.max_distance_cm = f64::INFINITY;
         o.use_affine = true;

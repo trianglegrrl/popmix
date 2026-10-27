@@ -39,7 +39,7 @@ fn assert_same(got: &F2Blocks, want: &F2Blocks, what: &str) {
 fn every_format_gives_the_same_f2_blocks() {
     let packed = extract(&family(), &options(&POPS)).unwrap();
     assert_eq!(packed.populations().len(), 3);
-    let geno = read_genotypes(&family(), &mut warnings::ignore).unwrap();
+    let geno = read_genotypes(family(), &mut warnings::ignore).unwrap();
     let dir = tempfile::tempdir().unwrap();
     type Write = fn(&Path, &GenotypeMatrix) -> popmix_core::Result<()>;
     let writers: [(&str, Write); 4] = [
@@ -58,7 +58,7 @@ fn every_format_gives_the_same_f2_blocks() {
 
 #[test]
 fn samples_take_the_populations_given_and_the_others_are_left_out() {
-    let geno = read_genotypes(&family(), &mut warnings::ignore).unwrap();
+    let geno = read_genotypes(family(), &mut warnings::ignore).unwrap();
     let french: Vec<String> = geno
         .samples()
         .iter()
@@ -112,4 +112,21 @@ fn the_ploidy_rule_is_one_of_three_names() {
     );
     let err = "haploid".parse::<PloidyRule>().unwrap_err();
     assert!(matches!(err, PopmixError::InvalidParameter { .. }), "{err}");
+}
+
+#[test]
+fn format_names_parse_case_blind_and_with_their_aliases() {
+    use popmix_io::GenoFormat;
+    for (name, want) in [
+        ("plink", GenoFormat::PackedPed),
+        ("BED", GenoFormat::PackedPed),
+        ("PackedAncestryMap", GenoFormat::PackedAncestrymap),
+        ("transpose_packed", GenoFormat::Tgeno),
+        ("vcf", GenoFormat::Vcf),
+    ] {
+        assert_eq!(name.parse::<GenoFormat>().unwrap(), want, "{name}");
+    }
+    let err = "bgen".parse::<GenoFormat>().unwrap_err();
+    assert!(matches!(err, PopmixError::InvalidParameter { .. }), "{err}");
+    assert!(err.to_string().contains("eigenstrat"), "{err}");
 }

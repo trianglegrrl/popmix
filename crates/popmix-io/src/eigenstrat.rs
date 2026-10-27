@@ -238,7 +238,8 @@ impl EigenstratReader {
 /// Read a .ind file (EIGENSTRAT sample metadata).
 ///
 /// Format: SAMPLE_ID SEX POPULATION (whitespace-separated)
-pub fn read_ind_file(path: &str) -> Result<Vec<Sample>> {
+pub fn read_ind_file(path: impl AsRef<Path>) -> Result<Vec<Sample>> {
+    let path = path.as_ref();
     let content = std::fs::read_to_string(path).map_err(|e| PopmixError::io(e, path))?;
 
     let mut samples = Vec::new();
@@ -273,7 +274,8 @@ pub fn read_ind_file(path: &str) -> Result<Vec<Sample>> {
 ///
 /// Format: SNP_ID CHR CM BP A1 A2 (whitespace-separated)
 /// Note: Column order differs from PLINK .bim (SNP_ID is first, CHR is second)
-pub fn read_snp_file(path: &str) -> Result<Vec<Snp>> {
+pub fn read_snp_file(path: impl AsRef<Path>) -> Result<Vec<Snp>> {
+    let path = path.as_ref();
     let content = std::fs::read_to_string(path).map_err(|e| PopmixError::io(e, path))?;
     crate::parse_lines(&content, |line_num, line| {
         parse_snp_line(path, line_num, line)
@@ -281,7 +283,7 @@ pub fn read_snp_file(path: &str) -> Result<Vec<Snp>> {
 }
 
 /// One line of a .snp file (`line_num` from 0).
-fn parse_snp_line(path: &str, line_num: usize, line: &str) -> Result<Snp> {
+fn parse_snp_line(path: &Path, line_num: usize, line: &str) -> Result<Snp> {
     let fields = crate::six_fields(path, line_num, line)?;
     let id = fields[0].to_string();
     let chromosome = Chromosome::parse(fields[1]);

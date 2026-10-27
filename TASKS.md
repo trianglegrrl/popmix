@@ -546,12 +546,22 @@ thread count.
   the `python` feature: the 146 `.map_err(to_py_err)` are `?`; the
   bindings' own 33 errors raise the same classes. The CLI keeps the
   traceback of an `InternalError`. README "Errors".
-- [ ] **I3. Deliberate public API:** private fields with accessors on
+- [x] **I3. Deliberate public API:** private fields with accessors on
   `F2Blocks`/`AlleleFrequencies`; `#[non_exhaustive]` options and results;
   `&Options` not `Option<Options>`; consistent `impl AsRef<Path>`; `impl
   FromStr for GenoFormat`; `rcompat` and the second graph fitter
   `pub(crate)` or documented; distinct names for dates and qpgraph
   `FitOptions`; decide whether ndarray/nalgebra types are public. RS
+  *Done in ff23ef1, 5595587 and COMMIT:* `F2Blocks`, `FstBlocks` and
+  `AlleleFrequencies` have private fields, accessors and checked
+  constructors (`F2Blocks::from_arrays`, `FstBlocks::new`,
+  `AlleleFrequencies::new`); the 42 option, compat and result types are
+  `#[non_exhaustive]`; the eleven `Option<Options>` parameters are
+  `&Options`; popmix-io's path parameters are all `impl AsRef<Path>`
+  (prefixes extended with `with_suffix`, never through lossy strings);
+  `GenoFormat: FromStr`; the DATES fit options are `DecayFitOptions`.
+  The second graph fitter went with C2; `rcompat` stays public, with what
+  it promises in its docs. Only ndarray types are public (I5).
 - [x] **I4. Move the extraction pipeline out of the bindings:** format
   detection, streaming choice, ploidy detection and relabelling into
   `popmix_io::extract_f2(prefix, &ExtractOptions)` behind a `GenotypeSource`

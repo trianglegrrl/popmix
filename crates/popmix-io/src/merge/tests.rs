@@ -366,8 +366,8 @@ fn merged_rows_read_in_place_equal_the_merged_matrix() {
     let (pa, pb) = (dir.path().join("a"), dir.path().join("b"));
     write_packedancestrymap(&pa, &a).unwrap();
     write_packedped(&pb, &b).unwrap();
-    let fa = SnpMajor::open_packed(&format!("{}.geno", pa.display()), 5, 4).unwrap();
-    let fb = SnpMajor::open_bed(&format!("{}.bed", pb.display()), 3, 4).unwrap();
+    let fa = SnpMajor::open_packed(format!("{}.geno", pa.display()), 5, 4).unwrap();
+    let fb = SnpMajor::open_bed(format!("{}.bed", pb.display()), 3, 4).unwrap();
     let (snps, _) = build_snp_intersection(a.snps(), b.snps());
     let mut rows = MergedRows::new(&fa, &fb, &snps);
     let mut row = vec![9u8; 8];

@@ -62,7 +62,7 @@ may not) and re-exports:
 ```
 pub use compat::DatesCompat;
 pub use dating::{dates, DatesOptions, DatesResult, JackknifeBlock};
-pub use exponential_fit::{fit_exponential, weighted_jackknife, DecayFit, FitOptions};
+pub use exponential_fit::{fit_exponential, weighted_jackknife, DecayFit, DecayFitOptions};
 pub use ld_decay::{compute_ld_decay, compute_ld_decay_by_chromosome, ChromosomeLd, LdBin, LdDecay, LdOptions};
 pub use weights::{compute_weights, WeightResult};
 ```
@@ -93,15 +93,15 @@ All structs below derive `Debug, Clone`; all fields are `pub`.
   Built with struct literals by the golden test, so no other fields.
 - `LdDecay { bins: Vec<LdBin>, chromosomes: Vec<ChromosomeLd> }`.
 - `ChromosomeLd { chromosome: u8, n_snps: usize, leave_one_out: Vec<LdBin> }`.
-- `FitOptions { min_distance_cm: f64, max_distance_cm: f64,
+- `DecayFitOptions { min_distance_cm: f64, max_distance_cm: f64,
   use_affine: bool, bin_size_cm: f64 }`. `Default`: 0.45, 100.0, true, 0.1.
 - `DecayFit { amplitude: f64, decay_rate: f64, intercept: f64,
   r_squared: f64, decay_rate_se: f64, rss: f64 }`.
 - `WeightResult { weights: Vec<f64>, n_valid: usize, valid_indices: Vec<usize> }`.
-- `DatesOptions { ld_options: LdOptions, fit_options: FitOptions,
+- `DatesOptions { ld_options: LdOptions, fit_options: DecayFitOptions,
   generation_time: f64, min_source_count: u32, run_jackknife: bool,
   compat: DatesCompat }`. `Default`: `LdOptions::default()`,
-  `FitOptions::default()`, 29.0, 1, true, `DatesCompat::CORRECTED`.
+  `DecayFitOptions::default()`, 29.0, 1, true, `DatesCompat::CORRECTED`.
 - `DatesResult { test_pop: PopulationId, source1: PopulationId,
   source2: PopulationId, generations: f64, generations_se: f64,
   years_bp: f64, years_bp_se: f64, ld_bins: Vec<LdBin>, fit: DecayFit,
@@ -118,7 +118,7 @@ pub fn compute_ld_decay(geno: &GenotypeMatrix, af: &AlleleFrequencies, test_pop:
                         weights: &[f64], source1_freqs: &[f64], source2_freqs: &[f64],
                         options: Option<LdOptions>) -> Result<Vec<LdBin>>
 pub fn compute_ld_decay_by_chromosome(/* same arguments */) -> Result<LdDecay>
-pub fn fit_exponential(ld_bins: &[LdBin], options: Option<FitOptions>) -> Result<DecayFit>
+pub fn fit_exponential(ld_bins: &[LdBin], options: Option<DecayFitOptions>) -> Result<DecayFit>
 pub fn weighted_jackknife(full_estimate: f64, estimates: &[(f64, f64)]) -> Result<(f64, f64)>
 pub fn dates(geno: &GenotypeMatrix, af: Option<&AlleleFrequencies>, test_pop: &str,
              source1: &str, source2: &str, options: Option<DatesOptions>) -> Result<DatesResult>
@@ -133,7 +133,7 @@ the LD functions `af` is accepted and unused (kept for API compatibility).
 - `crates/popmix-python/src/lib.rs` (`dates` pyfunction, `PyLdBin`,
   `PyDecayFit`, `PyDatesResult`): builds `LdOptions::default()` and sets
   `qbin`, `bin_width_cm`, `max_distance_cm`; builds
-  `dates::FitOptions::default()` and sets `bin_size_cm` (= the bin width),
+  `dates::DecayFitOptions::default()` and sets `bin_size_cm` (= the bin width),
   `min_distance_cm` (lovalfit), `max_distance_cm` (= maxdis in cM); builds
   `DatesOptions { ld_options, fit_options, generation_time, run_jackknife,
   compat, ..Default::default() }`; maps `compat=None` to
@@ -371,7 +371,7 @@ DATES's `dates_expfit` (one exponential, affine mode, as run by DATES with
 `afffit: YES`) fits the correlation column. popmix minimises the same
 objective to full precision.
 
-**Bins fitted.** Options default to `FitOptions::default()`. Take
+**Bins fitted.** Options default to `DecayFitOptions::default()`. Take
 `ld_bins` in the order given, skip leading bins while
 `distance_cm < min_distance_cm`, then take bins while
 `distance_cm ≤ max_distance_cm`; the fitted values y_0 … y_{M−1} are their

@@ -67,7 +67,7 @@ pub fn rolloff_py(
     let populations = vec![admixed.clone(), refs[0].clone(), refs[1].clone()];
     let (mut source, snps, pops, samples) = open_source_filtered(prefix, &populations, &keep)?;
     // jackknife weights: the SNPs of each chromosome in the .snp file
-    let all_snps = popmix_io::eigenstrat::read_snp_file(&format!("{prefix}.snp"))?;
+    let all_snps = popmix_io::eigenstrat::read_snp_file(format!("{prefix}.snp"))?;
     let options = {
         let mut o = RolloffOptions::default();
         o.binsize = binsize;

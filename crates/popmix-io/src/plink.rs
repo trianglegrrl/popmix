@@ -49,7 +49,7 @@ impl PlinkReader {
 
         // Read .bim file (SNPs)
         let bim_path = format!("{}.bim", prefix);
-        let snps = read_bim_file(&bim_path)?;
+        let snps = read_bim_file(Path::new(&bim_path))?;
 
         // Calculate bytes per SNP (ceil(n_samples / 4))
         let bytes_per_snp = samples.len().div_ceil(4);
@@ -241,7 +241,8 @@ impl PlinkReader {
 ///
 /// Format: FID IID PID MID SEX PHENO (space-separated)
 /// We use FID as population and IID as sample ID.
-pub fn read_fam_file(path: &str) -> Result<Vec<Sample>> {
+pub fn read_fam_file(path: impl AsRef<Path>) -> Result<Vec<Sample>> {
+    let path = path.as_ref();
     let content = std::fs::read_to_string(path).map_err(|e| PopmixError::io(e, path))?;
 
     let mut samples = Vec::new();
@@ -276,7 +277,7 @@ pub fn read_fam_file(path: &str) -> Result<Vec<Sample>> {
 /// Format: CHR SNP_ID GPOS BP A1 A2 (tab or space-separated). The genetic
 /// position is in Morgans, or in centimorgans if any exceeds 10 (see
 /// [`crate::to_morgans`]).
-fn read_bim_file(path: &str) -> Result<Vec<Snp>> {
+fn read_bim_file(path: &Path) -> Result<Vec<Snp>> {
     let content = std::fs::read_to_string(path).map_err(|e| PopmixError::io(e, path))?;
     let mut snps = crate::parse_lines(&content, |line_num, line| {
         parse_bim_line(path, line_num, line)
@@ -286,7 +287,7 @@ fn read_bim_file(path: &str) -> Result<Vec<Snp>> {
 }
 
 /// One line of a .bim file (`line_num` from 0).
-fn parse_bim_line(path: &str, line_num: usize, line: &str) -> Result<Snp> {
+fn parse_bim_line(path: &Path, line_num: usize, line: &str) -> Result<Snp> {
     let fields = crate::six_fields(path, line_num, line)?;
     let chromosome = Chromosome::parse(fields[0]);
     let id = fields[1].to_string();
@@ -348,9 +349,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("t.bim");
         std::fs::write(&path, "1 rs1 0 100 A G\n1 rs2 x1 200 C T\n").unwrap();
-        let err = read_bim_file(path.to_str().unwrap())
-            .unwrap_err()
-            .to_string();
+        let err = read_bim_file(&path).unwrap_err().to_string();
         assert!(err.contains("line 2") && err.contains("x1"), "{err}");
     }
 

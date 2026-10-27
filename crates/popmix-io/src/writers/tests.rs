@@ -14,7 +14,7 @@ fn ped_and_tgeno_written_by_sample_blocks_are_the_matrix_writes() {
         .read_all()
         .unwrap();
     let file =
-        crate::SnpMajor::open_packed(&format!("{family}.geno"), geno.n_samples(), geno.n_snps())
+        crate::SnpMajor::open_packed(format!("{family}.geno"), geno.n_samples(), geno.n_snps())
             .unwrap();
     let dir = TempDir::new().unwrap();
     let p = |name: &str| dir.path().join(name).to_string_lossy().to_string();
@@ -87,7 +87,7 @@ fn streamed_writes_are_the_matrix_writes() {
         );
         whole(&a, &geno).unwrap();
         let mut source = crate::SnpMajorRows::open(
-            &format!("{family}.geno"),
+            format!("{family}.geno"),
             samples.len(),
             vec![true; snps.len()],
             (0..samples.len()).collect(),

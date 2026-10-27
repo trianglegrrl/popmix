@@ -30,7 +30,8 @@ use popmix_core::{Genotype, GenotypeMatrix, Ploidy, PopmixError, Result, Sample,
 /// Check if a .geno file is in packed binary format vs text EIGENSTRAT.
 ///
 /// Packed format files start with "GENO" magic string.
-pub fn is_packed_format(geno_path: &str) -> Result<bool> {
+pub fn is_packed_format(geno_path: impl AsRef<Path>) -> Result<bool> {
+    let geno_path = geno_path.as_ref();
     use std::io::Read;
 
     let mut file = File::open(geno_path).map_err(|e| PopmixError::io(e, geno_path))?;
@@ -56,14 +57,15 @@ pub struct PackedAncestryMapReader {
 /// against the samples of the .ind and the SNPs of the .snp file. The record
 /// length cannot tell (it is at least 48 bytes), so without this a lost .ind
 /// line would silently shift every later sample's genotypes.
-pub fn check_header(geno_path: &str, n_samples: usize, n_snps: usize) -> Result<()> {
+pub fn check_header(geno_path: impl AsRef<Path>, n_samples: usize, n_snps: usize) -> Result<()> {
+    let geno_path = geno_path.as_ref();
     check_header_counts(geno_path, "GENO", n_samples, n_snps)
 }
 
 /// [`check_header`] for a header that starts with `magic` ("GENO", or
 /// "TGENO" for the transposed format).
 pub(crate) fn check_header_counts(
-    geno_path: &str,
+    geno_path: &Path,
     magic: &str,
     n_samples: usize,
     n_snps: usize,
@@ -84,13 +86,13 @@ pub(crate) fn check_header_counts(
     };
     let Some((header_samples, header_snps)) = counts else {
         return Err(PopmixError::InvalidFileFormat {
-            path: geno_path.to_string().into(),
+            path: geno_path.into(),
             details: format!("no \"{magic} <samples> <snps>\" header"),
         });
     };
     if (header_samples, header_snps) != (n_samples, n_snps) {
         return Err(PopmixError::InvalidFileFormat {
-            path: geno_path.to_string().into(),
+            path: geno_path.into(),
             details: format!(
                 "the header gives {header_samples} samples and {header_snps} SNPs, but the \
                  .ind file lists {n_samples} samples and the .snp file {n_snps} SNPs"

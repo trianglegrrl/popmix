@@ -225,7 +225,7 @@ pub(crate) fn dates(
             ld_options.max_distance_cm = max_d;
         }
 
-        let mut fit_options = popmix_core::dates::FitOptions::default();
+        let mut fit_options = popmix_core::dates::DecayFitOptions::default();
         if let Some(bw) = bin_width_cm {
             fit_options.bin_size_cm = bw;
         }

@@ -11,7 +11,7 @@
 use rayon::prelude::*;
 
 use super::compat::DatesCompat;
-use super::exponential_fit::{fit_exponential, weighted_jackknife, DecayFit, FitOptions};
+use super::exponential_fit::{fit_exponential, weighted_jackknife, DecayFit, DecayFitOptions};
 use super::ld_decay::{compute_ld_decay_by_chromosome, LdBin, LdOptions};
 use super::weights::{compute_weights, WeightResult};
 use crate::error::{PopmixError, Result};
@@ -26,7 +26,7 @@ pub struct DatesOptions {
     /// The LD table (its `compat` is replaced by [`DatesOptions::compat`]).
     pub ld_options: LdOptions,
     /// The exponential fit.
-    pub fit_options: FitOptions,
+    pub fit_options: DecayFitOptions,
     /// Years per generation.
     pub generation_time: f64,
     /// Fewest observed alleles in each source for a SNP to be used.
@@ -41,7 +41,7 @@ impl Default for DatesOptions {
     fn default() -> Self {
         DatesOptions {
             ld_options: LdOptions::default(),
-            fit_options: FitOptions::default(),
+            fit_options: DecayFitOptions::default(),
             generation_time: 29.0,
             min_source_count: 1,
             run_jackknife: true,
@@ -93,7 +93,7 @@ fn printed(x: f64, decimals: usize) -> f64 {
 
 /// The fit of `bins`, on their correlations rounded to 6 decimals if
 /// `rounded`.
-fn fit_bins(bins: &[LdBin], options: &FitOptions, rounded: bool) -> Result<DecayFit> {
+fn fit_bins(bins: &[LdBin], options: &DecayFitOptions, rounded: bool) -> Result<DecayFit> {
     if rounded {
         let r: Vec<LdBin> = bins
             .iter()

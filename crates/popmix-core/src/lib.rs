@@ -73,4 +73,4 @@ pub use dates::{
     compute_ld_decay, compute_weights, dates, fit_exponential, weighted_jackknife, DatesOptions,
     DatesResult, DecayFit, LdBin, LdOptions, WeightResult,
 };
-// The exponential fit's options are dates::FitOptions
+// The exponential fit's options are dates::DecayFitOptions

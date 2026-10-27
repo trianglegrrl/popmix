@@ -32,7 +32,7 @@ pub mod writers;
 
 /// A genetic map position: a finite number. (convertf reads anything else
 /// as 0, which would put the SNP at the start of its chromosome's map.)
-pub(crate) fn parse_genetic_position(field: &str, path: &str, line: usize) -> Result<f64> {
+pub(crate) fn parse_genetic_position(field: &str, path: &Path, line: usize) -> Result<f64> {
     match field.parse::<f64>() {
         Ok(v) if v.is_finite() => Ok(v),
         _ => Err(PopmixError::parse(
@@ -155,30 +155,6 @@ impl GenoFormat {
         })
     }
 
-    /// Parse format from string name.
-    ///
-    /// Accepts various common names for each format.
-    // returns popmix's Result, not FromStr's
-    #[allow(clippy::should_implement_trait)]
-    pub fn from_str(s: &str) -> Result<Self> {
-        match s.to_lowercase().as_str() {
-            "ancestrymap" => Ok(GenoFormat::Ancestrymap),
-            "eigenstrat" => Ok(GenoFormat::Eigenstrat),
-            "ped" | "pedmap" => Ok(GenoFormat::Ped),
-            "packedped" | "plink" | "bed" => Ok(GenoFormat::PackedPed),
-            "packedancestrymap" => Ok(GenoFormat::PackedAncestrymap),
-            "vcf" => Ok(GenoFormat::Vcf),
-            "tgeno" | "transpose_packed" => Ok(GenoFormat::Tgeno),
-            _ => Err(PopmixError::InvalidFileFormat {
-                path: s.to_string().into(),
-                details: format!(
-                    "Unknown format '{}'. Valid formats: ancestrymap, eigenstrat, ped, packedped, packedancestrymap, tgeno, vcf",
-                    s
-                ),
-            }),
-        }
-    }
-
     /// Get the canonical name for this format.
     pub fn name(&self) -> &'static str {
         match self {
@@ -189,6 +165,31 @@ impl GenoFormat {
             GenoFormat::PackedAncestrymap => "PACKEDANCESTRYMAP",
             GenoFormat::Vcf => "VCF",
             GenoFormat::Tgeno => "TGENO",
+        }
+    }
+}
+
+/// A format by name, case-blind: its canonical name or a common alias
+/// (`plink` and `bed` for PACKEDPED, `transpose_packed` for TGENO).
+impl std::str::FromStr for GenoFormat {
+    type Err = PopmixError;
+
+    fn from_str(s: &str) -> Result<Self> {
+        match s.to_lowercase().as_str() {
+            "ancestrymap" => Ok(GenoFormat::Ancestrymap),
+            "eigenstrat" => Ok(GenoFormat::Eigenstrat),
+            "ped" | "pedmap" => Ok(GenoFormat::Ped),
+            "packedped" | "plink" | "bed" => Ok(GenoFormat::PackedPed),
+            "packedancestrymap" => Ok(GenoFormat::PackedAncestrymap),
+            "vcf" => Ok(GenoFormat::Vcf),
+            "tgeno" | "transpose_packed" => Ok(GenoFormat::Tgeno),
+            _ => Err(PopmixError::parameter(
+                "format",
+                format!(
+                    "unknown format {s:?}; the formats are ancestrymap, eigenstrat, ped, packedped \
+                     (plink), packedancestrymap, tgeno and vcf"
+                ),
+            )),
         }
     }
 }
@@ -273,7 +274,7 @@ pub(crate) fn parse_lines<T: Send>(
 
 /// The first six whitespace-separated fields of a line, or the error naming
 /// how many it has.
-pub(crate) fn six_fields<'a>(path: &str, line_num: usize, line: &'a str) -> Result<[&'a str; 6]> {
+pub(crate) fn six_fields<'a>(path: &Path, line_num: usize, line: &'a str) -> Result<[&'a str; 6]> {
     let mut fields = line.split_whitespace();
     let mut out = [""; 6];
     for (k, slot) in out.iter_mut().enumerate() {
@@ -359,13 +360,23 @@ mod parse_lines_tests {
     #[test]
     fn six_fields_or_how_many_there_are() {
         assert_eq!(
-            six_fields("f", 0, "a b c d e f g").unwrap(),
+            six_fields(Path::new("f"), 0, "a b c d e f g").unwrap(),
             ["a", "b", "c", "d", "e", "f"]
         );
-        let err = six_fields("f", 4, "a b c").unwrap_err().to_string();
+        let err = six_fields(Path::new("f"), 4, "a b c")
+            .unwrap_err()
+            .to_string();
         assert!(
             err.contains("Expected 6 fields, got 3") && err.contains('5'),
             "{err}"
         );
     }
+}
+
+/// `prefix` with `suffix` appended: an extension added, never replaced, as
+/// prefixes can contain dots (`v66.p1_1240K`).
+pub(crate) fn with_suffix(prefix: &Path, suffix: &str) -> std::path::PathBuf {
+    let mut s = prefix.as_os_str().to_owned();
+    s.push(suffix);
+    s.into()
 }

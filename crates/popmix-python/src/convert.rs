@@ -177,12 +177,12 @@ fn convertf_files(
 
     // Detect or parse input format
     let in_format = match input_format {
-        Some(fmt) => GenoFormat::from_str(fmt)?,
+        Some(fmt) => fmt.parse::<GenoFormat>()?,
         None => GenoFormat::detect(input_prefix)?,
     };
 
     // Parse output format
-    let out_format = GenoFormat::from_str(output_format)?;
+    let out_format = output_format.parse::<GenoFormat>()?;
 
     // From a packed .geno or a PLINK .bed to a format written SNP by SNP:
     // stream, without holding the genotypes in memory
@@ -296,7 +296,7 @@ pub(crate) fn merge(
         // Helper to read genotypes from a prefix
         fn read_geno(prefix: &str, format: Option<&str>) -> PyResult<GenotypeMatrix> {
             let fmt = match format {
-                Some(f) => GenoFormat::from_str(f)?,
+                Some(f) => f.parse::<GenoFormat>()?,
                 None => GenoFormat::detect(prefix)?,
             };
 
@@ -332,10 +332,10 @@ pub(crate) fn merge(
         }
 
         let format_of = |prefix: &str, format: Option<&str>| match format {
-            Some(f) => GenoFormat::from_str(f).map_err(PyErr::from),
+            Some(f) => f.parse::<GenoFormat>().map_err(PyErr::from),
             None => GenoFormat::detect(prefix).map_err(PyErr::from),
         };
-        let out_format = GenoFormat::from_str(output_format)?;
+        let out_format = output_format.parse::<GenoFormat>()?;
 
         // Both inputs read in place and an output written SNP by SNP: stream,
         // without holding either file's genotypes in memory

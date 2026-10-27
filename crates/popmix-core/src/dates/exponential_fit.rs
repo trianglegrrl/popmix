@@ -24,7 +24,7 @@ use crate::error::{PopmixError, Result};
 /// Which bins to fit and how.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub struct FitOptions {
+pub struct DecayFitOptions {
     /// First distance fitted (cM): leading bins below it are skipped
     /// (DATES's `lovalfit`, in cM).
     pub min_distance_cm: f64,
@@ -36,9 +36,9 @@ pub struct FitOptions {
     pub bin_size_cm: f64,
 }
 
-impl Default for FitOptions {
+impl Default for DecayFitOptions {
     fn default() -> Self {
-        FitOptions {
+        DecayFitOptions {
             min_distance_cm: 0.45,
             max_distance_cm: 100.0,
             use_affine: true,
@@ -199,7 +199,7 @@ fn minimise(y: &[f64], affine: bool) -> Option<f64> {
 /// Bins are taken in the order given: leading bins with `distance_cm` below
 /// `min_distance_cm` are skipped, then bins are taken while `distance_cm` is
 /// at most `max_distance_cm`. At least 4 are needed.
-pub fn fit_exponential(ld_bins: &[LdBin], options: &FitOptions) -> Result<DecayFit> {
+pub fn fit_exponential(ld_bins: &[LdBin], options: &DecayFitOptions) -> Result<DecayFit> {
     let opts = options;
     let y: Vec<f64> = ld_bins
         .iter()
@@ -319,7 +319,7 @@ mod tests {
 
         let bins = create_synthetic_ld_bins(true_n, true_a, true_k);
 
-        let opts = FitOptions {
+        let opts = DecayFitOptions {
             min_distance_cm: 0.45,
             max_distance_cm: 30.0,
             ..Default::default()
@@ -358,7 +358,7 @@ mod tests {
     fn test_exponential_fit_different_decay_rates() {
         for true_n in [1.0, 20.0, 50.0, 100.0, 200.0] {
             let bins = create_synthetic_ld_bins(true_n, 0.001, 0.00001);
-            let opts = FitOptions {
+            let opts = DecayFitOptions {
                 min_distance_cm: 0.45,
                 max_distance_cm: 30.0,
                 ..Default::default()

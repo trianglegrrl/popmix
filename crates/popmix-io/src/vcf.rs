@@ -11,7 +11,7 @@
 
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use flate2::read::MultiGzDecoder;
 use ndarray::Array2;
@@ -30,7 +30,7 @@ use popmix_core::{
 /// --max-alleles 2`. A site with no ALT is kept, monomorphic, with `.` as
 /// its counted allele, as PLINK 2 and convertf write it.
 pub struct VcfReader {
-    path: String,
+    path: PathBuf,
     samples: Vec<Sample>,
     snps: Vec<Snp>,
     skipped: VcfSkipped,
@@ -80,11 +80,11 @@ impl VcfReader {
     /// - A plain text VCF file (.vcf)
     /// - A gzip-compressed VCF file (.vcf.gz)
     pub fn new(path: impl AsRef<Path>) -> Result<Self> {
-        let path_str = path.as_ref().to_string_lossy().to_string();
-        let is_gzipped = path_str.ends_with(".gz");
-        let scan = scan_vcf(&path_str, is_gzipped)?;
+        let path = path.as_ref();
+        let is_gzipped = path.as_os_str().to_string_lossy().ends_with(".gz");
+        let scan = scan_vcf(path, is_gzipped)?;
         Ok(VcfReader {
-            path: path_str,
+            path: path.to_path_buf(),
             samples: scan.samples,
             snps: scan.snps,
             skipped: scan.skipped,
@@ -226,7 +226,7 @@ fn gt_code(gt: &[u8]) -> u8 {
 /// Parse data line `number` (1-based, for errors) of a VCF of `n_samples`
 /// samples, packing its genotypes as PACKEDANCESTRYMAP does (the first
 /// sample in a byte's high bits).
-fn parse_line(path: &str, number: usize, line: &[u8], n_samples: usize) -> Result<Line> {
+fn parse_line(path: &Path, number: usize, line: &[u8], n_samples: usize) -> Result<Line> {
     let line = line.strip_suffix(b"\r").unwrap_or(line);
     if line.is_empty() || line[0] == b'#' {
         return Ok(Line::Blank);
@@ -310,7 +310,7 @@ struct Scan {
 /// Read a VCF once: the header on this thread, then the data lines,
 /// decompressed and split into batches by a reading thread, parsed in
 /// parallel and kept in file order.
-fn scan_vcf(path: &str, is_gzipped: bool) -> Result<Scan> {
+fn scan_vcf(path: &Path, is_gzipped: bool) -> Result<Scan> {
     use rayon::prelude::*;
     use std::sync::mpsc::sync_channel;
 

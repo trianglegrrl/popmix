@@ -235,7 +235,7 @@ pub(crate) fn list_populations(py: Python<'_>, prefix: &str) -> PyResult<Vec<(St
         // Check for PLINK format
         // only the sample files: the SNP files are not needed
         if Path::new(&format!("{}.bed", prefix)).exists() {
-            let samples = popmix_io::plink::read_fam_file(&format!("{prefix}.fam"))?;
+            let samples = popmix_io::plink::read_fam_file(format!("{prefix}.fam"))?;
             return Ok(count_populations(&samples));
         }
 
@@ -246,7 +246,7 @@ pub(crate) fn list_populations(py: Python<'_>, prefix: &str) -> PyResult<Vec<(St
                 let reader = TgenoReader::new(prefix)?;
                 return Ok(count_populations(reader.samples()));
             }
-            let samples = popmix_io::eigenstrat::read_ind_file(&format!("{prefix}.ind"))?;
+            let samples = popmix_io::eigenstrat::read_ind_file(format!("{prefix}.ind"))?;
             return Ok(count_populations(&samples));
         }
 

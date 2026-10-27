@@ -26,7 +26,8 @@ use popmix_core::genotypes::{Sample, Snp};
 pub const HEADER_LEN: usize = 48;
 
 /// Does this .geno file start with the TGENO magic word?
-pub fn is_tgeno_format(geno_path: &str) -> Result<bool> {
+pub fn is_tgeno_format(geno_path: impl AsRef<Path>) -> Result<bool> {
+    let geno_path = geno_path.as_ref();
     use std::io::Read;
     let mut file = File::open(geno_path).map_err(|e| PopmixError::io(e, geno_path))?;
     let mut magic = [0u8; 5];
@@ -49,13 +50,13 @@ impl TgenoReader {
     /// Open a TGENO dataset by prefix: the .ind and .snp files are those of
     /// EIGENSTRAT. The header's counts and the file size are checked.
     pub fn new(prefix: impl AsRef<Path>) -> Result<Self> {
-        let prefix = prefix.as_ref().to_string_lossy().to_string();
-        let samples = crate::eigenstrat::read_ind_file(&format!("{prefix}.ind"))?;
-        let snps = crate::eigenstrat::read_snp_file(&format!("{prefix}.snp"))?;
-        let geno_path = format!("{prefix}.geno");
+        let prefix = prefix.as_ref();
+        let samples = crate::eigenstrat::read_ind_file(crate::with_suffix(prefix, ".ind"))?;
+        let snps = crate::eigenstrat::read_snp_file(crate::with_suffix(prefix, ".snp"))?;
+        let geno_path = crate::with_suffix(prefix, ".geno");
         if !is_tgeno_format(&geno_path)? {
             return Err(PopmixError::InvalidFileFormat {
-                path: geno_path.into(),
+                path: geno_path,
                 details: "expected a TGENO header".to_string(),
             });
         }
@@ -73,7 +74,7 @@ impl TgenoReader {
         let expected = HEADER_LEN + samples.len() * record_len;
         if geno.len() != expected {
             return Err(PopmixError::UnexpectedFileSize {
-                path: geno_path.into(),
+                path: geno_path,
                 expected: expected as u64,
                 actual: geno.len() as u64,
             });
@@ -148,7 +149,7 @@ mod tests {
     fn reads_what_convertf_wrote() {
         // tests/fixtures/small_tgeno.geno is AdmixTools 8 convertf's TGENO of
         // small_eigenstrat
-        assert!(is_tgeno_format(&format!("{FIXTURE}.geno")).unwrap());
+        assert!(is_tgeno_format(format!("{FIXTURE}.geno")).unwrap());
         let tgeno = TgenoReader::new(FIXTURE).unwrap().read_all().unwrap();
         let text = crate::eigenstrat::EigenstratReader::new(SAME_AS_TEXT)
             .unwrap()
