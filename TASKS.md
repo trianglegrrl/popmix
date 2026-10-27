@@ -474,9 +474,12 @@ thread count.
 - [ ] **G6. Projected ancient samples:** default to lsqproject when
   projected samples have much missing data, or warn; implement shrinkage
   correction (PLAN.md A2 listed it; `pca/smartpca.rs:145`). PR
-- [ ] **G7. Single pseudohaploid target in f3:** the CLI `f3` (f2 path) gives
+- [x] **G7. Single pseudohaploid target in f3:** the CLI `f3` (f2 path) gives
   f3 = 0.19, z = 122, while `qp3pop -i` gives NaN with n = 0 (both as
   admixtools2); make them agree or warn. PG
+  *Done in 331d064:* warn (`Warning::OneAllele`) from f2 with such a
+  population and f3 with it as target, on popmix-extracted f2; values kept
+  as admixtools2's (DEVIATIONS "Matched, not corrected").
 - [x] **G8. z = NaN when SE = 0,** not 0 (`f3_f4.rs:92-96`, f2 self-pairs).
   PD
   *Done in bbc1e33:* f3/f4, genotype-path qpdstat/qp3pop, f4ratio and
