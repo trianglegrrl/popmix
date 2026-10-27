@@ -604,8 +604,12 @@ thread count.
 
 - [ ] **L1. popmix-io/core publishable:** `version` on the path dependency,
   `publish = false` on popmix-python, `rust-version` on every crate. RS
-- [ ] **L2. Unused dependencies:** `ordered-float`; `proptest` and
-  `criterion` unless F12/B6 use them. RS
+- [x] **L2. Unused dependencies:** `ordered-float`; `proptest` and
+  `criterion` unless F12/B6 use them. RS *Done in COMMIT:* removed
+  `ordered-float` and `proptest` (core), `thiserror` and `approx` (io, found
+  by the new test); `criterion` stays for the F12 benches.
+  `tests/python/test_dependencies.py` fails on a declared dependency a
+  crate does not use.
 - [x] **L3. PyO3 upgrade** (0.22 `*_bound` API deprecated from 0.23); abi3
   if rust-numpy allows. RS *Done in f27da1b:* pyo3 0.29.3 and numpy 0.29.0
   (0.30 was under two weeks old; a small step before release); one abi3

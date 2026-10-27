@@ -17,8 +17,6 @@ description = "Population genetics F-statistics and admixture analysis"
 [workspace.dependencies]
 # Core dependencies
 ndarray = { version = "0.16", features = ["rayon"] }
-# ndarray-linalg will be added when implementing qpAdm/qpGraph
-# ndarray-linalg = { version = "0.16", features = ["openblas-static"] }
 rayon = "1.10"
 thiserror = "2.0"
 petgraph = "0.6"
@@ -34,11 +32,9 @@ numpy = "0.29.0"
 
 # Utilities
 itertools = "0.13"
-ordered-float = "4.0"
 
 # Testing
 approx = "0.5"
-proptest = "1.0"
 criterion = "0.5"
 
 [profile.release]
