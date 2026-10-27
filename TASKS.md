@@ -471,9 +471,14 @@ thread count.
   `fstats/blocks.rs:63`, shorter than 5 cM; SEs slightly small). PR
   *Done in afdd936:* `Warning::NoGeneticMap` from extract_f2, genotype-path
   statistics and f2_from_frequencies.
-- [ ] **G6. Projected ancient samples:** default to lsqproject when
+- [x] **G6. Projected ancient samples:** default to lsqproject when
   projected samples have much missing data, or warn; implement shrinkage
   correction (PLAN.md A2 listed it; `pca/smartpca.rs:145`). PR
+  *Done in 6e05c65:* warning (not a default switch) for dot-product
+  projection with more than 10% missing; `shrink` (`--shrink`, opt-in)
+  divides projected coordinates by a derived per-component factor on
+  significant components, checked by the split-population oracle.
+  Open: whether `--shrink` should be the default.
 - [x] **G7. Single pseudohaploid target in f3:** the CLI `f3` (f2 path) gives
   f3 = 0.19, z = 122, while `qp3pop -i` gives NaN with n = 0 (both as
   admixtools2); make them agree or warn. PG
