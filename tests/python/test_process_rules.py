@@ -22,7 +22,6 @@ MAX_LINES = 800
 # lower each as the file shrinks (TASKS.md I7)
 TOO_LONG = {
     "python/popmix/cli/__init__.py": 1523,
-    "crates/popmix-core/src/admixture.rs": 962,
     "benchmarks/cases.py": 1064,
 }
 
