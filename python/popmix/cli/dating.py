@@ -25,14 +25,16 @@ from ._population_checks import validate_populations
               help="Leave out pairs in LD in a reference, chi-square at least this (default: 6)")
 @click.option("--chromosomes", callback=parse_population_list, default="",
               help="Comma-separated chromosomes to use (default: all autosomes)")
+@click.option("--lval", type=float, default=0.5, help="Fit the decay from this distance in cM (default: 0.5)")
+@click.option("--hval", type=float, default=100.0, help="Fit the decay up to this distance in cM (default: 100)")
 @click.option("--output-prefix", "-o", default=None, help="Also write PREFIX.bins.tsv")
 def rolloff(input_prefix: str, admixed: str, sources: list, binsize: float, maxdis: float, runmode: str,
-            chithresh: float, chromosomes: list, output_prefix: str | None):
+            chithresh: float, chromosomes: list, lval: float, hval: float, output_prefix: str | None):
     """ROLLOFF: date admixture from the decay of weighted LD correlation (ADMIXTOOLS)."""
     try:
         validate_populations(input_prefix, [admixed] + sources)
         r = pm.rolloff(input_prefix, admixed, sources, binsize=binsize, maxdis=maxdis, runmode=int(runmode),
-                       chithresh=chithresh, chromosomes=chromosomes or None)
+                       chithresh=chithresh, chromosomes=chromosomes or None, lval=lval, hval=hval)
         m, se = r.decay_jackknife
         click.echo(f"decay {r.decay:.3f} generations; jackknife {m:.3f} +/- {se:.3f} "
                    f"({len(r.chromosomes)} chromosomes, {r.n_snps_used} SNPs)")
@@ -53,6 +55,10 @@ def rolloff(input_prefix: str, admixed: str, sources: list, binsize: float, maxd
 @click.option("--max-distance", type=float, default=100.0, help="Maximum genetic distance in cM (default: 100)")
 @click.option("--min-distance", type=float, default=0.45,
               help="Fit bins from this distance in cM, DATES lovalfit (default: 0.45)")
+@click.option("--generation-time", type=float, default=29.0,
+              help="Years per generation, for the date in years (default: 29)")
+@click.option("--jackknife/--no-jackknife", default=True,
+              help="Standard errors by a jackknife over chromosomes (default: on); off is faster, without SEs")
 @click.option("--qbin", type=click.IntRange(min=0), default=0,
               help="DATES qbin: 0 visits every SNP pair; N > 0 uses an FFT mesh of N cells "
                    "per bin, faster and approximate (default: 0)")
@@ -62,8 +68,8 @@ def rolloff(input_prefix: str, admixed: str, sources: list, binsize: float, maxd
 @click.option("--format", "output_format", type=click.Choice(["text", "json", "tsv"]), default="text",
               help="Output format")
 def dates(input_prefix: str, admixed: str, sources: list,
-          bin_width: float, max_distance: float, min_distance: float, qbin: int,
-          compat: str | None, output_format: str):
+          bin_width: float, max_distance: float, min_distance: float, generation_time: float,
+          jackknife: bool, qbin: int, compat: str | None, output_format: str):
     """Estimate admixture date using DATES algorithm.
 
     DATES estimates the time since admixture by fitting an exponential decay
@@ -83,15 +89,16 @@ def dates(input_prefix: str, admixed: str, sources: list,
             bin_width_cm=bin_width,
             max_distance_cm=max_distance,
             min_distance_cm=min_distance,
+            generation_time=generation_time,
+            jackknife=jackknife,
             qbin=qbin,
             compat=compat,
         )
 
         if output_format == "json":
             output = {
-                "test_pop": admixed,
-                "source1": source1,
-                "source2": source2,
+                "admixed": admixed,
+                "sources": [source1, source2],
                 "amplitude": result.fit.amplitude,
                 "generations": result.generations,
                 "generations_se": result.generations_se,
@@ -127,7 +134,7 @@ def dates(input_prefix: str, admixed: str, sources: list,
             click.echo("=" * 60)
             click.echo(f"Amplitude (fit): {result.fit.amplitude:.6f}")
             click.echo(f"Estimated generations: {result.generations:.1f} ± {result.generations_se:.1f}")
-            click.echo(f"Estimated years BP: {result.years_bp:.0f} ± {result.years_bp_se:.0f} (29 years/gen)")
+            click.echo(f"Estimated years BP: {result.years_bp:.0f} ± {result.years_bp_se:.0f} ({generation_time:g} years/gen)")
             click.echo(f"Fit R²: {result.fit.r_squared:.4f}")
             click.echo(f"SNPs used: {result.n_snps}")
             click.echo(f"LD bins: {len(result.ld_bins)}")

@@ -10,7 +10,8 @@ ancient samples.
 
 ```text
 popmix dates --input PREFIX --admixed T --sources A,B [--bin-width CM]
-             [--max-distance CM] [--min-distance CM] [--qbin N] [--compat dates-v753]
+             [--max-distance CM] [--min-distance CM] [--generation-time Y] [--no-jackknife]
+             [--qbin N] [--compat dates-v753]
              [--format text|json|tsv]
 ```
 
@@ -24,9 +25,11 @@ popmix dates --input PREFIX --admixed T --sources A,B [--bin-width CM]
 | `--bin-width` | number | 0.1 | Distance bin width in cM (DATES `binsize` x 100). |
 | `--max-distance` | number | 100 | Largest SNP-pair distance in cM (DATES `maxdis` x 100). Smaller values (for example 50) are much faster. |
 | `--min-distance` | number | 0.45 | Fit only bins from this distance in cM (DATES `lovalfit`); shorter distances carry background LD. |
+| `--generation-time` | number | 29 | Years per generation, for the date in years. |
+| `--jackknife` / `--no-jackknife` | flag | `--jackknife` | Standard errors by a weighted jackknife over chromosomes; `--no-jackknife` is faster and gives no SE. |
 | `--qbin` | integer (at least 0) | 0 | DATES `qbin`: 0 visits every SNP pair (exact); N > 0 bins SNPs on an FFT mesh of N cells per bin, much faster on large data and slightly approximate (10 is typical). |
 | `--compat` | `dates-v753` | none (corrected) | Reproduce DATES v753's quirks (DATES-0001 to DATES-0004) for output identical to DATES. |
-| `--format` | `text`, `json`, `tsv` | `text` | `text`: the date and the first 10 bins; `json`: date, SE, years, fit (amplitude, decay_rate, r_squared), SNPs and the first 20 bins; `tsv`: every LD bin (distance_cm, n_pairs, correlation, weighted_ld). |
+| `--format` | `text`, `json`, `tsv` | `text` | `text`: the date and the first 10 bins; `json`: admixed, sources, date, SE, years, fit (amplitude, decay_rate, r_squared), SNPs and the first 20 bins; `tsv`: every LD bin (distance_cm, n_pairs, correlation, weighted_ld). |
 
 ## Inputs and outputs
 
@@ -66,7 +69,7 @@ popmix --threads 8 dates -i /references/aadr/v62.0_1240k_public --admixed French
 
 - **Estimated generations ± SE**: a weighted block jackknife over
   chromosomes (what DATES reports); the full-data fit's rate is
-  `fit.decay_rate` in JSON. Years = generations x 29 (fixed); for ancient
+  `fit.decay_rate` in JSON. Years = generations x `--generation-time` (29 by default); for ancient
   samples add their age.
 - A date is credible when the decay curve (the `tsv` bins) shows a clear
   exponential above noise, the SE is well below the estimate (Z = estimate

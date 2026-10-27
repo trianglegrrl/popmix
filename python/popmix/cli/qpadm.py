@@ -25,10 +25,13 @@ from ._errors import EXPECTED_ERRORS, fail
 @click.option("--left", required=True, callback=parse_population_list, help="Source populations (comma-separated)")
 @click.option("--right", required=True, callback=parse_population_list, help="Outgroup populations (comma-separated)")
 @click.option("--constrained/--unconstrained", default=False, help="Constrain weights to [0, 1]")
+@click.option("--fudge", type=float, default=1e-4,
+              help="Regularisation of the f4 covariance, added to its diagonal as a fraction of its trace "
+                   "(admixtools2 fudge; default: 1e-4)")
 @f2_source_options
 @click.option("--format", "output_format", type=click.Choice(["text", "json", "tsv"]), default="text",
               help="Output format")
-def qpadm(target: str, left: list, right: list, constrained: bool, input_prefix: str | None,
+def qpadm(target: str, left: list, right: list, constrained: bool, fudge: float, input_prefix: str | None,
           f2_dir: str | None, block_size: float, maxmiss: float, all_chromosomes: bool,
           output_format: str):
     """Estimate admixture weights using qpAdm.
@@ -47,7 +50,7 @@ def qpadm(target: str, left: list, right: list, constrained: bool, input_prefix:
     try:
         f2_blocks = load_f2_blocks(input_prefix, f2_dir, all_pops, block_size, maxmiss, all_chromosomes)
 
-        result = pm.qpadm(f2_blocks, left, right, target, constrained=constrained)
+        result = pm.qpadm(f2_blocks, left, right, target, constrained=constrained, fudge=fudge)
 
         if output_format == "json":
             output = {
@@ -62,16 +65,17 @@ def qpadm(target: str, left: list, right: list, constrained: bool, input_prefix:
             }
             click.echo(json.dumps(output, indent=2))
         elif output_format == "tsv":
-            click.echo("target\tsource\tweight\tchisq\tdof\tp")
-            for source, weight in zip(result.sources, result.weights):
-                click.echo(f"{target}\t{source}\t{weight:.4f}\t{result.chisq:.4f}\t{result.dof}\t{_p_text(result.p)}")
+            click.echo("target\tsource\tweight\tse\tchisq\tdof\tp")
+            for source, weight, se in zip(result.sources, result.weights, result.weight_se):
+                click.echo(f"{target}\t{source}\t{weight:.4f}\t{se:.4f}\t{result.chisq:.4f}\t{result.dof}"
+                           f"\t{_p_text(result.p)}")
         else:
             click.echo(f"qpAdm: {target} = mix of {', '.join(left)}")
             click.echo(f"Outgroups: {', '.join(right)}")
             click.echo()
             click.echo("Admixture weights:")
-            for source, weight in zip(result.sources, result.weights):
-                click.echo(f"  {source}: {weight:.4f} ({weight*100:.1f}%)")
+            for source, weight, se in zip(result.sources, result.weights, result.weight_se):
+                click.echo(f"  {source}: {weight:.4f} ({weight*100:.1f}%), SE {se:.4f}")
             click.echo()
             click.echo(f"Model fit: chisq={result.chisq:.4f}, dof={result.dof}, p={_p_text(result.p)}")
             click.echo(f"Feasible: {result.feasible}")
@@ -90,10 +94,13 @@ def qpadm(target: str, left: list, right: list, constrained: bool, input_prefix:
 @click.command()
 @click.option("--left", required=True, callback=parse_population_list, help="Left populations (comma-separated)")
 @click.option("--right", required=True, callback=parse_population_list, help="Right populations (comma-separated)")
+@click.option("--fudge", type=float, default=1e-4,
+              help="Regularisation of the f4 covariance, added to its diagonal as a fraction of its trace "
+                   "(admixtools2 fudge; default: 1e-4)")
 @f2_source_options
 @click.option("--format", "output_format", type=click.Choice(["text", "json", "tsv"]), default="text",
               help="Output format")
-def qpwave(left: list, right: list, input_prefix: str | None, f2_dir: str | None,
+def qpwave(left: list, right: list, fudge: float, input_prefix: str | None, f2_dir: str | None,
            block_size: float, maxmiss: float, all_chromosomes: bool, output_format: str):
     """Test admixture wave count using qpWave.
 
@@ -111,7 +118,7 @@ def qpwave(left: list, right: list, input_prefix: str | None, f2_dir: str | None
     try:
         f2_blocks = load_f2_blocks(input_prefix, f2_dir, all_pops, block_size, maxmiss, all_chromosomes)
 
-        result = pm.qpwave(f2_blocks, left, right)
+        result = pm.qpwave(f2_blocks, left, right, fudge=fudge)
 
         if output_format == "json":
             output = {

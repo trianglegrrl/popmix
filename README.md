@@ -145,7 +145,7 @@ the test suite, so it cannot drift from the CLI.
 
 ## Input File Formats
 
-Popmix reads 6 standard genotype file formats. Most formats use a **prefix** convention where related files share a common path prefix. VCF files use a full path (with extension).
+Popmix reads 7 genotype file formats. Most formats use a **prefix** convention where related files share a common path prefix. VCF files use a full path (with extension).
 
 ### VCF (Variant Call Format)
 
@@ -181,6 +181,12 @@ Sample2  F  Yoruba
 ### PACKEDANCESTRYMAP (binary)
 
 Binary version of EIGENSTRAT. Same `.snp` and `.ind` files, but `.geno` is packed binary with "GENO" header.
+
+### TGENO (binary, by sample)
+
+The packed genotypes of PACKEDANCESTRYMAP stored sample by sample, so that
+reading a few samples reads only their records: the format of the AADR from
+v66 on (`.geno` with a "TGENO" header, `.snp`, `.ind`).
 
 ### PLINK / PACKEDPED (binary)
 
@@ -427,26 +433,28 @@ Estimate admixture proportions from source populations.
 
 ```bash
 popmix qpadm \
-  -i /path/to/data \
-  --target French \
-  --left Yamnaya,Anatolia_N,WHG \
-  --right Mbuti,Han,Papuan
+  -i aadr_v66p1 \
+  --target French.DG \
+  --left Russia_Samara_EBA_Yamnaya.AG,Germany_HalberstadtSonntagsfeld_EN_LBK.AG \
+  --right Mbuti.DG,Han.DG,Papuan.DG,Karitiana.DG,Ulchi.DG
 ```
 
-**Output:**
+**Output** (AADR v66.p1, populations labelled by data type):
 ```
-qpAdm: French = mix of Yamnaya, Anatolia_N, WHG
-Outgroups: Mbuti, Han, Papuan
+qpAdm: French.DG = mix of Russia_Samara_EBA_Yamnaya.AG, Germany_HalberstadtSonntagsfeld_EN_LBK.AG
+Outgroups: Mbuti.DG, Han.DG, Papuan.DG, Karitiana.DG, Ulchi.DG
 
 Admixture weights:
-  Yamnaya: 0.4523 (45.2%)
-  Anatolia_N: 0.3891 (38.9%)
-  WHG: 0.1586 (15.9%)
+  Russia_Samara_EBA_Yamnaya.AG: 0.4185 (41.8%), SE 0.0275
+  Germany_HalberstadtSonntagsfeld_EN_LBK.AG: 0.5815 (58.2%), SE 0.0275
 
-Model fit: chi-sq=4.2341, df=3, p=0.2371
+Model fit: chisq=37.7305, dof=3, p=0.0000
 Feasible: True
-=> Good model fit (p > 0.05)
+=> Poor model fit (p <= 0.05)
 ```
+
+Two sources are not enough here: present-day French also carry
+hunter-gatherer ancestry the model leaves out.
 
 ### `popmix qpwave`
 
@@ -518,18 +526,11 @@ popmix convertf -i data -o data_eigen -of eigenstrat
 popmix convertf -i data -o data_plink -if eigenstrat -of plink
 ```
 
-**Input formats:** `vcf`, `ancestrymap`, `eigenstrat`, `packedancestrymap`, `plink`/`packedped`, `ped`
+**Input formats:** `vcf`, `ancestrymap`, `eigenstrat`, `packedancestrymap`, `tgeno`, `plink`/`packedped`, `ped`
 
-**Output formats:** `ancestrymap`, `eigenstrat`, `packedancestrymap`, `plink`/`packedped`, `ped` (VCF output not supported)
+**Output formats:** `ancestrymap`, `eigenstrat`, `packedancestrymap`, `tgeno`, `plink`/`packedped`, `ped` (VCF output not supported)
 
-**Format conversion matrix:**
-
-| From \ To | ancestrymap | eigenstrat | packedancestrymap | plink | ped |
-|-----------|-------------|------------|-------------------|-------|-----|
-| vcf | Yes | Yes | Yes | Yes | Yes |
-| eigenstrat | Yes | Yes | Yes | Yes | Yes |
-| packedancestrymap | Yes | Yes | Yes | Yes | Yes |
-| plink | Yes | Yes | Yes | Yes | Yes |
+Any input format converts to any output format.
 
 ## Helpful Error Messages
 

@@ -111,9 +111,8 @@ extension. The format is detected from the files:
 
 Population labels come from the `.ind` (or `.fam`); relabeling samples, or
 setting a sample's population to `Ignore`, is done by editing that file.
-`pca`, `kinship` and `admixture` leave out `Ignore` when they default to all
-populations; `extract-f2` without `--populations` does not, so name the
-populations there.
+`pca`, `kinship`, `admixture` and `extract-f2` leave out `Ignore` when they
+default to all populations.
 
 The genotype counts the first allele of the `.snp` (EIGENSTRAT) or A1
 (PLINK). Analyses that use genetic distance (f2 blocks, DATES, ROLLOFF)

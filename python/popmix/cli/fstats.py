@@ -36,7 +36,7 @@ from ._population_checks import validate_populations
               help="Only SNPs start:end, by index (computed outside admixtools2's extract_f2 pipeline; not with --maxmiss or --pseudohaploid)")
 @click.option("--block-size", type=float, default=0.05, help="Block size in Morgans (default: 0.05)")
 @click.option("--populations", callback=parse_population_list,
-              help="Comma-separated list of populations to include (default: all)")
+              help="Comma-separated list of populations to include (default: all but Ignore)")
 @click.option("--maxmiss", type=click.FloatRange(0, 1), default=0.0,
               help="Drop SNPs missing in more than this fraction of populations (default: 0)")
 @click.option("--auto-only/--all-chromosomes", default=True, help="Use only autosomal SNPs (default: auto-only)")
@@ -51,7 +51,7 @@ def extract_f2(input_prefix: str, output_dir: str, snp_range: tuple[int, int] | 
     try:
         if not snp_range:
             if not populations:
-                populations = [p for p, _ in pm.list_populations(input_prefix)]
+                populations = [p for p, _ in pm.list_populations(input_prefix) if p != "Ignore"]
             else:
                 validate_populations(input_prefix, populations)
             click.echo(f"Streaming F2 extraction from {input_prefix}...")
@@ -82,7 +82,7 @@ def extract_f2(input_prefix: str, output_dir: str, snp_range: tuple[int, int] | 
             if populations:
                 validate_populations(input_prefix, populations)
             else:
-                populations = geno.populations
+                populations = [p for p in geno.populations if p != "Ignore"]
 
             click.echo("Computing allele frequencies...")
             af = geno.allele_frequencies(populations=populations)

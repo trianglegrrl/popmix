@@ -21,7 +21,7 @@ popmix extract-f2 --input PREFIX --output DIR [--populations A,B,...]
 |--------|------|---------|---------|
 | `--input`, `-i` | text (path) | required | Genotype prefix (any readable format; PACKEDANCESTRYMAP is streamed, others are read into memory first). |
 | `--output`, `-o` | text (path) | required | Directory to write; created if needed, files in it replaced. |
-| `--populations` | text (comma-separated) | none (all populations in the dataset) | Populations to include. Name them: the blocks hold every pair, so size and time grow with the square of their number, and without the list every population (including `Ignore`) is used. |
+| `--populations` | text (comma-separated) | none (all populations except `Ignore`) | Populations to include. Name them: the blocks hold every pair, so size and time grow with the square of their number, and without the list every population but `Ignore` is used. |
 | `--block-size` | number | 0.05 | Jackknife block length in Morgans (5 cM), as admixtools2 `blgsize`. Blocks never span chromosomes. |
 | `--maxmiss` | number (0 to 1) | 0 | Keep SNPs missing in at most this fraction of the populations (admixtools2 `maxmiss`). 0 keeps only SNPs with data in every population; raise it for ancient populations with low coverage. |
 | `--auto-only` / `--all-chromosomes` | flag | `--auto-only` | Use autosomes 1-22 only (default), or every chromosome. |

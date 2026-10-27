@@ -17,6 +17,7 @@ popmix qpwave --left L1,L2,... --right R1,R2,... (--input PREFIX | --f2-dir DIR)
 |--------|------|---------|---------|
 | `--left` | text (comma-separated) | required | Left populations, at least two; the first is the basis L0. |
 | `--right` | text (comma-separated) | required | Right populations, at least two; the first is the basis R0. |
+| `--fudge` | number | 1e-4 | Regularisation of the f4 covariance: this fraction of its trace is added to its diagonal (admixtools2 `fudge`). |
 | `--input`, `-i` | text (path) | none | Genotype prefix. f2 blocks are extracted for exactly this command's populations, on the SNPs with data in all of them (with `--maxmiss 0`). Give this or `--f2-dir`. |
 | `--f2-dir` | path (directory) | none | Read f2 blocks saved by [extract-f2](extract-f2.md) instead of genotypes; every population must be in them. The SNP set is the one extract-f2 chose. |
 | `--block-size` | number | 0.05 | With `--input`: jackknife block length in Morgans. |

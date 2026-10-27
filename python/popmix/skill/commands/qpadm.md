@@ -20,13 +20,14 @@ popmix qpadm --target T --left S1,S2,... --right R1,R2,... (--input PREFIX | --f
 | `--left` | text (comma-separated) | required | Source populations, at least one. |
 | `--right` | text (comma-separated) | required | Right (reference) populations, at least two; the first is the basis (R0) of the f4 matrix f4(target or source, ...; R0, Rj). |
 | `--constrained` / `--unconstrained` | flag | `--unconstrained` | `--constrained` keeps every weight in [0, 1] (quadratic programming), as admixtools2 `constrained = TRUE`; the default allows any weights summing to 1. |
+| `--fudge` | number | 1e-4 | Regularisation of the f4 covariance: this fraction of its trace is added to its diagonal (admixtools2 `fudge`). |
 | `--input`, `-i` | text (path) | none | Genotype prefix. f2 blocks are extracted for exactly this command's populations, on the SNPs with data in all of them (with `--maxmiss 0`). Give this or `--f2-dir`. |
 | `--f2-dir` | path (directory) | none | Read f2 blocks saved by [extract-f2](extract-f2.md) instead of genotypes; every population must be in them. The SNP set is the one extract-f2 chose. |
 | `--block-size` | number | 0.05 | With `--input`: jackknife block length in Morgans. |
 | `--maxmiss` | number (0 to 1) | 0 | With `--input`: keep SNPs missing in at most this fraction of the populations. |
 | `--all-chromosomes` | flag | off | With `--input`: use every chromosome, not only autosomes 1-22. |
 | `--pseudohaploid` | `detect`, `admixtools2`, `diploid` | `detect` | With `--input`: which samples count one allele per SNP (see [SKILL.md](../SKILL.md#things-every-command-shares); `admixtools2` reproduces ADMIXTOOLS2-0007). |
-| `--format` | `text`, `json`, `tsv` | `text` | `json`: target, sources, weights and se (by source), chisq, dof, p (null when untestable), feasible. `tsv`: one row per source with weight, chisq, dof, p. |
+| `--format` | `text`, `json`, `tsv` | `text` | `json`: target, sources, weights and se (by source), chisq, dof, p (null when untestable), feasible. `tsv`: one row per source with weight, se, chisq, dof, p. |
 
 ## Inputs and outputs
 
@@ -37,10 +38,10 @@ qpAdm: Simulation.1 = mix of French_1, Yoruba_1
 Outgroups: French_2, Yoruba_2, French_3, Yoruba_3
 
 Admixture weights:
-  French_1: 0.1940 (19.4%)
-  Yoruba_1: 0.8060 (80.6%)
+  French_1: 0.1940 (19.4%), SE 0.0203
+  Yoruba_1: 0.8060 (80.6%), SE 0.0203
 
-Model fit: chi-sq=1.2836, df=2, p=0.5263
+Model fit: chisq=1.2836, dof=2, p=0.5263
 Feasible: True
 => Good model fit (p > 0.05)
 ```
@@ -76,8 +77,7 @@ popmix qpadm --f2-dir f2_eu --target Spain_EN --left Turkey_N,Serbia_IronGates_M
   With dof = 0 (as many right as left) there is nothing to test: p is `NA`
   in text and tsv, `null` in JSON, and the output says the model is not
   tested.
-- Weight standard errors (block jackknife) are only in the JSON output
-  (`se`).
+- Weight standard errors are block-jackknife SEs (`se` in JSON and tsv).
 
 ## Caveats
 

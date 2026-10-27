@@ -9,7 +9,8 @@ number of segregating sites, pi, Watterson's theta and Tajima's D.
 
 ```text
 popmix sfs --input PREFIX --populations A[,B,...] [--projection N1,N2,...] [--folded]
-           [--joint [--compat admixtools2-2.0.10]] [--all-chromosomes] [-o FILE]
+           [--joint [--compat admixtools2-2.0.10]] [--all-chromosomes]
+           [--pseudohaploid RULE] [--format tsv|json] [-o FILE]
 ```
 
 ## Arguments and options
@@ -23,6 +24,8 @@ popmix sfs --input PREFIX --populations A[,B,...] [--projection N1,N2,...] [--fo
 | `--joint` | flag | off | admixtools2 `joint_sfs()` instead: counts among the observed alleles, no projection, every chromosome; `--projection` and `--folded` are refused, and `--all-chromosomes` is implied. |
 | `--compat` | `admixtools2-2.0.10` | none (corrected) | Only with `--joint`: reproduce admixtools2 exactly, which drops SNPs whose count is not an exact integer in floating point (ADMIXTOOLS2-0003). |
 | `--all-chromosomes` | flag | off | Use every SNP, not only autosomes (`--joint` always uses every SNP, as admixtools2). |
+| `--pseudohaploid` | `detect`, `admixtools2`, `diploid` | `detect` | Which samples count one allele per SNP (see [SKILL.md](../SKILL.md#things-every-command-shares); `admixtools2` reproduces ADMIXTOOLS2-0007). |
+| `--format` | `tsv`, `json` | `tsv` | Table format: tab-separated with a header, or JSON records. |
 | `--output`, `-o` | text (path) | none (stdout) | Write the spectrum table here instead of stdout. |
 
 ## Inputs and outputs
@@ -32,7 +35,7 @@ allele count in it) and `n`, the number of SNPs (expected, after
 projection); the projected spectrum also has `masked` (dadi's mask: the
 corners, allele absent or fixed everywhere, and with `--folded` the entries
 folded away). For one population, unfolded and not `--joint`, four lines
-come first on stdout:
+go to stderr:
 
 ```text
 S	17667.4
@@ -70,8 +73,6 @@ rare variants are missing, so D is biased upward.
 - The counted allele is the genotype file's (EIGENSTRAT first allele, PLINK
   A1), so the unfolded spectrum is polarized only if that allele is the
   derived one; otherwise use `--folded`.
-- The summary statistics are printed to stdout before the table; with no
-  `-o`, the stdout is not a plain TSV. Use `-o` to get the table alone.
 - `--joint` counts a SNP with missing data at its observed count, as
   admixtools2; prefer a projection for data with missing calls.
 - Heterozygous calls in pseudo-haploid samples (half alleles) are left out.

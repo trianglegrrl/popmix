@@ -112,15 +112,16 @@ def populations(prefix: str, pattern: str | None, output_format: str):
 def convertf(input_prefix: str, output_prefix: str, input_format: str | None, output_format: str):
     """Convert between genotype file formats.
 
-    Supports conversion between 6 input formats:
-    - vcf: VCF format (.vcf, .vcf.gz) - pass full path
-    - ancestrymap: Sparse text (.ancestrymapgeno, .snp, .ind)
-    - eigenstrat: Dense text (.geno, .snp, .ind)
-    - packedancestrymap: Binary EIGENSTRAT (.geno, .snp, .ind)
-    - packedped/plink: Binary PLINK (.bed, .bim, .fam)
-    - ped: Text PLINK (.ped, .map, .pedind)
+    Reads seven formats and writes all but VCF:
 
-    Note: VCF output is not supported - use plink, eigenstrat, or packedancestrymap.
+    \b
+    - vcf: VCF (.vcf, .vcf.gz), given by its full path; input only
+    - ancestrymap: sparse text (.ancestrymapgeno, .snp, .ind)
+    - eigenstrat: dense text (.geno, .snp, .ind)
+    - packedancestrymap: binary EIGENSTRAT (.geno, .snp, .ind)
+    - tgeno: packed genotypes stored sample by sample (.geno, .snp, .ind; AADR v66 on)
+    - packedped/plink: binary PLINK (.bed, .bim, .fam)
+    - ped: text PLINK (.ped, .map, .pedind)
     """
     try:
         # Detect input format if not specified

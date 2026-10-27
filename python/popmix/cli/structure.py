@@ -7,7 +7,11 @@ import click
 import popmix as pm
 
 from ._common import (
+    _pseudohaploid,
     parse_population_list,
+    pseudohaploid_option,
+    scan_output_options,
+    with_options,
     write_columns,
     write_table,
 )
@@ -81,9 +85,9 @@ def pca(input_prefix: str, pca_pops: list, project_pops: list, components: int, 
               help="With --method read: jackknife window in base pairs (default: 5000000)")
 @click.option("--compat", type=click.Choice(["readv2-2.01"]), default=None,
               help="With --method read: reproduce READv2 exactly (see DEVIATIONS.md)")
-@click.option("--output", "-o", default=None, help="Write the table here instead of stdout")
+@with_options(scan_output_options)
 def kinship(input_prefix: str, populations: list, method: str, norm: str, norm_value: float | None,
-            window_size: int, compat: str | None, output: str | None):
+            window_size: int, compat: str | None, output_format: str, output: str | None):
     """Kinship for every pair of samples: KING-robust or READ-style.
 
     KING-robust needs diploid genotype calls; for pseudo-haploid ancient
@@ -96,13 +100,13 @@ def kinship(input_prefix: str, populations: list, method: str, norm: str, norm_v
         if method == "king":
             from popmix.kinship import king_columns
 
-            write_columns(king_columns(input_prefix, pops), output)
+            write_columns(king_columns(input_prefix, pops), output, output_format)
             return
         else:
             df = pm.read_kinship(input_prefix, pops, norm=norm, norm_value=norm_value, window_size=window_size,
                                  compat=compat)
             click.echo(f"normalization value (P0 of unrelated pairs): {df.attrs['norm_value']:.6g}", err=True)
-        write_table(df, "tsv", output)
+        write_table(df, output_format, output)
     except click.ClickException:
         raise
     except EXPECTED_ERRORS as e:
@@ -122,14 +126,15 @@ def kinship(input_prefix: str, populations: list, method: str, norm: str, norm_v
               help="With --joint: reproduce admixtools2 exactly (see DEVIATIONS.md)")
 @click.option("--all-chromosomes", is_flag=True, default=False,
               help="Use every SNP, not only autosomes (the default with --joint, as admixtools2)")
-@click.option("--output", "-o", default=None, help="Write the spectrum table here instead of stdout")
+@pseudohaploid_option
+@with_options(scan_output_options)
 def sfs(input_prefix: str, populations: list, projection: list, folded: bool, joint: bool,
-        compat: str | None, all_chromosomes: bool, output: str | None):
+        compat: str | None, all_chromosomes: bool, output_format: str, output: str | None):
     """Site-frequency spectrum, as dadi (projected) or admixtools2 joint_sfs().
 
     Writes one row per entry: the count in each population and n, the number
     of SNPs (expected, after projection). For one population, also prints S,
-    pi, Watterson's theta and Tajima's D.
+    pi, Watterson's theta and Tajima's D to stderr.
     """
     import itertools
 
@@ -145,18 +150,17 @@ def sfs(input_prefix: str, populations: list, projection: list, folded: bool, jo
             df = pm.joint_sfs(input_prefix, populations, compat=compat, auto_only=False)
         else:
             sizes = [int(x) for x in projection] or None
-            spec = pm.sfs(input_prefix, populations, sizes, folded=folded, auto_only=not all_chromosomes)
+            spec = pm.sfs(input_prefix, populations, sizes, folded=folded, auto_only=not all_chromosomes,
+                          pseudohaploid=_pseudohaploid())
             grid = list(itertools.product(*(range(d) for d in spec.data.shape)))
             df = pd.DataFrame(grid, columns=populations)
             df["n"] = spec.data.ravel()
             df["masked"] = spec.mask.ravel()
             if len(populations) == 1 and not folded:
                 click.echo(f"S\t{spec.S():.6g}\npi\t{spec.pi():.6g}\n"
-                           f"watterson_theta\t{spec.watterson_theta():.6g}\ntajima_d\t{spec.tajima_d():.6g}")
-        if output is None:
-            click.echo(df.to_csv(sep="\t", index=False, float_format="%.12g"), nl=False)
-        else:
-            df.to_csv(output, sep="\t", index=False, float_format="%.12g")
+                           f"watterson_theta\t{spec.watterson_theta():.6g}\ntajima_d\t{spec.tajima_d():.6g}",
+                           err=True)
+        write_table(df, output_format, output)
     except click.ClickException:
         raise
     except EXPECTED_ERRORS as e:

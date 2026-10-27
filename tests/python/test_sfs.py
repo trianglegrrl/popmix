@@ -59,7 +59,7 @@ def test_sfs_command(tmp_path):
     api = pm.sfs(SMALL, ["Yoruba"], [20])
     assert table["Yoruba"].tolist() == list(range(21))
     np.testing.assert_allclose(table["n"], api.data, rtol=1e-11)
-    assert f"tajima_d\t{api.tajima_d():.6g}" in r.stdout
+    assert f"tajima_d\t{api.tajima_d():.6g}" in r.stderr
 
 
 def test_sfs_command_joint_mode(tmp_path):

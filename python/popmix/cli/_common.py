@@ -149,7 +149,7 @@ def stat_source(input_prefix: str | None, f2_dir: str | None, populations: list)
 def write_table(df, output_format: str, output: str | None, index: bool = False) -> None:
     """Write a result table as TSV or JSON records to OUTPUT or stdout."""
     if output_format == "json":
-        text = df.to_json(orient="index" if index else "records", indent=2, double_precision=15)
+        text = df.to_json(orient="index" if index else "records", indent=2, double_precision=15) + "\n"
     else:
         text = df.to_csv(sep="\t", index=index, float_format="%.12g")
     if output:
@@ -159,28 +159,38 @@ def write_table(df, output_format: str, output: str | None, index: bool = False)
         click.echo(text, nl=False)
 
 
-def write_columns(columns: dict, output: str | None) -> None:
-    """Write equal-length columns as TSV, exactly as write_table writes a DataFrame of them.
+def write_columns(columns: dict, output: str | None, output_format: str = "tsv") -> None:
+    """Write equal-length columns as TSV or JSON records, exactly as write_table writes a DataFrame of them.
 
     For tables built straight from the Rust results, without importing pandas
     (a third of a fast command's time).
     """
     import csv
     import io
+    import json
 
     import numpy as np
 
-    def cell(x) -> str:
-        if isinstance(x, (float, np.floating)):
-            return "" if math.isnan(x) else f"{x:.12g}"
-        return str(x)
+    if output_format == "json":
+        def value(x):
+            if isinstance(x, (float, np.floating)):
+                return None if math.isnan(x) else float(x)
+            return x.item() if isinstance(x, np.generic) else x
 
-    buf = io.StringIO()
-    writer = csv.writer(buf, delimiter="\t", lineterminator="\n")
-    writer.writerow(list(columns))
-    for row in zip(*columns.values()):
-        writer.writerow([cell(x) for x in row])
-    text = buf.getvalue()
+        rows = [dict(zip(columns, map(value, row))) for row in zip(*columns.values())]
+        text = json.dumps(rows, indent=2) + "\n"
+    else:
+        def cell(x) -> str:
+            if isinstance(x, (float, np.floating)):
+                return "" if math.isnan(x) else f"{x:.12g}"
+            return str(x)
+
+        buf = io.StringIO()
+        writer = csv.writer(buf, delimiter="\t", lineterminator="\n")
+        writer.writerow(list(columns))
+        for row in zip(*columns.values()):
+            writer.writerow([cell(x) for x in row])
+        text = buf.getvalue()
     if output:
         with open(output, "w") as f:
             f.write(text)

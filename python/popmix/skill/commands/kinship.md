@@ -9,7 +9,7 @@ for diploid genotype calls, as PLINK 2 `--make-king-table`, or READ-style
 ```text
 popmix kinship --input PREFIX [--populations A,B,...] [--method king|read]
                [--norm median|mean|max] [--norm-value X] [--window-size BP]
-               [--compat readv2-2.01] [-o FILE]
+               [--compat readv2-2.01] [--format tsv|json] [-o FILE]
 ```
 
 ## Arguments and options
@@ -23,6 +23,7 @@ popmix kinship --input PREFIX [--populations A,B,...] [--method king|read]
 | `--norm-value` | number | none | With `--method read`: normalize by this P0 instead (for example the median from a larger sample of the same population). |
 | `--window-size` | integer | 5000000 | With `--method read`: jackknife window in base pairs (READv2 `--window_size`). |
 | `--compat` | `readv2-2.01` | none (corrected) | With `--method read`: reproduce READv2 2.01 exactly (READV2-0001 to READV2-0003). |
+| `--format` | `tsv`, `json` | `tsv` | Table format: tab-separated with a header, or JSON records. |
 | `--output`, `-o` | text (path) | none (stdout) | Write the table here instead of stdout. |
 
 ## Inputs and outputs

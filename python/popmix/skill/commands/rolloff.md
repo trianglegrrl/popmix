@@ -10,7 +10,8 @@ needs several admixed samples.
 
 ```text
 popmix rolloff --input PREFIX --admixed T --sources A,B [--binsize M] [--maxdis M]
-               [--runmode 0|1] [--chithresh X] [--chromosomes 1,2,...] [-o PREFIX]
+               [--runmode 0|1] [--chithresh X] [--chromosomes 1,2,...] [--lval CM] [--hval CM]
+               [-o PREFIX]
 ```
 
 ## Arguments and options
@@ -25,6 +26,8 @@ popmix rolloff --input PREFIX --admixed T --sources A,B [--binsize M] [--maxdis 
 | `--runmode` | `0`, `1` | `1` | Weights: `1` pA - pB (recommended, the one tested against ROLLOFF); `0` divided by the square root of the mean frequency. |
 | `--chithresh` | number | 6 | Leave out SNP pairs in LD in a reference (chi-square at least this). |
 | `--chromosomes` | text (comma-separated) | none (all autosomes) | Use only these chromosomes. |
+| `--lval` | number | 0.5 | Fit the decay from this distance in cM. |
+| `--hval` | number | 100 | Fit the decay up to this distance in cM. |
 | `--output-prefix`, `-o` | text (path) | none | Also write `PREFIX.bins.tsv`: one row per distance bin (d_cm, zscore, regression, corr, count). |
 
 ## Inputs and outputs
@@ -69,9 +72,8 @@ date. Check the `corr` column of the bins for a smooth decay.
   ([ROLLOFF matched behaviour](https://github.com/trianglegrrl/popmix/blob/main/DEVIATIONS.md#rolloff-admixtools-702)).
 - The jackknife weights each chromosome present by its SNPs; ROLLOFF's
   expfit.sh assumes chromosomes 1-22.
-- The fit range (0.5-100 cM), `zdipcorrmode`, `mincount` and
-  `minparentcount` are fixed on the CLI; the Python API (`pm.rolloff`)
-  takes them.
+- `zdipcorrmode`, `mincount` and `minparentcount` are fixed on the CLI;
+  the Python API (`pm.rolloff`) takes them.
 
 ## Reference
 
