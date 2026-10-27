@@ -687,9 +687,14 @@ thread count.
 
 ## M. Minor cleanups (P2)
 
-- [ ] **M1. Duplicated logic:** three confidence-interval implementations
+- [x] **M1. Duplicated logic:** three confidence-interval implementations
   (`formatters.py:34`, `rich_output.py:27`, `statistics.py:26`; go with D1).
   AI
+  *Done in 53c02fc (D1):* the three modules went with the unused reporting
+  layer; the one confidence interval left is READ's (x +- 1.96 SE, as
+  READv2), in `kinship/read.rs`. Other copies found since were removed
+  where found: the bindings' `best_clade`/`clades` (I4), their population
+  reorder for SFS (I3) and their three VCF lookups (16858a9).
 - [x] **M2. Idiom:** `f64::midpoint` (9 places), `let … else` instead of
   `unwrap` after `is_none` (`ped.rs:184`, `graph.rs:240`), worthwhile
   `clippy::pedantic` lints (1,782 warnings, mostly noise). RS
