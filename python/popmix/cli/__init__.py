@@ -43,6 +43,8 @@ import click
 
 import popmix as pm
 
+from ._population_checks import EXPECTED_ERRORS, validate_populations
+
 
 def _p_text(p: float, digits: int = 4) -> str:
     """A p-value for text output: NA where there is none (a saturated model)."""
@@ -61,10 +63,6 @@ def parse_population_list(ctx, param, value: str) -> list:
     return [p.strip() for p in value.split(",") if p.strip()]
 
 
-# Failures of the input (bad names or values, missing or malformed files) or
-# of the computation (a singular system): reported in one line. Anything else
-# is a bug and keeps its traceback.
-EXPECTED_ERRORS = (ValueError, OSError, RuntimeError)
 
 
 def fail(error: Exception) -> NoReturn:
@@ -93,48 +91,6 @@ def parse_snp_range(ctx, param, value: str | None) -> tuple[int, int] | None:
         return (int(parts[0]), int(parts[1]))
     except ValueError:
         raise click.BadParameter("SNP range must be integers in format 'start:end'") from None
-
-
-def format_population_error(invalid_pop: str, prefix: str) -> str:
-    """Format helpful error message for invalid population name."""
-    lines = [f"Population '{invalid_pop}' not found in dataset."]
-
-    try:
-        suggestions = pm.suggest_populations(prefix, invalid_pop, limit=5)
-        if suggestions:
-            lines.append("\nDid you mean one of these?")
-            for pop, count in suggestions:
-                lines.append(f"  - {pop} ({count} samples)")
-    except EXPECTED_ERRORS:
-        pass  # no suggestions if the dataset cannot be listed
-
-    lines.append(f"\nTip: List all populations with: popmix populations {prefix}")
-    lines.append(f'Tip: Search populations with: popmix populations {prefix} --filter "{invalid_pop[:4]}*"')
-
-    return "\n".join(lines)
-
-
-def validate_populations(prefix: str, populations: list) -> None:
-    """Validate that all populations exist in the dataset.
-
-    Raises click.ClickException with helpful error message if any population is missing.
-    """
-    if not populations:
-        return
-
-    try:
-        available = {p for p, _ in pm.list_populations(prefix)}
-    except EXPECTED_ERRORS as e:
-        click.echo(f"Warning: Could not validate populations: {e}", err=True)
-        return
-
-    missing = [p for p in populations if p not in available]
-    if missing:
-        # Format error message for the first missing population
-        error_msg = format_population_error(missing[0], prefix)
-        if len(missing) > 1:
-            error_msg += f"\n\nAlso missing: {', '.join(missing[1:])}"
-        raise click.ClickException(error_msg)
 
 
 def _store_pseudohaploid(ctx: click.Context, param: click.Parameter, value: str) -> str:
@@ -202,9 +158,9 @@ def load_f2_blocks(input_prefix: str | None, f2_dir: str | None, populations: li
                          maxmiss=maxmiss, pseudohaploid=_pseudohaploid())
 
 
-# with no command, the help on stdout and success, whatever Click's version
-# does by default (8.2 changed it to the help on stderr and exit code 2)
-@click.group(invoke_without_command=True)
+# with no command, the help on stdout and success, and one usage line, on
+# any Click (8.2 changed both: help on stderr, exit 2, an optional COMMAND)
+@click.group(invoke_without_command=True, subcommand_metavar="COMMAND [ARGS]...")
 @click.option("--threads", "-t", type=int, default=4, help="Number of threads to use (default: 4)")
 @click.option("--debug", is_flag=True, help="Show the traceback of an error")
 @click.version_option(version=pm.__version__, prog_name="popmix")

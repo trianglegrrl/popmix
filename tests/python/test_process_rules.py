@@ -22,7 +22,7 @@ MAX_LINES = 800
 TOO_LONG = {
     "crates/popmix-python/src/lib.rs": 3152,
     "crates/popmix-core/src/rcompat/lbfgsb.rs": 2127,
-    "python/popmix/cli/__init__.py": 1580,
+    "python/popmix/cli/__init__.py": 1540,
     "crates/popmix-core/src/fstats/f2_blocks.rs": 1527,
     "crates/popmix-core/src/admixture.rs": 1159,
     "crates/popmix-io/src/writers.rs": 1117,

@@ -8,6 +8,7 @@ import pytest
 from click.testing import CliRunner
 
 import popmix.cli as cli_module
+import popmix.cli._population_checks as checks
 from popmix.cli import cli
 
 
@@ -42,8 +43,8 @@ def test_helpers_only_swallow_expected_errors(monkeypatch, handler):
     if handler == "suggest":
         monkeypatch.setattr(cli_module.pm, "suggest_populations", broken)
         with pytest.raises(TypeError):
-            cli_module.format_population_error("X", "prefix")
+            checks.format_population_error("X", "prefix")
     else:
         monkeypatch.setattr(cli_module.pm, "list_populations", broken)
         with pytest.raises(TypeError):
-            cli_module.validate_populations("prefix", ["X"])
+            checks.validate_populations("prefix", ["X"])
