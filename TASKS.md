@@ -51,7 +51,7 @@ they move, and the public API is settled before features add to it.
    I4 (pipeline out of the bindings, `lib.rs` split), I7 (small files), I3,
    I5, M2, M1.
 2. **The API 1.0 freezes.** G13 (warnings channel), J1, J2, J4, J3, J5, M4,
-   H6, I6, M3.
+   M5, H6, I6, M3.
 3. **Honest science.** G8, G12, G2, G1, G3, G4, G5, G7, G10, G11, G6, G14,
    G9.
 4. **Practitioner features.** H3, H9, H1, H2 with P3, H4, H5, H11, P1 (VCF
@@ -765,7 +765,7 @@ thread count.
   for one, and a SNP range of a VCF was ignored (fixed before this).
 - [ ] **M3. Document why graph search is split across Rust and Python** (or
   resolve it with F9). AI
-- [ ] **M4. CLI consistency** (found writing the skill, N): `sfs` with one
+- [x] **M4. CLI consistency** (found writing the skill, N): `sfs` with one
   population prints S/pi/Watterson/Tajima lines to stdout before its TSV
   (even with `-o`), and lacks `--pseudohaploid`; qpadm prints weight SEs
   only in JSON, and qpadm/qpwave have no `--fudge`; `Ignore` is left out by
@@ -776,6 +776,20 @@ thread count.
   `write_table` lacks a trailing newline; README claims `--format json` for
   `kinship` and `sfs` and "6 formats" (TGENO is a seventh), as does the
   convertf docstring.
+  *Done in 6b02868:* each as listed, checked by `test_cli_consistency.py`:
+  the sfs summary goes to stderr; sfs takes `--pseudohaploid`; sfs and
+  kinship take `--format tsv|json`; qpadm prints weight SEs in text and
+  tsv; qpadm and qpwave take `--fudge`; dates takes `--generation-time`
+  and `--no-jackknife` (its JSON says `admixed`, `sources`); rolloff
+  takes `--lval`/`--hval`; extract-f2 leaves out `Ignore`; JSON ends
+  with a newline; the docs list seven formats, TGENO with its own README
+  section. `info`'s order was already fixed (16858a9). The README's
+  qpadm example output turned out invented (M5).
+- [ ] **M5. README example outputs are real runs.** The qpadm example's
+  output was made up, with 3 dof from 3 left and 3 right populations
+  (replaced in 6b02868 by a run on AADR v66.p1). Rerun every other
+  `**Output:**` block on named data and check them with a test, so they
+  cannot drift from what the command prints.
 
 ## N. Agent skill for popmix (P1)
 
