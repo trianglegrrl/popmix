@@ -472,9 +472,12 @@ thread count.
   few called samples. PR
 - [ ] **G11. Kinship caveats:** KING −∞ for pseudohaploid samples, fixed READ
   thresholds; document coverage-dependent bias and contamination. PR
-- [ ] **G12. Jackknife docstring:** the est/tot order in
+- [x] **G12. Jackknife docstring:** the est/tot order in
   `fstats/jackknife.rs:186` is valid only for additive statistics (as
   admixtools2 `jack_pairarr_stats`); say so. PR [reviewer-verified algebra]
+  *Done in c2d8285:* `jackknife_from_loo` and `jackknife_cov_from_loo` say
+  their rebuilt total is the full-data value only for additive statistics
+  (for D it is admixtools2's mean of leave-one-out ratios); a test pins it.
 - [x] **G13. Warn on the combinations users get wrong without noticing:**
   generalize the above into a warnings channel (Rust → Python → CLI), today
   almost absent.
