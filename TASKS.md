@@ -552,7 +552,7 @@ thread count.
   FromStr for GenoFormat`; `rcompat` and the second graph fitter
   `pub(crate)` or documented; distinct names for dates and qpgraph
   `FitOptions`; decide whether ndarray/nalgebra types are public. RS
-  *Done in ff23ef1, 5595587 and COMMIT:* `F2Blocks`, `FstBlocks` and
+  *Done in ff23ef1, 5595587 and af93a9e:* `F2Blocks`, `FstBlocks` and
   `AlleleFrequencies` have private fields, accessors and checked
   constructors (`F2Blocks::from_arrays`, `FstBlocks::new`,
   `AlleleFrequencies::new`); the 42 option, compat and result types are
