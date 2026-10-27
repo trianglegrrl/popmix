@@ -604,7 +604,7 @@ thread count.
 
 - [x] **L1. popmix-io/core publishable:** `version` on the path dependency,
   `publish = false` on popmix-python, `rust-version` on every crate. RS
-  *Done in COMMIT:* path dependencies pinned `=1.0.0`, `rust-version` 1.99
+  *Done in 5bcaf10:* path dependencies pinned `=1.0.0`, `rust-version` 1.99
   (the pinned toolchain), popmix-python unpublished; `cargo package` of
   both libraries builds. Found doing it: the crate packages lacked LICENSE
   and NOTICE (now symlinked in, packaged as text), and `Cargo.lock` was
