@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import warnings
+
 import click
 
 import popmix as pm
@@ -39,7 +41,8 @@ def validate_populations(prefix: str, populations: list) -> None:
     try:
         available = {p for p, _ in pm.list_populations(prefix)}
     except EXPECTED_ERRORS as e:
-        click.echo(f"Warning: Could not validate populations: {e}", err=True)
+        warnings.warn(f"could not check the population names: {e}", pm.PopmixWarning, stacklevel=2)
+
         return
 
     missing = [p for p in populations if p not in available]

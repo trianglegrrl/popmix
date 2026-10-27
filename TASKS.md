@@ -471,9 +471,15 @@ thread count.
 - [ ] **G12. Jackknife docstring:** the est/tot order in
   `fstats/jackknife.rs:186` is valid only for additive statistics (as
   admixtools2 `jack_pairarr_stats`); say so. PR [reviewer-verified algebra]
-- [ ] **G13. Warn on the combinations users get wrong without noticing:**
+- [x] **G13. Warn on the combinations users get wrong without noticing:**
   generalize the above into a warnings channel (Rust → Python → CLI), today
   almost absent.
+  *Done in COMMIT (the channel; the warnings themselves are G4-G11):*
+  `popmix_core::Warning` and a `warn: &mut dyn FnMut(Warning)` sink in Rust
+  (since e309932); in Python each is a `popmix.PopmixWarning` (a
+  UserWarning, filterable by class); the CLI prints each as one
+  `Warning: ...` line on stderr. The CLI's own population-check notice
+  goes the same way.
 - [ ] **G14. qpGraph past a zero-bound kink:** where a fitted edge length
   reaches zero the score has a kink, and R-style finite-difference
   L-BFGS-B stalls before it from every start, as admixtools2's does

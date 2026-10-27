@@ -1,4 +1,4 @@
-"""The exceptions popmix raises.
+"""The exceptions and warnings popmix raises.
 
 Every one is a :class:`PopmixError`, and also the built-in exception the
 same failure would be in plain Python, so code that catches ``ValueError``
@@ -11,6 +11,9 @@ or ``FileNotFoundError`` keeps working::
     ├── FileError (OSError)                 reading or writing a file failed
     ├── ComputationError (RuntimeError)     valid input, failed computation
     └── InternalError (RuntimeError)        a bug in popmix: please report it
+
+and every warning is a :class:`PopmixWarning` (a ``UserWarning``), to filter
+in one line: ``warnings.simplefilter("error", popmix.PopmixWarning)``.
 """
 
 from __future__ import annotations
@@ -44,6 +47,11 @@ class InternalError(PopmixError, RuntimeError):
     """A bug in popmix, not a problem with the input: please report it."""
 
 
+class PopmixWarning(UserWarning):
+    """Something to know that is not an error: records left out of an input,
+    a result that needs care."""
+
+
 __all__ = [
     "PopmixError",
     "InputError",
@@ -52,4 +60,5 @@ __all__ = [
     "FileError",
     "ComputationError",
     "InternalError",
+    "PopmixWarning",
 ]

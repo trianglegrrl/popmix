@@ -708,8 +708,17 @@ try:
 except pm.PopulationNotFoundError as e:
     print(e)  # Population not found: 'Frnech'
     print(pm.suggest_populations("data/aadr", "Frnech"))  # [('French', 28), ...]
-
 ```
+
+What popmix warns about (VCF records it left out, and later results that
+need care) is a `popmix.PopmixWarning`, a `UserWarning`; the command line
+prints each as one `Warning: ...` line on stderr. To stop on one instead:
+
+```python
+import warnings
+warnings.simplefilter("error", pm.PopmixWarning)
+```
+
 
 ## Output Formats
 

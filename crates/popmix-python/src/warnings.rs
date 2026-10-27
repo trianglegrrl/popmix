@@ -1,24 +1,21 @@
-//! Warnings from the Rust core as Python warnings (UserWarning).
+//! Warnings from the Rust core as Python warnings: `popmix.PopmixWarning`,
+//! a UserWarning.
 
 use popmix_core::{Result, Warning};
 use popmix_io::VcfReader;
 
 use pyo3::prelude::*;
 
-/// Raise each warning as a Python UserWarning (an error, if the warnings
-/// filter makes it one).
+/// Raise each warning as a `popmix.PopmixWarning` (an error, if the
+/// warnings filter makes it one).
 pub(crate) fn raise(warnings: Vec<Warning>) -> PyResult<()> {
     if warnings.is_empty() {
         return Ok(());
     }
     Python::attach(|py| {
+        let category = py.import("popmix.errors")?.getattr("PopmixWarning")?;
         for w in warnings {
-            PyErr::warn(
-                py,
-                &py.get_type::<pyo3::exceptions::PyUserWarning>(),
-                &std::ffi::CString::new(w.to_string())?,
-                1,
-            )?;
+            PyErr::warn(py, &category, &std::ffi::CString::new(w.to_string())?, 1)?;
         }
         Ok(())
     })

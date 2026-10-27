@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import signal
 import sys
+import warnings
 from typing import NoReturn
 
 import click
@@ -17,7 +18,22 @@ import popmix as pm
 EXPECTED_ERRORS = (ValueError, OSError, RuntimeError)
 
 
+def print_popmix_warnings() -> None:
+    """Show each PopmixWarning as one ``Warning: ...`` line on stderr, without
+    Python's file, line and source; other warnings as Python shows them."""
+    show = warnings.showwarning
+
+    def showwarning(message, category, filename, lineno, file=None, line=None):
+        if issubclass(category, pm.PopmixWarning):
+            click.echo(f"Warning: {message}", err=True)
+        else:
+            show(message, category, filename, lineno, file, line)
+
+    warnings.showwarning = showwarning
+
+
 def fail(error: Exception) -> NoReturn:
+
     """Report an expected error and exit 1; with --debug, raise it.
 
     A popmix InternalError is a bug, not an expected error: it is raised,

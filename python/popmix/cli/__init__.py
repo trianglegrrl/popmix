@@ -37,6 +37,7 @@ import click
 import popmix as pm
 
 from ._common import write_columns, write_table
+from ._errors import print_popmix_warnings
 from .datasets import convertf, info, install_skill, merge, populations
 from .dating import dates, rolloff
 from .fstats import dstat_matrix, extract_f2, f2, f3, f4, outgroup_f3, qp3pop, qpdstat
@@ -96,7 +97,9 @@ for _command in (
 
 def main():
     """Entry point for the popmix CLI."""
+    print_popmix_warnings()
     cli()
+
 
 
 if __name__ == "__main__":

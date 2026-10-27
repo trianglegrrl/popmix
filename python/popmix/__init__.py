@@ -69,6 +69,7 @@ from popmix.errors import (
     InternalError,
     MissingFileError,
     PopmixError,
+    PopmixWarning,
     PopulationNotFoundError,
 )
 
@@ -227,6 +228,7 @@ __all__ = [
     "FileError",
     "ComputationError",
     "InternalError",
+    "PopmixWarning",
     # Threading
     "init_threads",
     "get_threads",
