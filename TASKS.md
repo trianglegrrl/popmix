@@ -595,8 +595,13 @@ thread count.
   ADMIXTURE, faer only PCA's eigendecomposition, measured four times
   nalgebra's speed at 2,000 samples (2.0 s against 8.0 s), the gap
   growing as n^3. No hot loop converts between libraries.
-- [ ] **I6. Don't promise a stable Rust API at 1.0** until I1-I4 are done
+- [x] **I6. Don't promise a stable Rust API at 1.0** until I1-I4 are done
   (Python package 1.0 is separate). RS
+  *Done in 2623f61:* README "API stability": semantic versioning
+  for the Python package and the CLI from 1.0; the Rust crates stay
+  publishable (L1) but promise no stable API, as their crate docs say.
+  Open question for the release: crates at 1.0.0 read as stable to Cargo
+  users, so publish them as 0.x, or not at all, if they go to crates.io.
 - [x] **I7. No source file past about 800 lines,** split by concern, enforced
   by a test. Over it on 2026-10-27: `popmix-python/src/lib.rs` 3,628 (I4),
   `rcompat/lbfgsb.rs` 2,127, `cli/__init__.py` 1,580, `f2_blocks.rs` 1,527,
