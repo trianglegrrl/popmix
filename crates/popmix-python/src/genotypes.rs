@@ -114,7 +114,7 @@ impl PyGenotypeMatrix {
         self.inner
             .populations()
             .iter()
-            .map(|p| p.to_string())
+            .map(std::string::ToString::to_string)
             .collect()
     }
 
@@ -147,7 +147,7 @@ impl PyGenotypeMatrix {
         let af = match populations {
             Some(pops) => {
                 require_sample_populations(self.inner.samples(), &pops)?;
-                let pop_refs: Vec<&str> = pops.iter().map(|s| s.as_str()).collect();
+                let pop_refs: Vec<&str> = pops.iter().map(std::string::String::as_str).collect();
                 AlleleFrequencies::from_genotypes_for_populations(&self.inner, Some(&pop_refs))
             }
             None => AlleleFrequencies::from_genotypes(&self.inner),
@@ -186,7 +186,7 @@ impl PyAlleleFrequencies {
         self.inner
             .populations()
             .iter()
-            .map(|p| p.to_string())
+            .map(std::string::ToString::to_string)
             .collect()
     }
 
@@ -224,7 +224,10 @@ impl PyAlleleFrequencies {
     /// Returns:
     ///     PyAlleleFrequencies with only the specified populations
     fn filter_populations(&self, populations: Vec<String>) -> PyResult<Self> {
-        let pop_refs: Vec<&str> = populations.iter().map(|s| s.as_str()).collect();
+        let pop_refs: Vec<&str> = populations
+            .iter()
+            .map(std::string::String::as_str)
+            .collect();
         Ok(PyAlleleFrequencies {
             inner: self.inner.filter_populations(&pop_refs)?,
         })
@@ -385,29 +388,21 @@ pub(crate) fn read_genotypes_range(
     use std::path::Path;
     let snp_range = Some(range);
 
-    // Check for VCF format (full path with extension)
-    if (prefix.ends_with(".vcf") || prefix.ends_with(".vcf.gz")) && Path::new(prefix).exists() {
-        // VCF doesn't support snp_range, ignore it
-        return read_vcf(py, prefix);
-    }
-
-    // Check for VCF format with prefix
-    let vcf_gz_path = format!("{}.vcf.gz", prefix);
-    if Path::new(&vcf_gz_path).exists() {
-        return read_vcf(py, &vcf_gz_path);
-    }
-    let vcf_path = format!("{}.vcf", prefix);
-    if Path::new(&vcf_path).exists() {
-        return read_vcf(py, &vcf_path);
+    if let Some(path) = popmix_io::dataset::vcf_path(prefix) {
+        // read whole: a VCF has no index to read a range by
+        let inner = compute(py, || -> PyResult<GenotypeMatrix> {
+            Ok(open_vcf(&path)?.read_all()?.select_snps(range.0..range.1)?)
+        })?;
+        return Ok(PyGenotypeMatrix { inner });
     }
 
     // Check for PLINK format (.bed file)
-    if Path::new(&format!("{}.bed", prefix)).exists() {
+    if Path::new(&format!("{prefix}.bed")).exists() {
         return read_plink(py, prefix, snp_range);
     }
 
     // Check for EIGENSTRAT/PACKEDANCESTRYMAP format (.geno file)
-    let geno_path = format!("{}.geno", prefix);
+    let geno_path = format!("{prefix}.geno");
     if Path::new(&geno_path).exists() {
         // Check if it's packed (binary), transposed packed or text format
         if is_tgeno_format(&geno_path)? {
@@ -419,14 +414,12 @@ pub(crate) fn read_genotypes_range(
         }
         if is_packed_format(&geno_path)? {
             return read_packedancestrymap(py, prefix, snp_range);
-        } else {
-            return read_eigenstrat(py, prefix, snp_range);
         }
+        return read_eigenstrat(py, prefix, snp_range);
     }
 
     Err(missing_file(format!(
-        "No genotype files found for prefix: {}",
-        prefix
+        "No genotype files found for prefix: {prefix}"
     )))
 }
 

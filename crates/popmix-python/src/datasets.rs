@@ -5,6 +5,7 @@ use crate::compute;
 use crate::warnings::open_vcf;
 use popmix_core::python::missing_file;
 use popmix_core::Sample;
+use popmix_io::dataset::vcf_path;
 use popmix_io::tgeno::{is_tgeno_format, TgenoReader};
 use popmix_io::{
     is_packed_format, EigenstratReader, GenoFormat, PackedAncestryMapReader, PlinkReader,
@@ -40,63 +41,20 @@ pub(crate) fn dataset_info(prefix: &str) -> PyResult<HashMap<String, Py<PyAny>>>
     Python::attach(|py| {
         let mut info: HashMap<String, Py<PyAny>> = HashMap::new();
 
-        // Check for VCF format (full path with extension)
-        if (prefix.ends_with(".vcf") || prefix.ends_with(".vcf.gz")) && Path::new(prefix).exists() {
-            let reader = open_vcf(prefix)?;
+        if let Some(path) = vcf_path(prefix) {
+            let reader = open_vcf(&path)?;
             info.insert("format".to_string(), "vcf".into_py_any(py)?);
             info.insert(
                 "n_samples".to_string(),
                 reader.num_samples().into_py_any(py)?,
             );
             info.insert("n_snps".to_string(), reader.num_snps().into_py_any(py)?);
-
+            // in a fixed order: sorted
             let pops: Vec<String> = reader
                 .samples()
                 .iter()
                 .map(|s| s.population.to_string())
-                .collect::<std::collections::HashSet<_>>()
-                .into_iter()
-                .collect();
-            info.insert("populations".to_string(), pops.into_py_any(py)?);
-            return Ok(info);
-        }
-
-        // Check for VCF format with prefix
-        let vcf_gz_path = format!("{}.vcf.gz", prefix);
-        if Path::new(&vcf_gz_path).exists() {
-            let reader = open_vcf(&vcf_gz_path)?;
-            info.insert("format".to_string(), "vcf".into_py_any(py)?);
-            info.insert(
-                "n_samples".to_string(),
-                reader.num_samples().into_py_any(py)?,
-            );
-            info.insert("n_snps".to_string(), reader.num_snps().into_py_any(py)?);
-
-            let pops: Vec<String> = reader
-                .samples()
-                .iter()
-                .map(|s| s.population.to_string())
-                .collect::<std::collections::HashSet<_>>()
-                .into_iter()
-                .collect();
-            info.insert("populations".to_string(), pops.into_py_any(py)?);
-            return Ok(info);
-        }
-        let vcf_path = format!("{}.vcf", prefix);
-        if Path::new(&vcf_path).exists() {
-            let reader = open_vcf(&vcf_path)?;
-            info.insert("format".to_string(), "vcf".into_py_any(py)?);
-            info.insert(
-                "n_samples".to_string(),
-                reader.num_samples().into_py_any(py)?,
-            );
-            info.insert("n_snps".to_string(), reader.num_snps().into_py_any(py)?);
-
-            let pops: Vec<String> = reader
-                .samples()
-                .iter()
-                .map(|s| s.population.to_string())
-                .collect::<std::collections::HashSet<_>>()
+                .collect::<std::collections::BTreeSet<_>>()
                 .into_iter()
                 .collect();
             info.insert("populations".to_string(), pops.into_py_any(py)?);
@@ -104,7 +62,7 @@ pub(crate) fn dataset_info(prefix: &str) -> PyResult<HashMap<String, Py<PyAny>>>
         }
 
         // Check for PLINK format
-        if Path::new(&format!("{}.bed", prefix)).exists() {
+        if Path::new(&format!("{prefix}.bed")).exists() {
             let reader = PlinkReader::new(prefix)?;
             info.insert("format".to_string(), "plink".into_py_any(py)?);
             info.insert(
@@ -125,7 +83,7 @@ pub(crate) fn dataset_info(prefix: &str) -> PyResult<HashMap<String, Py<PyAny>>>
         }
 
         // Check for EIGENSTRAT/PACKEDANCESTRYMAP format
-        let geno_path = format!("{}.geno", prefix);
+        let geno_path = format!("{prefix}.geno");
         if Path::new(&geno_path).exists() {
             if is_tgeno_format(&geno_path)? {
                 let reader = TgenoReader::new(prefix)?;
@@ -184,8 +142,7 @@ pub(crate) fn dataset_info(prefix: &str) -> PyResult<HashMap<String, Py<PyAny>>>
         }
 
         Err(missing_file(format!(
-            "No genotype files found for prefix: {}",
-            prefix
+            "No genotype files found for prefix: {prefix}"
         )))
     })
 }
@@ -214,33 +171,19 @@ pub(crate) fn list_populations(py: Python<'_>, prefix: &str) -> PyResult<Vec<(St
             pop_counts
         }
 
-        // Check for VCF format (full path with extension)
-        if (prefix.ends_with(".vcf") || prefix.ends_with(".vcf.gz")) && Path::new(prefix).exists() {
-            let reader = open_vcf(prefix)?;
-            return Ok(count_populations(reader.samples()));
-        }
-
-        // Check for VCF format with prefix
-        let vcf_gz_path = format!("{}.vcf.gz", prefix);
-        if Path::new(&vcf_gz_path).exists() {
-            let reader = open_vcf(&vcf_gz_path)?;
-            return Ok(count_populations(reader.samples()));
-        }
-        let vcf_path = format!("{}.vcf", prefix);
-        if Path::new(&vcf_path).exists() {
-            let reader = open_vcf(&vcf_path)?;
-            return Ok(count_populations(reader.samples()));
+        if let Some(path) = vcf_path(prefix) {
+            return Ok(count_populations(open_vcf(&path)?.samples()));
         }
 
         // Check for PLINK format
         // only the sample files: the SNP files are not needed
-        if Path::new(&format!("{}.bed", prefix)).exists() {
+        if Path::new(&format!("{prefix}.bed")).exists() {
             let samples = popmix_io::plink::read_fam_file(format!("{prefix}.fam"))?;
             return Ok(count_populations(&samples));
         }
 
         // Check for EIGENSTRAT/PACKEDANCESTRYMAP format
-        let geno_path = format!("{}.geno", prefix);
+        let geno_path = format!("{prefix}.geno");
         if Path::new(&geno_path).exists() {
             if is_tgeno_format(&geno_path)? {
                 let reader = TgenoReader::new(prefix)?;
@@ -251,8 +194,7 @@ pub(crate) fn list_populations(py: Python<'_>, prefix: &str) -> PyResult<Vec<(St
         }
 
         Err(missing_file(format!(
-            "No genotype files found for prefix: {}",
-            prefix
+            "No genotype files found for prefix: {prefix}"
         )))
     })
 }
@@ -351,11 +293,7 @@ pub(crate) fn levenshtein_distance(a: &str, b: &str) -> usize {
     for i in 1..=m {
         curr[0] = i;
         for j in 1..=n {
-            let cost = if a_chars[i - 1] == b_chars[j - 1] {
-                0
-            } else {
-                1
-            };
+            let cost = usize::from(a_chars[i - 1] != b_chars[j - 1]);
             curr[j] = (prev[j] + 1).min(curr[j - 1] + 1).min(prev[j - 1] + cost);
         }
         std::mem::swap(&mut prev, &mut curr);

@@ -32,7 +32,7 @@ impl GenotypeMatrix {
             return Err(PopmixError::DimensionMismatch {
                 context: "GenotypeMatrix creation".to_string(),
                 expected: format!("{} samples", samples.len()),
-                actual: format!("{} columns", n_samples),
+                actual: format!("{n_samples} columns"),
             });
         }
 
@@ -40,7 +40,7 @@ impl GenotypeMatrix {
             return Err(PopmixError::DimensionMismatch {
                 context: "GenotypeMatrix creation".to_string(),
                 expected: format!("{} SNPs", snps.len()),
-                actual: format!("{} rows", n_snps),
+                actual: format!("{n_snps} rows"),
             });
         }
 
@@ -163,6 +163,26 @@ impl GenotypeMatrix {
     }
 
     /// Filter to only autosomal SNPs.
+    /// The SNPs `range` (indices from 0), with every sample.
+    pub fn select_snps(&self, range: std::ops::Range<usize>) -> Result<Self> {
+        if range.start > range.end || range.end > self.n_snps() {
+            return Err(PopmixError::parameter(
+                "SNP range",
+                format!(
+                    "{}..{} is not within the {} SNPs",
+                    range.start,
+                    range.end,
+                    self.n_snps()
+                ),
+            ));
+        }
+        GenotypeMatrix::new(
+            self.data.slice(ndarray::s![range.clone(), ..]).to_owned(),
+            self.samples.clone(),
+            self.snps[range].to_vec(),
+        )
+    }
+
     pub fn filter_autosomal(&self) -> Result<Self> {
         let auto_indices: Vec<usize> = self
             .snps
@@ -214,9 +234,9 @@ impl GenotypeMatrix {
                 let ploidy = if all_diploid {
                     2
                 } else {
-                    self.samples[sample_idx].ploidy.effective_ploidy() as u32
+                    u32::from(self.samples[sample_idx].ploidy.effective_ploidy())
                 };
-                sum += geno as f64 / (3 - ploidy) as f64;
+                sum += f64::from(geno) / f64::from(3 - ploidy);
                 count += ploidy;
             }
         }
@@ -224,7 +244,7 @@ impl GenotypeMatrix {
         if count == 0 {
             (f64::NAN, 0)
         } else {
-            (sum / count as f64, count)
+            (sum / f64::from(count), count)
         }
     }
 }
@@ -289,7 +309,7 @@ impl AlleleFrequencies {
             .enumerate()
             .map(|(i, (chr, pos))| {
                 use crate::genotypes::Snp;
-                Snp::new(format!("snp{}", i), chr, i as u32 * 1000, pos, 'A', 'T')
+                Snp::new(format!("snp{i}"), chr, i as u32 * 1000, pos, 'A', 'T')
             })
             .collect();
 
@@ -619,7 +639,11 @@ mod tests {
         ];
         let geno = GenotypeMatrix::new(data, make_test_samples(), snps).unwrap();
         let af = AlleleFrequencies::from_genotypes_for_populations(&geno, Some(&["PopB", "PopA"]));
-        let names: Vec<&str> = af.populations.iter().map(|p| p.as_str()).collect();
+        let names: Vec<&str> = af
+            .populations
+            .iter()
+            .map(super::super::genotypes::PopulationId::as_str)
+            .collect();
         assert_eq!(names, ["PopB", "PopA"]);
         assert!((af.get(1, 0).unwrap() - 1.0).abs() < 1e-10);
         // asked twice, or not there: once, and left out
@@ -627,7 +651,11 @@ mod tests {
             &geno,
             Some(&["PopA", "PopC", "PopA"]),
         );
-        let names: Vec<&str> = af.populations.iter().map(|p| p.as_str()).collect();
+        let names: Vec<&str> = af
+            .populations
+            .iter()
+            .map(super::super::genotypes::PopulationId::as_str)
+            .collect();
         assert_eq!(names, ["PopA"]);
     }
 
@@ -639,6 +667,9 @@ mod tests {
         let auto = geno.filter_autosomal().unwrap();
 
         assert_eq!(auto.n_snps(), 2); // Only rs1 and rs2 are autosomal
-        assert!(auto.snps().iter().all(|s| s.is_autosomal()));
+        assert!(auto
+            .snps()
+            .iter()
+            .all(super::super::genotypes::Snp::is_autosomal));
     }
 }

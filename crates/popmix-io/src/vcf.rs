@@ -81,7 +81,12 @@ impl VcfReader {
     /// - A gzip-compressed VCF file (.vcf.gz)
     pub fn new(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref();
-        let is_gzipped = path.as_os_str().to_string_lossy().ends_with(".gz");
+        let is_gzipped = path
+            .as_os_str()
+            .to_string_lossy()
+            .to_lowercase()
+            .ends_with(".gz");
+
         let scan = scan_vcf(path, is_gzipped)?;
         Ok(VcfReader {
             path: path.to_path_buf(),
@@ -235,7 +240,7 @@ fn parse_line(path: &Path, number: usize, line: &[u8], n_samples: usize) -> Resu
     let mut fields = line.split(|&c| c == b'\t');
     let mut fixed: [&[u8]; 9] = [&[]; 9];
     let mut n_fixed = 0;
-    for slot in fixed.iter_mut() {
+    for slot in &mut fixed {
         match fields.next() {
             Some(f) => {
                 *slot = f;

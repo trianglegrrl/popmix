@@ -36,6 +36,6 @@ pub(crate) fn with_warnings<T>(
 
 /// Open a VCF, warning about the records skipped because they are not
 /// biallelic SNPs: popmix's formats hold two single-base alleles.
-pub(crate) fn open_vcf(path: &str) -> PyResult<VcfReader> {
+pub(crate) fn open_vcf(path: impl AsRef<std::path::Path>) -> PyResult<VcfReader> {
     with_warnings(|warn| popmix_io::dataset::open_vcf(path, warn))
 }

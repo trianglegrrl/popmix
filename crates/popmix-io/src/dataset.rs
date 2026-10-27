@@ -13,9 +13,13 @@ use crate::{
 };
 
 /// The VCF file of `prefix`: the path itself, or with .vcf.gz or .vcf added.
+// the comparisons are of a lower-cased name
+#[allow(clippy::case_sensitive_file_extension_comparisons)]
 pub fn vcf_path(prefix: impl AsRef<Path>) -> Option<PathBuf> {
     let prefix = prefix.as_ref();
-    let name = prefix.as_os_str().to_string_lossy();
+    // lower-cased, so that a.VCF.GZ is a VCF too
+    let name = prefix.as_os_str().to_string_lossy().to_lowercase();
+
     if (name.ends_with(".vcf") || name.ends_with(".vcf.gz")) && prefix.exists() {
         return Some(prefix.to_path_buf());
     }
@@ -233,9 +237,9 @@ impl PloidyRule {
             .filter(|&k| populations.contains(&samples[k].population.as_str()))
             .collect();
         if self == PloidyRule::Diploid {
-            selected
-                .iter()
-                .for_each(|&k| samples[k].ploidy = Ploidy::Diploid);
+            for &k in &selected {
+                samples[k].ploidy = Ploidy::Diploid;
+            }
             return;
         }
         file.detect_ploidy(samples, &selected, self.snps_checked(file.n_snps()));

@@ -6,6 +6,7 @@ interpreter.
 
 import subprocess
 
+import numpy as np
 import pytest
 
 import popmix as pm
@@ -82,3 +83,14 @@ def test_extract_f2_snp_range_refuses_non_autosomal_snps_unless_asked(tmp_path):
     assert "--all-chromosomes" in r.stderr
     assert _extract(prefix, tmp_path / "f2", "--snp-range", "0:4").returncode == 0
     assert _extract(prefix, tmp_path / "f2x", "--snp-range", "0:6", "--all-chromosomes").returncode == 0
+
+
+@pytest.mark.parametrize("given", ["tests/fixtures/small_vcf.vcf", "tests/fixtures/small_vcf"])
+def test_a_snp_range_of_a_vcf_is_those_snps(given):
+    whole = pm.read_vcf("tests/fixtures/small_vcf.vcf")
+    part = pm.read_genotypes(given, snp_range=(1, 3))
+    assert part.n_snps == 2
+    assert [s.id for s in part.snps] == [s.id for s in whole.snps][1:3]
+    assert np.array_equal(part.to_numpy(), whole.to_numpy()[1:3])
+    with pytest.raises(pm.InputError, match="SNP range"):
+        pm.read_genotypes(given, snp_range=(3, 9))

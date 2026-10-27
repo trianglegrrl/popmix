@@ -19,7 +19,7 @@ fn family() -> String {
 }
 
 fn options(pops: &[&str]) -> ExtractOptions {
-    ExtractOptions::new(pops.iter().map(|p| p.to_string()).collect())
+    ExtractOptions::new(pops.iter().map(std::string::ToString::to_string).collect())
 }
 
 fn extract(prefix: &str, opts: &ExtractOptions) -> popmix_core::Result<F2Blocks> {
@@ -129,4 +129,19 @@ fn format_names_parse_case_blind_and_with_their_aliases() {
     let err = "bgen".parse::<GenoFormat>().unwrap_err();
     assert!(matches!(err, PopmixError::InvalidParameter { .. }), "{err}");
     assert!(err.to_string().contains("eigenstrat"), "{err}");
+}
+
+#[test]
+fn a_vcf_is_found_by_its_path_or_prefix_whatever_the_case_of_its_extension() {
+    use popmix_io::dataset::vcf_path;
+    let dir = tempfile::tempdir().unwrap();
+    for name in ["a.vcf", "b.VCF.GZ", "c.vcf.gz"] {
+        std::fs::write(dir.path().join(name), "").unwrap();
+    }
+    let at = |n: &str| dir.path().join(n);
+    assert_eq!(vcf_path(at("a.vcf")), Some(at("a.vcf")));
+    assert_eq!(vcf_path(at("b.VCF.GZ")), Some(at("b.VCF.GZ")));
+    assert_eq!(vcf_path(at("c")), Some(at("c.vcf.gz")));
+    assert_eq!(vcf_path(at("a")), Some(at("a.vcf")));
+    assert_eq!(vcf_path(at("d")), None);
 }
