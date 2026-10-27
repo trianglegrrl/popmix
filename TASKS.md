@@ -459,8 +459,12 @@ thread count.
 - [ ] **G7. Single pseudohaploid target in f3:** the CLI `f3` (f2 path) gives
   f3 = 0.19, z = 122, while `qp3pop -i` gives NaN with n = 0 (both as
   admixtools2); make them agree or warn. PG
-- [ ] **G8. z = NaN when SE = 0,** not 0 (`f3_f4.rs:92-96`, f2 self-pairs).
+- [x] **G8. z = NaN when SE = 0,** not 0 (`f3_f4.rs:92-96`, f2 self-pairs).
   PD
+  *Done in bbc1e33:* f3/f4, genotype-path qpdstat/qp3pop, f4ratio and
+  `compare_fits` give z and p NaN when the SE is 0; f4 with pop1 = pop2
+  or pop3 = pop4 is exactly 0 (admixtools2: rounding noise and a z from
+  it; ADMIXTOOLS2-0008).
 - [ ] **G9. qpGraph and find_graphs:** report overfitting and
   identifiability (penalized score with an admixture-count penalty,
   out-of-sample score by default; `compare_fits` exists). PR
