@@ -70,14 +70,17 @@ def record(command: click.Command) -> click.Command:
         result = callback(*args, **params)
         output = next(((n, params[n]) for n in OUTPUTS if params.get(n)), None)
         if output is not None:
-            root = click.get_current_context().find_root()
+            ctx = click.get_current_context()
+            root = ctx.find_root()
+            # options read through ctx.meta rather than passed (--pseudohaploid, the SNP filters)
+            all_params = {**ctx.meta.get("popmix.params", {}), **params}
             provenance = {
                 "popmix_version": pm.__version__,
                 "command": command.name,
                 "argv": sys.argv[1:],
                 "threads": (root.obj or {}).get("threads"),
-                "parameters": {k: _jsonable(v) for k, v in params.items()},
-                "inputs": _inputs(params),
+                "parameters": {k: _jsonable(v) for k, v in all_params.items()},
+                "inputs": _inputs(all_params),
                 "created": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                 "python": platform.python_version(),
                 "platform": platform.platform(),

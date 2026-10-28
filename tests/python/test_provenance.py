@@ -38,7 +38,9 @@ def test_extract_f2_records_its_parameters(f2):
     assert p["popmix_version"] == pm.__version__
     assert p["source"] == SMALL
     assert p["parameters"] == {"populations": POPS, "auto_only": True, "block_size": 0.02, "maxmiss": 0.1,
-                               "poly_only": True, "pseudohaploid": "detect", "relabelled_samples": 0}
+                               "poly_only": True, "pseudohaploid": "detect", "relabelled_samples": 0,
+                               "transitions": True, "transversions": True, "minmaf": 0.0, "maxmaf": 0.5,
+                               "keepsnps": None, "excludesnps": None}
 
 
 def test_extract_f2_records_the_snps_used(f2):

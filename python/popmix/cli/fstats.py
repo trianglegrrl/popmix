@@ -19,6 +19,8 @@ from ._common import (
     parse_snp_range,
     pseudohaploid_option,
     scan_output_options,
+    snp_filter_options,
+    snp_filters,
     stat_source,
     stat_source_options,
     with_options,
@@ -41,6 +43,7 @@ from ._population_checks import validate_populations
               help="Drop SNPs missing in more than this fraction of populations (default: 0)")
 @click.option("--auto-only/--all-chromosomes", default=True, help="Use only autosomal SNPs (default: auto-only)")
 @pseudohaploid_option
+@with_options(snp_filter_options)
 def extract_f2(input_prefix: str, output_dir: str, snp_range: tuple[int, int] | None,
                block_size: float, populations: list, maxmiss: float, auto_only: bool):
     """Extract F2 blocks from genotype data, as admixtools2's extract_f2().
@@ -63,12 +66,14 @@ def extract_f2(input_prefix: str, output_dir: str, snp_range: tuple[int, int] | 
                 block_size=block_size,
                 maxmiss=maxmiss,
                 pseudohaploid=_pseudohaploid(),
+                **snp_filters(),
             )
             click.echo(f"Computed {f2_blocks.n_blocks} blocks for {f2_blocks.n_populations} populations")
         else:
             # A SNP index range needs the genotypes in memory, a path without
             # the missingness filter or a choice of ploidy rule
-            for flag, unset in [("--maxmiss", maxmiss == 0), ("--pseudohaploid", _pseudohaploid() == "detect")]:
+            for flag, unset in [("--maxmiss", maxmiss == 0), ("--pseudohaploid", _pseudohaploid() == "detect"),
+                                ("SNP filters", not snp_filters())]:
                 if not unset:
                     raise click.UsageError(f"{flag} does not apply with --snp-range")
             click.echo(f"Reading genotypes from {input_prefix}...")

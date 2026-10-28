@@ -48,7 +48,66 @@ def parse_snp_range(ctx, param, value: str | None) -> tuple[int, int] | None:
 
 def _store_pseudohaploid(ctx: click.Context, param: click.Parameter, value: str) -> str:
     ctx.meta["pseudohaploid"] = value
+    ctx.meta.setdefault("popmix.params", {})["pseudohaploid"] = value
     return value
+
+
+def _snp_ids(path: str) -> list[str]:
+    """SNP IDs, the first field of each line of PATH (a .snp or .bim file's
+    second, so those work too); blank lines and # comments are skipped."""
+    ids = []
+    with open(path) as f:
+        for line in f:
+            fields = line.split()
+            if not fields or fields[0].startswith("#"):
+                continue
+            ids.append(fields[1] if path.endswith(".bim") else fields[0])
+    return ids
+
+
+def _store_snp_filter(ctx: click.Context, param: click.Parameter, value):
+    ctx.meta.setdefault("popmix.params", {})[param.name] = value
+    filters = ctx.meta.setdefault("snp_filters", {})
+    if param.name == "transversions_only" and value:
+        filters["transitions"] = False
+    elif param.name == "transitions_only" and value:
+        filters["transversions"] = False
+    elif param.name in ("minmaf", "maxmaf") and value != param.default:
+        filters[param.name] = value
+    elif param.name in ("keep_snps", "exclude_snps") and value is not None:
+        filters[param.name.replace("_", "")] = _snp_ids(value)
+    if filters.get("transitions") is False and filters.get("transversions") is False:
+        raise click.UsageError("--transversions-only and --transitions-only leave no SNPs")
+    return value
+
+
+def snp_filters() -> dict:
+    """The SNP filters of the running command, as ``extract_f2`` keywords."""
+    return dict(click.get_current_context().meta.get("snp_filters", {}))
+
+
+snp_filter_options = [
+    click.option("--transversions-only", is_flag=True, default=False, expose_value=False,
+                 callback=_store_snp_filter,
+                 help="Use only transversions (drop A<->G and C<->T), for ancient DNA without UDG treatment"),
+    click.option("--transitions-only", is_flag=True, default=False, expose_value=False, callback=_store_snp_filter,
+                 help="Use only transitions"),
+    click.option("--minmaf", type=click.FloatRange(0, 0.5), default=0.0, expose_value=False,
+                 callback=_store_snp_filter,
+                 help="Drop SNPs whose minor allele frequency, all populations' alleles pooled, is below this "
+                      "(default: 0)"),
+    click.option("--maxmaf", type=click.FloatRange(0, 0.5), default=0.5, expose_value=False,
+                 callback=_store_snp_filter, help="Drop SNPs whose pooled minor allele frequency is above this "
+                                                  "(default: 0.5)"),
+    click.option("--keep-snps", type=click.Path(exists=True, dir_okay=False), default=None, expose_value=False,
+                 callback=_store_snp_filter,
+                 help="Use only the SNP IDs in this file (one per line, or a .snp/.bim file); overrides "
+                      "--maxmiss, --minmaf, --maxmaf, --transversions-only and the autosome restriction, as "
+                      "admixtools2 keepsnps"),
+    click.option("--exclude-snps", type=click.Path(exists=True, dir_okay=False), default=None,
+                 expose_value=False, callback=_store_snp_filter,
+                 help="Never use the SNP IDs in this file (one per line, or a .snp/.bim file)"),
+]
 
 
 def _pseudohaploid() -> str:
@@ -79,6 +138,7 @@ def f2_source_options(command):
         click.option("--all-chromosomes", is_flag=True, default=False,
                      help="With --input: use all chromosomes, not only autosomes 1-22"),
         pseudohaploid_option,
+        *snp_filter_options,
     ]
     for option in reversed(options):
         command = option(command)
@@ -108,7 +168,7 @@ def load_f2_blocks(input_prefix: str | None, f2_dir: str | None, populations: li
         return f2_blocks
     validate_populations(input_prefix, pops)
     return pm.extract_f2(input_prefix, pops, auto_only=not all_chromosomes, block_size=block_size,
-                         maxmiss=maxmiss, pseudohaploid=_pseudohaploid())
+                         maxmiss=maxmiss, pseudohaploid=_pseudohaploid(), **snp_filters())
 
 
 def stat_source_options(command):

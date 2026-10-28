@@ -52,6 +52,14 @@ impl ExtractOptions {
     }
 }
 
+impl ExtractOptions {
+    /// Whether only autosomal SNPs are read: `auto_only`, unless a list of
+    /// SNPs to keep overrides it (admixtools2 `keepsnps`).
+    fn autosomes_only(&self) -> bool {
+        self.auto_only && self.f2.keep_snps.is_none()
+    }
+}
+
 /// The population label of an excluded sample: no population is called this.
 const EXCLUDED: &str = "\u{0}excluded";
 
@@ -114,6 +122,17 @@ pub fn extract_f2(
     opts: &ExtractOptions,
     warn: &mut dyn FnMut(Warning),
 ) -> Result<F2Blocks> {
+    for (name, value, range) in [
+        ("minmaf", opts.f2.min_maf, 0.0..=0.5),
+        ("maxmaf", opts.f2.max_maf, 0.0..=0.5),
+    ] {
+        if !range.contains(&value) {
+            return Err(PopmixError::parameter(
+                name,
+                format!("must be between 0 and 0.5, got {value}"),
+            ));
+        }
+    }
     if !(0.0..=1.0).contains(&opts.f2.max_missing) {
         return Err(PopmixError::parameter(
             "maxmiss",
@@ -153,7 +172,7 @@ pub fn extract_f2(
     check_sorted(geno.snps())?;
     opts.ploidy.apply(&mut geno);
     let panel = crate::provenance::Panel::of(geno.snps());
-    let geno = if opts.auto_only {
+    let geno = if opts.autosomes_only() {
         geno.filter_autosomal()?
     } else {
         geno
@@ -194,19 +213,20 @@ fn from_mapped(
         }
     }
     let mut evidence = CoordinateEvidence::default();
-    for snp in snps.iter().filter(|s| !opts.auto_only || s.is_autosomal()) {
+    let auto_only = opts.autosomes_only();
+    for snp in snps.iter().filter(|s| !auto_only || s.is_autosomal()) {
         evidence.observe(std::slice::from_ref(snp));
     }
     check_genetic_map(&evidence, &opts.blocks, warn);
-    let parts = runs.iter().map(|r| {
-        file.allele_frequencies_at(&samples, &snps[r.clone()], r.start, pops, opts.auto_only)
-    });
+    let parts = runs
+        .iter()
+        .map(|r| file.allele_frequencies_at(&samples, &snps[r.clone()], r.start, pops, auto_only));
     let blocks = match F2Blocks::from_parts(parts, &evidence, &opts.blocks, &opts.f2) {
         Some(blocks) => blocks,
         // the coordinates a block definition needs were only known from
         // all chromosomes together
         None => {
-            let af = file.allele_frequencies(&samples, &snps, pops, opts.auto_only);
+            let af = file.allele_frequencies(&samples, &snps, pops, auto_only);
             F2Blocks::from_allele_frequencies_with_options(&af, &opts.blocks, &opts.f2)
         }
     };

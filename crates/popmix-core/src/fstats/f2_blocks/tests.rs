@@ -282,6 +282,7 @@ fn blocks_a_chromosome_at_a_time_are_the_blocks_of_the_whole() {
         let opts = F2Options {
             max_missing,
             poly_only: true,
+            ..F2Options::default()
         };
         let def = BlockDefinition::new(0.05);
         let whole = F2Blocks::from_allele_frequencies_with_options(&af, &def, &opts);
@@ -330,6 +331,7 @@ fn blocks_do_not_depend_on_the_thread_count() {
     let opts = F2Options {
         max_missing: 1.0,
         poly_only: true,
+        ..F2Options::default()
     };
     let run = |threads: usize| {
         rayon::ThreadPoolBuilder::new()
@@ -448,6 +450,7 @@ fn test_blocks_without_data_for_some_pair_are_dropped() {
     let opts = F2Options {
         max_missing: 1.0 / 3.0,
         poly_only: true,
+        ..F2Options::default()
     };
     let f2 = F2Blocks::from_allele_frequencies_with_options(
         &af_from(&rows),

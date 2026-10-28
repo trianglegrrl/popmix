@@ -13,6 +13,7 @@ use rayon::prelude::*;
 
 use crate::fstats::blocks::{BlockCoordinate, BlockDefinition, CoordinateEvidence};
 use crate::fstats::jackknife::block_jackknife;
+use crate::fstats::snp_filter::{kept_snps, F2Options};
 use crate::genotype_matrix::AlleleFrequencies;
 use crate::genotypes::PopulationId;
 
@@ -87,17 +88,11 @@ impl FstBlocks {
     fn compute_in(
         af: &AlleleFrequencies,
         block_def: &BlockDefinition,
-        max_missing: f64,
+        opts: &F2Options,
         coordinate: Option<BlockCoordinate>,
         evidence: &mut CoordinateEvidence,
     ) -> Self {
-        let keep = kept_snps(
-            af,
-            &F2Options {
-                max_missing,
-                poly_only: false,
-            },
-        );
+        let keep = kept_snps(af, opts, false);
         let snps: Vec<_> = keep.iter().map(|&i| af.snps[i].clone()).collect();
         evidence.observe(&snps);
         let assignment = match coordinate {
@@ -131,52 +126,6 @@ impl FstBlocks {
             .map(|b| self.num[[b, pair_idx]] / self.den[[b, pair_idx]])
             .collect()
     }
-}
-
-/// Which SNPs go into the f2 blocks, as in admixtools2 `extract_f2`.
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub struct F2Options {
-    /// Drop SNPs missing in more than this fraction of the populations
-    /// (admixtools2 `maxmiss`). Default: 0, so every population must have
-    /// data, and all f-statistics are computed on the same SNPs.
-    pub max_missing: f64,
-    /// Use only SNPs whose frequency differs between populations
-    /// (admixtools2 `poly_only = "f2"`). Default: true.
-    pub poly_only: bool,
-}
-
-impl Default for F2Options {
-    fn default() -> Self {
-        F2Options {
-            max_missing: 0.0,
-            poly_only: true,
-        }
-    }
-}
-
-/// Whether a SNP is polymorphic across populations: some two observed
-/// frequencies differ (missing populations are ignored).
-fn is_polymorphic(freqs: ndarray::ArrayView1<f64>) -> bool {
-    let mut observed = freqs.iter().filter(|f| f.is_finite());
-    match observed.next() {
-        Some(first) => observed.any(|f| f != first),
-        None => false,
-    }
-}
-
-/// Rows of `af` kept for the f2 blocks: SNPs missing in more than
-/// `max_missing` of the populations are dropped and, if `poly_only`, so are
-/// SNPs not polymorphic across the populations.
-fn kept_snps(af: &AlleleFrequencies, opts: &F2Options) -> Vec<usize> {
-    let n_pops = af.populations.len() as f64;
-    (0..af.snps.len())
-        .filter(|&i| {
-            let missing = af.counts.row(i).iter().filter(|&&c| c == 0).count() as f64;
-            missing / n_pops <= opts.max_missing
-                && (!opts.poly_only || is_polymorphic(af.frequencies.row(i)))
-        })
-        .collect()
 }
 
 impl F2Blocks {
@@ -267,11 +216,11 @@ impl F2Blocks {
         let fst = Some(FstBlocks::compute_in(
             af,
             block_def,
-            opts.max_missing,
+            opts,
             coordinate,
             &mut evidence.1,
         ));
-        let keep = kept_snps(af, opts);
+        let keep = kept_snps(af, opts, opts.poly_only);
         let kept_snps: Vec<_> = keep.iter().map(|&i| af.snps[i].clone()).collect();
         evidence.0.observe(&kept_snps);
         let populations = af.populations.clone();

@@ -26,6 +26,12 @@ popmix extract-f2 --input PREFIX --output DIR [--populations A,B,...]
 | `--maxmiss` | number (0 to 1) | 0 | Keep SNPs missing in at most this fraction of the populations (admixtools2 `maxmiss`). 0 keeps only SNPs with data in every population; raise it for ancient populations with low coverage. |
 | `--auto-only` / `--all-chromosomes` | flag | `--auto-only` | Use autosomes 1-22 only (default), or every chromosome. |
 | `--pseudohaploid` | `detect`, `admixtools2`, `diploid` | `detect` | Which samples count one allele per SNP. `detect`: samples with no heterozygous call at any SNP; `admixtools2`: none among the first 1,000 SNPs, as admixtools2, which also catches some diploid genomes (ADMIXTOOLS2-0007); `diploid`: none. |
+| `--transversions-only` | flag | off | Use only transversions (drop A<->G and C<->T SNPs), for ancient DNA without UDG treatment, as admixtools2 `transitions = FALSE`. A SNP without two known bases is dropped. |
+| `--transitions-only` | flag | off | Use only transitions, as admixtools2 `transversions = FALSE`. |
+| `--minmaf` | number (0-0.5) | 0 | Drop SNPs whose minor allele frequency, the populations' alleles pooled, is below this (admixtools2 `minmaf`). |
+| `--maxmaf` | number (0-0.5) | 0.5 | Drop SNPs whose pooled minor allele frequency is above this (admixtools2 `maxmaf`). |
+| `--keep-snps` | text (path) | none | Use only the SNP IDs in this file (one per line, or a `.snp`/`.bim` file). As admixtools2 `keepsnps`, it overrides `--maxmiss`, the MAF bounds, `--transversions-only` and the autosome restriction (chromosome X SNPs listed are used); polymorphism and `--exclude-snps` still apply. |
+| `--exclude-snps` | text (path) | none | Never use the SNP IDs in this file (popmix's own; admixtools2 has none). |
 | `--snp-range` | text (`start:end`) | none (all SNPs) | Only SNPs with index start to end-1 (0-based, half-open), read into memory and computed outside the admixtools2 pipeline. Refuses `--maxmiss` and `--pseudohaploid`, and a range holding non-autosomal SNPs unless `--all-chromosomes`. For tests and quick looks, not for analyses. |
 
 ## Inputs and outputs

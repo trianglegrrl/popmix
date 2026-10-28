@@ -418,6 +418,16 @@ qpWave/qpAdm fits by the C++ code path (`cpp = TRUE`, the default).
 
 ### Matched, not corrected
 
+- **`keepsnps` overrides every other SNP filter.** As its documentation says
+  ("Overrides other SNP filtering options"), admixtools2's `extract_f2`
+  keeps every listed SNP whatever `maxmiss`, `minmaf`, `maxmaf`,
+  `transitions` and `transversions` say, and on chromosome X too despite
+  `auto_only` (measured: 9,444 SNPs, chromosome X included, in
+  `tests/golden/admixtools2/v2.0.10/snp_filters/keepsnps_maf.json` with
+  `minmaf = 0.2, transitions = FALSE`); only polymorphism still applies.
+  popmix's `keepsnps` (`--keep-snps`) matches, so a list made for
+  admixtools2 gives the same blocks. `excludesnps` (`--exclude-snps`) is
+  popmix's own, and applies with `keepsnps` (TASKS.md H1).
 - **f2 and f3 with a single pseudo-haploid population.** Its one allele per
   SNP leaves its sampling bias p(1 - p)/(n - 1) unestimable, so f2 with it
   and f3 with it as the target keep its sampling variance: on the dg_6pop

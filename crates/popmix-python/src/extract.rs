@@ -40,6 +40,21 @@ use pyo3::prelude::*;
 ///     no heterozygous call at any SNP), "admixtools2" (no heterozygous call
 ///     among the first 1,000 SNPs, which also catches some diploid genomes;
 ///     ADMIXTOOLS2-0007) or "diploid" (none).
+/// transitions, transversions
+///     Keep transitions (A<->G, C<->T) and transversions (every other pair
+///     of bases), as admixtools2; ``transitions=False`` for transversions
+///     only, as ancient DNA without UDG treatment needs. A SNP without two
+///     known bases is dropped by either.
+/// minmaf, maxmaf
+///     Drop SNPs whose minor allele frequency, over the populations'
+///     alleles pooled, is below ``minmaf`` or above ``maxmaf`` (defaults 0
+///     and 0.5), as admixtools2.
+/// keepsnps
+///     Only these SNP IDs, overriding ``maxmiss``, ``auto_only``, the MAF
+///     bounds and the transition choice, as admixtools2 ``keepsnps``;
+///     ``poly_only`` and ``excludesnps`` still apply.
+/// excludesnps
+///     Never these SNP IDs (popmix's own; admixtools2 has none).
 ///
 /// Returns
 /// -------
@@ -47,7 +62,7 @@ use pyo3::prelude::*;
 ///     The per-block f2 statistics of the populations, for f2, f3, f4 and
 ///     FST. Problems met while reading are issued as ``PopmixWarning``.
 #[pyfunction]
-#[pyo3(signature = (prefix, populations, *, auto_only=true, block_size=0.05, maxmiss=0.0, poly_only=true, inds=None, pops=None, pseudohaploid="detect"))]
+#[pyo3(signature = (prefix, populations, *, auto_only=true, block_size=0.05, maxmiss=0.0, poly_only=true, inds=None, pops=None, pseudohaploid="detect", transitions=true, transversions=true, minmaf=0.0, maxmaf=0.5, keepsnps=None, excludesnps=None))]
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn extract_f2(
     py: Python<'_>,
@@ -60,6 +75,12 @@ pub(crate) fn extract_f2(
     inds: Option<Vec<String>>,
     pops: Option<Vec<String>>,
     pseudohaploid: &str,
+    transitions: bool,
+    transversions: bool,
+    minmaf: f64,
+    maxmaf: f64,
+    keepsnps: Option<Vec<String>>,
+    excludesnps: Option<Vec<String>>,
 ) -> PyResult<PyF2Blocks> {
     let labels = match (inds, pops) {
         (None, None) => None,
@@ -73,6 +94,12 @@ pub(crate) fn extract_f2(
         let mut o = F2Options::default();
         o.max_missing = maxmiss;
         o.poly_only = poly_only;
+        o.transitions = transitions;
+        o.transversions = transversions;
+        o.min_maf = minmaf;
+        o.max_maf = maxmaf;
+        o.keep_snps = keepsnps.map(|v| v.into_iter().collect());
+        o.exclude_snps = excludesnps.map(|v| v.into_iter().collect());
         o
     };
     opts.labels = labels;

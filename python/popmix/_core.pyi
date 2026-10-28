@@ -112,7 +112,9 @@ def merge(file_a: str, file_b: str, output: str, output_format: str, *,
 def extract_f2(prefix: str, populations: Sequence[str], *, auto_only: bool = True,
                block_size: float = 0.05, maxmiss: float = 0.0, poly_only: bool = True,
                inds: Sequence[str] | None = None, pops: Sequence[str] | None = None,
-               pseudohaploid: str = "detect") -> F2Blocks: ...
+               pseudohaploid: str = "detect", transitions: bool = True, transversions: bool = True,
+               minmaf: float = 0.0, maxmaf: float = 0.5, keepsnps: Sequence[str] | None = None,
+               excludesnps: Sequence[str] | None = None) -> F2Blocks: ...
 def f2_from_frequencies(af: AlleleFrequencies, *, block_size: float = 0.05) -> F2Blocks: ...
 
 # --- graphs --------------------------------------------------------------------
