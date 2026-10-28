@@ -8,8 +8,8 @@ use std::str::FromStr;
 use popmix_core::{GenotypeMatrix, Ploidy, PopmixError, Result, Sample, Snp, Warning};
 
 use crate::{
-    eigenstrat, is_packed_format, tgeno, with_suffix, EigenstratReader, GenoFormat,
-    PackedAncestryMapReader, PedReader, PlinkReader, SnpMajor, VcfReader,
+    eigenstrat, is_packed_format, tgeno, with_suffix, AncestryMapReader, EigenstratReader,
+    GenoFormat, PackedAncestryMapReader, PedReader, PlinkReader, SnpMajor, VcfReader,
 };
 
 /// The VCF file of `prefix`: the path itself, or with .vcf.gz or .vcf added.
@@ -160,6 +160,9 @@ pub fn read_genotypes(
     if with_suffix(prefix, ".ped").exists() {
         return PedReader::new(prefix)?.read_all();
     }
+    if with_suffix(prefix, ".ancestrymapgeno").exists() {
+        return AncestryMapReader::new(prefix)?.read_all();
+    }
     let geno_path = with_suffix(prefix, ".geno");
     if Path::new(&geno_path).exists() {
         if tgeno::is_tgeno_format(&geno_path)? {
@@ -172,7 +175,7 @@ pub fn read_genotypes(
     }
     Err(PopmixError::FileNotFound {
         path: format!(
-            "{} (no genotype files: .vcf, .vcf.gz, .bed, .ped or .geno)",
+            "{} (no genotype files: .vcf, .vcf.gz, .bed, .ped, .ancestrymapgeno or .geno)",
             prefix.display()
         )
         .into(),

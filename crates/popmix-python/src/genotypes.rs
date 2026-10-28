@@ -618,8 +618,9 @@ pub(crate) fn read_vcf(py: Python<'_>, path: &str) -> PyResult<PyGenotypeMatrix>
 /// Read a genotype dataset in any format, detected from its files.
 ///
 /// The format is VCF (.vcf, .vcf.gz), PLINK (.bed, or .ped when reading
-/// all SNPs), or a .geno file in TGENO, PACKEDANCESTRYMAP or EIGENSTRAT
-/// format. No genotype files raises ``MissingFileError``.
+/// all SNPs), ANCESTRYMAP (.ancestrymapgeno, when reading all SNPs), or a
+/// .geno file in TGENO, PACKEDANCESTRYMAP or EIGENSTRAT format. No
+/// genotype files raises ``MissingFileError``.
 ///
 /// Parameters
 /// ----------
