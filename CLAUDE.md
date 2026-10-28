@@ -318,7 +318,7 @@ Clean up code while keeping tests green:
 F2 blocks are persisted as a directory with:
 ```
 f2_blocks/
-├── metadata.json       # Version, populations, block info
+├── metadata.json       # Version, populations, block info, provenance (H3)
 ├── block_sums.npy      # F2 values (bias-corrected)
 ├── block_raw_sums.npy  # Raw squared diffs (for FST) [v3+]
 ├── block_weights.npy   # SNP counts per block

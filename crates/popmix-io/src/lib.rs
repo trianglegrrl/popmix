@@ -30,6 +30,7 @@ pub mod npy;
 pub mod packedancestrymap;
 pub mod ped;
 pub mod plink;
+mod provenance;
 pub mod streaming;
 pub mod tgeno;
 pub mod vcf;

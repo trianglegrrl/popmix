@@ -62,6 +62,7 @@ class F2Blocks:
     n_blocks: int
     block_lengths: list[int]
     fst_block_lengths: list[int]
+    provenance: dict[str, Any] | None
     populations: list[str]
     def subset(self, populations: Sequence[str]) -> F2Blocks: ...
     def counts_per_block(self, pop_a: str, pop_b: str) -> NDArray[np.float64] | None: ...

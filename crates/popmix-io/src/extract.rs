@@ -126,7 +126,7 @@ pub fn extract_f2(
         .map(std::string::String::as_str)
         .collect();
     if let Some(mapped) = open_mapped(prefix, warn)? {
-        return from_mapped(mapped, opts, &pops, warn);
+        return from_mapped(prefix, mapped, opts, &pops, warn);
     }
 
     let geno_path = format!("{prefix}.geno");
@@ -152,6 +152,7 @@ pub fn extract_f2(
     };
     check_sorted(geno.snps())?;
     opts.ploidy.apply(&mut geno);
+    let n_snps_read = geno.n_snps();
     let geno = if opts.auto_only {
         geno.filter_autosomal()?
     } else {
@@ -161,17 +162,17 @@ pub fn extract_f2(
     evidence.observe(geno.snps());
     check_genetic_map(&evidence, &opts.blocks, warn);
     let af = AlleleFrequencies::from_genotypes_for_populations(&geno, Some(&pops));
-    Ok(F2Blocks::from_allele_frequencies_with_options(
-        &af,
-        &opts.blocks,
-        &opts.f2,
-    ))
+    let blocks = F2Blocks::from_allele_frequencies_with_options(&af, &opts.blocks, &opts.f2);
+    let provenance =
+        crate::provenance::extraction(prefix, opts, geno.samples(), n_snps_read, &blocks);
+    Ok(blocks.with_provenance(Some(provenance)))
 }
 
 /// The f2 blocks of a dataset read in place, a chromosome at a time: only
 /// one chromosome's frequency table is held (blocks never span
 /// chromosomes).
 fn from_mapped(
+    prefix: &str,
     mapped: Mapped,
     opts: &ExtractOptions,
     pops: &[&str],
@@ -201,15 +202,15 @@ fn from_mapped(
     let parts = runs.iter().map(|r| {
         file.allele_frequencies_at(&samples, &snps[r.clone()], r.start, pops, opts.auto_only)
     });
-    Ok(
-        match F2Blocks::from_parts(parts, &evidence, &opts.blocks, &opts.f2) {
-            Some(blocks) => blocks,
-            // the coordinates a block definition needs were only known from
-            // all chromosomes together
-            None => {
-                let af = file.allele_frequencies(&samples, &snps, pops, opts.auto_only);
-                F2Blocks::from_allele_frequencies_with_options(&af, &opts.blocks, &opts.f2)
-            }
-        },
-    )
+    let blocks = match F2Blocks::from_parts(parts, &evidence, &opts.blocks, &opts.f2) {
+        Some(blocks) => blocks,
+        // the coordinates a block definition needs were only known from
+        // all chromosomes together
+        None => {
+            let af = file.allele_frequencies(&samples, &snps, pops, opts.auto_only);
+            F2Blocks::from_allele_frequencies_with_options(&af, &opts.blocks, &opts.f2)
+        }
+    };
+    let provenance = crate::provenance::extraction(prefix, opts, &samples, snps.len(), &blocks);
+    Ok(blocks.with_provenance(Some(provenance)))
 }

@@ -17,6 +17,7 @@ pub mod f3_f4;
 pub mod geno_fstats;
 pub mod jackknife;
 mod one_allele;
+mod provenance;
 
 pub use blocks::{BlockAssignment, BlockCoordinate, BlockDefinition, CoordinateEvidence};
 pub use f2::{f2_estimate, f2_single_snp, F2Result};

@@ -63,6 +63,7 @@ impl F2Blocks {
             n_blocks: nb,
             block_lengths: a.block_lengths,
             fst: a.fst,
+            provenance: None,
         })
     }
 

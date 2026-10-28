@@ -213,6 +213,15 @@ impl FromStr for PloidyRule {
 }
 
 impl PloidyRule {
+    /// The option value that names this rule.
+    pub fn name(self) -> &'static str {
+        match self {
+            PloidyRule::First1000 => "admixtools2",
+            PloidyRule::Genome => "detect",
+            PloidyRule::Diploid => "diploid",
+        }
+    }
+
     /// The SNPs to look at, of `n_snps`.
     pub fn snps_checked(self, n_snps: usize) -> usize {
         match self {

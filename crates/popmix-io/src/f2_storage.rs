@@ -14,6 +14,9 @@
 //! - `block_fst_num.npy`, `block_fst_den.npy`: FST numerator and denominator
 //!   block means [n_fst_blocks, n_pairs], with `fst_block_lengths` in the
 //!   metadata (v4+)
+//!
+//! `metadata.json` also holds the blocks' provenance when known (TASKS.md
+//! H3): how `extract_f2` made them.
 
 use std::fs::{self, File};
 use std::io::BufReader;
@@ -53,6 +56,9 @@ struct F2Metadata {
     /// Optional source file path.
     #[serde(skip_serializing_if = "Option::is_none")]
     source: Option<String>,
+    /// How the blocks were made (`F2Blocks::provenance`), if known.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    provenance: Option<serde_json::Value>,
 }
 
 /// Read F2 blocks from a directory.
@@ -156,6 +162,7 @@ pub fn read_f2_blocks(dir: &Path) -> Result<F2Blocks> {
         block_lengths: metadata.block_lengths,
         fst,
     })
+    .map(|blocks| blocks.with_provenance(metadata.provenance))
     .map_err(|e| PopmixError::format(&metadata_path, e.to_string()))
 }
 
@@ -194,6 +201,7 @@ pub fn write_f2_blocks(f2_blocks: &F2Blocks, dir: &Path, source: Option<&str>) -
         block_lengths: f2_blocks.block_lengths().to_vec(),
         fst_block_lengths: f2_blocks.fst_blocks().map(|f| f.block_lengths().to_vec()),
         source: source.map(std::string::ToString::to_string),
+        provenance: f2_blocks.provenance().cloned(),
     };
 
     // Write metadata

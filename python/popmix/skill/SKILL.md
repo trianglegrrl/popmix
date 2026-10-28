@@ -143,6 +143,11 @@ need the genetic map column; with a map of all zeros, f2 blocks fall back to
   scans print a TSV table (or JSON) to stdout or `-o FILE`; PCA, ADMIXTURE
   and ROLLOFF write files under `--output-prefix`. Progress messages of
   `dates` and `kinship` go to stderr, so stdout stays parseable.
+- **Provenance**: a command that writes files leaves
+  `OUTPUT.provenance.json` beside its main output (`PREFIX.provenance.json`
+  for an output prefix, `DIR/provenance.json` in an f2 directory): popmix
+  version, command line, every parameter with its default filled in, and
+  the size and modification time of each input. Output on stdout gets none.
 - **Plots** (`--plot`, `--heatmap`, `--plot-fit`) need matplotlib
   (`pip install popmix[plot]`); the format follows the file extension.
 

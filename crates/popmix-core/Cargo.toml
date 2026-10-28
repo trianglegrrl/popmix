@@ -19,6 +19,8 @@ faer = "0.24"
 statrs = "0.18"
 # erfc to the last bit (musl's), for p-values as R and Python give them
 libm = "0.2.16"
+# f2 blocks' provenance (fstats/provenance.rs)
+serde_json = "1.0"
 # only for the bindings: From<PopmixError> for PyErr (feature "python")
 pyo3 = { workspace = true, optional = true }
 
@@ -26,7 +28,6 @@ pyo3 = { workspace = true, optional = true }
 python = ["dep:pyo3"]
 
 [dev-dependencies]
-serde_json = "1.0"
 approx = { workspace = true }
 criterion = { workspace = true }
 

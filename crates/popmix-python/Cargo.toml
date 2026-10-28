@@ -19,6 +19,7 @@ popmix-io = { path = "../popmix-io", version = "=1.0.0" }
 pyo3 = { workspace = true }
 numpy = { workspace = true }
 ndarray = { workspace = true }
+serde_json = "1.0"
 
 [lints]
 workspace = true

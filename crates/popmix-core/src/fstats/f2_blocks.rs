@@ -55,6 +55,9 @@ pub struct F2Blocks {
     /// FST blocks on admixtools2's FST SNP set, or `None` if not available
     /// (f2 directories written before storage version 4).
     pub(crate) fst: Option<FstBlocks>,
+
+    /// How the blocks were made (see the `provenance` module).
+    pub(crate) provenance: Option<serde_json::Value>,
 }
 
 /// Per-block FST numerator and denominator, on admixtools2's FST SNP set.
@@ -248,6 +251,7 @@ impl F2Blocks {
                 num: fst_rows(|b| &b.num),
                 den: fst_rows(|b| &b.den),
             }),
+            provenance: None,
         })
     }
 
@@ -292,6 +296,7 @@ impl F2Blocks {
                 n_blocks: 0,
                 block_lengths: Vec::new(),
                 fst,
+                provenance: None,
             };
         }
 
@@ -348,6 +353,7 @@ impl F2Blocks {
             n_blocks: keep_blocks.len(),
             block_lengths,
             fst,
+            provenance: None,
         }
     }
 
@@ -404,6 +410,7 @@ impl F2Blocks {
             n_blocks: nb,
             block_lengths,
             fst: None,
+            provenance: None,
         })
     }
 
@@ -435,6 +442,7 @@ impl F2Blocks {
                 num: f.num.select(Axis(1), &pairs),
                 den: f.den.select(Axis(1), &pairs),
             }),
+            provenance: self.provenance.clone(),
         })
     }
 
@@ -464,6 +472,7 @@ impl F2Blocks {
             n_blocks: blocks.len(),
             block_lengths: blocks.iter().map(|&b| self.block_lengths[b]).collect(),
             fst: None,
+            provenance: self.provenance.clone(),
         })
     }
 

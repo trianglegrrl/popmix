@@ -38,6 +38,7 @@ import popmix as pm
 
 from ._common import write_columns, write_table
 from ._errors import print_popmix_warnings
+from ._provenance import record
 from .datasets import convertf, info, install_skill, merge, populations
 from .dating import dates, rolloff
 from .fstats import dstat_matrix, extract_f2, f2, f3, f4, outgroup_f3, qp3pop, qpdstat
@@ -92,7 +93,7 @@ for _command in (
     qpgraph,
     find_graphs,
 ):
-    cli.add_command(_command)
+    cli.add_command(record(_command))
 
 
 def main():

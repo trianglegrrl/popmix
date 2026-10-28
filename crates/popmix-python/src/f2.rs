@@ -5,6 +5,7 @@ use crate::genotypes::PyAlleleFrequencies;
 use crate::{compute, require_populations};
 use numpy::{IntoPyArray, PyArray1, PyArray2};
 use popmix_core::fstats::{p_from_z, z_score};
+use popmix_core::python::internal_error;
 use popmix_core::{BlockDefinition, F2Blocks};
 use popmix_io::{read_f2_blocks, write_f2_blocks};
 use pyo3::prelude::*;
@@ -87,6 +88,9 @@ impl PyF2Blocks {
                 self.populations().into_bound_py_any(py)?,
                 f.block_lengths().to_vec().into_bound_py_any(py)?,
                 fst,
+                f.provenance()
+                    .map(ToString::to_string)
+                    .into_bound_py_any(py)?,
             ],
         )?;
         Ok((py.import("popmix._core")?.getattr("_f2_blocks")?, args))
@@ -211,6 +215,17 @@ impl PyF2Blocks {
         Ok(PyF2Blocks {
             inner: self.inner.select_blocks(&blocks)?,
         })
+    }
+
+    /// How the blocks were made, or None: for ``extract_f2``'s blocks (and
+    /// an f2 directory saved from them) the popmix version, the source,
+    /// every parameter, the SNP counts and each sample's ploidy.
+    #[getter]
+    fn provenance<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        match self.inner.provenance() {
+            Some(p) => py.import("json")?.call_method1("loads", (p.to_string(),)),
+            None => Ok(py.None().into_bound(py)),
+        }
     }
 
     /// Number of SNPs in each block (the jackknife weights).
@@ -529,6 +544,7 @@ pub(crate) fn _f2_blocks(
     populations: Vec<String>,
     block_lengths: Vec<usize>,
     fst: Option<(Vec<usize>, Arr<'_>, Arr<'_>)>,
+    provenance: Option<&str>,
 ) -> PyResult<PyF2Blocks> {
     let fst = match fst {
         Some((lengths, num, den)) => Some(popmix_core::fstats::FstBlocks::new(
@@ -550,6 +566,12 @@ pub(crate) fn _f2_blocks(
             .collect(),
         block_lengths,
         fst,
-    })?;
+    })?
+    .with_provenance(
+        provenance
+            .map(serde_json::from_str)
+            .transpose()
+            .map_err(|e| internal_error(format!("pickled provenance: {e}")))?,
+    );
     Ok(PyF2Blocks { inner })
 }
