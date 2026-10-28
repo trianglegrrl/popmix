@@ -437,6 +437,9 @@ pub(crate) fn merge(
     };
     let (snps_a, snps_b, samples_a, samples_b, snps_merged, samples_merged, stats) =
         compute(py, work)?;
+    crate::warnings::emit(|w| {
+        popmix_core::warnings::check_panel_overlap(snps_a, snps_b, snps_a - stats.snps_only_a, w);
+    })?;
 
     // Return stats
     {

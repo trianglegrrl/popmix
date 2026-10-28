@@ -32,8 +32,9 @@ popmix extract-f2 --input PREFIX --output DIR [--populations A,B,...]
 
 Writes `DIR/` with `metadata.json` (format version 4, populations, number of
 blocks, block lengths in SNPs, source prefix, and `provenance`: popmix
-version, every extraction parameter, SNPs read and used, and each sample's
-ploidy as counted; `F2Blocks.provenance` in Python), `provenance.json` (the
+version, every extraction parameter, SNPs read and used, each sample's
+ploidy as counted, and `snp_panel`: the number of SNPs read and a
+fingerprint of their positions, equal for two datasets on one SNP panel; `F2Blocks.provenance` in Python), `provenance.json` (the
 command line) and NumPy arrays:
 `block_sums.npy` (bias-corrected f2 per pair and block), `block_raw_sums.npy`,
 `block_weights.npy` (SNPs per block), `block_het_sums.npy`,

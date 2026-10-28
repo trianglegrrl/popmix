@@ -57,6 +57,29 @@ pub enum Warning {
     /// Projected samples with much missing data placed by dot product,
     /// which counts a missing genotype as 0 (TASKS.md G6).
     ProjectionMissingData { samples: usize, max_fraction: f64 },
+    /// Two datasets merged that share less than [`MIN_PANEL_OVERLAP`] of
+    /// the smaller one's SNPs: the merge keeps only those, a panel of its
+    /// own (TASKS.md H9).
+    PanelsDiffer { shared: usize, smaller: usize },
+}
+
+/// Smallest share of the smaller dataset's SNPs two merged datasets share
+/// before [`Warning::PanelsDiffer`].
+pub const MIN_PANEL_OVERLAP: f64 = 0.9;
+
+/// Warn when two merged datasets of `snps_a` and `snps_b` SNPs share
+/// `shared` (paired by position) and that is less than
+/// [`MIN_PANEL_OVERLAP`] of the smaller.
+pub fn check_panel_overlap(
+    snps_a: usize,
+    snps_b: usize,
+    shared: usize,
+    warn: &mut dyn FnMut(Warning),
+) {
+    let smaller = snps_a.min(snps_b);
+    if smaller > 0 && (shared as f64) < MIN_PANEL_OVERLAP * smaller as f64 {
+        warn(Warning::PanelsDiffer { shared, smaller });
+    }
 }
 
 /// Largest share of missing SNPs for a sample projected by dot product
@@ -265,6 +288,13 @@ impl fmt::Display for Warning {
                  toward the origin in proportion; project by least squares (lsqproject, \
                  --lsqproject)",
                 max_fraction * 100.0
+            ),
+            Warning::PanelsDiffer { shared, smaller } => write!(
+                f,
+                "file A and file B share {shared} SNPs, {:.0}% of the smaller panel ({smaller}): \
+                 the merged data keep only these, a panel of their own, so compare f-statistics \
+                 only among populations taken from the merged data",
+                *shared as f64 / *smaller as f64 * 100.0
             ),
             Warning::NoGeneticMap => write!(
                 f,

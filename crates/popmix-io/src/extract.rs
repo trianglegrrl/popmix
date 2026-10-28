@@ -152,7 +152,7 @@ pub fn extract_f2(
     };
     check_sorted(geno.snps())?;
     opts.ploidy.apply(&mut geno);
-    let n_snps_read = geno.n_snps();
+    let panel = crate::provenance::Panel::of(geno.snps());
     let geno = if opts.auto_only {
         geno.filter_autosomal()?
     } else {
@@ -163,8 +163,7 @@ pub fn extract_f2(
     check_genetic_map(&evidence, &opts.blocks, warn);
     let af = AlleleFrequencies::from_genotypes_for_populations(&geno, Some(&pops));
     let blocks = F2Blocks::from_allele_frequencies_with_options(&af, &opts.blocks, &opts.f2);
-    let provenance =
-        crate::provenance::extraction(prefix, opts, geno.samples(), n_snps_read, &blocks);
+    let provenance = crate::provenance::extraction(prefix, opts, geno.samples(), &panel, &blocks);
     Ok(blocks.with_provenance(Some(provenance)))
 }
 
@@ -211,6 +210,12 @@ fn from_mapped(
             F2Blocks::from_allele_frequencies_with_options(&af, &opts.blocks, &opts.f2)
         }
     };
-    let provenance = crate::provenance::extraction(prefix, opts, &samples, snps.len(), &blocks);
+    let provenance = crate::provenance::extraction(
+        prefix,
+        opts,
+        &samples,
+        &crate::provenance::Panel::of(&snps),
+        &blocks,
+    );
     Ok(blocks.with_provenance(Some(provenance)))
 }

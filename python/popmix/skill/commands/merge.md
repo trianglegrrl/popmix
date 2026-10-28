@@ -56,6 +56,12 @@ popmix merge -a aadr_v66p1 -b my_samples.vcf.gz \
 
 ## Reading the result
 
+When the two datasets share less than 90% of the smaller one's SNPs they
+were ascertained on different panels (the AADR's 1240K and Human Origins,
+say), and popmix warns: the merged data keep only the shared SNPs, a panel
+of their own, so compare f-statistics only among populations taken from
+the merged data, never with f2 blocks extracted from either input.
+
 `SNPs in common` is the number of SNPs written. SNPs are paired by
 chromosome and position. For each pair: alleles in the other order are
 recoded; alleles that are the complement (the other strand) are flipped; the
