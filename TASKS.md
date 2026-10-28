@@ -544,9 +544,12 @@ thread count.
   minmaf/maxmaf and keepsnps (overriding maxmiss, MAF, class and
   auto_only, as admixtools2), plus excludesnps; on extract-f2 and every
   --input f2 command. AADR golden on six filter cases.
-- [ ] **H2. Sample selection on the CLI:** include/exclude individuals and
+- [x] **H2. Sample selection on the CLI:** include/exclude individuals and
   relabel them (`inds`/`pops` exist only in Python); a population subset for
   `convertf`. PG
+  *Done in 8ccd327:* `--keep-inds`, `--exclude-inds`, `--relabel`,
+  `--relabel-pops` on extract-f2, every --input f2 command and convertf
+  (with `--populations`).
 - [x] **H3. Provenance in outputs:** f2 directory `metadata.json` and result
   files record all parameters (maxmiss, block size, auto_only, ploidy per
   sample, SNP count) and the popmix version. PG
@@ -934,9 +937,12 @@ thread count.
   convertf's keys (genotypename, snpname, indivname, outputformat,
   genooutfilename, snpoutfilename, indoutfilename, poplistname, ...), so
   pipelines can swap it in.
-- [ ] **P3. Subsetting and relabelling:** population list, individual
+- [x] **P3. Subsetting and relabelling:** population list, individual
   include/exclude, SNP list, chromosome and region, relabel populations
   (with H2).
+  *Done in 8ccd327:* convertf `--populations`, `--keep-inds`/`--exclude-inds`,
+  `--relabel`/`--relabel-pops`, `--keep-snps`/`--exclude-snps`,
+  `--chromosomes`, `--region` (`popmix_io::subset`).
 - [ ] **P4. Fast:** streaming, parallel, bounded memory; benchmarked against
   convertf in section E.
 - [ ] **P5. Checked against convertf on every format pair** (golden), with
