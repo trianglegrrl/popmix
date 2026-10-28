@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import dataclasses
 import json
 import sys
 import textwrap
@@ -11,12 +10,14 @@ import click
 
 import popmix as pm
 
+from . import _qpadm_output as out
 from ._common import (
     _json_number,
     _p_text,
     f2_source_options,
     load_f2_blocks,
     parse_population_list,
+    write_columns,
 )
 from ._errors import EXPECTED_ERRORS, fail
 
@@ -34,18 +35,21 @@ from ._errors import EXPECTED_ERRORS, fail
 @click.option("--alpha", type=click.FloatRange(0, 1, min_open=True, max_open=True), default=0.05,
               help="Significance level: p at or below it rejects the model (default: 0.05)")
 @f2_source_options
+@click.option("--output-prefix", "-o", default=None,
+              help="Also write PREFIX.weights.tsv, .rankdrop.tsv, .popdrop.tsv and .json")
 @click.option("--format", "output_format", type=click.Choice(["text", "json", "tsv"]), default="text",
               help="Output format")
 def qpadm(target: str, left: list, right: list, constrained: bool, compat: str | None, fudge: float,
           alpha: float, input_prefix: str | None,
           f2_dir: str | None, block_size: float, maxmiss: float, all_chromosomes: bool,
-          output_format: str):
+          output_prefix: str | None, output_format: str):
     """Estimate admixture weights using qpAdm.
 
     Models TARGET as a mixture of LEFT (source) populations, using RIGHT
-    populations as outgroups to constrain the model. Also fits every subset
-    of the sources (admixtools2's popdrop table: pattern 1 marks a source
-    left out; best marks the nested path).
+    populations as outgroups to constrain the model. Also gives the rank
+    tests of the target and sources (admixtools2's rankdrop) and fits every
+    subset of the sources (its popdrop table: pattern 1 marks a source left
+    out; best marks the nested path).
     """
     if len(left) < 1:
         click.echo("Error: Need at least 1 source population in --left", err=True)
@@ -61,40 +65,44 @@ def qpadm(target: str, left: list, right: list, constrained: bool, compat: str |
         result = pm.qpadm(f2_blocks, left, right, target, constrained=constrained, fudge=fudge, compat=compat)
         assessment = result.assess(alpha)
 
+        if output_prefix:
+            write_columns(out.weight_columns(result), f"{output_prefix}.weights.tsv")
+            write_columns(out.rankdrop_columns(result), f"{output_prefix}.rankdrop.tsv")
+            write_columns(out.popdrop_columns(result), f"{output_prefix}.popdrop.tsv")
+            with open(f"{output_prefix}.json", "w") as f:
+                json.dump(out.as_json(result, assessment), f, indent=2)
+                f.write("\n")
         if output_format == "json":
-            output = {
-                "target": result.target,
-                "sources": result.sources,
-                "weights": dict(zip(result.sources, result.weights)),
-                "se": dict(zip(result.sources, result.weight_se)),
-                "chisq": result.chisq,
-                "dof": result.dof,
-                "p": _json_number(result.p),
-                "feasible": result.feasible,
-                "assessment": dataclasses.asdict(assessment) | {"notes": list(assessment.notes)},
-                "popdrop": [_popdrop_json(row) for row in result.popdrop],
-            }
-            click.echo(json.dumps(output, indent=2))
+            click.echo(json.dumps(out.as_json(result, assessment), indent=2))
         elif output_format == "tsv":
-            click.echo("target\tsource\tweight\tse\tchisq\tdof\tp")
-            for source, weight, se in zip(result.sources, result.weights, result.weight_se):
-                click.echo(f"{target}\t{source}\t{weight:.4f}\t{se:.4f}\t{result.chisq:.4f}\t{result.dof}"
-                           f"\t{_p_text(result.p)}")
+            write_columns(out.weight_columns(result), None)
         else:
-            click.echo(f"qpAdm: {target} = mix of {', '.join(left)}")
-            click.echo(f"Outgroups: {', '.join(right)}")
-            click.echo()
-            click.echo("Admixture weights:")
-            for source, weight, se in zip(result.sources, result.weights, result.weight_se):
-                click.echo(f"  {source}: {weight:.4f} ({weight*100:.1f}%), SE {se:.4f}")
-            click.echo()
-            click.echo(f"Model fit: chisq={result.chisq:.4f}, dof={result.dof}, p={_p_text(result.p)}")
-            click.echo(f"Feasible: {result.feasible}")
-            _echo_assessment(assessment)
-            _echo_popdrop(result.popdrop)
+            _echo_text(result, right, assessment)
 
     except EXPECTED_ERRORS as e:
         fail(e)
+
+
+def _echo_text(result: pm.QpAdmResult, right: list, assessment: pm.QpAdmAssessment) -> None:
+    click.echo(f"qpAdm: {result.target} = mix of {', '.join(result.sources)}")
+    click.echo(f"Outgroups: {', '.join(right)}")
+    click.echo(f"{result.n_blocks} jackknife blocks, {result.n_snps} SNPs")
+    click.echo()
+    click.echo("Admixture weights:")
+    width = max(len(s) for s in result.sources)
+    click.echo(f"  {'source':<{width}} {'weight':>8} {'SE':>9} {'z':>8}")
+    for source, weight, se, z in zip(result.sources, result.weights, result.weight_se, result.weight_z):
+        click.echo(f"  {source:<{width}} {weight:>8.4f} {se:>9.3g} {z:>8.1f}")
+    click.echo()
+    click.echo(f"Model fit: chisq={result.chisq:.4f}, dof={result.dof}, p={out.p_text(result.p)}")
+    click.echo(f"Feasible: {result.feasible}")
+    _echo_assessment(assessment)
+    click.echo()
+    click.echo("Rank tests (rankdrop):")
+    click.echo(f"  {'f4rank':>6} {'dof':>4} {'chisq':>12} {'p':>10}")
+    for t in result.rankdrop:
+        click.echo(f"  {t.rank:>6} {t.dof:>4} {t.chisq:>12.4f} {out.p_text(t.p):>10}")
+    _echo_popdrop(result.popdrop)
 
 
 _VERDICTS = {
@@ -116,14 +124,6 @@ def _echo_assessment(assessment: pm.QpAdmAssessment) -> None:
         click.echo(textwrap.fill(note, width=79, initial_indent="   - ", subsequent_indent="     "))
 
 
-def _popdrop_json(row: pm.PopDropRow) -> dict:
-    out = dataclasses.asdict(row)
-    for key in ("chisq", "p", "chisqdiff", "p_nested"):
-        out[key] = _json_number(out[key]) if out[key] is not None else None
-    out["weights"] = [None if w is None else _json_number(w) for w in row.weights]
-    return out
-
-
 def _echo_popdrop(rows: tuple[pm.PopDropRow, ...]) -> None:
     """The popdrop table: each subset of the sources, as admixtools2 prints it."""
     click.echo()
@@ -133,7 +133,7 @@ def _echo_popdrop(rows: tuple[pm.PopDropRow, ...]) -> None:
     for r in rows:
         best = "" if r.best is None else str(r.best)
         weights = ", ".join("NA" if w is None else f"{w:.4f}" for w in r.weights)
-        click.echo(f"  {r.pattern:<8} {r.wt:>3} {r.dof:>4} {r.chisq:>10.4f} {_p_text(r.p):>9} {r.f4rank:>6} "
+        click.echo(f"  {r.pattern:<8} {r.wt:>3} {r.dof:>4} {r.chisq:>10.4f} {out.p_text(r.p):>9} {r.f4rank:>6} "
                    f"{str(r.feasible):>8} {best:>5} {weights}")
 
 
@@ -211,3 +211,49 @@ def qpwave(left: list, right: list, fudge: float, alpha: float, input_prefix: st
 
     except EXPECTED_ERRORS as e:
         fail(e)
+
+
+@click.command("qpadm-rotate")
+@click.option("--target", required=True, help="Target population to model")
+@click.option("--leftright", required=True, callback=parse_population_list,
+              help="Populations distributed between sources and right (comma-separated)")
+@click.option("--rightfix", callback=parse_population_list, default="",
+              help="Populations on the right in every model (comma-separated)")
+@click.option("--constrained/--unconstrained", default=False, help="Constrain weights to [0, 1]")
+@click.option("--fudge", type=float, default=1e-4,
+              help="Regularisation of the f4 covariance (admixtools2 fudge; default: 1e-4)")
+@click.option("--alpha", type=click.FloatRange(0, 1, min_open=True, max_open=True), default=0.05,
+              help="Significance level for each model's status (default: 0.05)")
+@f2_source_options
+@click.option("--output", "-o", default=None, help="Write the table here instead of stdout")
+def qpadm_rotate(target: str, leftright: list, rightfix: list, constrained: bool, fudge: float, alpha: float,
+                 input_prefix: str | None, f2_dir: str | None, block_size: float, maxmiss: float,
+                 all_chromosomes: bool, output: str | None):
+    """Fit every qpAdm model of a rotation (admixtools2 qpadm_rotate).
+
+    Each subset of LEFTRIGHT in turn is the sources, and the rest of it,
+    after RIGHTFIX, the right populations. Writes one TSV row per model:
+    its sources and right populations, chisq, dof, p, feasibility, status
+    at --alpha, and the weights and SEs in source order. The p-values are
+    not corrected for testing every model; the number tested is warned.
+    """
+    try:
+        f2_blocks = load_f2_blocks(input_prefix, f2_dir, [target, *leftright, *rightfix], block_size, maxmiss,
+                                   all_chromosomes)
+        fits = pm.qpadm_rotate(f2_blocks, leftright, target, rightfix or None, full_results=True, fudge=fudge,
+                               constrained=constrained)
+        def joined(xs) -> str:
+            return ",".join(f"{x:.12g}" for x in xs)
+
+        write_columns({
+            "model": list(range(1, len(fits) + 1)), "target": [target] * len(fits),
+            "left": [",".join(r.sources) for r in fits], "right": [",".join(r.right) for r in fits],
+            "n_sources": [len(r.sources) for r in fits], "chisq": [r.chisq for r in fits],
+            "dof": [r.dof for r in fits], "p": [r.p for r in fits], "feasible": [r.feasible for r in fits],
+            "status": [r.assess(alpha).status for r in fits], "weights": [joined(r.weights) for r in fits],
+            "se": [joined(r.weight_se) for r in fits], "n_blocks": [r.n_blocks for r in fits],
+            "n_snps": [r.n_snps for r in fits],
+        }, output)
+    except EXPECTED_ERRORS as e:
+        fail(e)
+

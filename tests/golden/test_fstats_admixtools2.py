@@ -247,6 +247,28 @@ def _check_qpadm_weights(name: str):
     assert not mismatches, "\n".join(mismatches)
 
 
+def _check_qpadm_rankdrop(name: str):
+    """qpAdm's rankdrop table, every rank, as admixtools2 (TASKS.md H4)."""
+    _, f2 = _result_for(name)
+    mismatches = []
+    for m in load_reference(name, "qpadm.json")["models"]:
+        if "rankdrop" not in m:
+            continue
+        r = pm.qpadm(f2, m["left"], m["right"], m["target"], constrained=m["constrained"])
+        ours = {t.rank: t for t in r.rankdrop}
+        label = f"target={m['target']} left={','.join(m['left'])}"
+        if sorted(ours) != sorted(row["f4rank"] for row in m["rankdrop"]):
+            mismatches.append(f"{label}: ranks {sorted(ours)}")
+            continue
+        for row in m["rankdrop"]:
+            t = ours[row["f4rank"]]
+            if t.dof != row["dof"] or not np.isclose(t.chisq, row["chisq"], rtol=SE_RTOL, atol=0):
+                mismatches.append(f"{label} rank {row['f4rank']}: dof {t.dof}, chisq {t.chisq!r} != {row}")
+            if "p" in row and not np.isclose(t.p, row["p"], rtol=P_RTOL, atol=0):
+                mismatches.append(f"{label} rank {row['f4rank']}: p {t.p!r} != {row['p']!r}")
+    assert not mismatches, "\n".join(mismatches)
+
+
 def _check_qpadm_fit(name: str):
     _, f2 = _result_for(name)
     mismatches = []
@@ -587,6 +609,7 @@ CHECKS = {
     "qpwave_rank_tests": _check_qpwave_rank_tests,
     "qpadm_weights": _check_qpadm_weights,
     "qpadm_fit": _check_qpadm_fit,
+    "qpadm_rankdrop": _check_qpadm_rankdrop,
     "qpadm_popdrop": _check_qpadm_popdrop,
     "qpadm_popdrop_corrected": _check_qpadm_popdrop_corrected,
     "f4ratio": _check_f4ratio,

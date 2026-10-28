@@ -167,6 +167,10 @@ pub(crate) struct PyQpAdmResult {
     /// Fit of every subset of the sources (admixtools2 ``popdrop``).
     #[pyo3(get)]
     popdrop: Vec<PyPopDropRow>,
+    /// Rank tests of the f4 matrix of the target and sources against the
+    /// right populations (admixtools2 ``rankdrop``).
+    #[pyo3(get)]
+    rankdrop: Vec<PyRankTest>,
 }
 
 /// One row of qpAdm ``popdrop``: the model fitted to a subset of the sources.
@@ -221,6 +225,17 @@ impl From<popmix_core::QpAdmResult> for PyQpAdmResult {
             df: result.df,
             p_value: result.p_value,
             constrained: result.constrained,
+            rankdrop: result
+                .qpwave_result
+                .rank_tests
+                .iter()
+                .map(|r| PyRankTest {
+                    rank: r.rank,
+                    chi_sq: r.chi_sq,
+                    df: r.df,
+                    p_value: r.p_value,
+                })
+                .collect(),
             popdrop: result
                 .popdrop
                 .into_iter()

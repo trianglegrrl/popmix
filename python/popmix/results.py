@@ -99,6 +99,19 @@ class QpAdmResult:
     p: float
     constrained: bool
     popdrop: tuple[PopDropRow, ...]
+    #: Rank tests of the f4 matrix of the target and sources against the
+    #: right populations, every rank (admixtools2 ``rankdrop``).
+    rankdrop: tuple[RankTest, ...] = ()
+    #: Jackknife blocks and SNPs (the block lengths' sum) of the f2 blocks.
+    n_blocks: int = 0
+    n_snps: int = 0
+    #: The right populations.
+    right: tuple[str, ...] = ()
+
+    @property
+    def weight_z(self) -> tuple[float, ...]:
+        """Each weight over its SE (NaN where the SE is 0)."""
+        return tuple(w / se if se > 0 else float("nan") for w, se in zip(self.weights, self.weight_se))
 
     @property
     def feasible(self) -> bool:
@@ -340,8 +353,11 @@ def qpwave_result(r) -> QpWaveResult:
                    f4_matrix=_array(r.f4_matrix), f4_covariance=_array(r.f4_covariance))
 
 
-def qpadm_result(r) -> QpAdmResult:
-    return _fields(QpAdmResult, r, popdrop=tuple(_fields(PopDropRow, row) for row in r.popdrop))
+def qpadm_result(r, f2_blocks=None, right=()) -> QpAdmResult:
+    counts = {"n_blocks": 0, "n_snps": 0} if f2_blocks is None else \
+        {"n_blocks": f2_blocks.n_blocks, "n_snps": sum(f2_blocks.block_lengths)}
+    return _fields(QpAdmResult, r, popdrop=tuple(_fields(PopDropRow, row) for row in r.popdrop),
+                   rankdrop=tuple(_fields(RankTest, t) for t in r.rankdrop), right=tuple(right), **counts)
 
 
 def f4ratio_result(r) -> F4RatioResult:

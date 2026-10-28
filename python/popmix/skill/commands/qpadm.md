@@ -40,7 +40,8 @@ popmix qpadm --target T --left S1,S2,... --right R1,R2,... (--input PREFIX | --f
 | `--exclude-inds` | text (path) | none | With `--input`: never use the sample IDs in this file (one per line, or a `.ind`/`.fam` file). |
 | `--relabel` | text (path) | none | With `--input`: give samples new populations: `ID POPULATION` per line, as admixtools2 `inds`/`pops`. Population names given to the command are those after relabelling. |
 | `--relabel-pops` | text (path) | none | With `--input`: rename populations: `OLD NEW` per line, applied after `--relabel` (merge two populations by giving them one name). |
-| `--format` | `text`, `json`, `tsv` | `text` | `json`: target, sources, weights and se (by source), chisq, dof, p (null when untestable), feasible, `assessment` (status, alpha, notes), and `popdrop` (one object per row, admixtools2's columns). `tsv`: one row per source with weight, se, chisq, dof, p. |
+| `--output-prefix`, `-o` | text (path) | none | Also write `PREFIX.weights.tsv`, `PREFIX.rankdrop.tsv`, `PREFIX.popdrop.tsv` and `PREFIX.json` (full precision). |
+| `--format` | `text`, `json`, `tsv` | `text` | `json`: target, sources, weights, se and z (by source), chisq, dof, p (null when untestable), feasible, n_blocks, n_snps, `assessment` (status, alpha, notes), `rankdrop` (f4rank, dof, chisq, p) and `popdrop` (one object per row, admixtools2's columns). `tsv`: one row per source with weight, se, z, chisq, dof, p, feasible, n_blocks, n_snps, at 12 significant digits. |
 
 ## Inputs and outputs
 
@@ -49,22 +50,39 @@ Genotypes or an f2 directory holding every population; the result on stdout:
 ```text
 qpAdm: Simulation.1 = mix of French_1, Yoruba_1
 Outgroups: French_2, Yoruba_2, French_3, Yoruba_3
+50 jackknife blocks, 21079 SNPs
 
 Admixture weights:
-  French_1: 0.1940 (19.4%), SE 0.0203
-  Yoruba_1: 0.8060 (80.6%), SE 0.0203
+  source     weight        SE        z
+  French_1   0.1940    0.0203      9.5
+  Yoruba_1   0.8060    0.0203     39.7
 
-Model fit: chisq=1.2836, dof=2, p=0.5263
+Model fit: chisq=1.2836, dof=2, p=0.526
 Feasible: True
 => Not rejected at alpha 0.05, with every weight in [0, 1]. That does not make
    it the model: others may fit too.
 
+Rank tests (rankdrop):
+  f4rank  dof        chisq          p
+       0    6    1240.0343  1.04e-264
+       1    2       1.2836      0.526
+
 Models (popdrop; pattern 1 = source left out):
   pattern   wt  dof      chisq         p f4rank feasible  best weights
-  00         0    2     1.2836    0.5263      1     True  True 0.1940, 0.8060
-  01         1    3   953.2251    0.0000      0     True False 1.0000, NA
-  10         1    3   100.5339    0.0000      0     True  True NA, 1.0000
+  00         0    2     1.2836     0.526      1     True  True 0.1940, 0.8060
+  01         1    3   953.2251 2.52e-206      0     True False 1.0000, NA
+  10         1    3   100.5339  1.19e-21      0     True  True NA, 1.0000
 ```
+
+p-values in text have 3 significant digits (`<1e-300` below double
+precision); TSV and JSON carry every number at full precision. `z` is each
+weight over its SE. The rank tests (admixtools2's rankdrop) test the f4
+matrix of the target and sources against the right populations at each
+rank: the model's own fit is the row at rank (sources - 1). With
+`--output-prefix PREFIX` the tables are also written as
+`PREFIX.weights.tsv`, `PREFIX.rankdrop.tsv`, `PREFIX.popdrop.tsv` (a weight
+column per source) and `PREFIX.json`. For many models of a rotation, see
+[qpadm-rotate](qpadm-rotate.md).
 
 The popdrop table fits every subset of the sources: `pattern` marks with 1
 each source left out, `wt` counts them; `best` marks the nested path, from

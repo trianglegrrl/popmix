@@ -478,28 +478,38 @@ popmix qpadm \
 ```
 qpAdm: French.DG = mix of Russia_Samara_EBA_Yamnaya.AG, Germany_HalberstadtSonntagsfeld_EN_LBK.AG
 Outgroups: Mbuti.DG, Han.DG, Papuan.DG, Karitiana.DG, Ulchi.DG
+710 jackknife blocks, 1005983 SNPs
 
 Admixture weights:
-  Russia_Samara_EBA_Yamnaya.AG: 0.4185 (41.8%), SE 0.0275
-  Germany_HalberstadtSonntagsfeld_EN_LBK.AG: 0.5815 (58.2%), SE 0.0275
+  source                                      weight        SE        z
+  Russia_Samara_EBA_Yamnaya.AG                0.4185    0.0275     15.2
+  Germany_HalberstadtSonntagsfeld_EN_LBK.AG   0.5815    0.0275     21.1
 
-Model fit: chisq=37.7305, dof=3, p=0.0000
+Model fit: chisq=37.7305, dof=3, p=3.22e-08
 Feasible: True
 => Rejected at alpha 0.05: the sources do not explain the target's f4 relations
    to the right populations.
 
+Rank tests (rankdrop):
+  f4rank  dof        chisq          p
+       0    8     673.8981  2.97e-140
+       1    3      37.7305   3.22e-08
+
 Models (popdrop; pattern 1 = source left out):
   pattern   wt  dof      chisq         p f4rank feasible  best weights
-  00         0    3    37.7305    0.0000      1     True  True 0.4185, 0.5815
-  01         1    4   434.3187    0.0000      0     True False 1.0000, NA
-  10         1    4   196.3585    0.0000      0     True  True NA, 1.0000
+  00         0    3    37.7305  3.22e-08      1     True  True 0.4185, 0.5815
+  01         1    4   434.3187  1.07e-92      0     True False 1.0000, NA
+  10         1    4   196.3585  2.28e-41      0     True  True NA, 1.0000
 ```
 
 Two sources are not enough here: present-day French also carry
 hunter-gatherer ancestry the model leaves out. A model that is not rejected
 is never called a good fit: the verdict weighs p (`--alpha`), whether every
 weight is in [0, 1], weights within 2 SE of 0, and simpler models in the
-popdrop table that also fit (`QpAdmResult.assess()` in Python). The popdrop table fits every
+popdrop table that also fit (`QpAdmResult.assess()` in Python). `z` is each
+weight over its SE; the rank tests are admixtools2's rankdrop, and
+`--output-prefix` also writes every table as TSV and JSON at full precision.
+The popdrop table fits every
 subset of the sources (admixtools2's `popdrop`); `--compat
 admixtools2-2.0.10` reproduces admixtools2's nested path (`best`), which
 compares siblings rather than nested models (DEVIATIONS.md).

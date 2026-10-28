@@ -69,10 +69,11 @@ def qpadm(f2_blocks: _core.F2Blocks, left: Sequence[str], right: Sequence[str], 
     Returns
     -------
     QpAdmResult
-        Weights, their SEs, the model's chisq, dof and p, and popdrop.
+        Weights, their SEs, the model's chisq, dof and p, popdrop,
+        rankdrop, and the blocks' and SNPs' counts.
     """
     return qpadm_result(_core.qpadm(f2_blocks, list(left), list(right), target,
-                                    constrained=constrained, fudge=fudge, compat=compat))
+                                    constrained=constrained, fudge=fudge, compat=compat), f2_blocks, right)
 
 
 def qpf4ratio(f2_blocks: _core.F2Blocks, test: str, source_a: str, source_b: str, outgroup: str,

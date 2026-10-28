@@ -75,6 +75,7 @@ reference tool.
 - [populations](commands/populations.md): populations and sample counts
 - [qp3pop](commands/qp3pop.md): many f3 statistics
 - [qpadm](commands/qpadm.md): admixture weights of a target
+- [qpadm-rotate](commands/qpadm-rotate.md): every qpAdm model of a rotation, one row each
 - [qpdstat](commands/qpdstat.md): many f4 or D statistics
 - [qpgraph](commands/qpgraph.md): fit an admixture graph
 - [qpwave](commands/qpwave.md): rank test of left against right populations

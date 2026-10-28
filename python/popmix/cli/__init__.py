@@ -13,6 +13,7 @@ Commands:
     f4          Compute the f4 statistic f4(pop1, pop2; pop3, pop4)
     qpadm       Estimate admixture weights
     qpwave      Test admixture wave count
+    qpadm-rotate Fit every qpAdm model of a rotation
     convertf    Convert between genotype file formats
     merge       Merge two genotype datasets
     dates       Estimate admixture date using DATES
@@ -43,7 +44,7 @@ from .datasets import convertf, info, install_skill, merge, populations
 from .dating import dates, rolloff
 from .fstats import dstat_matrix, extract_f2, f2, f3, f4, outgroup_f3, qp3pop, qpdstat
 from .graphs import find_graphs, qpgraph
-from .qpadm import qpadm, qpwave
+from .qpadm import qpadm, qpadm_rotate, qpwave
 from .structure import admixture, kinship, pca, sfs
 
 __all__ = ["cli", "main", "write_columns", "write_table"]
@@ -83,6 +84,7 @@ for _command in (
     outgroup_f3,
     dstat_matrix,
     qpadm,
+    qpadm_rotate,
     qpwave,
     pca,
     kinship,
