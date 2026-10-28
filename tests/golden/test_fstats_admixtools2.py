@@ -63,6 +63,8 @@ import pytest
 
 import popmix as pm
 
+from .reference_paths import local
+
 REF_ROOT = Path(__file__).parent / "admixtools2" / "v2.0.10"
 CONFIGS = ["dg_6pop", "ancient_5pop", "dg_11pop", "ancient_maxmiss", "family_4pop"]
 
@@ -88,11 +90,11 @@ _results = {}
 def _result_for(name: str):
     if name not in _results:
         ref = load_reference(name)
-        if not os.path.exists(f"{ref['prefix']}.geno"):
-            pytest.skip(f"genotype data not available: {ref['prefix']}")
+        if not os.path.exists(f"{local(ref['prefix'])}.geno"):
+            pytest.skip(f"genotype data not available: {local(ref['prefix'])}")
         params = ref["params"]
         f2 = pm.extract_f2(
-            ref["prefix"],
+            local(ref["prefix"]),
             ref["pops"],
             auto_only=params["auto_only"],
             block_size=params["blgsize"],
@@ -555,10 +557,10 @@ def _fst_result_for(name: str):
     if name not in _fst:
         ref = load_reference(name)
         fst_ref = load_reference(name, "fst.json")
-        if not os.path.exists(f"{ref['prefix']}.geno"):
-            pytest.skip(f"genotype data not available: {ref['prefix']}")
+        if not os.path.exists(f"{local(ref['prefix'])}.geno"):
+            pytest.skip(f"genotype data not available: {local(ref['prefix'])}")
         f2 = pm.extract_f2(
-            ref["prefix"],
+            local(ref["prefix"]),
             fst_ref["pops"],
             block_size=ref["params"]["blgsize"],
             maxmiss=ref["params"]["maxmiss"],

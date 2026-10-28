@@ -1,0 +1,7 @@
+## machine
+Linux-6.8.0-138-generic-x86_64-with-glibc2.35
+Linux razorback 6.8.0-138-generic #138~22.04.1-Ubuntu SMP PREEMPT_DYNAMIC Fri Aug  7 13:43:15 UTC  x86_64 x86_64 x86_64 GNU/Linux
+
+## admixture --help
+ADMIXTURE Version 1.3.0
+/usr/local/bin/admixture  sha256 3e3f2fdb605d33d3ba3c732cd24a16ebc68e0a2b631022b13d825dbf04cc52ee

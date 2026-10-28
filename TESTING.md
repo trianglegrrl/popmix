@@ -34,7 +34,17 @@ Golden tests skip when their data is missing: AADR v66.p1 under
 reference cache (`~/.cache/popmix-references`, or `POPMIX_REFERENCE_CACHE`),
 among them the AADR v66.p1 dataset labelled by data type that every AADR
 golden reads (`python tests/golden/aadr/build_aadr_v66p1.py`; see AADR
-v66.p1 Reference Data below).
+v66.p1 Reference Data below). Without the full release, fetch that dataset
+from its Zenodo record instead, checked against the MD5s the build recorded:
+`python tests/golden/aadr/archive_aadr_v66p1.py fetch`. A reference names its
+data under the cache of the machine that made it; the goldens read it from
+this machine's cache (`tests/golden/reference_paths.py`). The
+`aadr-goldens` workflow runs the goldens this way every week.
+
+Each tool-version directory (`admixtools2/v2.0.10`, `plink2/v2.0.0-a.7LM`,
+...) holds `environment.txt`: the machine, the tool's version banner, the
+SHA-256 of each binary and, for references made in R, `sessionInfo()`.
+After regenerating references, rerun `python tests/golden/record_environment.py`.
 
 ## Test Structure
 

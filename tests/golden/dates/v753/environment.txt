@@ -1,0 +1,6 @@
+## machine
+Linux-6.8.0-138-generic-x86_64-with-glibc2.35
+Linux razorback 6.8.0-138-generic #138~22.04.1-Ubuntu SMP PREEMPT_DYNAMIC Fri Aug  7 13:43:15 UTC  x86_64 x86_64 x86_64 GNU/Linux
+
+## binary
+/home/a/.cache/popmix-references/dates-v753/bin/dates  sha256 126e35507e87f36240b0f01b13b372e0e79e5831bb3e22d2a8e76825cbe79b4d

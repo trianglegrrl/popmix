@@ -32,6 +32,8 @@ import pytest
 
 import popmix as pm
 
+from .reference_paths import local
+
 REF_DIR = Path(__file__).parent / "admixtools2" / "v2.0.10" / "dg_6pop"
 REF_FILE = REF_DIR / "resample.json"
 F_RTOL = 1e-10
@@ -59,11 +61,11 @@ def _list(x) -> list:
 @pytest.fixture(scope="module")
 def f2_blocks():
     f2_ref = json.loads((REF_DIR / "f2.json").read_text())
-    if not os.path.exists(f"{f2_ref['prefix']}.geno"):
-        pytest.skip(f"genotype data not available: {f2_ref['prefix']}")
+    if not os.path.exists(f"{local(f2_ref['prefix'])}.geno"):
+        pytest.skip(f"genotype data not available: {local(f2_ref['prefix'])}")
     assert f2_ref["pops"] == _ref()["pops"]
     p = f2_ref["params"]
-    return pm.extract_f2(f2_ref["prefix"], f2_ref["pops"], auto_only=p["auto_only"], block_size=p["blgsize"],
+    return pm.extract_f2(local(f2_ref["prefix"]), f2_ref["pops"], auto_only=p["auto_only"], block_size=p["blgsize"],
                          maxmiss=p["maxmiss"], poly_only=p["poly_only"] == "f2")
 
 
@@ -187,8 +189,8 @@ def inds_ref():
     if not INDS_FILE.exists():
         pytest.skip("resample_inds.json not generated")
     ref = json.loads(INDS_FILE.read_text())
-    if not os.path.exists(f"{ref['prefix']}.geno"):
-        pytest.skip(f"genotype data not available: {ref['prefix']}")
+    if not os.path.exists(f"{local(ref['prefix'])}.geno"):
+        pytest.skip(f"genotype data not available: {local(ref['prefix'])}")
     return ref
 
 
@@ -203,7 +205,7 @@ def test_resample_inds(inds_ref):
     """Each statistic with each individual left out, against admixtools2 on
     f2_from_geno(inds, pops) without that individual."""
     ref = inds_ref
-    args = (ref["prefix"], ref["inds"], ref["pops"])
+    args = (local(ref["prefix"]), ref["inds"], ref["pops"])
     f2a = _f2_args(ref)
     qa = pm.qpadm_resample_inds(*args, ref["qpadm"]["left"], ref["qpadm"]["right"], ref["qpadm"]["target"],
                                 f2_args=f2a)

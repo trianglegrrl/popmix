@@ -32,6 +32,8 @@ import pytest
 
 import popmix as pm
 
+from .reference_paths import local
+
 REF_ROOT = Path(__file__).parent / "admixture" / "v1.3.0"
 REPO = Path(__file__).parents[2]
 SLOW = pytest.mark.slow
@@ -46,7 +48,7 @@ TOL = 1e-10
 
 def _ref(name: str) -> tuple[dict, str]:
     ref = json.loads((REF_ROOT / name / "admixture.json").read_text())
-    prefix = ref["prefix"] if os.path.isabs(ref["prefix"]) else str(REPO / ref["prefix"])
+    prefix = local(ref["prefix"]) if os.path.isabs(local(ref["prefix"])) else str(REPO / local(ref["prefix"]))
     if not os.path.exists(prefix + ".geno"):
         pytest.skip(f"genotype data not available: {prefix}")
     return ref, prefix

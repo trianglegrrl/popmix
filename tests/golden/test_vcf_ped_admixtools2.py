@@ -20,6 +20,8 @@ import pytest
 
 import popmix as pm
 
+from .reference_paths import local
+
 REF_DIR = Path(__file__).parent / "admixtools2" / "v2.0.10" / "vcf_ped"
 
 
@@ -40,7 +42,7 @@ def _check(ours, ref: dict, which: str):
 @pytest.mark.parametrize("name", _cases())
 def test_ped(name):
     ref = json.loads((REF_DIR / f"{name}.json").read_text())
-    ped = f"{ref['prefix']}_ped"
+    ped = f"{local(ref['prefix'])}_ped"
     if not os.path.exists(f"{ped}.ped"):
         pytest.skip("PED test data not generated")
     _check(pm.extract_f2(ped, ref["pops"], auto_only=ref["auto_only"]), ref, "cm")
@@ -49,7 +51,7 @@ def test_ped(name):
 @pytest.mark.parametrize("name", _cases())
 def test_vcf(name):
     ref = json.loads((REF_DIR / f"{name}.json").read_text())
-    vcf = f"{ref['prefix']}.vcf.gz"
+    vcf = f"{local(ref['prefix'])}.vcf.gz"
     if not os.path.exists(vcf):
         pytest.skip("VCF test data not generated")
     # a VCF has samples but no populations

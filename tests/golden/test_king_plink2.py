@@ -22,6 +22,8 @@ import pytest
 
 import popmix as pm
 
+from .reference_paths import local
+
 REF_ROOT = Path(__file__).parent / "plink2" / "v2.0.0-a.7LM"
 REPO = Path(__file__).parents[2]
 CONFIGS = ["family", pytest.param("aadr_yri_ceu_lbk", marks=pytest.mark.slow)]
@@ -32,7 +34,7 @@ _results: dict = {}
 def _run(name: str):
     if name not in _results:
         ref = json.loads((REF_ROOT / name / "king.json").read_text())
-        prefix = ref["prefix"] if os.path.isabs(ref["prefix"]) else str(REPO / ref["prefix"])
+        prefix = local(ref["prefix"]) if os.path.isabs(local(ref["prefix"])) else str(REPO / local(ref["prefix"]))
         if not os.path.exists(prefix + ".geno"):
             pytest.skip(f"genotype data not available: {prefix}")
         _results[name] = (ref, pm.king(prefix, ref["pops"]))

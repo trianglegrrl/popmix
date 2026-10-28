@@ -26,6 +26,8 @@ import pytest
 
 import popmix as pm
 
+from .reference_paths import local
+
 REF_ROOT = Path(__file__).parent / "eigensoft" / "v7.2.1"
 REPO = Path(__file__).parents[2]
 
@@ -44,7 +46,7 @@ _results: dict = {}
 def _run(name: str):
     if name not in _results:
         ref = json.loads((REF_ROOT / name / "pca.json").read_text())
-        prefix = ref["prefix"] if os.path.isabs(ref["prefix"]) else str(REPO / ref["prefix"])
+        prefix = local(ref["prefix"]) if os.path.isabs(local(ref["prefix"])) else str(REPO / local(ref["prefix"]))
         if not os.path.exists(prefix + ".geno"):
             pytest.skip(f"genotype data not available: {prefix}")
         p = ref["params"]
@@ -112,7 +114,7 @@ def test_tracy_widom(name):
 
 def test_corrected_p_values_differ_only_beyond_the_table():
     ref, _ = _run("family_all")
-    prefix = str(REPO / ref["prefix"])
+    prefix = str(REPO / local(ref["prefix"]))
     corrected = pm.smartpca(prefix, ref["pca_pops"], n_components=4)
     beyond = np.array([r["twstat"] is not None and r["twstat"] > 8 for r in ref["tracy_widom"]])
     assert beyond.any()

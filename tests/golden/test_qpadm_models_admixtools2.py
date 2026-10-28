@@ -28,6 +28,8 @@ import pytest
 
 import popmix as pm
 
+from .reference_paths import local
+
 REF_DIR = Path(__file__).parent / "admixtools2" / "v2.0.10" / "dg_11pop"
 REF_FILE = REF_DIR / "qpadm_models.json"
 CHISQ_RTOL = 1e-6
@@ -52,13 +54,13 @@ def _num(x):
 @pytest.fixture(scope="module")
 def f2_blocks():
     f2_ref = json.loads((REF_DIR / "f2.json").read_text())
-    if not os.path.exists(f"{f2_ref['prefix']}.geno"):
-        pytest.skip(f"genotype data not available: {f2_ref['prefix']}")
+    if not os.path.exists(f"{local(f2_ref['prefix'])}.geno"):
+        pytest.skip(f"genotype data not available: {local(f2_ref['prefix'])}")
     assert f2_ref["pops"] == _ref()["pops"]
     p = f2_ref["params"]
     # admixtools2's ploidy rule (ADMIXTOOLS2-0007): Druze.DG holds a diploid
     # genome it takes as pseudo-haploid (test_fstats_admixtools2.py)
-    return pm.extract_f2(f2_ref["prefix"], f2_ref["pops"], auto_only=p["auto_only"], block_size=p["blgsize"],
+    return pm.extract_f2(local(f2_ref["prefix"]), f2_ref["pops"], auto_only=p["auto_only"], block_size=p["blgsize"],
                          maxmiss=p["maxmiss"], poly_only=p["poly_only"] == "f2", pseudohaploid="admixtools2")
 
 

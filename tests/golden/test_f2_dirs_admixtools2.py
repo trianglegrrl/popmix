@@ -21,6 +21,8 @@ import pytest
 
 import popmix as pm
 
+from .reference_paths import local
+
 REF_DIR = Path(__file__).parent / "admixtools2" / "v2.0.10" / "dg_6pop"
 F2_DIR = REF_DIR / "f2_dir"
 RSCRIPT = "/usr/bin/Rscript"
@@ -40,10 +42,10 @@ def theirs():
 @pytest.fixture(scope="module")
 def ours():
     ref = _ref()
-    if not os.path.exists(f"{ref['prefix']}.geno"):
-        pytest.skip(f"genotype data not available: {ref['prefix']}")
+    if not os.path.exists(f"{local(ref['prefix'])}.geno"):
+        pytest.skip(f"genotype data not available: {local(ref['prefix'])}")
     p = ref["params"]
-    return pm.extract_f2(ref["prefix"], ref["pops"], auto_only=p["auto_only"], block_size=p["blgsize"],
+    return pm.extract_f2(local(ref["prefix"]), ref["pops"], auto_only=p["auto_only"], block_size=p["blgsize"],
                          maxmiss=p["maxmiss"], poly_only=p["poly_only"] == "f2")
 
 

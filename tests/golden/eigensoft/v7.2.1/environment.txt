@@ -1,0 +1,6 @@
+## machine
+Linux-6.8.0-138-generic-x86_64-with-glibc2.35
+Linux razorback 6.8.0-138-generic #138~22.04.1-Ubuntu SMP PREEMPT_DYNAMIC Fri Aug  7 13:43:15 UTC  x86_64 x86_64 x86_64 GNU/Linux
+
+## binary
+/home/a/.local/share/popmix-references/eigensoft-7.2.1-hiprec/smartpca  sha256 52fcce1b62f59d8fedbf3142c6dddaf8f97e257196c2148d9a019bb31d1c71e1

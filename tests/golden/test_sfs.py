@@ -22,6 +22,8 @@ import pytest
 
 import popmix as pm
 
+from .reference_paths import local
+
 ROOT = Path(__file__).parent
 REPO = ROOT.parents[1]
 A2 = ["family_3pop"] + [pytest.param(c, marks=pytest.mark.slow) for c in ["dg_3pop", "ancient_2pop"]]
@@ -29,7 +31,7 @@ DADI = ["family", pytest.param("aadr_1kg", marks=pytest.mark.slow)]
 
 
 def _prefix(ref: dict) -> str:
-    prefix = ref["prefix"] if os.path.isabs(ref["prefix"]) else str(REPO / ref["prefix"])
+    prefix = local(ref["prefix"]) if os.path.isabs(local(ref["prefix"])) else str(REPO / local(ref["prefix"]))
     if not os.path.exists(prefix + ".geno"):
         pytest.skip(f"genotype data not available: {prefix}")
     return prefix

@@ -1,0 +1,47 @@
+# Weekly, and by hand: the golden tests on the AADR v66.p1 subset, fetched
+# from its Zenodo record (tests/golden/aadr/archive_aadr_v66p1.py) and
+# cached between runs. The goldens that run a reference tool (admixtools2 in
+# R, AdmixTools 8 convertf, PLINK 2, ...) skip here; the rest compare popmix
+# on AADR with the reference results in the repository.
+name: aadr-goldens
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  POPMIX_REFERENCE_CACHE: ${{ github.workspace }}/.references
+
+jobs:
+  goldens:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build and install popmix
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install maturin
+          maturin develop --release -m crates/popmix-python/Cargo.toml -E dev,plot
+
+      - uses: actions/cache@v4
+        with:
+          path: .references/aadr_v66p1
+          key: aadr-v66p1-${{ hashFiles('tests/golden/aadr/archive_aadr_v66p1.py') }}
+      - name: Fetch the AADR v66.p1 subset
+        run: python tests/golden/aadr/archive_aadr_v66p1.py fetch
+
+      - name: Golden tests on AADR
+        run: |
+          source .venv/bin/activate
+          pytest tests/golden --durations=20
