@@ -41,6 +41,10 @@ popmix qpgraph --graph FILE (--input PREFIX | --f2-dir DIR) [--admix-weights W1,
 | `--maxmaf` | number (0-0.5) | 0.5 | With `--input`: drop SNPs whose pooled minor allele frequency is above this (admixtools2 `maxmaf`). |
 | `--keep-snps` | text (path) | none | With `--input`: use only the SNP IDs in this file (one per line, or a `.snp`/`.bim` file). As admixtools2 `keepsnps`, it overrides `--maxmiss`, the MAF bounds, `--transversions-only` and the autosome restriction (chromosome X SNPs listed are used); polymorphism and `--exclude-snps` still apply. |
 | `--exclude-snps` | text (path) | none | With `--input`: never use the SNP IDs in this file (popmix's own; admixtools2 has none). |
+| `--keep-inds` | text (path) | none | With `--input`: use only the sample IDs in this file (one per line, or a `.ind`/`.fam` file). |
+| `--exclude-inds` | text (path) | none | With `--input`: never use the sample IDs in this file (one per line, or a `.ind`/`.fam` file). |
+| `--relabel` | text (path) | none | With `--input`: give samples new populations: `ID POPULATION` per line, as admixtools2 `inds`/`pops`. Population names given to the command are those after relabelling. |
+| `--relabel-pops` | text (path) | none | With `--input`: rename populations: `OLD NEW` per line, applied after `--relabel` (merge two populations by giving them one name). |
 | `--format` | `text`, `json`, `tsv` | `text` | `text`: score, worst residual and the edges; `json`: pops, score, edges (from, to, type, weight, low, high), f3 (pop1, pop2, pop3, est, se, fit, diff, z, p) and opt (each start's weights, score, evaluations, convergence); `tsv`: the edge table. |
 
 ## Inputs and outputs

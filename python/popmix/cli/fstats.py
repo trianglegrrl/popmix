@@ -8,6 +8,7 @@ import sys
 import click
 
 import popmix as pm
+from popmix import _core
 
 from ._common import (
     _json_row,
@@ -18,7 +19,10 @@ from ._common import (
     parse_population_list,
     parse_snp_range,
     pseudohaploid_option,
+    sample_selection,
+    sample_selection_options,
     scan_output_options,
+    selected_samples,
     snp_filter_options,
     snp_filters,
     stat_source,
@@ -44,6 +48,7 @@ from ._population_checks import validate_populations
 @click.option("--auto-only/--all-chromosomes", default=True, help="Use only autosomal SNPs (default: auto-only)")
 @pseudohaploid_option
 @with_options(snp_filter_options)
+@with_options(sample_selection_options)
 def extract_f2(input_prefix: str, output_dir: str, snp_range: tuple[int, int] | None,
                block_size: float, populations: list, maxmiss: float, auto_only: bool):
     """Extract F2 blocks from genotype data, as admixtools2's extract_f2().
@@ -53,10 +58,13 @@ def extract_f2(input_prefix: str, output_dir: str, snp_range: tuple[int, int] | 
     """
     try:
         if not snp_range:
-            if not populations:
+            if not populations and sample_selection():
+                labels = _core.select_samples(input_prefix, **sample_selection())[1]
+                # most samples first, as list_populations
+                populations = sorted((p for p in set(labels) if p != "Ignore"), key=lambda p: (-labels.count(p), p))
+            elif not populations:
                 populations = [p for p, _ in pm.list_populations(input_prefix) if p != "Ignore"]
-            else:
-                validate_populations(input_prefix, populations)
+            selected = selected_samples(input_prefix, populations)
             click.echo(f"Streaming F2 extraction from {input_prefix}...")
             click.echo(f"Populations: {', '.join(populations)}")
             f2_blocks = pm.extract_f2(
@@ -67,13 +75,14 @@ def extract_f2(input_prefix: str, output_dir: str, snp_range: tuple[int, int] | 
                 maxmiss=maxmiss,
                 pseudohaploid=_pseudohaploid(),
                 **snp_filters(),
+                **selected,
             )
             click.echo(f"Computed {f2_blocks.n_blocks} blocks for {f2_blocks.n_populations} populations")
         else:
             # A SNP index range needs the genotypes in memory, a path without
             # the missingness filter or a choice of ploidy rule
             for flag, unset in [("--maxmiss", maxmiss == 0), ("--pseudohaploid", _pseudohaploid() == "detect"),
-                                ("SNP filters", not snp_filters())]:
+                                ("SNP filters", not snp_filters()), ("sample selection", not sample_selection())]:
                 if not unset:
                     raise click.UsageError(f"{flag} does not apply with --snp-range")
             click.echo(f"Reading genotypes from {input_prefix}...")

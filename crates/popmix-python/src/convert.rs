@@ -2,6 +2,7 @@
 //! streamed from inputs read in place where the formats allow, and the
 //! mapped-input helpers the other readers share.
 
+use popmix_io::subset::Subset;
 use std::collections::HashMap;
 
 use popmix_core::python::{input_error, internal_error};
@@ -39,6 +40,25 @@ use crate::warnings::{open_vcf, with_warnings};
 /// input_format
 ///     Input format, by the same names or "vcf"; None (the default) to
 ///     detect it from the files.
+/// keep_inds, exclude_inds
+///     Only these sample IDs; never these.
+/// relabel
+///     A sample ID's new population (dict).
+/// relabel_pops
+///     A population's new name (dict).
+/// populations
+///     Only samples of these populations, as relabelled.
+/// keep_snps, exclude_snps
+///     Only these SNP IDs; never these.
+/// chromosomes
+///     Only SNPs on these chromosomes ("1"-"22", "X", "Y", "MT").
+/// region
+///     Only SNPs in ``(chromosome, start, end)``, base pairs, both ends
+///     included.
+///
+/// Samples are kept or excluded by ID, relabelled by ID, then by
+/// population, then chosen by population; an ID or population named that
+/// is not in the dataset raises ``InputError``.
 ///
 /// Returns
 /// -------
@@ -46,16 +66,45 @@ use crate::warnings::{open_vcf, with_warnings};
 ///     ``n_samples`` and ``n_snps`` (int) written, and ``input_format`` and
 ///     ``output_format`` (str, the canonical names, such as "PACKEDPED").
 #[pyfunction]
-#[pyo3(signature = (input_prefix, output_prefix, output_format, *, input_format=None))]
+#[pyo3(signature = (input_prefix, output_prefix, output_format, *, input_format=None, keep_inds=None,
+                    exclude_inds=None, relabel=None, relabel_pops=None, populations=None, keep_snps=None,
+                    exclude_snps=None, chromosomes=None, region=None))]
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn convertf(
     py: Python<'_>,
     input_prefix: &str,
     output_prefix: &str,
     output_format: &str,
     input_format: Option<&str>,
+    keep_inds: Option<Vec<String>>,
+    exclude_inds: Option<Vec<String>>,
+    relabel: Option<HashMap<String, String>>,
+    relabel_pops: Option<HashMap<String, String>>,
+    populations: Option<Vec<String>>,
+    keep_snps: Option<Vec<String>>,
+    exclude_snps: Option<Vec<String>>,
+    chromosomes: Option<Vec<String>>,
+    region: Option<(String, u32, u32)>,
 ) -> PyResult<HashMap<String, Py<PyAny>>> {
+    let subset = crate::subset::subset(
+        keep_inds,
+        exclude_inds,
+        relabel,
+        relabel_pops,
+        populations,
+        keep_snps,
+        exclude_snps,
+        chromosomes,
+        region,
+    );
     let (n_samples, n_snps, in_format, out_format) = compute(py, || {
-        convertf_files(input_prefix, output_prefix, output_format, input_format)
+        convertf_files(
+            input_prefix,
+            output_prefix,
+            output_format,
+            input_format,
+            &subset,
+        )
     })?;
     let mut result: HashMap<String, Py<PyAny>> = HashMap::new();
     result.insert("n_samples".to_string(), n_samples.into_py_any(py)?);
@@ -155,8 +204,14 @@ fn convertf_streamed(
     output_prefix: &str,
     in_format: GenoFormat,
     out_format: GenoFormat,
+    subset: &Subset,
 ) -> PyResult<Option<(usize, usize)>> {
     if !written_streamed(out_format) {
+        return Ok(None);
+    }
+    let whole = subset.keeps_all_samples() && subset.keeps_all_snps();
+    // sample-major output of a part: through a matrix of that part
+    if by_samples(out_format) && !whole {
         return Ok(None);
     }
     let Some((file, samples, snps)) = mapped_input(input_prefix, in_format)? else {
@@ -164,14 +219,17 @@ fn convertf_streamed(
     };
     if by_samples(out_format) {
         write_samples(out_format, output_prefix, &samples, &snps, &file)?;
-    } else {
-        let mut rows = popmix_io::SnpMajorRows::from_file(
-            file,
-            vec![true; snps.len()],
-            (0..samples.len()).collect(),
-        )?;
-        write_rows(out_format, output_prefix, &samples, &snps, &mut rows)?;
+        return Ok(Some((samples.len(), snps.len())));
     }
+    let (kept, samples) = subset.samples(&samples)?;
+    let keep = subset.snps(&snps)?;
+    let snps: Vec<Snp> = snps
+        .into_iter()
+        .zip(&keep)
+        .filter_map(|(s, &k)| k.then_some(s))
+        .collect();
+    let mut rows = popmix_io::SnpMajorRows::from_file(file, keep, kept)?;
+    write_rows(out_format, output_prefix, &samples, &snps, &mut rows)?;
     Ok(Some((samples.len(), snps.len())))
 }
 
@@ -181,6 +239,7 @@ fn convertf_files(
     output_prefix: &str,
     output_format: &str,
     input_format: Option<&str>,
+    subset: &Subset,
 ) -> PyResult<(usize, usize, GenoFormat, GenoFormat)> {
     use std::path::Path;
 
@@ -195,7 +254,9 @@ fn convertf_files(
 
     // From a packed .geno or a PLINK .bed to a format written SNP by SNP:
     // stream, without holding the genotypes in memory
-    if let Some(done) = convertf_streamed(input_prefix, output_prefix, in_format, out_format)? {
+    if let Some(done) =
+        convertf_streamed(input_prefix, output_prefix, in_format, out_format, subset)?
+    {
         return Ok((done.0, done.1, in_format, out_format));
     }
 
@@ -226,6 +287,13 @@ fn convertf_files(
             reader.read_all()?
         }
         GenoFormat::Tgeno => TgenoReader::new(input_prefix).and_then(|r| r.read_all())?,
+    };
+    let geno = if subset.keeps_all_samples() && subset.keeps_all_snps() {
+        geno
+    } else {
+        let (kept, samples) = subset.samples(geno.samples())?;
+        let keep = subset.snps(geno.snps())?;
+        popmix_io::subset::select(&geno, &kept, samples, &keep)?
     };
 
     let n_samples = geno.n_samples();

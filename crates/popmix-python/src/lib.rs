@@ -22,6 +22,7 @@ mod qpgraph;
 mod rcompat;
 mod rolloff;
 mod sfs;
+mod subset;
 mod warnings;
 
 use popmix_core::python::popmix_exception;
@@ -170,6 +171,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     qpadm_models::register(m)?;
     rcompat::register(m)?;
     rolloff::register(m)?;
+    subset::register(m)?;
 
     // qpAdm/qpWave functions
     m.add_function(wrap_pyfunction!(qpadm::qpwave, m)?)?;

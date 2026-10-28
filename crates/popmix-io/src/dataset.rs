@@ -45,6 +45,27 @@ pub fn open_vcf(path: impl AsRef<Path>, warn: &mut dyn FnMut(Warning)) -> Result
     Ok(reader)
 }
 
+/// The samples of the dataset at `prefix` (or a VCF's full path), from its
+/// sample file alone (.fam, .ind, a TGENO header, or the VCF header).
+pub fn read_samples(prefix: &str, warn: &mut dyn FnMut(Warning)) -> Result<Vec<Sample>> {
+    if let Some(path) = vcf_path(prefix) {
+        return Ok(open_vcf(&path, warn)?.samples().to_vec());
+    }
+    if Path::new(&format!("{prefix}.bed")).exists() {
+        return crate::plink::read_fam_file(format!("{prefix}.fam"));
+    }
+    let geno_path = format!("{prefix}.geno");
+    if Path::new(&geno_path).exists() {
+        if tgeno::is_tgeno_format(&geno_path)? {
+            return Ok(tgeno::TgenoReader::new(prefix)?.samples().to_vec());
+        }
+        return eigenstrat::read_ind_file(format!("{prefix}.ind"));
+    }
+    Err(PopmixError::FileNotFound {
+        path: PathBuf::from(prefix),
+    })
+}
+
 /// A dataset whose genotypes can be read in place: a PACKEDANCESTRYMAP
 /// .geno, a PLINK .bed or a text EIGENSTRAT .geno of even lines (mapped), or
 /// a VCF read once into packed genotypes in memory.

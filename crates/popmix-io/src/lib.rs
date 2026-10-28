@@ -32,6 +32,7 @@ pub mod ped;
 pub mod plink;
 mod provenance;
 pub mod streaming;
+pub mod subset;
 pub mod tgeno;
 pub mod vcf;
 pub mod writers;

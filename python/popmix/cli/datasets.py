@@ -6,7 +6,29 @@ import click
 
 import popmix as pm
 
+from ._common import (
+    _pairs,
+    _sample_ids,
+    _sample_selection_options,
+    _snp_ids,
+    parse_population_list,
+    with_options,
+)
 from ._errors import EXPECTED_ERRORS, fail
+
+
+def _parse_region(ctx, param, value: str | None) -> tuple[str, int, int] | None:
+    """CHROM:START-END as (chromosome, start, end)."""
+    if not value:
+        return None
+    try:
+        chrom, span = value.rsplit(":", 1)
+        start, end = (int(x.replace(",", "")) for x in span.split("-"))
+    except ValueError:
+        raise click.BadParameter("give the region as CHROM:START-END, e.g. 2:135000000-137000000") from None
+    if start > end:
+        raise click.BadParameter(f"the region starts after it ends ({start} > {end})")
+    return chrom, start, end
 
 
 @click.command()
@@ -109,7 +131,21 @@ def populations(prefix: str, pattern: str | None, output_format: str):
               type=click.Choice(["ancestrymap", "eigenstrat", "ped", "packedped", "plink", "packedancestrymap",
                                 "tgeno"]),
               help="Output format")
-def convertf(input_prefix: str, output_prefix: str, input_format: str | None, output_format: str):
+@with_options(_sample_selection_options(exposed=True))
+@click.option("--populations", callback=parse_population_list, default="",
+              help="Comma-separated populations to keep (after --relabel and --relabel-pops)")
+@click.option("--keep-snps", type=click.Path(exists=True, dir_okay=False), default=None,
+              help="Keep only the SNP IDs in this file (one per line, or a .snp/.bim file)")
+@click.option("--exclude-snps", type=click.Path(exists=True, dir_okay=False), default=None,
+              help="Leave out the SNP IDs in this file (one per line, or a .snp/.bim file)")
+@click.option("--chromosomes", callback=parse_population_list, default="",
+              help="Comma-separated chromosomes to keep (1-22, X, Y, MT)")
+@click.option("--region", callback=_parse_region, default=None,
+              help="Keep only SNPs in CHROM:START-END (base pairs, both ends included)")
+def convertf(input_prefix: str, output_prefix: str, input_format: str | None, output_format: str,
+             keep_inds: str | None, exclude_inds: str | None, relabel: str | None, relabel_pops: str | None,
+             populations: list, keep_snps: str | None, exclude_snps: str | None, chromosomes: list,
+             region: tuple[str, int, int] | None):
     """Convert between genotype file formats.
 
     Reads seven formats and writes all but VCF:
@@ -122,6 +158,9 @@ def convertf(input_prefix: str, output_prefix: str, input_format: str | None, ou
     - tgeno: packed genotypes stored sample by sample (.geno, .snp, .ind; AADR v66 on)
     - packedped/plink: binary PLINK (.bed, .bim, .fam)
     - ped: text PLINK (.ped, .map, .pedind)
+
+    Samples can be kept or left out by ID, given new populations and
+    chosen by population; SNPs by ID, chromosome and region.
     """
     try:
         # Detect input format if not specified
@@ -134,11 +173,23 @@ def convertf(input_prefix: str, output_prefix: str, input_format: str | None, ou
         click.echo(f"Output format: {output_format}")
         click.echo(f"Converting {input_prefix} -> {output_prefix}...")
 
+        subset = {
+            "keep_inds": keep_inds and _sample_ids(keep_inds),
+            "exclude_inds": exclude_inds and _sample_ids(exclude_inds),
+            "relabel": relabel and _pairs(relabel),
+            "relabel_pops": relabel_pops and _pairs(relabel_pops),
+            "populations": populations or None,
+            "keep_snps": keep_snps and _snp_ids(keep_snps),
+            "exclude_snps": exclude_snps and _snp_ids(exclude_snps),
+            "chromosomes": chromosomes or None,
+            "region": region,
+        }
         result = pm.convertf(
             input_prefix=input_prefix,
             output_prefix=output_prefix,
             output_format=output_format,
             input_format=input_format,
+            **{k: v for k, v in subset.items() if v is not None},
         )
 
         click.echo(f"Converted {result['n_snps']} SNPs x {result['n_samples']} samples")

@@ -7,6 +7,7 @@ import math
 import click
 
 import popmix as pm
+from popmix import _core
 
 from ._population_checks import validate_populations
 
@@ -52,17 +53,65 @@ def _store_pseudohaploid(ctx: click.Context, param: click.Parameter, value: str)
     return value
 
 
-def _snp_ids(path: str) -> list[str]:
-    """SNP IDs, the first field of each line of PATH (a .snp or .bim file's
-    second, so those work too); blank lines and # comments are skipped."""
-    ids = []
+def _lines(path: str) -> list[list[str]]:
+    """The whitespace-separated fields of each line of PATH; blank lines and
+    # comments are skipped."""
     with open(path) as f:
-        for line in f:
-            fields = line.split()
-            if not fields or fields[0].startswith("#"):
-                continue
-            ids.append(fields[1] if path.endswith(".bim") else fields[0])
-    return ids
+        return [fields for fields in (line.split() for line in f) if fields and not fields[0].startswith("#")]
+
+
+def _snp_ids(path: str) -> list[str]:
+    """SNP IDs, the first field of each line of PATH (a .bim file's second,
+    so .snp and .bim files work too)."""
+    return [fields[1] if path.endswith(".bim") else fields[0] for fields in _lines(path)]
+
+
+def _sample_ids(path: str) -> list[str]:
+    """Sample IDs, the first field of each line of PATH (a .fam file's
+    second, so .ind and .fam files work too)."""
+    return [fields[1] if path.endswith(".fam") else fields[0] for fields in _lines(path)]
+
+
+def _pairs(path: str) -> dict[str, str]:
+    """NAME NEW per line of PATH."""
+    out = {}
+    for fields in _lines(path):
+        if len(fields) < 2:
+            raise click.BadParameter(f"{path}: each line needs a name and its new population, got {fields[0]!r}")
+        out[fields[0]] = fields[1]
+    return out
+
+
+def _store_sample_selection(ctx: click.Context, param: click.Parameter, value):
+    ctx.meta.setdefault("popmix.params", {})[param.name] = value
+    if value is not None:
+        read = _pairs if param.name.startswith("relabel") else _sample_ids
+        ctx.meta.setdefault("sample_selection", {})[param.name] = read(value)
+    return value
+
+
+def sample_selection() -> dict:
+    """The sample selection of the running command, as ``select_samples`` keywords."""
+    return dict(click.get_current_context().meta.get("sample_selection", {}))
+
+
+def _sample_selection_options(exposed: bool) -> list:
+    path = click.Path(exists=True, dir_okay=False)
+    kw = {"default": None, "type": path} if exposed else \
+        {"default": None, "type": path, "expose_value": False, "callback": _store_sample_selection}
+    return [
+        click.option("--keep-inds", **kw,
+                     help="Use only the sample IDs in this file (one per line, or a .ind/.fam file)"),
+        click.option("--exclude-inds", **kw,
+                     help="Never use the sample IDs in this file (one per line, or a .ind/.fam file)"),
+        click.option("--relabel", **kw,
+                     help="Give samples new populations: a file of ID POPULATION lines"),
+        click.option("--relabel-pops", **kw,
+                     help="Rename populations: a file of OLD NEW lines (after --relabel)"),
+    ]
+
+
+sample_selection_options = _sample_selection_options(exposed=False)
 
 
 def _store_snp_filter(ctx: click.Context, param: click.Parameter, value):
@@ -139,6 +188,7 @@ def f2_source_options(command):
                      help="With --input: use all chromosomes, not only autosomes 1-22"),
         pseudohaploid_option,
         *snp_filter_options,
+        *sample_selection_options,
     ]
     for option in reversed(options):
         command = option(command)
@@ -166,9 +216,24 @@ def load_f2_blocks(input_prefix: str | None, f2_dir: str | None, populations: li
         if missing:
             raise click.ClickException(f"Not in the f2 blocks in {f2_dir}: {', '.join(missing)}")
         return f2_blocks
-    validate_populations(input_prefix, pops)
     return pm.extract_f2(input_prefix, pops, auto_only=not all_chromosomes, block_size=block_size,
-                         maxmiss=maxmiss, pseudohaploid=_pseudohaploid(), **snp_filters())
+                         maxmiss=maxmiss, pseudohaploid=_pseudohaploid(), **snp_filters(),
+                         **selected_samples(input_prefix, pops))
+
+
+def selected_samples(input_prefix: str, pops: list) -> dict:
+    """``extract_f2``'s ``inds`` and ``pops`` for the running command's
+    sample selection (none without one), POPS checked against the
+    populations it leaves."""
+    selection = sample_selection()
+    if not selection:
+        validate_populations(input_prefix, pops)
+        return {}
+    inds, labels = _core.select_samples(input_prefix, **selection)
+    missing = [p for p in pops if p not in set(labels)]
+    if missing:
+        raise click.ClickException(f"Not among the selected samples' populations: {', '.join(missing)}")
+    return {"inds": inds, "pops": labels}
 
 
 def stat_source_options(command):

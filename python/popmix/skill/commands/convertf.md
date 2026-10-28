@@ -17,6 +17,15 @@ popmix convertf --input PREFIX --output PREFIX --output-format FORMAT [--input-f
 | `--output`, `-o` | text (path) | required | Output prefix; the files are written as PREFIX plus the format's extensions, overwriting any that exist. |
 | `--input-format`, `-if` | `ancestrymap`, `eigenstrat`, `ped`, `packedped`, `plink`, `packedancestrymap`, `tgeno`, `vcf` | none (auto-detected) | Input format, when detection from the files is not wanted. |
 | `--output-format`, `-of` | `ancestrymap`, `eigenstrat`, `ped`, `packedped`, `plink`, `packedancestrymap`, `tgeno` | required | Output format. `plink` and `packedped` are the same (`.bed/.bim/.fam`). VCF cannot be written. |
+| `--keep-inds` | text (path) | none | Use only the sample IDs in this file (one per line, or a `.ind`/`.fam` file). |
+| `--exclude-inds` | text (path) | none | Never use the sample IDs in this file (one per line, or a `.ind`/`.fam` file). |
+| `--relabel` | text (path) | none | Give samples new populations: `ID POPULATION` per line, as admixtools2 `inds`/`pops`. Population names given to the command are those after relabelling. |
+| `--relabel-pops` | text (path) | none | Rename populations: `OLD NEW` per line, applied after `--relabel` (merge two populations by giving them one name). |
+| `--populations` | text (comma-separated) | none (all) | Keep only samples of these populations, by their labels after `--relabel` and `--relabel-pops` (convertf `poplistname`). |
+| `--keep-snps` | text (path) | none | Keep only the SNP IDs in this file (one per line, or a `.snp`/`.bim` file). |
+| `--exclude-snps` | text (path) | none | Leave out the SNP IDs in this file. |
+| `--chromosomes` | text (comma-separated) | none (all) | Keep only SNPs on these chromosomes (`1`-`22`, `X`, `Y`, `MT`). |
+| `--region` | text (`CHROM:START-END`) | none | Keep only SNPs in this region, base pairs, both ends included. |
 
 ## Inputs and outputs
 
@@ -54,10 +63,17 @@ popmix convertf -i my_samples.vcf.gz -o my_samples -of packedancestrymap
 that are not biallelic SNPs (indels, multiallelic, symbolic alleles) are
 skipped, so N can be smaller than the number of records.
 
+Selection runs in this order: samples kept or left out by ID, given new
+populations by ID (`--relabel`), populations renamed (`--relabel-pops`),
+then samples chosen by population (`--populations`); SNPs are kept by ID,
+chromosome and region together. Samples and SNPs keep their file order. An
+ID or population named that is not in the data is an error, so a typo
+never passes silently.
+
 ## Caveats
 
-- VCF input: each sample becomes its own population (edit the `.ind` or
-  `.fam` afterwards to group samples); haploid calls count as homozygous;
+- VCF input: each sample becomes its own population (group them with
+  `--relabel`, a file of `ID POPULATION` lines); haploid calls count as homozygous;
   FILTER is ignored, so filter the VCF first
   ([PLINK 2: reading VCF](https://github.com/trianglegrrl/popmix/blob/main/DEVIATIONS.md#plink-2-reading-vcf)).
 - A `.snp` line needs six columns and single-character alleles; a longer
