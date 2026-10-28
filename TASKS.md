@@ -592,8 +592,11 @@ thread count.
   fingerprint of their positions). No popmix operation combines f2
   directories; `merge` does combine panels, and warns when the datasets
   share under 90% of the smaller one's SNPs (`Warning::PanelsDiffer`).
-- [ ] **H10. Coverage-aware ancient-sample handling** across PCA, kinship and
+- [x] **H10. Coverage-aware ancient-sample handling** across PCA, kinship and
   ploidy (G6, A6). PR
+  *Done in 5febe22:* `popmix samples` (calls, heterozygosity, ploidy
+  by both rules); PCA warns on low-coverage axis samples, KING on pairs
+  sharing < 10,000 SNPs (projection missing-data warning and holdout: G6).
 
 - [x] **H11. qpAdm/qpWave on all SNPs of each f4** (admixtools2's
   `qpadm(prefix)`, which computes each f4 from the genotypes on the SNPs its
