@@ -945,10 +945,13 @@ thread count.
   out in 66b3375; VCF out remains.)
   *Done in 9663b84:* VCF out (`-of vcf`, .vcf/.vcf.gz) for convertf
   and merge, golden against plink2 --export vcf.
-- [ ] **P2. Parameter-file compatibility:** `popmix convertf -p file.par` with
+- [x] **P2. Parameter-file compatibility:** `popmix convertf -p file.par` with
   convertf's keys (genotypename, snpname, indivname, outputformat,
   genooutfilename, snpoutfilename, indoutfilename, poplistname, ...), so
   pipelines can swap it in.
+  *Done in 6feca58:* `convertf -p` (`pm.convertf_par`), golden against
+  convertf for every output format; found and fixed ANCESTRYMAP read and
+  written inverted (and -1 refused).
 - [x] **P3. Subsetting and relabelling:** population list, individual
   include/exclude, SNP list, chromosome and region, relabel populations
   (with H2).
