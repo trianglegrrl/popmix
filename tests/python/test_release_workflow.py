@@ -68,6 +68,10 @@ def test_the_wheel_uses_the_stable_abi_from_the_oldest_python() -> None:
 
 
 CHECK = "bash .github/scripts/check-wheel.sh"
+SET_VERSION = "python .github/scripts/set-version.py ${{ github.ref_name }}"
+# v1.0.0 goes to PyPI; a test tag v1.0.0rc1 to TestPyPI only (TASKS.md K8)
+FINAL_TAG = "startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, 'rc')"
+TEST_TAG = "startsWith(github.ref, 'refs/tags/v') && contains(github.ref_name, 'rc')"
 
 
 def test_wheels_are_installed_and_run_on_the_oldest_and_newest_python(workflow: dict) -> None:
@@ -83,7 +87,8 @@ def test_wheels_are_installed_and_run_on_the_oldest_and_newest_python(workflow: 
 
 def test_the_check_installs_the_wheel_runs_it_and_finds_the_skill() -> None:
     # the skill is package data (python/popmix/skill/): the built wheel must hold it
-    script = (ROOT / ".github/scripts/check-wheel.sh").read_text()
+    script = "".join((ROOT / ".github/scripts" / name).read_text()
+                     for name in ("check-wheel.sh", "check-installed.sh"))
     for line in ("pip install popmix --no-index --find-links dist --no-deps",
                  "pip install popmix --find-links dist",
                  "popmix --version",
@@ -96,9 +101,37 @@ def test_the_check_installs_the_wheel_runs_it_and_finds_the_skill() -> None:
 def test_publishes_from_tags_with_trusted_publishing(workflow: dict) -> None:
     publish = workflow["jobs"]["publish"]
     assert set(publish["needs"]) == {"linux", "macos", "windows", "sdist"}
-    assert publish["if"] == "startsWith(github.ref, 'refs/tags/v')"
+    assert publish["if"] == FINAL_TAG
     assert publish["permissions"]["id-token"] == "write"
     assert publish["environment"]["name"] == "pypi"
     assert _uses(publish, "pypa/gh-action-pypi-publish")
     # no long-lived token: trusted publishing only
     assert "password" not in str(publish)
+
+
+def test_every_build_sets_the_version_from_the_ref_first(workflow: dict) -> None:
+    for name in ("linux", "macos", "windows", "sdist"):
+        steps = workflow["jobs"][name]["steps"]
+        build = next(i for i, s in enumerate(steps) if s.get("uses", "").startswith("PyO3/maturin-action"))
+        runs = [s.get("run", "").strip() for s in steps[:build]]
+        assert SET_VERSION in runs, name
+
+
+def test_test_tags_publish_to_testpypi_only(workflow: dict) -> None:
+    job = workflow["jobs"]["testpypi"]
+    assert job["if"] == TEST_TAG
+    assert set(job["needs"]) == {"linux", "macos", "windows", "sdist"}
+    assert job["environment"]["name"] == "testpypi"
+    assert job["permissions"]["id-token"] == "write"
+    assert _uses(job, "pypa/gh-action-pypi-publish")[0]["with"]["repository-url"] == (
+        "https://test.pypi.org/legacy/")
+
+
+def test_a_test_tag_is_installed_back_from_testpypi_on_every_platform(workflow: dict) -> None:
+    job = workflow["jobs"]["testpypi-install"]
+    assert job["needs"] == "testpypi"
+    runners = set(_runners(job))
+    assert runners == {"ubuntu-latest", "ubuntu-24.04-arm", "macos-15", "windows-latest"}
+    script = "\n".join(s.get("run", "") for s in job["steps"])
+    assert "--index-url https://test.pypi.org/simple/" in script
+    assert "bash .github/scripts/check-installed.sh" in script

@@ -802,7 +802,12 @@ Never use AADR v62.0 or v66.0: they hold the 161 genomes of Jacobs et al.
 
 There is no CI test workflow yet (TASKS.md K1): run the suites above before
 a release. `.github/workflows/release.yml` builds the wheels and the sdist
-and publishes them.
+and publishes them. A tag `v1.0.0` must name the version in Cargo.toml and
+pyproject.toml, and publishes to PyPI. A test tag `v1.0.0rc1` builds
+1.0.0rc1 (`.github/scripts/set-version.py`), publishes it to TestPyPI only,
+and installs it back from there on Linux (x86-64 and ARM), macOS and Windows
+to run it (`.github/scripts/check-installed.sh`). Publishing uses trusted
+publishing, from the GitHub environments `pypi` and `testpypi`.
 
 ## Debugging Test Failures
 
