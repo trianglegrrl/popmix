@@ -203,15 +203,17 @@ data.fam  # Sample info (fid, iid, pid, mid, sex, pheno)
 
 Text PLINK format. Files: `.ped`, `.map`, `.pedind`
 
-### ANCESTRYMAP (sparse)
+### ANCESTRYMAP (one genotype per line)
 
-Sparse format listing only non-missing genotypes. Files: `.ancestrymapgeno`, `.snp`, `.ind`
+One line per SNP and sample: the count of the SNP's first allele (as in
+EIGENSTRAT), `-1` for a missing call, as AdmixTools convertf writes it.
+Files: `.ancestrymapgeno`, `.snp`, `.ind`
 
 ```
 # example.ancestrymapgeno - one line per genotype
 rs1234  Sample1  2
 rs1234  Sample2  1
-rs5678  Sample1  0
+rs5678  Sample1  -1
 ```
 
 ### Auto-Detection
@@ -808,6 +810,34 @@ Each command's `--help` lists what it takes.
 
 Bad input gives a one-line `Error: ...` and exit code 1; `popmix --debug
 ...` shows the traceback.
+
+## Caveats
+
+- **Simulation is yours; popmix reads it.** To calibrate a design, simulate
+  datasets under a known model with [msprime](https://tskit.dev/msprime/)
+  (or any simulator) in your own script, write them as VCF or EIGENSTRAT,
+  and run `popmix calibrate-qpadm` or `calibrate-f4` on them: the share of
+  replicates rejected is the false-positive rate when the model is true and
+  the power when it is false. msprime is GPL-3; popmix (MIT) never imports
+  it.
+- **Not rejected is not proven.** A qpAdm model that is not rejected may
+  not be the right one (others can fit too; popmix lists the simpler models
+  of popdrop that also fit), and qpWave's rank is a lower bound on the
+  streams of ancestry, never proof of a clade.
+- **Projected samples shrink toward the origin.** In a PCA, samples
+  projected onto the axes sit closer to the centre than PCA samples of the
+  same population, on later components by half or more. Compare projected
+  ancient samples with reference samples projected too (`pca --holdout`).
+- **One date is not one pulse.** DATES and ROLLOFF fit one exponential;
+  their two-pulse check says when two fit better, but admixture over a
+  short span fits one exponential as well.
+- **Low-coverage samples.** Pseudo-haploid samples count one allele per
+  SNP; project them in a PCA rather than build the axes from them, and use
+  `kinship --method read` rather than KING-robust. `popmix samples` lists
+  each sample's calls.
+- **Reference tools' behaviours.** Where popmix corrects a reference
+  tool's bug, `--compat` reproduces it; [DEVIATIONS.md](DEVIATIONS.md)
+  lists every difference.
 
 ## Performance Tips
 

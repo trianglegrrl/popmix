@@ -81,6 +81,8 @@ _LAZY = {
     "admixture_loglik": "admixture",
     "boo_list": "resample",
     "cluster_order": "dstats",
+    "calibrate_f4": "calibrate",
+    "calibrate_qpadm": "calibrate",
     "compare_fits": "resample",
     "convertf_par": "convertf_par",
     "sample_coverage": "coverage",
@@ -160,6 +162,7 @@ sys.modules[__name__].__class__ = _Package
 
 if TYPE_CHECKING:
     from popmix.admixture import AdmixtureResult, admixture, admixture_loglik
+    from popmix.calibrate import calibrate_f4, calibrate_qpadm
     from popmix.convertf_par import convertf_par
     from popmix.coverage import sample_coverage
     from popmix.dot import parse_dot, write_dot
@@ -253,6 +256,8 @@ __all__ = [
     "suggest_populations",
     "convertf",
     "convertf_par",
+    "calibrate_qpadm",
+    "calibrate_f4",
     "sample_coverage",
     "merge",
     "detect_format",

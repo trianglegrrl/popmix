@@ -15,6 +15,8 @@ Commands:
     qpadm       Estimate admixture weights
     qpwave      Test admixture wave count
     qpadm-rotate Fit every qpAdm model of a rotation
+    calibrate-qpadm How often a qpAdm model is rejected over simulations
+    calibrate-f4 How often an f4 is non-zero over simulations
     convertf    Convert between genotype file formats
     merge       Merge two genotype datasets
     dates       Estimate admixture date using DATES
@@ -41,6 +43,7 @@ import popmix as pm
 from ._common import write_columns, write_table
 from ._errors import print_popmix_warnings
 from ._provenance import record
+from .calibrate import calibrate_f4, calibrate_qpadm
 from .datasets import convertf, info, install_skill, merge, populations, samples
 from .dating import dates, rolloff
 from .fstats import dstat_matrix, extract_f2, f2, f3, f4, outgroup_f3, qp3pop, qpdstat
@@ -88,6 +91,8 @@ for _command in (
     qpadm,
     qpadm_rotate,
     qpwave,
+    calibrate_qpadm,
+    calibrate_f4,
     pca,
     kinship,
     sfs,

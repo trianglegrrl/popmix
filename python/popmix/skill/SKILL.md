@@ -58,6 +58,8 @@ inputs and outputs, examples, how to read the result, caveats and the
 reference tool.
 
 - [admixture](commands/admixture.md): ancestry proportions with K ancestral populations
+- [calibrate-f4](commands/calibrate-f4.md): how often an f4 is non-zero over simulated replicates
+- [calibrate-qpadm](commands/calibrate-qpadm.md): how often a qpAdm model is rejected over simulated replicates
 - [convertf](commands/convertf.md): convert between genotype formats
 - [dates](commands/dates.md): admixture date from weighted LD (DATES)
 - [dstat-matrix](commands/dstat-matrix.md): D or f4 for every pair of populations
