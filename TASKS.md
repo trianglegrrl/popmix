@@ -566,8 +566,11 @@ thread count.
   (admixtools2-checked) and popdrop in text/TSV/JSON; `-o PREFIX` writes
   every table; `qpadm-rotate` TSV one row per model; 3-significant-digit
   p in text, 12 digits in TSV.
-- [ ] **H5. Strand-ambiguous SNPs kept on request** when both files share a
+- [x] **H5. Strand-ambiguous SNPs kept on request** when both files share a
   strand (two AADR releases). PG
+  *Done in e34ebea:* `merge --no-strandcheck` (`strandcheck=False`),
+  checked against mergeit `strandcheck: NO` (which also stops
+  complementing).
 - [x] **H6. qpadm `--compat`** on the CLI, as DEVIATIONS.md step 2 promises.
   AI
   *Done in 6caf8ca:* `popmix qpadm` prints the popdrop table (text,
