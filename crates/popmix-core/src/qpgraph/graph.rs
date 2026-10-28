@@ -724,7 +724,6 @@ mod tests {
             .leaf("Pop2", "Anc", 0.08)
             .build();
 
-        assert!(graph.is_ok());
         let graph = graph.unwrap();
         assert_eq!(graph.node_count(), 4);
         assert_eq!(graph.leaves().len(), 2);

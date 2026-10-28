@@ -217,9 +217,10 @@ mod tests {
             // Pop3 is 50/50 admixture + small noise
             freqs[[i, 2]] = (0.5 * freq1 + 0.5 * freq2 + rand() * 0.02 - 0.01).clamp(0.0, 1.0);
 
-            // Outgroups
-            freqs[[i, 3]] = rand();
-            freqs[[i, 4]] = rand();
+            // Outgroups, each drifted from one source, so that they tell the
+            // sources apart and the weights are identifiable
+            freqs[[i, 3]] = (freq1 + rand() * 0.2 - 0.1).clamp(0.0, 1.0);
+            freqs[[i, 4]] = (freq2 + rand() * 0.2 - 0.1).clamp(0.0, 1.0);
         }
 
         let mut chromosomes = Vec::with_capacity(n_snps);
@@ -255,22 +256,10 @@ mod tests {
         )
         .unwrap();
 
-        println!("qpAdm result:");
-        println!("  Weights: {:?}", result.weights);
-        println!(
-            "  Chi-sq: {}, df: {}, p: {}",
-            result.chi_sq, result.df, result.p_value
-        );
-
-        // Weights should sum to 1
-        let sum: f64 = result.weights.iter().sum();
-        assert!(
-            (sum - 1.0).abs() < 0.01,
-            "Weights should sum to 1, got {sum}"
-        );
-
-        // Both weights should be positive (since Pop3 is mixture of both)
-        // Note: unconstrained can give negative weights for noisy data
+        // Pop3 is a 50/50 mixture of the sources
+        for w in &result.weights {
+            assert!((w - 0.5).abs() < 0.05, "weights {:?}", result.weights);
+        }
     }
 
     #[test]
@@ -291,20 +280,23 @@ mod tests {
         )
         .unwrap();
 
-        println!("Constrained qpAdm:");
-        println!("  Weights: {:?}", result.weights);
-
-        // All weights should be in [0, 1]
-        for w in &result.weights {
-            assert!(*w >= 0.0 && *w <= 1.0, "Weight {w} out of bounds");
+        // inside [0, 1] already, so the constraint changes nothing
+        let free = qpadm(
+            &f2_blocks,
+            "Pop3",
+            &["Pop1", "Pop2"],
+            &["Out1", "Out2"],
+            &Default::default(),
+        )
+        .unwrap();
+        for (c, f) in result.weights.iter().zip(&free.weights) {
+            assert!(
+                (c - f).abs() < 1e-9,
+                "constrained {:?}, free {:?}",
+                result.weights,
+                free.weights
+            );
         }
-
-        // Weights should sum to 1
-        let sum: f64 = result.weights.iter().sum();
-        assert!(
-            (sum - 1.0).abs() < 0.01,
-            "Weights should sum to 1, got {sum}"
-        );
     }
 
     #[test]

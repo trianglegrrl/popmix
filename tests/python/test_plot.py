@@ -11,6 +11,7 @@ plot = pytest.importorskip("popmix.plot")
 pytest.importorskip("matplotlib")
 
 PREFIX = "tests/golden/dates/family_chr20_22"
+PNG = b"\x89PNG\r\n\x1a\n"
 needs_data = pytest.mark.skipif(not os.path.exists(f"{PREFIX}.geno"), reason="test data not available")
 GRAPH = [("R", "Yoruba"), ("R", "n1"), ("n1", "French"), ("n1", "n2"), ("n2", "Simulation"), ("n2", "a"),
          ("n1", "a"), ("a", "Simulation.1")]
@@ -25,7 +26,7 @@ def test_layout_puts_children_below_parents():
 
 def test_graph_from_edges(tmp_path):
     ax = plot.graph(GRAPH, path=tmp_path / "g.png")
-    assert (tmp_path / "g.png").stat().st_size > 0
+    assert (tmp_path / "g.png").read_bytes()[:8] == PNG
     labels = {t.get_text() for t in ax.texts}
     assert {"Yoruba", "French", "Simulation", "Simulation.1"} <= labels
 
@@ -45,4 +46,4 @@ def test_graph_and_fit_of_a_qpgraph_result(tmp_path):
 def test_rolloff_curve(tmp_path):
     r = pm.rolloff(PREFIX, "Simulation.1", ["French", "Yoruba"])
     plot.rolloff_curve(r, path=tmp_path / "r.png")
-    assert (tmp_path / "r.png").stat().st_size > 0
+    assert (tmp_path / "r.png").read_bytes()[:8] == PNG

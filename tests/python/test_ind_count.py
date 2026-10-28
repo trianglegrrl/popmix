@@ -29,8 +29,11 @@ def _drop_first_line(path: Path) -> None:
 
 def test_intact_files_read(packed):
     pops = sorted({line.split()[2] for line in Path(f"{FIXTURE}.ind").read_text().splitlines()})
-    pm.read_genotypes(str(packed))
-    pm.extract_f2(str(packed), pops[:2], poly_only=False)
+    n_inds = len(Path(f"{FIXTURE}.ind").read_text().splitlines())
+    assert len(pm.read_genotypes(str(packed)).samples) == n_inds
+    got = pm.extract_f2(str(packed), pops[:2], poly_only=False).f2(*pops[:2])
+    want = pm.extract_f2(FIXTURE, pops[:2], poly_only=False).f2(*pops[:2])
+    assert got == want
 
 
 @pytest.mark.parametrize("ext", ["ind", "snp"])

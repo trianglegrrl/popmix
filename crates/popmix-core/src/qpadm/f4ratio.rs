@@ -339,12 +339,23 @@ mod tests {
     fn test_f4ratio_options() {
         let f2_blocks = create_test_f2_blocks();
 
-        let opts = F4RatioOptions {
-            min_denominator: 1e-10,
+        let run = |min_denominator: f64| {
+            let opts = F4RatioOptions { min_denominator };
+            f4ratio(&f2_blocks, "PopX", "PopA", "PopB", "PopO", "PopC", &opts)
         };
+        // the denominator f4(A, O; C, B) of each block
+        let f2 = |p: &str, q: &str| f2_blocks.get_block_f2_values(p, q).unwrap();
+        let den =
+            (f2("PopA", "PopB") + f2("PopO", "PopC") - f2("PopA", "PopC") - f2("PopO", "PopB"))
+                / 2.0;
+        let mut sizes: Vec<f64> = den.iter().map(|d| d.abs()).collect();
+        sizes.sort_by(f64::total_cmp);
+        let median = sizes[sizes.len() / 2];
+        let at_least_median = sizes.iter().filter(|d| **d >= median).count();
 
-        let result = f4ratio(&f2_blocks, "PopX", "PopA", "PopB", "PopO", "PopC", &opts);
-
-        assert!(result.is_ok());
+        assert_eq!(run(0.0).unwrap().n_blocks, f2_blocks.n_blocks());
+        assert_eq!(run(median).unwrap().n_blocks, at_least_median);
+        assert!(at_least_median < f2_blocks.n_blocks());
+        assert!(run(sizes[sizes.len() - 1] * 2.0).is_err());
     }
 }

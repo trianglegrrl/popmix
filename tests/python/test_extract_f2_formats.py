@@ -6,6 +6,7 @@ admixtools2; every other format must give the same blocks.
 
 import json
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -91,7 +92,15 @@ def test_inds_and_pops_select_and_relabel_samples(tmp_path, fmt):
     relabelled = ["Half" if p == "French" and k % 2 else p for k, p in enumerate(pops)]
     f2 = pm.extract_f2(prefix, POPS + ["Half"], inds=inds, pops=relabelled)
     assert sorted(f2.populations) == sorted(POPS + ["Half"])
-    assert f2.f2("Half", "French") is not None
+    # the same as a dataset whose .ind carries the new labels
+    labelled = tmp_path / "labelled"
+    for ext in ("geno", "snp"):
+        shutil.copy(f"{prefix}.{ext}", f"{labelled}.{ext}")
+    lines = Path(f"{prefix}.ind").read_text().splitlines()
+    new = dict(zip(inds, relabelled))
+    Path(f"{labelled}.ind").write_text("".join(
+        " ".join([f[0], f[1], new.get(f[0], f[2])]) + "\n" for f in (line.split() for line in lines)))
+    _assert_same_blocks(f2, pm.extract_f2(str(labelled), POPS + ["Half"]))
 
 
 def test_inds_and_pops_must_match():

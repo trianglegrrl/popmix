@@ -138,8 +138,8 @@ class TestExtractF2Command:
 
             # Should be able to compute f2 from loaded data
             f2_result = f2_loaded.f2("Han.DG", "Yoruba.DG")
-            assert f2_result is not None
-            assert f2_result["est"] > 0  # Different populations should have positive f2
+            want = pm.extract_f2(AADR_PREFIX, ["Han.DG", "Yoruba.DG"]).f2("Han.DG", "Yoruba.DG")
+            assert f2_result["est"] == pytest.approx(want["est"], rel=1e-12)
 
     def test_extract_f2_missing_input_errors(self):
         """popmix extract-f2 with missing input should error."""
@@ -154,6 +154,7 @@ class TestExtractF2Command:
 
 
 SMALL_PREFIX = "tests/golden/dates/family_chr20_22"
+PNG = b"\x89PNG\r\n\x1a\n"
 small_data = pytest.mark.skipif(not os.path.exists(f"{SMALL_PREFIX}.geno"), reason="test data not available")
 aadr_data = pytest.mark.skipif(not os.path.exists(f"{AADR_PREFIX}.geno"), reason="AADR data not available")
 
@@ -666,7 +667,8 @@ class TestQpGraphCommand:
         run_cli("qpgraph", "--input", SMALL_PREFIX, "--graph", graph, "--all-chromosomes",
                 "--plot", str(tmp_path / "g.png"), "--plot-fit", str(tmp_path / "f.png"),
                 "--dot", str(tmp_path / "g.dot"))
-        assert (tmp_path / "g.png").stat().st_size > 0 and (tmp_path / "f.png").stat().st_size > 0
+        assert (tmp_path / "g.png").read_bytes()[:8] == PNG
+        assert (tmp_path / "f.png").read_bytes()[:8] == PNG
         from popmix import parse_dot
 
         assert len(parse_dot(tmp_path / "g.dot")) == 6
@@ -680,7 +682,7 @@ class TestQpGraphCommand:
                       "--all-chromosomes", "--plot", str(tmp_path / "best.png"), "--format", "json")
         graphs = json.loads(out.stdout)["graphs"]
         assert graphs and graphs[0]["score"] <= graphs[-1]["score"]
-        assert (tmp_path / "best.png").stat().st_size > 0
+        assert (tmp_path / "best.png").read_bytes()[:8] == PNG
 
     @pytest.mark.skipif(not os.path.exists("tests/golden/dates/family_chr20_22.geno"),
                         reason="test data not available")

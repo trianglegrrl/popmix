@@ -52,7 +52,7 @@ def test_qpadm_p_matches_qpadm(f2):
     assert p["dof"] == full.dof
     assert p["chisq"] == pytest.approx(full.chisq, rel=1e-12)
     assert p["weights"] == {"French": 1.0}
-    assert p["feasible"]
+    assert p["feasible"] is True
     assert "weights" not in pm.qpadm_p(f2, ["French"], RIGHT, TARGET)
 
 
