@@ -478,7 +478,11 @@ thread count.
   projection with more than 10% missing; `shrink` (`--shrink`, opt-in)
   divides projected coordinates by a derived per-component factor on
   significant components, checked by the split-population oracle.
-  Open: whether `--shrink` should be the default.
+  *Revised in bd493f4:* `--shrink` removed (on AADR it missed PC5-PC6:
+  0.997 estimated, 0.62 and 0.28 measured); `holdout` (`--holdout`)
+  projects every second reference sample, measures each component's
+  shrinkage and warns below 0.9 (AADR golden; DEVIATIONS.md EIGENSOFT,
+  Matched, not corrected).
 - [x] **G7. Single pseudohaploid target in f3:** the CLI `f3` (f2 path) gives
   f3 = 0.19, z = 122, while `qp3pop -i` gives NaN with n = 0 (both as
   admixtools2); make them agree or warn. PG
