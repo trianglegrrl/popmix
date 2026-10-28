@@ -19,8 +19,10 @@ from __future__ import annotations
 import math
 import os
 from collections.abc import Sequence
+from pathlib import Path
 
 from popmix import _core
+from popmix.errors import MissingFileError
 from popmix.rds import matrix, read_rds, write_rds
 
 
@@ -143,3 +145,26 @@ def extract_f2_subset(f2_blocks: _core.F2Blocks, populations: Sequence[str]) -> 
         f2 blocks of ``populations`` only.
     """
     return f2_blocks.subset(list(populations))
+
+
+def read_f2_populations(path: str | os.PathLike) -> list[str]:
+    """The populations of an f2 directory saved by ``F2Blocks.save`` or
+    ``extract_f2_to_dir``, from its ``metadata.json`` alone.
+
+    Parameters
+    ----------
+    path
+        The f2 directory.
+
+    Returns
+    -------
+    list of str
+        Its populations, in order.
+    """
+    import json
+
+    meta = Path(path) / "metadata.json"
+    try:
+        return list(json.loads(meta.read_text())["populations"])
+    except FileNotFoundError:
+        raise MissingFileError(f"no f2 directory at {path}: {meta} not found") from None

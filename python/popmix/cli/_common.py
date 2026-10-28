@@ -210,12 +210,12 @@ def load_f2_blocks(input_prefix: str | None, f2_dir: str | None, populations: li
         raise click.UsageError("Give --input or --f2-dir, not both")
     pops = list(dict.fromkeys(populations))
     if f2_dir is not None:
-        f2_blocks = pm.read_f2(f2_dir)
-        available = set(f2_blocks.populations)
+        available = set(pm.read_f2_populations(f2_dir))
         missing = [p for p in pops if p not in available]
         if missing:
             raise click.ClickException(f"Not in the f2 blocks in {f2_dir}: {', '.join(missing)}")
-        return f2_blocks
+        # only these populations' pairs are read
+        return pm.read_f2(f2_dir, populations=pops or None)
     return pm.extract_f2(input_prefix, pops, auto_only=not all_chromosomes, block_size=block_size,
                          maxmiss=maxmiss, pseudohaploid=_pseudohaploid(), **snp_filters(),
                          **selected_samples(input_prefix, pops))
@@ -264,11 +264,12 @@ def stat_source(input_prefix: str | None, f2_dir: str | None, populations: list)
     if input_prefix is not None:
         validate_populations(input_prefix, pops)
         return input_prefix
-    f2_blocks = pm.read_f2(f2_dir)
-    missing = [p for p in pops if p not in set(f2_blocks.populations)]
+    available = pm.read_f2_populations(f2_dir)
+    missing = [p for p in pops if p not in set(available)]
     if missing:
         raise click.ClickException(f"Not in the f2 blocks in {f2_dir}: {', '.join(missing)}")
-    return f2_blocks
+    # only these populations' pairs are read
+    return pm.read_f2(f2_dir, populations=pops or None)
 
 
 def write_table(df, output_format: str, output: str | None, index: bool = False) -> None:

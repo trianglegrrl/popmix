@@ -22,15 +22,31 @@ use pyo3::IntoPyObjectExt;
 /// path
 ///     The directory, holding ``metadata.json`` and the ``block_*.npy``
 ///     arrays.
+/// populations
+///     Read only these populations' blocks, in this order (their pairs'
+///     columns alone, so a directory of many populations need not fit in
+///     memory); None (the default) for every population.
 ///
 /// Returns
 /// -------
 /// F2Blocks
 ///     The f2 blocks, ready for f-statistics.
 #[pyfunction]
-pub(crate) fn read_f2(py: Python<'_>, path: &str) -> PyResult<PyF2Blocks> {
+#[pyo3(signature = (path, populations=None))]
+pub(crate) fn read_f2(
+    py: Python<'_>,
+    path: &str,
+    populations: Option<Vec<String>>,
+) -> PyResult<PyF2Blocks> {
     let inner = compute(py, move || -> PyResult<F2Blocks> {
-        Ok(read_f2_blocks(std::path::Path::new(path))?)
+        let dir = std::path::Path::new(path);
+        Ok(match &populations {
+            None => read_f2_blocks(dir)?,
+            Some(p) => {
+                let refs: Vec<&str> = p.iter().map(String::as_str).collect();
+                popmix_io::f2_stream::read_f2_blocks_of(dir, &refs)?
+            }
+        })
     })?;
     crate::warnings::checked_blocks(inner)
 }

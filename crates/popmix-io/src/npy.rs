@@ -25,21 +25,29 @@ use popmix_core::{IoResultExt, PopmixError, Result};
 /// Magic bytes that identify a .npy file.
 const NPY_MAGIC: &[u8] = b"\x93NUMPY";
 
-/// Write a 2D f64 array to a .npy file.
-pub fn write_npy_f64(path: &Path, array: &Array2<f64>) -> Result<()> {
-    let (rows, cols) = (array.nrows(), array.ncols());
+/// The magic number, version, length and header of a `rows` x `cols`
+/// float64 array in C order: everything before the data.
+pub(crate) fn header_bytes(rows: usize, cols: usize) -> Vec<u8> {
     let header = format!("{{'descr': '<f8', 'fortran_order': False, 'shape': ({rows}, {cols}), }}");
     // the header, then a newline, padded with spaces so that the data
     // starts at a multiple of 64 bytes (6 magic + 2 version + 2 length)
     let header_len = header.len() + 1;
     let padding = (64 - (10 + header_len) % 64) % 64;
-    let mut bytes = Vec::with_capacity(10 + header_len + padding + 8 * rows * cols);
+    let mut bytes = Vec::with_capacity(10 + header_len + padding);
     bytes.extend_from_slice(NPY_MAGIC);
     bytes.extend_from_slice(&[1, 0]);
     bytes.extend_from_slice(&((header_len + padding) as u16).to_le_bytes());
     bytes.extend_from_slice(header.as_bytes());
     bytes.resize(bytes.len() + padding, b' ');
     bytes.push(b'\n');
+    bytes
+}
+
+/// Write a 2D f64 array to a .npy file.
+pub fn write_npy_f64(path: &Path, array: &Array2<f64>) -> Result<()> {
+    let (rows, cols) = (array.nrows(), array.ncols());
+    let mut bytes = header_bytes(rows, cols);
+    bytes.reserve(8 * rows * cols);
     // data in C order (row-major)
     for &val in array {
         bytes.extend_from_slice(&val.to_le_bytes());
@@ -50,6 +58,21 @@ pub fn write_npy_f64(path: &Path, array: &Array2<f64>) -> Result<()> {
 /// Read a 2D f64 array from a .npy file.
 pub fn read_npy_f64(path: &Path) -> Result<Array2<f64>> {
     let bytes = std::fs::read(path).with_path(path)?;
+    let (at, rows, cols) = data_layout(path, &bytes)?;
+    let data = bytes
+        .get(at..at + 8 * rows * cols)
+        .ok_or_else(|| PopmixError::format(path, format!("truncated: {} bytes", bytes.len())))?
+        .as_chunks::<8>()
+        .0
+        .iter()
+        .map(|&b| f64::from_le_bytes(b))
+        .collect();
+    Array2::from_shape_vec((rows, cols), data).map_err(|e| PopmixError::format(path, e.to_string()))
+}
+
+/// Where the data of a float64 C-order .npy file's `bytes` start, and its
+/// shape.
+pub(crate) fn data_layout(path: &Path, bytes: &[u8]) -> Result<(usize, usize, usize)> {
     let bad = |details: String| PopmixError::format(path, details);
     let take = |at: usize, n: usize| {
         bytes
@@ -82,14 +105,10 @@ pub fn read_npy_f64(path: &Path) -> Result<Array2<f64>> {
         )));
     }
 
-    let data = take(header_at + header_len, 8 * rows * cols)?
-        .as_chunks::<8>()
-        .0
-        .iter()
-        .map(|&b| f64::from_le_bytes(b))
-        .collect();
-
-    Array2::from_shape_vec((rows, cols), data).map_err(|e| bad(e.to_string()))
+    if header.contains("'fortran_order': True") {
+        return Err(bad("Fortran-order arrays are not read".to_string()));
+    }
+    Ok((header_at + header_len, rows, cols))
 }
 
 /// Parse shape tuple from NPY header string.

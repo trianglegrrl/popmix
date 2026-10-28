@@ -55,7 +55,7 @@ impl ExtractOptions {
 impl ExtractOptions {
     /// Whether only autosomal SNPs are read: `auto_only`, unless a list of
     /// SNPs to keep overrides it (admixtools2 `keepsnps`).
-    fn autosomes_only(&self) -> bool {
+    pub(crate) fn autosomes_only(&self) -> bool {
         self.auto_only && self.f2.keep_snps.is_none()
     }
 }
@@ -122,6 +122,20 @@ pub fn extract_f2(
     opts: &ExtractOptions,
     warn: &mut dyn FnMut(Warning),
 ) -> Result<F2Blocks> {
+    check_options(opts)?;
+    let pops: Vec<&str> = opts
+        .populations
+        .iter()
+        .map(std::string::String::as_str)
+        .collect();
+    if let Some(mapped) = open_mapped(prefix, warn)? {
+        return from_mapped(prefix, mapped, opts, &pops, warn);
+    }
+    in_memory(prefix, opts, &pops, warn)
+}
+
+/// The SNP filters' bounds checked.
+pub(crate) fn check_options(opts: &ExtractOptions) -> Result<()> {
     for (name, value, range) in [
         ("minmaf", opts.f2.min_maf, 0.0..=0.5),
         ("maxmaf", opts.f2.max_maf, 0.0..=0.5),
@@ -139,15 +153,17 @@ pub fn extract_f2(
             format!("must be between 0 and 1, got {}", opts.f2.max_missing),
         ));
     }
-    let pops: Vec<&str> = opts
-        .populations
-        .iter()
-        .map(std::string::String::as_str)
-        .collect();
-    if let Some(mapped) = open_mapped(prefix, warn)? {
-        return from_mapped(prefix, mapped, opts, &pops, warn);
-    }
+    Ok(())
+}
 
+/// The f2 blocks of a dataset that cannot be read in place: TGENO (the
+/// requested samples' records) or every genotype of the other formats.
+pub(crate) fn in_memory(
+    prefix: &str,
+    opts: &ExtractOptions,
+    pops: &[&str],
+    warn: &mut dyn FnMut(Warning),
+) -> Result<F2Blocks> {
     let geno_path = format!("{prefix}.geno");
     let mut geno = if Path::new(&geno_path).exists() && is_tgeno_format(&geno_path)? {
         // TGENO stores each sample's genotypes together: read only the
@@ -180,9 +196,10 @@ pub fn extract_f2(
     let mut evidence = CoordinateEvidence::default();
     evidence.observe(geno.snps());
     check_genetic_map(&evidence, &opts.blocks, warn);
-    let af = AlleleFrequencies::from_genotypes_for_populations(&geno, Some(&pops));
+    let af = AlleleFrequencies::from_genotypes_for_populations(&geno, Some(pops));
     let blocks = F2Blocks::from_allele_frequencies_with_options(&af, &opts.blocks, &opts.f2);
-    let provenance = crate::provenance::extraction(prefix, opts, geno.samples(), &panel, &blocks);
+    let provenance =
+        crate::provenance::extraction(prefix, opts, geno.samples(), &panel, snps_used(&blocks));
     Ok(blocks.with_provenance(Some(provenance)))
 }
 
@@ -196,28 +213,14 @@ fn from_mapped(
     pops: &[&str],
     warn: &mut dyn FnMut(Warning),
 ) -> Result<F2Blocks> {
-    let Mapped {
+    let MappedRuns {
         file,
-        mut samples,
+        samples,
         snps,
-    } = mapped;
-    check_sorted(&snps)?;
-    prepare_samples(&mut samples, opts)?;
-    opts.ploidy.apply_mapped(&file, &mut samples, pops);
-
-    let mut runs: Vec<Range<usize>> = Vec::new();
-    for (i, snp) in snps.iter().enumerate() {
-        match runs.last_mut() {
-            Some(r) if snps[r.start].chromosome == snp.chromosome => r.end = i + 1,
-            _ => runs.push(i..i + 1),
-        }
-    }
-    let mut evidence = CoordinateEvidence::default();
+        runs,
+        evidence,
+    } = MappedRuns::prepare(mapped, opts, pops, warn)?;
     let auto_only = opts.autosomes_only();
-    for snp in snps.iter().filter(|s| !auto_only || s.is_autosomal()) {
-        evidence.observe(std::slice::from_ref(snp));
-    }
-    check_genetic_map(&evidence, &opts.blocks, warn);
     let parts = runs
         .iter()
         .map(|r| file.allele_frequencies_at(&samples, &snps[r.clone()], r.start, pops, auto_only));
@@ -235,7 +238,61 @@ fn from_mapped(
         opts,
         &samples,
         &crate::provenance::Panel::of(&snps),
-        &blocks,
+        snps_used(&blocks),
     );
     Ok(blocks.with_provenance(Some(provenance)))
+}
+
+/// The SNPs `blocks` hold: their block lengths' sum.
+fn snps_used(blocks: &F2Blocks) -> usize {
+    blocks.block_lengths().iter().sum()
+}
+
+/// A dataset read in place, ready to be read a chromosome at a time: its
+/// samples relabelled and with their ploidy, its chromosomes' runs of
+/// SNPs, and the evidence (map or base pairs) of the SNPs used.
+pub(crate) struct MappedRuns {
+    pub(crate) file: crate::SnpMajor,
+    pub(crate) samples: Vec<popmix_core::Sample>,
+    pub(crate) snps: Vec<popmix_core::Snp>,
+    pub(crate) runs: Vec<Range<usize>>,
+    pub(crate) evidence: CoordinateEvidence,
+}
+
+impl MappedRuns {
+    pub(crate) fn prepare(
+        mapped: Mapped,
+        opts: &ExtractOptions,
+        pops: &[&str],
+        warn: &mut dyn FnMut(Warning),
+    ) -> Result<Self> {
+        let Mapped {
+            file,
+            mut samples,
+            snps,
+        } = mapped;
+        check_sorted(&snps)?;
+        prepare_samples(&mut samples, opts)?;
+        opts.ploidy.apply_mapped(&file, &mut samples, pops);
+        let mut runs: Vec<Range<usize>> = Vec::new();
+        for (i, snp) in snps.iter().enumerate() {
+            match runs.last_mut() {
+                Some(r) if snps[r.start].chromosome == snp.chromosome => r.end = i + 1,
+                _ => runs.push(i..i + 1),
+            }
+        }
+        let mut evidence = CoordinateEvidence::default();
+        let auto_only = opts.autosomes_only();
+        for snp in snps.iter().filter(|s| !auto_only || s.is_autosomal()) {
+            evidence.observe(std::slice::from_ref(snp));
+        }
+        check_genetic_map(&evidence, &opts.blocks, warn);
+        Ok(MappedRuns {
+            file,
+            samples,
+            snps,
+            runs,
+            evidence,
+        })
+    }
 }

@@ -67,8 +67,10 @@ def extract_f2(input_prefix: str, output_dir: str, snp_range: tuple[int, int] | 
             selected = selected_samples(input_prefix, populations)
             click.echo(f"Streaming F2 extraction from {input_prefix}...")
             click.echo(f"Populations: {', '.join(populations)}")
-            f2_blocks = pm.extract_f2(
+            # written a chromosome at a time, so memory does not grow with every block of every pair
+            n_blocks = pm.extract_f2_to_dir(
                 input_prefix,
+                output_dir,
                 populations,
                 auto_only=auto_only,
                 block_size=block_size,
@@ -77,7 +79,9 @@ def extract_f2(input_prefix: str, output_dir: str, snp_range: tuple[int, int] | 
                 **snp_filters(),
                 **selected,
             )
-            click.echo(f"Computed {f2_blocks.n_blocks} blocks for {f2_blocks.n_populations} populations")
+            click.echo(f"Computed {n_blocks} blocks for {len(populations)} populations")
+            click.echo(f"F2 blocks saved to {output_dir}")
+            return
         else:
             # A SNP index range needs the genotypes in memory, a path without
             # the missingness filter or a choice of ploidy rule

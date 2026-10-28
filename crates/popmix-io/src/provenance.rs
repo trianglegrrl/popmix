@@ -6,7 +6,6 @@
 //! SNPs were ascertained.
 
 use popmix_core::genotypes::{Ploidy, Sample, Snp};
-use popmix_core::F2Blocks;
 use serde_json::{json, Value};
 
 use crate::extract::ExtractOptions;
@@ -20,7 +19,7 @@ pub(crate) fn extraction(
     opts: &ExtractOptions,
     samples: &[Sample],
     panel: &Panel,
-    blocks: &F2Blocks,
+    n_snps_used: usize,
 ) -> Value {
     let samples: Vec<Value> = samples
         .iter()
@@ -56,7 +55,7 @@ pub(crate) fn extraction(
         },
         "n_snps_read": panel.snps,
         "snp_panel": {"snps": panel.snps, "fingerprint": panel.fingerprint},
-        "n_snps_used": blocks.block_lengths().iter().sum::<usize>(),
+        "n_snps_used": n_snps_used,
         "samples": samples,
     })
 }

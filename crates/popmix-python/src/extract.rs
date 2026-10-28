@@ -82,6 +82,46 @@ pub(crate) fn extract_f2(
     keepsnps: Option<Vec<String>>,
     excludesnps: Option<Vec<String>>,
 ) -> PyResult<PyF2Blocks> {
+    let opts = extract_options(
+        populations,
+        auto_only,
+        block_size,
+        maxmiss,
+        poly_only,
+        inds,
+        pops,
+        pseudohaploid,
+        transitions,
+        transversions,
+        minmaf,
+        maxmaf,
+        keepsnps,
+        excludesnps,
+    )?;
+    let inner = compute(py, || {
+        with_warnings(|warn| popmix_io::extract::extract_f2(prefix, &opts, warn))
+    })?;
+    crate::warnings::checked_blocks(inner)
+}
+
+/// `extract_f2`'s options from its keyword arguments.
+#[allow(clippy::too_many_arguments)]
+fn extract_options(
+    populations: Vec<String>,
+    auto_only: bool,
+    block_size: f64,
+    maxmiss: f64,
+    poly_only: bool,
+    inds: Option<Vec<String>>,
+    pops: Option<Vec<String>>,
+    pseudohaploid: &str,
+    transitions: bool,
+    transversions: bool,
+    minmaf: f64,
+    maxmaf: f64,
+    keepsnps: Option<Vec<String>>,
+    excludesnps: Option<Vec<String>>,
+) -> PyResult<ExtractOptions> {
     let labels = match (inds, pops) {
         (None, None) => None,
         (Some(inds), Some(pops)) => Some(sample_labels(inds, pops)?),
@@ -104,8 +144,76 @@ pub(crate) fn extract_f2(
     };
     opts.labels = labels;
     opts.ploidy = pseudohaploid.parse()?;
-    let inner = compute(py, || {
-        with_warnings(|warn| popmix_io::extract::extract_f2(prefix, &opts, warn))
+    Ok(opts)
+}
+
+/// Extract f2 blocks straight into an f2 directory, as admixtools2
+/// ``extract_f2(pref, outdir)``.
+///
+/// From a dataset read in place (packed .geno, PLINK .bed, EIGENSTRAT text,
+/// VCF) one chromosome's frequencies and blocks are held at a time, so the
+/// memory does not grow with every block of every pair of populations; the
+/// directory is the same as ``extract_f2(...).save(outdir)``.
+///
+/// Parameters
+/// ----------
+/// prefix
+///     Path prefix of the genotype dataset.
+/// outdir
+///     The f2 directory, created if needed (``read_f2`` reads it).
+/// populations
+///     Populations to compute f2 for.
+/// auto_only, block_size, maxmiss, poly_only, inds, pops, pseudohaploid, transitions, transversions, minmaf, maxmaf, keepsnps, excludesnps
+///     As for ``extract_f2``.
+///
+/// Returns
+/// -------
+/// int
+///     The number of blocks written.
+#[pyfunction]
+#[pyo3(signature = (prefix, outdir, populations, *, auto_only=true, block_size=0.05, maxmiss=0.0, poly_only=true, inds=None, pops=None, pseudohaploid="detect", transitions=true, transversions=true, minmaf=0.0, maxmaf=0.5, keepsnps=None, excludesnps=None))]
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn extract_f2_to_dir(
+    py: Python<'_>,
+    prefix: &str,
+    outdir: &str,
+    populations: Vec<String>,
+    auto_only: bool,
+    block_size: f64,
+    maxmiss: f64,
+    poly_only: bool,
+    inds: Option<Vec<String>>,
+    pops: Option<Vec<String>>,
+    pseudohaploid: &str,
+    transitions: bool,
+    transversions: bool,
+    minmaf: f64,
+    maxmaf: f64,
+    keepsnps: Option<Vec<String>>,
+    excludesnps: Option<Vec<String>>,
+) -> PyResult<usize> {
+    let opts = extract_options(
+        populations,
+        auto_only,
+        block_size,
+        maxmiss,
+        poly_only,
+        inds,
+        pops,
+        pseudohaploid,
+        transitions,
+        transversions,
+        minmaf,
+        maxmaf,
+        keepsnps,
+        excludesnps,
+    )?;
+    let dir = std::path::PathBuf::from(outdir);
+    let n = compute(py, || {
+        with_warnings(|warn| {
+            popmix_io::extract_dir::extract_f2_to_dir(prefix, &opts, &dir, Some(prefix), warn)
+        })
     })?;
-    crate::warnings::checked_blocks(inner)
+    crate::warnings::emit(|w| popmix_core::warnings::check_blocks(n, w))?;
+    Ok(n)
 }

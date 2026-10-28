@@ -164,6 +164,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // F-statistics functions
     m.add_function(wrap_pyfunction!(extract::extract_f2, m)?)?;
+    m.add_function(wrap_pyfunction!(extract::extract_f2_to_dir, m)?)?;
     m.add_function(wrap_pyfunction!(f2::f2_from_frequencies, m)?)?;
     geno_fstats::register(m)?;
     pca::register(m)?;

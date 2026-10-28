@@ -32,33 +32,33 @@ use popmix_core::{IoResultExt, PopmixError, Result};
 
 /// Metadata structure for F2 block storage.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct F2Metadata {
+pub(crate) struct F2Metadata {
     /// Format version for future compatibility.
     /// v1: F2 only
     /// v2: F2 + heterozygosity (for FST)
     /// v3: + raw squared differences
     /// v4: + FST blocks on admixtools2's FST SNP set
-    version: u32,
+    pub(crate) version: u32,
     /// Population names in order.
-    populations: Vec<String>,
+    pub(crate) populations: Vec<String>,
     /// Number of blocks.
-    n_blocks: usize,
+    pub(crate) n_blocks: usize,
     /// Number of population pairs.
-    n_pairs: usize,
+    pub(crate) n_pairs: usize,
     /// Number of populations (v2+, inferred from populations.len() for v1).
     #[serde(default)]
-    n_populations: usize,
+    pub(crate) n_populations: usize,
     /// Number of SNPs per block.
-    block_lengths: Vec<usize>,
+    pub(crate) block_lengths: Vec<usize>,
     /// SNPs per FST block (v4+); absent if the blocks carry no FST data.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    fst_block_lengths: Option<Vec<usize>>,
+    pub(crate) fst_block_lengths: Option<Vec<usize>>,
     /// Optional source file path.
     #[serde(skip_serializing_if = "Option::is_none")]
-    source: Option<String>,
+    pub(crate) source: Option<String>,
     /// How the blocks were made (`F2Blocks::provenance`), if known.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    provenance: Option<serde_json::Value>,
+    pub(crate) provenance: Option<serde_json::Value>,
 }
 
 /// Read F2 blocks from a directory.
@@ -70,17 +70,8 @@ struct F2Metadata {
 /// - `block_het_sums.npy`: NumPy format array of het sums (v2+, optional for v1)
 /// - `block_het_weights.npy`: NumPy format array of het weights (v2+, optional for v1)
 pub fn read_f2_blocks(dir: &Path) -> Result<F2Blocks> {
-    // Read metadata
     let metadata_path = dir.join("metadata.json");
-    let file = File::open(&metadata_path).with_path(&metadata_path)?;
-    let metadata: F2Metadata = serde_json::from_reader(BufReader::new(file))
-        .map_err(|e| PopmixError::format(&metadata_path, e.to_string()))?;
-    if metadata.version < 1 || metadata.version > 4 {
-        return Err(PopmixError::format(
-            &metadata_path,
-            format!("unsupported F2 storage version {}", metadata.version),
-        ));
-    }
+    let metadata = read_metadata(dir)?;
 
     let pairs = (metadata.n_blocks, metadata.n_pairs);
     let read = |name: &str, shape: (usize, usize)| -> Result<Array2<f64>> {
@@ -166,6 +157,31 @@ pub fn read_f2_blocks(dir: &Path) -> Result<F2Blocks> {
     .map_err(|e| PopmixError::format(&metadata_path, e.to_string()))
 }
 
+/// An f2 directory's `metadata.json`, of a storage version popmix reads.
+pub(crate) fn read_metadata(dir: &Path) -> Result<F2Metadata> {
+    let metadata_path = dir.join("metadata.json");
+    let file = File::open(&metadata_path).with_path(&metadata_path)?;
+    let metadata: F2Metadata = serde_json::from_reader(BufReader::new(file))
+        .map_err(|e| PopmixError::format(&metadata_path, e.to_string()))?;
+    if metadata.version < 1 || metadata.version > 4 {
+        return Err(PopmixError::format(
+            &metadata_path,
+            format!("unsupported F2 storage version {}", metadata.version),
+        ));
+    }
+    Ok(metadata)
+}
+
+/// Write an f2 directory's `metadata.json`.
+pub(crate) fn write_metadata(dir: &Path, metadata: &F2Metadata) -> Result<()> {
+    let metadata_path = dir.join("metadata.json");
+    // written whole, so that an error writing it (a full disk) is reported
+    // rather than lost when a buffered writer is dropped
+    let json = serde_json::to_string_pretty(metadata)
+        .map_err(|e| PopmixError::Internal(format!("F2 metadata as JSON: {e}")))?;
+    fs::write(&metadata_path, json).with_path(&metadata_path)
+}
+
 /// Write F2 blocks to a directory.
 ///
 /// Creates:
@@ -204,13 +220,7 @@ pub fn write_f2_blocks(f2_blocks: &F2Blocks, dir: &Path, source: Option<&str>) -
         provenance: f2_blocks.provenance().cloned(),
     };
 
-    // Write metadata
-    let metadata_path = dir.join("metadata.json");
-    // written whole, so that an error writing it (a full disk) is reported
-    // rather than lost when a buffered writer is dropped
-    let json = serde_json::to_string_pretty(&metadata)
-        .map_err(|e| PopmixError::Internal(format!("F2 metadata as JSON: {e}")))?;
-    fs::write(&metadata_path, json).with_path(&metadata_path)?;
+    write_metadata(dir, &metadata)?;
 
     // Write F2 arrays
     write_npy_f64(&dir.join("block_sums.npy"), f2_blocks.block_sums())?;

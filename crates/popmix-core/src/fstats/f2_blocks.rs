@@ -149,75 +149,24 @@ impl F2Blocks {
         opts: &F2Options,
     ) -> Self {
         let mut evidence = (CoordinateEvidence::default(), CoordinateEvidence::default());
-        Self::build(af, block_def, opts, None, &mut evidence)
+        Self::build(af, block_def, opts, (None, None), &mut evidence)
     }
 
-    /// As [`from_allele_frequencies_with_options`] over the concatenation of
-    /// `parts`, the frequencies of consecutive runs of whole chromosomes in
-    /// SNP order, built one part at a time so that only one part's table is
-    /// held. Blocks never span chromosomes, so the parts' blocks are the
-    /// whole's, in the coordinate (map or base pairs) chosen from
-    /// `all_snps`, the evidence of every SNP the parts hold. None if the
-    /// SNPs kept would choose another: the caller builds the whole at once.
-    ///
-    /// [`from_allele_frequencies_with_options`]: Self::from_allele_frequencies_with_options
-    pub fn from_parts(
-        parts: impl Iterator<Item = AlleleFrequencies>,
-        all_snps: &CoordinateEvidence,
-        block_def: &BlockDefinition,
-        opts: &F2Options,
-    ) -> Option<Self> {
-        let guess = block_def.coordinate(all_snps);
-        let mut evidence = (CoordinateEvidence::default(), CoordinateEvidence::default());
-        let built: Vec<F2Blocks> = parts
-            .map(|af| Self::build(&af, block_def, opts, Some(guess), &mut evidence))
-            .collect();
-        if block_def.coordinate(&evidence.0) != guess || block_def.coordinate(&evidence.1) != guess
-        {
-            return None;
-        }
-        let first = built.first()?;
-        let rows = |f: fn(&F2Blocks) -> &Array2<f64>| {
-            let views: Vec<_> = built.iter().map(|b| f(b).view()).collect();
-            ndarray::concatenate(Axis(0), &views).expect("parts of the same populations")
-        };
-        let fsts: Vec<&FstBlocks> = built.iter().filter_map(|b| b.fst.as_ref()).collect();
-        let fst_rows = |f: fn(&FstBlocks) -> &Array2<f64>| {
-            let views: Vec<_> = fsts.iter().map(|b| f(b).view()).collect();
-            ndarray::concatenate(Axis(0), &views).expect("parts of the same populations")
-        };
-        Some(F2Blocks {
-            block_sums: rows(|b| &b.block_sums),
-            block_raw_sums: rows(|b| &b.block_raw_sums),
-            block_weights: rows(|b| &b.block_weights),
-            block_het_sums: rows(|b| &b.block_het_sums),
-            block_het_weights: rows(|b| &b.block_het_weights),
-            populations: first.populations.clone(),
-            n_blocks: built.iter().map(|b| b.n_blocks).sum(),
-            block_lengths: built.iter().flat_map(|b| b.block_lengths.clone()).collect(),
-            fst: Some(FstBlocks {
-                block_lengths: fsts.iter().flat_map(|b| b.block_lengths.clone()).collect(),
-                num: fst_rows(|b| &b.num),
-                den: fst_rows(|b| &b.den),
-            }),
-            provenance: None,
-        })
-    }
-
-    /// The blocks of `af` in `coordinate` (None: as its kept SNPs decide),
-    /// the SNPs kept for f2 and for FST observed into `evidence`.
-    fn build(
+    /// The blocks of `af`, f2 in `coordinates.0` and FST in `coordinates.1`
+    /// (None: as its kept SNPs decide), the SNPs kept for f2 and for FST
+    /// observed into `evidence`.
+    pub(crate) fn build(
         af: &AlleleFrequencies,
         block_def: &BlockDefinition,
         opts: &F2Options,
-        coordinate: Option<BlockCoordinate>,
+        coordinates: (Option<BlockCoordinate>, Option<BlockCoordinate>),
         evidence: &mut (CoordinateEvidence, CoordinateEvidence),
     ) -> Self {
         let fst = Some(FstBlocks::compute_in(
             af,
             block_def,
             opts,
-            coordinate,
+            coordinates.1,
             &mut evidence.1,
         ));
         let keep = kept_snps(af, opts, opts.poly_only);
@@ -228,7 +177,7 @@ impl F2Blocks {
         let n_pairs = n_pops * (n_pops + 1) / 2; // Including self-pairs for verification
 
         // Assign SNPs to blocks
-        let block_assignment = match coordinate {
+        let block_assignment = match coordinates.0 {
             Some(c) => block_def.assign_blocks_in(&kept_snps, c),
             None => block_def.assign_blocks(&kept_snps),
         };

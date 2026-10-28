@@ -82,6 +82,13 @@ blocks (under about 20) make standard errors unreliable.
 
 ## Caveats
 
+- Memory: from a dataset read in place (packed `.geno`, PLINK `.bed`,
+  EIGENSTRAT text, VCF) the blocks are written a chromosome at a time, so
+  extraction holds one chromosome's blocks (497 populations with
+  `--maxmiss 1`: 2.8 GB, against 8.8 GB holding every block). Commands
+  given `--f2-dir` read only their populations' pairs (`pm.read_f2(dir,
+  populations=[...])`): four populations of a 3.3 GB directory in 0.1 s
+  and under 100 MB. TGENO, PED and ANCESTRYMAP inputs are read whole.
 - Without a genetic map (every SNP at one map position, as from a VCF),
   blocks are 2 Mb of base-pair position, as admixtools2: shorter than 5 cM,
   so SEs come out slightly small, and popmix warns. Fewer than 20 blocks

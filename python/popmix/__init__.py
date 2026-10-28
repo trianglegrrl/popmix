@@ -25,6 +25,7 @@ from popmix._core import (
     detect_format,
     # F-statistics functions
     extract_f2,
+    extract_f2_to_dir,
     f2_from_frequencies,
     get_threads,
     graph_key,
@@ -89,6 +90,7 @@ _LAZY = {
     "dates": "ld_dating",
     "dstat_matrix": "dstats",
     "extract_f2_subset": "f2_dirs",
+    "read_f2_populations": "f2_dirs",
     "f3blockdat_from_geno": "dstats",
     "f4blockdat_from_geno": "dstats",
     "find_graphs": "graph_search",
@@ -177,7 +179,12 @@ if TYPE_CHECKING:
         qpdstat,
         sample_ploidy,
     )
-    from popmix.f2_dirs import extract_f2_subset, read_admixtools2_f2, write_admixtools2_f2
+    from popmix.f2_dirs import (
+        extract_f2_subset,
+        read_admixtools2_f2,
+        read_f2_populations,
+        write_admixtools2_f2,
+    )
     from popmix.fits import qpadm, qpf4ratio, qpgraph, qpwave
     from popmix.graph_assess import qpgraph_out_of_sample
     from popmix.graph_search import find_graphs
@@ -263,6 +270,8 @@ __all__ = [
     "detect_format",
     # F-statistics functions
     "extract_f2",
+    "extract_f2_to_dir",
+    "read_f2_populations",
     "f2_from_frequencies",
     "read_admixtools2_f2",
     "write_admixtools2_f2",

@@ -13,6 +13,7 @@ pub mod blocks;
 pub mod f2;
 pub mod f2_arrays;
 pub mod f2_blocks;
+mod f2_parts;
 pub mod f3_f4;
 pub mod geno_fstats;
 pub mod jackknife;
