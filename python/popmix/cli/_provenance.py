@@ -5,7 +5,8 @@ or the f2 directory; else ``--output-graph``, ``--plot``, ``--heatmap`` or
 ``--plot-fit``) gets ``<output>.provenance.json`` (inside an f2 directory,
 ``provenance.json``): the popmix version, the command and its arguments,
 every parameter with defaults filled in, and the size and modification time
-of each input. Output on stdout gets none.
+of each input. Output on stdout, or to a device such as /dev/null, gets
+none.
 """
 
 from __future__ import annotations
@@ -69,6 +70,10 @@ def record(command: click.Command) -> click.Command:
     def run(*args: Any, **params: Any) -> Any:
         result = callback(*args, **params)
         output = next(((n, params[n]) for n in OUTPUTS if params.get(n)), None)
+        # beside a file or directory written, not a device such as /dev/null or /dev/stdout
+        path = None if output is None else output[1]
+        if path is not None and os.path.exists(path) and not (os.path.isfile(path) or os.path.isdir(path)):
+            output = None
         if output is not None:
             ctx = click.get_current_context()
             root = ctx.find_root()

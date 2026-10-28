@@ -106,9 +106,18 @@ def kinship(input_prefix: str, populations: list, method: str, norm: str, norm_v
         validate_populations(input_prefix, populations)
         pops = populations or None
         if method == "king":
-            from popmix.kinship import king_columns
+            from popmix.kinship import king_columns, king_tsv
 
-            write_columns(king_columns(input_prefix, pops), output, output_format)
+            if output_format == "tsv":
+                # written in Rust: the same text as write_columns, without numpy
+                text = king_tsv(input_prefix, pops)
+                if output:
+                    with open(output, "w") as f:
+                        f.write(text)
+                else:
+                    click.echo(text, nl=False)
+            else:
+                write_columns(king_columns(input_prefix, pops), output, output_format)
             return
         else:
             df = pm.read_kinship(input_prefix, pops, norm=norm, norm_value=norm_value, window_size=window_size,

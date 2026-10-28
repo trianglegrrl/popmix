@@ -126,3 +126,9 @@ def test_a_failed_command_writes_no_sidecar(tmp_path):
 
 def test_every_command_records_provenance():
     assert [name for name, c in cli.commands.items() if not getattr(c.callback, "records_provenance", False)] == []
+
+
+def test_a_device_gets_no_sidecar():
+    r = popmix("qpdstat", "-i", SMALL, "--pop1", "French", "--pop2", "Yoruba", "--pop3", "Simulation.1",
+               "--pop4", "Simulation", "-o", "/dev/null")
+    assert r.returncode == 0, r.stderr

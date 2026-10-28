@@ -311,12 +311,26 @@ def write_columns(columns: dict, output: str | None, output_format: str = "tsv")
                 return "" if math.isnan(x) else f"{x:.12g}"
             return str(x)
 
-        buf = io.StringIO()
-        writer = csv.writer(buf, delimiter="\t", lineterminator="\n")
-        writer.writerow(list(columns))
-        for row in zip(*columns.values()):
-            writer.writerow([cell(x) for x in row])
-        text = buf.getvalue()
+        def strings(values) -> list[str]:
+            # a column at a time: numpy columns through tolist(), not a cell at a time
+            if isinstance(values, np.ndarray) and values.dtype.kind == "f":
+                return ["" if v != v else f"{v:.12g}" for v in values.tolist()]
+            if isinstance(values, np.ndarray) and values.dtype.kind in "iub":
+                return [str(v) for v in values.tolist()]
+            return [cell(x) for x in values]
+
+        cols = [strings(v) for v in columns.values()]
+        header = list(columns)
+        special = ("\t", '"', "\n", "\r")
+        if any(c in x for col in [header, *cols] for x in col for c in special):
+            # fields csv would quote
+            buf = io.StringIO()
+            writer = csv.writer(buf, delimiter="\t", lineterminator="\n")
+            writer.writerow(header)
+            writer.writerows(zip(*cols))
+            text = buf.getvalue()
+        else:
+            text = "".join("\t".join(row) + "\n" for row in [header, *zip(*cols)])
     if output:
         with open(output, "w") as f:
             f.write(text)

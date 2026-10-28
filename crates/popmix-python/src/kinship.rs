@@ -23,22 +23,7 @@ pub fn king(
     populations: Vec<String>,
     auto_only: bool,
 ) -> PyResult<Py<PyAny>> {
-    let (mut source, snps, _, samples) = open_source(prefix, &populations, auto_only)?;
-    let n = samples.len();
-    let (pairs, no_het) = crate::compute(py, || {
-        let mut rows = rows_of(&mut source);
-        let g = BitGenotypes::read(rows.as_mut(), n, snps.len())?;
-        let no_het: Vec<usize> = (0..n).filter(|&s| g.n_heterozygous(s) == 0).collect();
-        Ok::<_, popmix_core::PopmixError>((king_robust(&g), no_het))
-    })?;
-    if !no_het.is_empty() {
-        let names = no_het.iter().map(|&s| samples[s].id.clone()).collect();
-        crate::warnings::emit(|w| {
-            w(popmix_core::Warning::KingWithoutHeterozygotes { samples: names });
-        })?;
-    }
-    let shared: Vec<u64> = pairs.iter().map(|p| p.nsnp).collect();
-    crate::warnings::emit(|w| popmix_core::warnings::check_king_snps(&shared, w))?;
+    let (pairs, samples) = king_pairs(py, prefix, &populations, auto_only)?;
     let d = PyDict::new(py);
     let id = |k: usize| samples[k].id.clone();
     d.set_item("id1", pairs.iter().map(|p| id(p.i)).collect::<Vec<_>>())?;
@@ -58,6 +43,64 @@ pub fn king(
             .into_pyarray(py),
     )?;
     Ok(d.into())
+}
+
+/// KING-robust's pairs of the samples of `populations`, and the samples,
+/// with its warnings raised.
+fn king_pairs(
+    py: Python<'_>,
+    prefix: &str,
+    populations: &[String],
+    auto_only: bool,
+) -> PyResult<(Vec<popmix_core::KingPair>, Vec<popmix_core::Sample>)> {
+    let (mut source, snps, _, samples) = open_source(prefix, populations, auto_only)?;
+    let n = samples.len();
+    let (pairs, no_het) = crate::compute(py, || {
+        let mut rows = rows_of(&mut source);
+        let g = BitGenotypes::read(rows.as_mut(), n, snps.len())?;
+        let no_het: Vec<usize> = (0..n).filter(|&s| g.n_heterozygous(s) == 0).collect();
+        Ok::<_, popmix_core::PopmixError>((king_robust(&g), no_het))
+    })?;
+    if !no_het.is_empty() {
+        let names = no_het.iter().map(|&s| samples[s].id.clone()).collect();
+        crate::warnings::emit(|w| {
+            w(popmix_core::Warning::KingWithoutHeterozygotes { samples: names });
+        })?;
+    }
+    let shared: Vec<u64> = pairs.iter().map(|p| p.nsnp).collect();
+    crate::warnings::emit(|w| popmix_core::warnings::check_king_snps(&shared, w))?;
+    Ok((pairs, samples))
+}
+
+/// KING-robust kinship as the TSV text ``write_columns`` writes of
+/// ``king``'s columns (numbers at 12 significant digits, as ``%.12g``),
+/// built in Rust, so that the kinship command needs neither numpy nor a
+/// Python loop over the pairs (TASKS.md F14).
+#[pyfunction]
+#[pyo3(signature = (prefix, populations, auto_only=true))]
+pub fn king_tsv(
+    py: Python<'_>,
+    prefix: &str,
+    populations: Vec<String>,
+    auto_only: bool,
+) -> PyResult<String> {
+    use std::fmt::Write as _;
+    let (pairs, samples) = king_pairs(py, prefix, &populations, auto_only)?;
+    let mut out = String::with_capacity(64 * (pairs.len() + 1));
+    out.push_str("id1\tid2\tnsnp\thethet\tibs0\thet1_hom2\thet2_hom1\tkinship\n");
+    for p in &pairs {
+        let kinship = if p.kinship.is_nan() {
+            String::new()
+        } else {
+            popmix_io::format_g::format_g(p.kinship, 12)
+        };
+        let _ = writeln!(
+            out,
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{kinship}",
+            samples[p.i].id, samples[p.j].id, p.nsnp, p.hethet, p.ibs0, p.het1_hom2, p.het2_hom1
+        );
+    }
+    Ok(out)
 }
 
 /// READ-style kinship (READv2) for every pair of samples of ``populations``.
@@ -195,6 +238,7 @@ pub fn read_kinship_py(
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(king, m)?)?;
+    m.add_function(wrap_pyfunction!(king_tsv, m)?)?;
     m.add_function(wrap_pyfunction!(read_kinship_py, m)?)?;
     Ok(())
 }

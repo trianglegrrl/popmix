@@ -27,6 +27,7 @@ pub mod extract;
 pub mod extract_dir;
 pub mod f2_storage;
 pub mod f2_stream;
+pub mod format_g;
 pub mod merge;
 pub mod npy;
 pub mod npy_stream;

@@ -53,6 +53,14 @@ def king_columns(
     return _core.king(os.fspath(prefix), list(populations))
 
 
+def king_tsv(prefix: str | os.PathLike[str], populations: Sequence[str] | None = None) -> str:
+    """The table of :func:`king` as TSV text, built in Rust (the kinship
+    command's fast path: no numpy, no loop over the pairs in Python)."""
+    if populations is None:
+        populations = [p for p, _ in _core.list_populations(os.fspath(prefix)) if p != "Ignore"]
+    return _core.king_tsv(os.fspath(prefix), list(populations))
+
+
 def read_kinship(
     prefix: str | os.PathLike[str],
     populations: Sequence[str] | None = None,
