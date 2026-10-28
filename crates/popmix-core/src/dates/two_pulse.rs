@@ -25,8 +25,11 @@ use crate::error::Result;
 /// SEs a quantity must clear for two pulses to be supported.
 pub const Z_SUPPORT: f64 = 2.0;
 const GRID: usize = 60;
-const U_MIN: f64 = 1e-5;
-const U_MAX: f64 = 2.0;
+/// The dates searched, in generations: a term decaying more slowly than 1
+/// generation is nearly constant over the fitted range, so the intercept
+/// takes it.
+const N_MIN: f64 = 1.0;
+const N_MAX: f64 = 2000.0;
 const ROUNDS: usize = 40;
 
 /// A two-pulse fit: the more recent pulse first.
@@ -142,8 +145,9 @@ pub fn fit_two_pulse_values(y: &[f64], step: f64) -> Option<TwoPulseFit> {
     if y.len() < 6 {
         return None;
     }
-    let ratio = (U_MAX / U_MIN).powf(1.0 / (GRID - 1) as f64);
-    let grid: Vec<f64> = (0..GRID).map(|t| U_MIN * ratio.powi(t as i32)).collect();
+    let (u_min, u_max) = (N_MIN * step, N_MAX * step);
+    let ratio = (u_max / u_min).powf(1.0 / (GRID - 1) as f64);
+    let grid: Vec<f64> = (0..GRID).map(|t| u_min * ratio.powi(t as i32)).collect();
     let mut best = ([f64::NAN; 2], f64::INFINITY);
     for i in 0..GRID {
         for j in i + 2..GRID {
@@ -164,9 +168,9 @@ pub fn fit_two_pulse_values(y: &[f64], step: f64) -> Option<TwoPulseFit> {
         for k in 0..2 {
             let other = u[1 - k];
             let (lo, hi) = if k == 0 {
-                (u[0] / ratio, (u[0] * ratio).min(other / ratio))
+                ((u[0] / ratio).max(u_min), (u[0] * ratio).min(other / ratio))
             } else {
-                ((u[1] / ratio).max(other * ratio), u[1] * ratio)
+                ((u[1] / ratio).max(other * ratio), (u[1] * ratio).min(u_max))
             };
             if lo < hi {
                 u[k] = golden(
