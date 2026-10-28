@@ -31,3 +31,27 @@ PAR
 (cd "$work" && "$mergeit" -p par > mergeit.log) || { cat "$work/mergeit.log"; exit 1; }
 grep -A6 "^Histogram" "$work/mergeit.log"
 echo "wrote $here/reference.{geno,snp,ind}"
+
+# formats/merge_ambiguous/{a,b}.*: A/T and C/G SNPs as they are and swapped,
+# a SNP on the other strand, a swapped one and a monomorphic T/A; merged
+# with mergeit's default strandcheck: YES and with strandcheck: NO (both
+# files on one strand) into reference_strandcheck_{yes,no}.*.
+amb="$(cd "$(dirname "$0")" && pwd)/merge_ambiguous"
+for sc in YES NO; do
+  lower=$(echo "$sc" | tr '[:upper:]' '[:lower:]')
+  cat > "$work/par_$sc" <<PAR
+geno1: $amb/a.geno
+snp1: $amb/a.snp
+ind1: $amb/a.ind
+geno2: $amb/b.geno
+snp2: $amb/b.snp
+ind2: $amb/b.ind
+outputformat: EIGENSTRAT
+strandcheck: $sc
+genooutfilename: $amb/reference_strandcheck_$lower.geno
+snpoutfilename: $amb/reference_strandcheck_$lower.snp
+indoutfilename: $amb/reference_strandcheck_$lower.ind
+PAR
+  (cd "$work" && "$mergeit" -p "par_$sc" > "mergeit_$sc.log") || { cat "$work/mergeit_$sc.log"; exit 1; }
+  echo "wrote $amb/reference_strandcheck_$lower.{geno,snp,ind}"
+done

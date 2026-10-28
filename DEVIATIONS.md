@@ -809,6 +809,11 @@ need reconciling and so serves only to show the SNPs PLINK would ask to
   and its genotypes counted against file A's alleles.
 - **A/T and C/G SNPs are left out** (mergeit's `strandcheck`), because their
   strand cannot be told from the alleles. So is a SNP with a third allele.
+  `--no-strandcheck` (`strandcheck=False`) matches mergeit's `strandcheck:
+  NO`, for two files on one strand: A/T and C/G SNPs are kept and swapped
+  alleles recoded like any others, and complemented alleles are no longer
+  read as the other strand but left out as a mismatch
+  (`tests/golden/formats/merge_ambiguous`, TASKS.md H5).
 - **Monomorphic SNPs.** The unknown allele (PLINK `0`, EIGENSTRAT `X`, VCF
   `.`) is taken from the other file.
 

@@ -215,8 +215,12 @@ def convertf(input_prefix: str, output_prefix: str, input_format: str | None, ou
               type=click.Choice(["ancestrymap", "eigenstrat", "ped", "packedped", "plink", "packedancestrymap", "tgeno",
                                 "vcf"]),
               help="Format for file B (auto-detected if not specified)")
+@click.option("--strandcheck/--no-strandcheck", default=True,
+              help="Reconcile strands: complemented alleles are the other strand, A/T and C/G SNPs are left out "
+                   "(default). --no-strandcheck when both files are on one strand (two releases of one panel): "
+                   "A/T and C/G SNPs are kept, complemented alleles are a mismatch (mergeit strandcheck: NO)")
 def merge(file_a: str, file_b: str, output: str, output_format: str,
-          input_format_a: str | None, input_format_b: str | None):
+          input_format_a: str | None, input_format_b: str | None, strandcheck: bool):
     """Merge two genotype datasets.
 
     Combines samples from two genotype files, keeping only SNPs that
@@ -253,6 +257,7 @@ def merge(file_a: str, file_b: str, output: str, output_format: str,
             output_format=output_format,
             input_format_a=input_format_a,
             input_format_b=input_format_b,
+            strandcheck=strandcheck,
         )
 
         click.echo()

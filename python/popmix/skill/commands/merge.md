@@ -21,6 +21,7 @@ popmix merge --file-a PREFIX --file-b PREFIX --output PREFIX --output-format FOR
 | `--output-format`, `-of` | `ancestrymap`, `eigenstrat`, `ped`, `packedped`, `plink`, `packedancestrymap`, `tgeno` | required | Output format (no VCF). |
 | `--input-format-a`, `-ifa` | `ancestrymap`, `eigenstrat`, `ped`, `packedped`, `plink`, `packedancestrymap`, `tgeno`, `vcf` | none (auto-detected) | Format of file A. |
 | `--input-format-b`, `-ifb` | `ancestrymap`, `eigenstrat`, `ped`, `packedped`, `plink`, `packedancestrymap`, `tgeno`, `vcf` | none (auto-detected) | Format of file B. |
+| `--strandcheck`/`--no-strandcheck` | flag | `--strandcheck` | Reconcile strands: complemented alleles are the same SNP on the other strand, and A/T and C/G SNPs are left out because their strand cannot be told. `--no-strandcheck` when both files are on one strand (two releases of one panel, such as two AADR 1240K releases): A/T and C/G SNPs are kept, and complemented alleles count as a mismatch, as mergeit `strandcheck: NO`. |
 
 ## Inputs and outputs
 

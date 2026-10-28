@@ -121,10 +121,24 @@ pub struct Reconciled {
 /// Line up the alleles of `snp_b` with those of `snp_a`: as they are, swapped,
 /// then complemented and either. An unknown allele matches any.
 pub fn reconcile_alleles(snp_a: &Snp, snp_b: &Snp) -> Reconciled {
+    reconcile_alleles_on(snp_a, snp_b, true)
+}
+
+/// [`reconcile_alleles`], or with `strand_check` false, taking both files to
+/// be on one strand (mergeit `strandcheck: NO`, TASKS.md H5): alleles are
+/// matched as they are or swapped, never complemented, so an A/T or C/G SNP
+/// is kept like any other and a complemented one is a mismatch.
+pub fn reconcile_alleles_on(snp_a: &Snp, snp_b: &Snp, strand_check: bool) -> Reconciled {
     let (ra, aa) = (snp_a.allele_ref, snp_a.allele_alt);
+    let ambiguous = |r: char, a: char| strand_check && is_strand_ambiguous(r, a);
+    let strands: &[bool] = if strand_check {
+        &[false, true]
+    } else {
+        &[false]
+    };
     let fits = |x: char, y: char| x == y || is_unknown(x) || is_unknown(y);
     let fill = |x: char, y: char| if is_unknown(x) { y } else { x };
-    for other_strand in [false, true] {
+    for &other_strand in strands {
         let flip = |c: char| if other_strand { complement(c) } else { c };
         let (rb, ab) = (flip(snp_b.allele_ref), flip(snp_b.allele_alt));
         for (allele_match, (r, a)) in [
@@ -133,7 +147,7 @@ pub fn reconcile_alleles(snp_a: &Snp, snp_b: &Snp) -> Reconciled {
         ] {
             if fits(ra, r) && fits(aa, a) {
                 let alleles = (fill(ra, r), fill(aa, a));
-                let allele_match = if is_strand_ambiguous(alleles.0, alleles.1) {
+                let allele_match = if ambiguous(alleles.0, alleles.1) {
                     AlleleMatch::StrandAmbiguous
                 } else {
                     allele_match
@@ -146,7 +160,7 @@ pub fn reconcile_alleles(snp_a: &Snp, snp_b: &Snp) -> Reconciled {
             }
         }
     }
-    let allele_match = if is_strand_ambiguous(ra, aa) {
+    let allele_match = if ambiguous(ra, aa) {
         AlleleMatch::StrandAmbiguous
     } else {
         AlleleMatch::Mismatch
@@ -175,6 +189,16 @@ pub fn recode_flipped(geno: Genotype) -> Genotype {
 
 /// Build SNP intersection between two datasets
 pub fn build_snp_intersection(snps_a: &[Snp], snps_b: &[Snp]) -> (Vec<MergedSnp>, MergeStats) {
+    build_snp_intersection_on(snps_a, snps_b, true)
+}
+
+/// [`build_snp_intersection`], with alleles reconciled as
+/// [`reconcile_alleles_on`] with `strand_check`.
+pub fn build_snp_intersection_on(
+    snps_a: &[Snp],
+    snps_b: &[Snp],
+    strand_check: bool,
+) -> (Vec<MergedSnp>, MergeStats) {
     let mut stats = MergeStats::default();
 
     // SNPs of file B by (chromosome, position), in file order
@@ -212,7 +236,7 @@ pub fn build_snp_intersection(snps_a: &[Snp], snps_b: &[Snp]) -> (Vec<MergedSnp>
         };
         seen_b.insert(b_idx);
 
-        let reconciled = reconcile_alleles(snp_a, &snps_b[b_idx]);
+        let reconciled = reconcile_alleles_on(snp_a, &snps_b[b_idx], strand_check);
         match reconciled.allele_match {
             AlleleMatch::Identical => stats.snps_identical += 1,
             AlleleMatch::Flipped => stats.snps_flipped += 1,
@@ -265,6 +289,18 @@ pub fn plan_merge(
     samples_b: &[Sample],
     snps_b: &[Snp],
 ) -> Result<(Vec<MergedSnp>, Vec<Sample>, MergeStats)> {
+    plan_merge_on(samples_a, snps_a, samples_b, snps_b, true)
+}
+
+/// [`plan_merge`], with alleles reconciled as [`reconcile_alleles_on`] with
+/// `strand_check`.
+pub fn plan_merge_on(
+    samples_a: &[Sample],
+    snps_a: &[Snp],
+    samples_b: &[Sample],
+    snps_b: &[Snp],
+    strand_check: bool,
+) -> Result<(Vec<MergedSnp>, Vec<Sample>, MergeStats)> {
     let duplicates = find_duplicate_samples(samples_a, samples_b);
     if !duplicates.is_empty() {
         return Err(PopmixError::data(format!(
@@ -272,7 +308,7 @@ pub fn plan_merge(
             duplicates.join(", ")
         )));
     }
-    let (merged_snps, mut stats) = build_snp_intersection(snps_a, snps_b);
+    let (merged_snps, mut stats) = build_snp_intersection_on(snps_a, snps_b, strand_check);
     if merged_snps.is_empty() {
         return Err(PopmixError::data(
             "No overlapping SNPs found between the two files",
@@ -292,11 +328,22 @@ pub fn merge_genotypes(
     matrix_a: &GenotypeMatrix,
     matrix_b: &GenotypeMatrix,
 ) -> Result<(GenotypeMatrix, MergeStats)> {
-    let (merged_snps, merged_samples, stats) = plan_merge(
+    merge_genotypes_on(matrix_a, matrix_b, true)
+}
+
+/// [`merge_genotypes`], with alleles reconciled as [`reconcile_alleles_on`]
+/// with `strand_check`.
+pub fn merge_genotypes_on(
+    matrix_a: &GenotypeMatrix,
+    matrix_b: &GenotypeMatrix,
+    strand_check: bool,
+) -> Result<(GenotypeMatrix, MergeStats)> {
+    let (merged_snps, merged_samples, stats) = plan_merge_on(
         matrix_a.samples(),
         matrix_a.snps(),
         matrix_b.samples(),
         matrix_b.snps(),
+        strand_check,
     )?;
 
     // Build merged genotype matrix

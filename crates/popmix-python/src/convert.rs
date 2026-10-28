@@ -12,9 +12,9 @@ use pyo3::IntoPyObjectExt;
 use popmix_core::{GenotypeMatrix, Sample, Snp};
 use popmix_io::tgeno::TgenoReader;
 use popmix_io::{
-    merge::merge_genotypes, write_ancestrymap, write_eigenstrat, write_packedancestrymap,
-    write_packedped, write_ped, write_tgeno, AncestryMapReader, EigenstratReader, GenoFormat,
-    PackedAncestryMapReader, PedReader, PlinkReader,
+    write_ancestrymap, write_eigenstrat, write_packedancestrymap, write_packedped, write_ped,
+    write_tgeno, AncestryMapReader, EigenstratReader, GenoFormat, PackedAncestryMapReader,
+    PedReader, PlinkReader,
 };
 
 use crate::compute;
@@ -355,6 +355,13 @@ fn convertf_files(
 /// input_format_a, input_format_b
 ///     Format of ``file_a`` / ``file_b``, by the same names or "vcf"; None
 ///     (the default) to detect it from the files.
+/// strandcheck
+///     True (the default) to reconcile strands: complemented alleles are
+///     the same SNP on the other strand, and A/T and C/G SNPs, whose strand
+///     the alleles cannot tell, are left out. False when both files are on
+///     one strand (two releases of one panel), as mergeit ``strandcheck:
+///     NO``: A/T and C/G SNPs are kept, and complemented alleles are a
+///     mismatch.
 ///
 /// Returns
 /// -------
@@ -368,7 +375,8 @@ fn convertf_files(
 ///     (SNPs of A left out because several SNPs of B share their position
 ///     and none has their name).
 #[pyfunction]
-#[pyo3(signature = (file_a, file_b, output, output_format, *, input_format_a=None, input_format_b=None))]
+#[pyo3(signature = (file_a, file_b, output, output_format, *, input_format_a=None, input_format_b=None, strandcheck=true))]
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn merge(
     py: Python<'_>,
     file_a: &str,
@@ -377,6 +385,7 @@ pub(crate) fn merge(
     output_format: &str,
     input_format_a: Option<&str>,
     input_format_b: Option<&str>,
+    strandcheck: bool,
 ) -> PyResult<HashMap<String, Py<PyAny>>> {
     use std::path::Path;
     let work = || -> PyResult<_> {
@@ -430,8 +439,13 @@ pub(crate) fn merge(
             let in_a = mapped_input(file_a, format_of(file_a, input_format_a)?)?;
             let in_b = mapped_input(file_b, format_of(file_b, input_format_b)?)?;
             if let (Some((fa, samples_a, snps_a)), Some((fb, samples_b, snps_b))) = (in_a, in_b) {
-                let (merged_snps, samples, stats) =
-                    popmix_io::merge::plan_merge(&samples_a, &snps_a, &samples_b, &snps_b)?;
+                let (merged_snps, samples, stats) = popmix_io::merge::plan_merge_on(
+                    &samples_a,
+                    &snps_a,
+                    &samples_b,
+                    &snps_b,
+                    strandcheck,
+                )?;
                 let snps: Vec<Snp> = merged_snps.iter().map(|m| m.snp.clone()).collect();
                 let mut rows = popmix_io::merge::MergedRows::new(&fa, &fb, &merged_snps);
                 if by_samples(out_format) {
@@ -462,7 +476,7 @@ pub(crate) fn merge(
         let samples_b = geno_b.n_samples();
 
         // Merge
-        let (merged, stats) = merge_genotypes(&geno_a, &geno_b)?;
+        let (merged, stats) = popmix_io::merge::merge_genotypes_on(&geno_a, &geno_b, strandcheck)?;
 
         // Write output
         let out_path = Path::new(output);

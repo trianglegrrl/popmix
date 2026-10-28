@@ -55,3 +55,28 @@ def test_merge_streamed_from_packed_and_plink_writes_the_same(tmp_path):
             pm.convertf(str(out), str(tmp_path / f"back_{fmt}"), "eigenstrat")
             out = tmp_path / f"back_{fmt}"
         assert _eigenstrat(out) == _eigenstrat(HERE / "reference")
+
+
+AMBIGUOUS = Path(__file__).parent / "formats" / "merge_ambiguous"
+
+
+def test_strandcheck_leaves_out_ambiguous_snps_as_mergeit(tmp_path):
+    out = tmp_path / "merged"
+    pm.merge(file_a=str(AMBIGUOUS / "a"), file_b=str(AMBIGUOUS / "b"), output=str(out), output_format="eigenstrat")
+    assert _eigenstrat(out) == _eigenstrat(AMBIGUOUS / "reference_strandcheck_yes")
+
+
+def test_without_strandcheck_ambiguous_snps_are_kept_as_mergeit(tmp_path):
+    out = tmp_path / "merged"
+    result = pm.merge(file_a=str(AMBIGUOUS / "a"), file_b=str(AMBIGUOUS / "b"), output=str(out),
+                      output_format="eigenstrat", strandcheck=False)
+    assert _eigenstrat(out) == _eigenstrat(AMBIGUOUS / "reference_strandcheck_no")
+    assert (result["strand_ambiguous_snps"], result["other_strand_snps"], result["snps_mismatch"]) == (0, 0, 1)
+
+
+def test_the_cli_takes_no_strandcheck(tmp_path):
+    out = tmp_path / "m"
+    run = subprocess.run(["popmix", "merge", "-a", str(AMBIGUOUS / "a"), "-b", str(AMBIGUOUS / "b"), "-o", str(out),
+                          "-of", "eigenstrat", "--no-strandcheck"], check=True, capture_output=True, text=True)
+    assert "Left out, allele mismatch: 1" in run.stdout
+    assert _eigenstrat(out) == _eigenstrat(AMBIGUOUS / "reference_strandcheck_no")

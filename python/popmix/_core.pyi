@@ -113,7 +113,8 @@ def select_samples(prefix: str, *, keep_inds: Sequence[str] | None = None,
                    exclude_inds: Sequence[str] | None = None, relabel: dict[str, str] | None = None,
                    relabel_pops: dict[str, str] | None = None) -> tuple[list[str], list[str]]: ...
 def merge(file_a: str, file_b: str, output: str, output_format: str, *,
-          input_format_a: str | None = None, input_format_b: str | None = None) -> dict[str, Any]: ...
+          input_format_a: str | None = None, input_format_b: str | None = None,
+          strandcheck: bool = True) -> dict[str, Any]: ...
 
 # --- f2 blocks -----------------------------------------------------------------
 
