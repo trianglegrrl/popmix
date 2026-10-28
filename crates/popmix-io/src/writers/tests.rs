@@ -398,9 +398,13 @@ fn test_ped_write() {
 
     for line in &lines {
         let parts: Vec<&str> = line.split('\t').collect();
-        // 7 info columns + 2 allele columns per SNP (3 SNPs = 6 allele columns)
-        assert_eq!(parts.len(), 7 + 3 * 2);
+        // 6 info columns + 2 allele columns per SNP (3 SNPs = 6 allele columns)
+        assert_eq!(parts.len(), 6 + 3 * 2);
     }
+    // the first sample's codes 0, 1, 2 count copies of each SNP's first
+    // allele (A/G, C/T, A/T)
+    let first: Vec<&str> = lines[0].split('\t').skip(6).collect();
+    assert_eq!(first, ["G", "G", "C", "T", "A", "A"]);
 
     // Verify .map file
     let map_content = std::fs::read_to_string(format!("{}.map", prefix.display())).unwrap();

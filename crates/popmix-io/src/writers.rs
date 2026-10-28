@@ -111,9 +111,9 @@ pub fn write_eigenstrat_rows(
 /// Write genotype data in PED format (PLINK text).
 ///
 /// Creates three files:
-/// - `{prefix}.ped`: One line per sample with 7 info columns + 2 allele columns per SNP
+/// - `{prefix}.ped`: One line per sample with 6 info columns + 2 allele columns per SNP
 /// - `{prefix}.pedsnp` or `{prefix}.map`: SNP metadata (CHR ID GPOS PPOS)
-/// - `{prefix}.pedind`: Sample metadata (first 7 columns of .ped file)
+/// - `{prefix}.pedind`: Sample metadata (first 6 columns of .ped file)
 ///
 /// PED format uses allele codes (A/C/G/T or 1/2) with 0 for missing.
 pub fn write_ped(prefix: impl AsRef<Path>, matrix: &GenotypeMatrix) -> Result<()> {
@@ -168,10 +168,11 @@ fn write_ped_blocks(
 
 /// A sample's line of a .ped: FID (the population), IID, no parents, sex,
 /// the population again as phenotype (for convertf's outputgroup), then two
-/// alleles per SNP, `0 0` when missing.
+/// alleles per SNP, `0 0` when missing. The code counts copies of the
+/// SNP's first allele.
 fn ped_line(sample: &Sample, snps: &[Snp], codes: &[u8]) -> Vec<u8> {
     let mut line = format!(
-        "{}\t{}\t0\t0\t{}\t{}\t1",
+        "{}\t{}\t0\t0\t{}\t{}",
         sample.population,
         sample.id,
         sample.sex.fam_code(),
@@ -182,9 +183,9 @@ fn ped_line(sample: &Sample, snps: &[Snp], codes: &[u8]) -> Vec<u8> {
     let mut buf = [0u8; 4];
     for (snp, &code) in snps.iter().zip(codes) {
         let (a1, a2) = match code {
-            0 => (snp.allele_ref, snp.allele_ref),
+            0 => (snp.allele_alt, snp.allele_alt),
             1 => (snp.allele_ref, snp.allele_alt),
-            2 => (snp.allele_alt, snp.allele_alt),
+            2 => (snp.allele_ref, snp.allele_ref),
             _ => ('0', '0'),
         };
         for allele in [a1, a2] {
@@ -651,16 +652,16 @@ fn write_bim_file(path: &str, snps: &[Snp]) -> Result<()> {
 }
 
 /// Write .pedind file (PED format)
-/// Format: FID IID PID MID SEX PHENO 1
+/// Format: FID IID PID MID SEX PHENO
 fn write_pedind_file(path: &str, samples: &[Sample]) -> Result<()> {
     let file = File::create(path).with_path(path)?;
     let mut writer = BufWriter::new(file);
 
     for sample in samples {
-        // Same as first 7 columns of .ped file
+        // Same as the first 6 columns of the .ped file
         writeln!(
             writer,
-            "{}\t{}\t0\t0\t{}\t{}\t1",
+            "{}\t{}\t0\t0\t{}\t{}",
             sample.population,
             sample.id,
             sample.sex.fam_code(),

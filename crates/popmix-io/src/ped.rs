@@ -192,13 +192,12 @@ fn parse_ped_genotype(a1: &str, a2: &str, (ref_allele, alt_allele): (char, char)
         return Genotype::Missing;
     }
 
-    // Count reference alleles
-    let ref_count = i32::from(c1 == ref_allele) + i32::from(c2 == ref_allele);
-
-    match ref_count {
-        0 => Genotype::HomAlt,
+    // the code counts copies of the first allele, as EIGENSTRAT's .geno
+    // counts copies of the .snp's first allele (Genotype::HomAlt = 2)
+    match i32::from(c1 == ref_allele) + i32::from(c2 == ref_allele) {
+        0 => Genotype::HomRef,
         1 => Genotype::Het,
-        2 => Genotype::HomRef,
+        2 => Genotype::HomAlt,
         _ => Genotype::Missing,
     }
 }
@@ -366,9 +365,9 @@ mod tests {
         assert_eq!(
             s1,
             vec![
-                Genotype::HomRef,
-                Genotype::Het,
                 Genotype::HomAlt,
+                Genotype::Het,
+                Genotype::HomRef,
                 Genotype::Missing
             ]
         );
@@ -377,9 +376,9 @@ mod tests {
             s2,
             vec![
                 Genotype::Het,
-                Genotype::HomAlt,
+                Genotype::HomRef,
                 Genotype::Missing,
-                Genotype::HomAlt
+                Genotype::HomRef
             ]
         );
         assert_eq!((g.snps()[0].allele_ref, g.snps()[0].allele_alt), ('C', 'T'));
@@ -402,17 +401,18 @@ mod tests {
 
     #[test]
     fn test_parse_ped_genotype() {
-        // A/G alleles, ref=A, alt=G
-        assert_eq!(parse_ped_genotype("A", "A", ('A', 'G')), Genotype::HomRef);
+        // A/G alleles: the code counts copies of the first, A (the
+        // .geno of the same SNP in EIGENSTRAT; convertf and PLINK 2 agree)
+        assert_eq!(parse_ped_genotype("A", "A", ('A', 'G')), Genotype::HomAlt);
         assert_eq!(parse_ped_genotype("A", "G", ('A', 'G')), Genotype::Het);
         assert_eq!(parse_ped_genotype("G", "A", ('A', 'G')), Genotype::Het);
-        assert_eq!(parse_ped_genotype("G", "G", ('A', 'G')), Genotype::HomAlt);
+        assert_eq!(parse_ped_genotype("G", "G", ('A', 'G')), Genotype::HomRef);
         assert_eq!(parse_ped_genotype("0", "0", ('A', 'G')), Genotype::Missing);
         assert_eq!(parse_ped_genotype("A", "0", ('A', 'G')), Genotype::Missing);
 
         // Numeric alleles (1=A, 3=G)
-        assert_eq!(parse_ped_genotype("1", "1", ('A', 'G')), Genotype::HomRef);
+        assert_eq!(parse_ped_genotype("1", "1", ('A', 'G')), Genotype::HomAlt);
         assert_eq!(parse_ped_genotype("1", "3", ('A', 'G')), Genotype::Het);
-        assert_eq!(parse_ped_genotype("3", "3", ('A', 'G')), Genotype::HomAlt);
+        assert_eq!(parse_ped_genotype("3", "3", ('A', 'G')), Genotype::HomRef);
     }
 }
