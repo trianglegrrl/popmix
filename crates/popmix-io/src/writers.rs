@@ -14,7 +14,7 @@ use std::path::Path;
 use popmix_core::error::Result;
 use popmix_core::fstats::{GenotypeRows, MatrixRows};
 use popmix_core::genotype_matrix::GenotypeMatrix;
-use popmix_core::genotypes::{Genotype, Sample, Snp};
+use popmix_core::genotypes::{Chromosome, Genotype, Sample, Snp};
 use popmix_core::IoResultExt;
 
 // ============================================================================
@@ -458,23 +458,30 @@ fn write_ancestrymap_geno(
 // ============================================================================
 
 /// Write .snp file (EIGENSTRAT/PACKEDANCESTRYMAP format)
-/// Format: ID CHR GPOS BP A1 A2
+/// Format: ID CHR GPOS BP A1 A2, laid out as AdmixTools convertf writes it
+/// (and AADR ships it): right-aligned columns, X and Y as 23 and 24, and a
+/// zero genetic position as `0`.
 /// Note: GPOS is in Morgans (not centiMorgans) per EIGENSTRAT spec
 fn write_snp_file(path: &str, snps: &[Snp]) -> Result<()> {
     let file = File::create(path).with_path(path)?;
     let mut writer = BufWriter::new(file);
 
     for snp in snps {
+        let chromosome = match &snp.chromosome {
+            Chromosome::X => "23".to_string(),
+            Chromosome::Y => "24".to_string(),
+            other => other.to_string(),
+        };
         // .snp file uses Morgans (position_morgans is already in Morgans)
+        let morgans = if snp.position_morgans == 0.0 {
+            "0".to_string()
+        } else {
+            format!("{:.6}", snp.position_morgans)
+        };
         writeln!(
             writer,
-            "{} {} {:.6} {} {} {}",
-            snp.id,
-            snp.chromosome,
-            snp.position_morgans,
-            snp.position_bp,
-            snp.allele_ref,
-            snp.allele_alt
+            "{:>20} {:>5} {:>15} {:>15} {} {}",
+            snp.id, chromosome, morgans, snp.position_bp, snp.allele_ref, snp.allele_alt
         )
         .with_path(path)?;
     }
@@ -483,7 +490,7 @@ fn write_snp_file(path: &str, snps: &[Snp]) -> Result<()> {
 }
 
 /// Write .ind file (EIGENSTRAT/PACKEDANCESTRYMAP/ANCESTRYMAP format)
-/// Format: ID SEX POP
+/// Format: ID SEX POP, the ID and population right-aligned in 20 and 10 columns as AdmixTools writes them
 fn write_ind_file(path: &str, samples: &[Sample]) -> Result<()> {
     let file = File::create(path).with_path(path)?;
     let mut writer = BufWriter::new(file);
@@ -491,10 +498,10 @@ fn write_ind_file(path: &str, samples: &[Sample]) -> Result<()> {
     for sample in samples {
         writeln!(
             writer,
-            "{} {} {}",
+            "{:>20} {} {:>10}",
             sample.id,
             sample.sex.ind_code(),
-            sample.population
+            sample.population.to_string()
         )
         .with_path(path)?;
     }

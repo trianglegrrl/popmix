@@ -241,7 +241,13 @@ fn test_sex_survives_ind_fam_and_ped() {
     let eigen = tmp.path().join("eigen");
     write_eigenstrat(&eigen, &sexed_matrix()).unwrap();
     let ind = std::fs::read_to_string(eigen.with_extension("ind")).unwrap();
-    assert_eq!(ind, "IND1 M PopA\nIND2 F PopA\nIND3 U PopB\n");
+    assert_eq!(
+        ind,
+        format!(
+            "{:>20} M {:>10}\n{:>20} F {:>10}\n{:>20} U {:>10}\n",
+            "IND1", "PopA", "IND2", "PopA", "IND3", "PopB"
+        )
+    );
     let from_ind = EigenstratReader::new(&eigen).unwrap().read_all().unwrap();
     assert_eq!(sexes(&from_ind), want);
 
@@ -410,4 +416,45 @@ fn test_ped_write() {
     let map_content = std::fs::read_to_string(format!("{}.map", prefix.display())).unwrap();
     let map_lines: Vec<&str> = map_content.lines().collect();
     assert_eq!(map_lines.len(), 3);
+}
+
+/// .snp and .ind as AdmixTools convertf writes them (AADR's own layout):
+/// right-aligned columns, X and Y as 23 and 24, a zero genetic position as 0.
+#[test]
+fn snp_and_ind_lines_are_laid_out_as_admixtools_writes_them() {
+    let snps = vec![
+        Snp::new(
+            "rs3094315",
+            Chromosome::Autosome(1),
+            752566,
+            0.020130,
+            'G',
+            'A',
+        ),
+        Snp::new("rs2562132", Chromosome::Autosome(16), 84170, 0.0, 'C', 'T'),
+        Snp::new("rs4129148", Chromosome::X, 990180, 0.071651, 'C', 'G'),
+        Snp::new("M288", Chromosome::Y, 2649694, 0.0, 'G', 'T'),
+    ];
+    let samples = vec![
+        Sample::new("Loschbour.AG", "Luxembourg_Loschbour_Mesolithic"),
+        Sample::new("I1838.AG", "Spain_C"),
+    ];
+    let matrix =
+        GenotypeMatrix::new(array![[0, 1], [1, 1], [2, 1], [0, 1]], samples, snps).unwrap();
+    let tmp = TempDir::new().unwrap();
+    let prefix = tmp.path().join("out");
+    write_eigenstrat(&prefix, &matrix).unwrap();
+    let snp = std::fs::read_to_string(prefix.with_extension("snp")).unwrap();
+    assert_eq!(
+        snp,
+        "           rs3094315     1        0.020130          752566 G A\n\
+         \x20          rs2562132    16               0           84170 C T\n\
+         \x20          rs4129148    23        0.071651          990180 C G\n\
+         \x20               M288    24               0         2649694 G T\n"
+    );
+    let ind = std::fs::read_to_string(prefix.with_extension("ind")).unwrap();
+    assert_eq!(
+        ind,
+        "        Loschbour.AG U Luxembourg_Loschbour_Mesolithic\n            I1838.AG U    Spain_C\n"
+    );
 }
