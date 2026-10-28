@@ -787,7 +787,7 @@ thread count.
 - [ ] **K4. Repeated-population and degenerate-model goldens:**
   f4(A,B;A,C) = f3(A;B,C), f3(A;A,B) = 0 as properties; dof 0; overlapping
   left/right; against admixtools2. PD, PR
-- [ ] **K5. Replace mock-based and can't-fail tests:** `MockF2Result`,
+- [x] **K5. Replace mock-based and can't-fail tests:** *Done in d536e51 (the named files and mocks were already gone; the qpadm weights, f4ratio options, relabelling, plot, round-trip and DATES smoke tests now check exact values).* `MockF2Result`,
   `MockQpAdmResult` (`test_statistical_rigor.py:13-35`), single-character
   and `or`-chained assertions (`test_rich_output.py:276-279,422`,
   `test_cli.py:61`), the mismatched docstring at `test_statistical_rigor.py:101`,
