@@ -859,6 +859,31 @@ Checked black-box with AdmixTools 8 convertf.
   stops with the file and line. A map of all zeros is still read, and f2
   blocks then fall back to 2 Mb of physical distance, as in admixtools2.
 
+## PLINK 2: writing VCF
+
+`convertf -of vcf` (and `merge -of vcf`) checked against PLINK 2's
+`--export vcf` of the same genotypes made PACKEDPED by AdmixTools 8
+convertf (tests/golden/formats/generate_vcf_out.sh, TASKS.md P1).
+
+### Matched, not corrected
+
+- **Alleles.** REF is a SNP's second allele and ALT its first, the one
+  genotypes count (EIGENSTRAT column 5, PLINK A1), as PLINK 2 takes A1 for
+  ALT. Neither tool knows the reference genome, so REF may not be the
+  reference base; PLINK 2 says so with an INFO flag (PR), popmix writes no
+  INFO.
+- **Males on chromosome X.** A homozygous call is haploid (`0`, `1`) and a
+  heterozygous one `0/1`, as PLINK 2 writes them.
+
+### Differences, not reproduced
+
+- **An unknown allele.** PLINK 2 writes the code it has (`X`) as REF,
+  which the VCF specification does not allow ("other tools may not
+  accept the file", PLINK 2 warns); popmix writes `N` as REF and `.` as an
+  unknown ALT. Readers of SNPs (popmix's, PLINK 2 `--snps-only
+  just-acgt`) skip a record whose REF is `N`. Not reproduced: the result
+  would not be VCF.
+
 ## PLINK 2: reading VCF
 
 Checked black-box with plink2 `--vcf` and AdmixTools 8 convertf

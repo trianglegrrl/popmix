@@ -5,7 +5,7 @@
 use popmix_io::subset::Subset;
 use std::collections::HashMap;
 
-use popmix_core::python::{input_error, internal_error};
+use popmix_core::python::internal_error;
 use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
 
@@ -166,7 +166,19 @@ fn written_by_rows(format: GenoFormat) -> bool {
             | GenoFormat::Ancestrymap
             | GenoFormat::PackedAncestrymap
             | GenoFormat::PackedPed
+            | GenoFormat::Vcf
     )
+}
+
+/// Write a genotype matrix as VCF (`popmix_io::vcf_writer`).
+fn write_vcf_matrix(output: &str, geno: &GenotypeMatrix) -> PyResult<()> {
+    let mut rows = popmix_core::MatrixRows::new(
+        geno,
+        (0..geno.n_snps()).collect(),
+        (0..geno.n_samples()).collect(),
+    );
+    popmix_io::vcf_writer::write_vcf_rows(output, geno.samples(), geno.snps(), &mut rows)
+        .map_err(PyErr::from)
 }
 
 /// Write `rows` (one per SNP of `snps`) in a format of [`written_by_rows`].
@@ -187,6 +199,9 @@ fn write_rows(
         GenoFormat::Ancestrymap => write_ancestrymap_rows(out, samples, snps, rows),
         GenoFormat::PackedAncestrymap => write_packedancestrymap_rows(out, samples, snps, rows),
         GenoFormat::PackedPed => write_packedped_rows(out, samples, snps, rows),
+        GenoFormat::Vcf => {
+            popmix_io::vcf_writer::write_vcf_rows(output_prefix, samples, snps, rows)
+        }
         other => {
             return Err(internal_error(format!(
                 "{} is not written SNP by SNP",
@@ -320,11 +335,7 @@ fn convertf_files(
         GenoFormat::Tgeno => {
             write_tgeno(out_path, &geno)?;
         }
-        GenoFormat::Vcf => {
-            return Err(input_error(
-                "VCF output format is not supported. Use plink, eigenstrat, or packedancestrymap.",
-            ));
-        }
+        GenoFormat::Vcf => write_vcf_matrix(output_prefix, &geno)?,
     }
 
     Ok((n_samples, n_snps, in_format, out_format))
@@ -500,11 +511,7 @@ pub(crate) fn merge(
             GenoFormat::Tgeno => {
                 write_tgeno(out_path, &merged)?;
             }
-            GenoFormat::Vcf => {
-                return Err(input_error(
-                "VCF output format is not supported. Use plink, eigenstrat, or packedancestrymap.",
-            ));
-            }
+            GenoFormat::Vcf => write_vcf_matrix(output, &merged)?,
         }
 
         Ok((

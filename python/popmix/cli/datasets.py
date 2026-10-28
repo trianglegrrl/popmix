@@ -129,7 +129,7 @@ def populations(prefix: str, pattern: str | None, output_format: str):
               help="Input format (auto-detected if not specified)")
 @click.option("--output-format", "-of", "output_format", required=True,
               type=click.Choice(["ancestrymap", "eigenstrat", "ped", "packedped", "plink", "packedancestrymap",
-                                "tgeno"]),
+                                "tgeno", "vcf"]),
               help="Output format")
 @with_options(_sample_selection_options(exposed=True))
 @click.option("--populations", callback=parse_population_list, default="",
@@ -148,10 +148,10 @@ def convertf(input_prefix: str, output_prefix: str, input_format: str | None, ou
              region: tuple[str, int, int] | None):
     """Convert between genotype file formats.
 
-    Reads seven formats and writes all but VCF:
+    Reads and writes eight formats:
 
     \b
-    - vcf: VCF (.vcf, .vcf.gz), given by its full path; input only
+    - vcf: VCF (.vcf, .vcf.gz), given by its full path; written as PREFIX.vcf
     - ancestrymap: sparse text (.ancestrymapgeno, .snp, .ind)
     - eigenstrat: dense text (.geno, .snp, .ind)
     - packedancestrymap: binary EIGENSTRAT (.geno, .snp, .ind)
@@ -205,7 +205,7 @@ def convertf(input_prefix: str, output_prefix: str, input_format: str | None, ou
 @click.option("--output", "-o", required=True, help="Output genotype file prefix")
 @click.option("--output-format", "-of", required=True,
               type=click.Choice(["ancestrymap", "eigenstrat", "ped", "packedped", "plink", "packedancestrymap",
-                                "tgeno"]),
+                                "tgeno", "vcf"]),
               help="Output format")
 @click.option("--input-format-a", "-ifa", default=None,
               type=click.Choice(["ancestrymap", "eigenstrat", "ped", "packedped", "plink", "packedancestrymap", "tgeno",
@@ -231,7 +231,8 @@ def merge(file_a: str, file_b: str, output: str, output_format: str,
     A/T, C/G and third-allele SNPs are left out and counted.
 
     Supports VCF input (pass full path with .vcf or .vcf.gz extension).
-    VCF output is not supported.
+    VCF output is written as OUTPUT.vcf (OUTPUT itself if it ends in .vcf
+    or .vcf.gz, compressed for .gz).
     """
     try:
         # Detect formats if not specified

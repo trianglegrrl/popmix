@@ -35,6 +35,7 @@ pub mod streaming;
 pub mod subset;
 pub mod tgeno;
 pub mod vcf;
+pub mod vcf_writer;
 pub mod writers;
 
 /// A genetic map position: a finite number. (convertf reads anything else

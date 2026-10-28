@@ -16,7 +16,7 @@ popmix convertf --input PREFIX --output PREFIX --output-format FORMAT [--input-f
 | `--input`, `-i` | text (path) | required | Input genotype prefix, or the full path of a `.vcf` / `.vcf.gz`. |
 | `--output`, `-o` | text (path) | required | Output prefix; the files are written as PREFIX plus the format's extensions, overwriting any that exist. |
 | `--input-format`, `-if` | `ancestrymap`, `eigenstrat`, `ped`, `packedped`, `plink`, `packedancestrymap`, `tgeno`, `vcf` | none (auto-detected) | Input format, when detection from the files is not wanted. |
-| `--output-format`, `-of` | `ancestrymap`, `eigenstrat`, `ped`, `packedped`, `plink`, `packedancestrymap`, `tgeno` | required | Output format. `plink` and `packedped` are the same (`.bed/.bim/.fam`). VCF cannot be written. |
+| `--output-format`, `-of` | `ancestrymap`, `eigenstrat`, `ped`, `packedped`, `plink`, `packedancestrymap`, `tgeno`, `vcf` | required | Output format. `plink` and `packedped` are the same (`.bed/.bim/.fam`). `vcf` writes `OUTPUT.vcf` (or `OUTPUT` itself if it ends in `.vcf`, or `.vcf.gz`, gzip-compressed), as PLINK 2's `--export vcf`: REF is the second allele, ALT the counted first one, and males' homozygous chrX calls are haploid. |
 | `--keep-inds` | text (path) | none | Use only the sample IDs in this file (one per line, or a `.ind`/`.fam` file). |
 | `--exclude-inds` | text (path) | none | Never use the sample IDs in this file (one per line, or a `.ind`/`.fam` file). |
 | `--relabel` | text (path) | none | Give samples new populations: `ID POPULATION` per line, as admixtools2 `inds`/`pops`. Population names given to the command are those after relabelling. |
