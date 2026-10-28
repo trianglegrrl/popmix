@@ -938,11 +938,13 @@ thread count.
 
 ## P. `popmix convertf`, a full convertf replacement (P1)
 
-- [ ] **P1. Every EIGENSOFT/AdmixTools format in and out:** PACKEDANCESTRYMAP,
+- [x] **P1. Every EIGENSOFT/AdmixTools format in and out:** PACKEDANCESTRYMAP,
   TGENO (transpose_packed), EIGENSTRAT, ANCESTRYMAP, PACKEDPED, PED, plus
   VCF in (and VCF out). Today TGENO is unsupported in both directions and
   VCF input is inverted (A1). (VCF input fixed in A1 and A7, TGENO in and
   out in 66b3375; VCF out remains.)
+  *Done in 9663b84:* VCF out (`-of vcf`, .vcf/.vcf.gz) for convertf
+  and merge, golden against plink2 --export vcf.
 - [ ] **P2. Parameter-file compatibility:** `popmix convertf -p file.par` with
   convertf's keys (genotypename, snpname, indivname, outputformat,
   genooutfilename, snpoutfilename, indoutfilename, poplistname, ...), so
