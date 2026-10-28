@@ -1,6 +1,5 @@
 //! Principal component analysis, as EIGENSOFT's smartpca.
 
-mod shrink;
 pub mod smartpca;
 pub mod tracy_widom;
 mod tw_table;

@@ -25,7 +25,7 @@ popmix pca --input PREFIX --output-prefix PREFIX [--pca-pops A,B,...] [--project
 | `--outlier-components` | integer | 10 | Eigenvectors examined for outliers (smartpca `numoutlierevec`). |
 | `--outlier-sigma` | number | 6 | A PCA sample more than this many standard deviations out on one examined eigenvector is removed (smartpca `outliersigmathresh`). |
 | `--lsqproject` | flag | off | Project by least squares on each sample's observed genotypes (smartpca `lsqproject: YES`); use it for samples with missing data, such as ancient ones. |
-| `--shrink` | flag | off | Correct the projected samples' shrinkage toward the origin on the significant (Tracy-Widom p < 0.05) components. popmix's own correction, not smartpca's `shrinkmode`. |
+| `--holdout` | flag | off | Project every second sample of each PCA population (role `holdout`), so projected samples can be compared with reference samples placed the same way, and print each component's measured shrinkage. Needs two PCA populations with at least 2 samples; the axes are made from half the reference samples. |
 | `--compat` | `eigensoft-7.2.1` | none (corrected) | Reproduce smartpca exactly, including its Tracy-Widom p-values beyond the table (EIGENSOFT-0001). |
 | `--output-prefix`, `-o` | text (path) | required | Write PREFIX.coords.tsv, PREFIX.eval, PREFIX.tracy_widom.tsv and PREFIX.outliers.tsv. |
 | `--plot` | text (path) | none | Also plot PC1 against PC2 to this image file (needs `popmix[plot]`). |
@@ -34,7 +34,7 @@ popmix pca --input PREFIX --output-prefix PREFIX [--pca-pops A,B,...] [--project
 
 | File | Content |
 |------|---------|
-| `PREFIX.coords.tsv` | One row per sample (PCA and projected, in `.ind` order): `id`, `pop`, `role` (`pca` or `project`), `PC1` ... |
+| `PREFIX.coords.tsv` | One row per sample (PCA and projected, in `.ind` order): `id`, `pop`, `role` (`pca`, `project`, or with `--holdout` `holdout`), `PC1` ... |
 | `PREFIX.eval` | Every eigenvalue, one per line, decreasing. |
 | `PREFIX.tracy_widom.tsv` | `eigenvalue`, `twstat`, `p`, `neff` (effective number of markers) per eigenvalue. |
 | `PREFIX.outliers.tsv` | Removed samples: `id`, `pop`, `iteration`, `pc` (from 1), `score` (standard deviations). |
@@ -73,11 +73,16 @@ keep everyone.
   is why ancient samples should be projected, not used to build the axes.
 - Only autosomal SNPs polymorphic in the PCA samples are used.
 - Projected samples sit closer to the origin than PCA samples of the same
-  population, whose own noise fitted the axes: on the small test data a
-  projected half of French and Yoruba spans 82% of the PC1 gap of the half
-  in the PCA. `--shrink` divides the projected samples' coordinates on each
-  significant component by its shrinkage factor (in Python,
-  `PcaResult.shrinkage`); noise components are left as they are.
+  population, whose own noise fitted the axes: with six 1000 Genomes
+  populations in AADR, a projected half of each reaches 98% of its PCA
+  half's spread on PC1, 95% on PC2 and 74%, 55%, 62% and 28% on PC3-PC6.
+  So do not read a projected ancient sample's distance from PCA samples as
+  ancestry. `--holdout` projects half of each reference population too:
+  compare projected samples with those (role `holdout`). The measured
+  shrinkage is the slope of the held-out halves' population means on the
+  PCA halves' (Python `PcaResult.shrinkage`); popmix warns where it is
+  below 0.9. popmix does not rescale projected coordinates (see
+  DEVIATIONS.md, EIGENSOFT, Matched, not corrected).
 - Without `--lsqproject` a missing genotype counts as 0, which pulls a
   sample toward the origin by its missing share; popmix warns when a
   projected sample misses more than 10% of the SNPs.

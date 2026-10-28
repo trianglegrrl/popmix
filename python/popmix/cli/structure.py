@@ -36,25 +36,27 @@ from ._population_checks import validate_populations
               help="Project by least squares on observed genotypes (for samples with missing data)")
 @click.option("--compat", type=click.Choice(["eigensoft-7.2.1"]), default=None,
               help="Reproduce EIGENSOFT 7.2.1 smartpca exactly (see DEVIATIONS.md)")
-@click.option("--shrink", is_flag=True, default=False,
-              help="Correct projected samples' shrinkage toward the origin on significant components")
+@click.option("--holdout", is_flag=True, default=False,
+              help="Project every second sample of each PCA population too, and measure the projected "
+                   "samples' shrinkage toward the origin")
 @click.option("--output-prefix", "-o", required=True,
               help="Writes PREFIX.coords.tsv, .eval, .tracy_widom.tsv and .outliers.tsv")
 @click.option("--plot", default=None, help="Also plot PC1 against PC2 to this image file (needs popmix[plot])")
 def pca(input_prefix: str, pca_pops: list, project_pops: list, components: int, outlier_iterations: int,
         outlier_components: int, outlier_sigma: float, lsqproject: bool, compat: str | None,
-        shrink: bool, output_prefix: str, plot: str | None):
+        holdout: bool, output_prefix: str, plot: str | None):
     """Principal component analysis as EIGENSOFT smartpca, with projection.
 
     The PCA is computed on --pca-pops and the samples of --project-pops are
     projected onto it (smartpca poplistname); use --lsqproject for ancient
-    samples with missing data.
+    samples with missing data, and --holdout to compare projected samples
+    with reference samples projected the same way.
     """
     try:
         validate_populations(input_prefix, pca_pops + project_pops)
         r = pm.smartpca(input_prefix, pca_pops or None, project_pops, n_components=components,
                         outlier_iterations=outlier_iterations, outlier_components=outlier_components,
-                        outlier_sigma=outlier_sigma, lsqproject=lsqproject, compat=compat, shrink=shrink)
+                        outlier_sigma=outlier_sigma, lsqproject=lsqproject, compat=compat, holdout=holdout)
         r.coords.to_csv(f"{output_prefix}.coords.tsv", sep="\t", index=False, float_format="%.12g")
         with open(f"{output_prefix}.eval", "w") as f:
             f.write("".join(f"{x:.12g}\n" for x in r.eigenvalues))
@@ -62,6 +64,10 @@ def pca(input_prefix: str, pca_pops: list, project_pops: list, components: int, 
         r.outliers.to_csv(f"{output_prefix}.outliers.tsv", sep="\t", index=False, float_format="%.12g")
         click.echo(f"{r.n_pca_samples} PCA samples, {len(r.coords) - r.n_pca_samples} projected, "
                    f"{r.n_snps_used} SNPs, {len(r.outliers)} outliers removed")
+        if holdout:
+            click.echo("Held-out reference samples reach "
+                       + ", ".join(f"{s:.0%} (PC{j})" for j, s in enumerate(r.shrinkage, 1))
+                       + " of their PCA halves' spread (role \"holdout\" in the coordinates)")
         if plot:
             from popmix import plot as plots
 

@@ -18,7 +18,8 @@ pub struct PyPcaResult {
     #[pyo3(get)]
     eigenvalues: Vec<f64>,
     /// Samples with coordinates, in .ind order: id, population, and
-    /// whether it defines the PCA ("pca") or is projected ("project").
+    /// whether it defines the PCA ("pca"), is projected ("project") or is a
+    /// PCA population's sample held out and projected ("holdout").
     #[pyo3(get)]
     sample_ids: Vec<String>,
     #[pyo3(get)]
@@ -43,10 +44,6 @@ pub struct PyPcaResult {
     n_snps_used: usize,
     #[pyo3(get)]
     n_snps_killed: usize,
-    /// With shrink, each component's shrinkage factor (NaN where not
-    /// corrected); empty without.
-    #[pyo3(get)]
-    shrinkage: Vec<f64>,
     /// Each sample's share of the PCA's SNPs it misses, as sample_ids.
     #[pyo3(get)]
     missing_fraction: Vec<f64>,
@@ -78,13 +75,13 @@ impl PyPcaResult {
 ///     outlier_sigma: Outlier threshold in standard deviations
 ///     lsqproject: Project by least squares on observed genotypes
 ///     min_tw_eigs: Fewest eigenvalues for a Tracy-Widom statistic (nostatslim)
-///     shrink: Correct projected samples' shrinkage on significant components
+///     holdout: Project every second sample of each PCA population
 ///     compat: None (corrected) or "eigensoft-7.2.1"
 ///     auto_only: Use only autosomes 1-22, as smartpca
 #[pyfunction(name = "smartpca")]
 #[pyo3(signature = (prefix, pca_pops, project_pops=vec![], n_components=10, outlier_iterations=5,
                     outlier_components=10, outlier_sigma=6.0, lsqproject=false, min_tw_eigs=10,
-                    compat=None, auto_only=true, shrink=false))]
+                    compat=None, auto_only=true, holdout=false))]
 #[allow(clippy::too_many_arguments)]
 pub fn smartpca_py(
     py: Python<'_>,
@@ -99,7 +96,7 @@ pub fn smartpca_py(
     min_tw_eigs: usize,
     compat: Option<&str>,
     auto_only: bool,
-    shrink: bool,
+    holdout: bool,
 ) -> PyResult<PyPcaResult> {
     let compat = match compat {
         None => EigensoftCompat::CORRECTED,
@@ -117,11 +114,13 @@ pub fn smartpca_py(
     }
     let populations: Vec<String> = pca_pops.iter().chain(&project_pops).cloned().collect();
     let (mut source, snps, pops, samples) = open_source(prefix, &populations, auto_only)?;
+    let held = held_out(&pops.sample_pop, pca_pops.len(), holdout)?;
     let roles: Vec<SampleRole> = pops
         .sample_pop
         .iter()
-        .map(|&p| {
-            if p < pca_pops.len() {
+        .zip(&held)
+        .map(|(&p, &h)| {
+            if p < pca_pops.len() && !h {
                 SampleRole::Pca
             } else {
                 SampleRole::Project
@@ -136,7 +135,6 @@ pub fn smartpca_py(
         o.outlier_sigma = outlier_sigma;
         o.lsq_project = lsqproject;
         o.min_tw_eigs = min_tw_eigs;
-        o.shrink = shrink;
         o.compat = compat;
         o
     };
@@ -168,6 +166,7 @@ pub fn smartpca_py(
             .iter()
             .map(|&s| match roles[s] {
                 SampleRole::Pca => "pca".to_string(),
+                SampleRole::Project if held[s] => "holdout".to_string(),
                 SampleRole::Project => "project".to_string(),
             })
             .collect(),
@@ -193,10 +192,37 @@ pub fn smartpca_py(
         no_data: out.no_data.iter().map(|&s| id(s)).collect(),
         n_pca_samples: out.n_pca_samples,
         n_snps_used: out.n_snps_used,
-        shrinkage: out.shrinkage,
         missing_fraction: out.missing_fraction,
         n_snps_killed: out.n_snps_killed,
     })
+}
+
+/// With `holdout`, which samples are held out of the PCA: the 2nd, 4th, ...
+/// sample of each PCA population (`sample_pop` below `n_pca`), in .ind
+/// order. Measuring their shrinkage needs two populations with a sample to
+/// hold out.
+fn held_out(sample_pop: &[usize], n_pca: usize, holdout: bool) -> PyResult<Vec<bool>> {
+    if !holdout {
+        return Ok(vec![false; sample_pop.len()]);
+    }
+    let mut seen = vec![0usize; n_pca];
+    let held: Vec<bool> = sample_pop
+        .iter()
+        .map(|&p| {
+            p < n_pca && {
+                seen[p] += 1;
+                seen[p].is_multiple_of(2)
+            }
+        })
+        .collect();
+    let split = seen.iter().filter(|&&n| n >= 2).count();
+    if split < 2 {
+        return Err(input_error(format!(
+            "holdout needs two PCA populations with at least 2 samples each, to measure shrinkage; \
+             {split} here"
+        )));
+    }
+    Ok(held)
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

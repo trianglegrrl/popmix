@@ -578,6 +578,31 @@ eigensoft-7.2.1` on the CLI (`pca`).
 - **Eigenvector signs.** They are whatever the eigensolver returns (LAPACK
   `dspev` in smartpca, nalgebra in popmix), so they can differ between the
   two; the tests compare each eigenvector up to sign.
+- **Projected samples are shrunk toward the origin.** A PCA sample's
+  coordinates include its own noise, which helped fit the axes; a projected
+  sample's do not. Both smartpca's default projection and popmix's place
+  projected samples closer to the origin than PCA samples of their own
+  population. With six 1000 Genomes populations in AADR v66.p1 (CEU, TSI,
+  FIN, YRI, CHB, GIH; about 290 PCA samples), a projected half of each
+  reaches 98% of its PCA half's spread on PC1, 95% on PC2, and 74%, 55%,
+  62% and 28% on PC3-PC6 (`tests/golden/test_pca_holdout_aadr.py`); on the
+  small test data, 82% on PC1. popmix keeps the projection as it is, so its
+  coordinates stay smartpca's, and adds `holdout` (`--holdout`): every
+  second sample of each PCA population is projected too, projected samples
+  are compared with reference samples placed the same way, and each
+  component's shrinkage is measured from the halves, with a warning below
+  0.9. smartpca's `shrinkmode` is not documented, so popmix does not
+  reproduce it.
+  A model-based correction was tried and removed before release: dividing
+  each significant component by ρ = 1 − Σᵢ nᵢuᵢ²/λ, nᵢ a PCA sample's
+  noise estimated as its diagonal less its share of the Tracy-Widom-
+  significant components. It came within 5% on PC1 of the small data, but on
+  the AADR panel it estimated 0.997 for PC5 and PC6 against a measured 0.62
+  and 0.28, and undercorrected PC1 and PC3. Every significant component
+  takes some of each sample's own noise with it, so the noise estimate came
+  out too small. Estimating the noise from population mates instead gave
+  0.79 against 0.82 on the small data. Measuring the shrinkage needs no
+  model.
 
 ## PLINK 2 (KING-robust kinship)
 

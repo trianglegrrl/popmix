@@ -102,8 +102,9 @@ def pca(
 ):
     """Scatter plot of two principal components of a ``smartpca`` result.
 
-    PCA samples are drawn as filled circles and projected samples as open
-    triangles, colored by population.
+    PCA samples are drawn as filled circles, held-out reference samples as
+    open circles and projected samples as open triangles, colored by
+    population.
 
     Parameters
     ----------
@@ -129,7 +130,7 @@ def pca(
     pops = list(dict.fromkeys(df["pop"]))
     colors = plt.get_cmap("tab20" if len(pops) > 10 else "tab10")
     for i, p in enumerate(pops):
-        for role, marker, fill in (("pca", "o", True), ("project", "^", False)):
+        for role, marker, fill in (("pca", "o", True), ("holdout", "o", False), ("project", "^", False)):
             d = df[(df["pop"] == p) & (df["role"] == role)]
             if d.empty:
                 continue
