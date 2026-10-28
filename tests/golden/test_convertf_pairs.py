@@ -41,6 +41,7 @@ FORMATS = {
     "TRANSPOSE_PACKED": ("tgeno", ("geno", "snp", "ind")),
 }
 UNLABELLED = {"PACKEDPED", "PED"}
+BINARY = {"PACKEDANCESTRYMAP", "TRANSPOSE_PACKED"}
 
 
 def convertf(src: Path, src_fmt: str, out: Path, out_fmt: str) -> None:
@@ -74,6 +75,9 @@ def _same(ours: Path, theirs: Path, src_fmt: str, out_fmt: str) -> None:
     assert [(s.id, s.chromosome, s.position_bp) for s in a.snps] == \
         [(s.id, s.chromosome, s.position_bp) for s in b.snps]
     np.testing.assert_array_equal(letters(a), letters(b))
+    if out_fmt in BINARY and src_fmt not in UNLABELLED:
+        # the same file, header (hashes of the IDs) included
+        assert Path(f"{ours}.geno").read_bytes() == Path(f"{theirs}.geno").read_bytes()
 
 
 @pytest.mark.parametrize(("src_fmt", "out_fmt"), list(itertools.product(FORMATS, FORMATS)))

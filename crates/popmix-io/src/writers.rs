@@ -395,7 +395,7 @@ fn write_tgeno_blocks(
     let ind_ids: Vec<&str> = samples.iter().map(|s| s.id.as_str()).collect();
     let snp_ids: Vec<&str> = snps.iter().map(|s| s.id.as_str()).collect();
     let header_text = format!(
-        "TGENO {} {} {:x} {:x}",
+        "TGENO {:>7} {:>7} {:x} {:x}",
         n_samples,
         n_snps,
         crate::packedancestrymap::header_hash(&ind_ids),

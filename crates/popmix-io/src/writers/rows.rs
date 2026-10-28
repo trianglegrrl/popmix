@@ -93,11 +93,12 @@ pub(super) fn write_packedancestrymap_geno(
     let record_size = n_samples.div_ceil(4).max(48);
 
     // Write header: "GENO" magic + metadata, padded to record_size
-    // Format: GENO {n_samples} {n_snps} {ind_hash} {snp_hash}
+    // Format: GENO {n_samples} {n_snps} {ind_hash} {snp_hash}, the counts
+    // 7 wide (AdmixTools' "%7d"), so the file is the one convertf writes
     let ind_ids: Vec<&str> = samples.iter().map(|s| s.id.as_str()).collect();
     let snp_ids: Vec<&str> = snps.iter().map(|s| s.id.as_str()).collect();
     let header_text = format!(
-        "GENO {} {} {:x} {:x}",
+        "GENO {:>7} {:>7} {:x} {:x}",
         n_samples,
         n_snps,
         crate::packedancestrymap::header_hash(&ind_ids),
