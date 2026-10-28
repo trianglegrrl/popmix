@@ -969,7 +969,7 @@ thread count.
   *Done in 8ccd327:* convertf `--populations`, `--keep-inds`/`--exclude-inds`,
   `--relabel`/`--relabel-pops`, `--keep-snps`/`--exclude-snps`,
   `--chromosomes`, `--region` (`popmix_io::subset`).
-- [ ] **P4. Fast:** streaming, parallel, bounded memory; benchmarked against
+- [x] **P4. Fast:** *Done in 21b6346 and f69af93 (all of AADR v66.p1, TGENO to packed, on a GCP c2d-standard-16: convertf 41.7 min and 7.6 GB, popmix 45 s on 16 threads and 79 s on 1, in 0.5 GB, the same bytes in all three files; found on the way that popmix's .snp wrote X/Y for 23/24 and laid out .snp and .ind otherwise than convertf, fixed in 865e0b0).* streaming, parallel, bounded memory; benchmarked against
   convertf in section E.
 - [x] **P5. Checked against convertf on every format pair** (golden), with
   K3. *Done in 538589b (`tests/golden/test_convertf_pairs.py`, 36 pairs).*
