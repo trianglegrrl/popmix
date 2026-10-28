@@ -558,10 +558,14 @@ thread count.
   metadata.json, kept through save, read, pickle and subset; every command
   writing files leaves `OUTPUT.provenance.json` (argv, every parameter,
   inputs' size and mtime).
-- [ ] **H4. qpAdm CLI output complete:** SEs and z in text and TSV, rank
+- [x] **H4. qpAdm CLI output complete:** SEs and z in text and TSV, rank
   tests, popdrop/nested models, SNP and block counts, rotation output in
   TSV; p-values and SEs in full precision or scientific notation (not
   `0.0000`, not `.6f`). PG, PR
+  *Done in 85d66a2:* weights with SE and z, counts, rankdrop
+  (admixtools2-checked) and popdrop in text/TSV/JSON; `-o PREFIX` writes
+  every table; `qpadm-rotate` TSV one row per model; 3-significant-digit
+  p in text, 12 digits in TSV.
 - [ ] **H5. Strand-ambiguous SNPs kept on request** when both files share a
   strand (two AADR releases). PG
 - [x] **H6. qpadm `--compat`** on the CLI, as DEVIATIONS.md step 2 promises.
