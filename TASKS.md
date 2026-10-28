@@ -538,8 +538,12 @@ thread count.
 
 ## H. Practitioner features (P1)
 
-- [ ] **H1. SNP filters** for extract-f2 and qpadm: transversions only
+- [x] **H1. SNP filters** for extract-f2 and qpadm: transversions only
   (essential for non-UDG aDNA), a keep/exclude SNP list, minimum MAF. PG
+  *Done in 76197c5:* admixtools2's transitions/transversions,
+  minmaf/maxmaf and keepsnps (overriding maxmiss, MAF, class and
+  auto_only, as admixtools2), plus excludesnps; on extract-f2 and every
+  --input f2 command. AADR golden on six filter cases.
 - [ ] **H2. Sample selection on the CLI:** include/exclude individuals and
   relabel them (`inds`/`pops` exist only in Python); a population subset for
   `convertf`. PG
