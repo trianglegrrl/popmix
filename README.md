@@ -563,6 +563,9 @@ Estimated generations: 128.1 ± 21.9
 Date: 3716 ± 636 years before the admixed samples lived (29 years/gen, taken as
       exact; give --sample-age for years BP)
 Fit R²: 0.3055 (how well one exponential fits; it does not show a single pulse)
+One pulse is not rejected: a second exponential is not supported (both
+  amplitudes and the dates' difference must clear 2 SE); admixture over a short
+  span fits one too
 SNPs used: 828743
 LD bins: 1000
 
@@ -570,7 +573,14 @@ LD Decay (first 10 bins):
   Dist(cM)  Pairs      Correlation
      0.1    718093027  +0.061655
      0.2    612297992  +0.014745
-...
+     0.3    606673741  +0.007456
+     0.4    598724003  +0.005038
+     0.5    592469549  +0.003147
+     0.6    590472674  +0.002617
+     0.7    589458801  +0.002356
+     0.8    584658575  +0.002560
+     0.9    580764843  +0.001814
+     1.0    583285720  +0.001617
 ```
 
 `--qbin 10` bins SNPs on an FFT mesh, much faster on data this size and

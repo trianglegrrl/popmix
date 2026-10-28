@@ -112,6 +112,25 @@ pub fn rolloff_py(
         .map(|(c, f)| (weight(c), f.decay))
         .collect();
     let jack = popmix_core::dates::weighted_jackknife(fit.decay, &blocks)?;
+    // the two-pulse check (TASKS.md H8), on the bins of the fitting range
+    let in_range = |b: &RolloffBins| -> Vec<f64> {
+        b.d.iter()
+            .zip(&b.corr)
+            .filter(|(d, _)| (lval..=hval).contains(&(100.0 * **d)))
+            .map(|(_, y)| *y)
+            .collect()
+    };
+    let two = |b: &RolloffBins| popmix_core::dates::fit_two_pulse_values(&in_range(b), binsize);
+    let pulse_check = match (
+        two(&out.bins),
+        out.jackknife.iter().map(two).collect::<Option<Vec<_>>>(),
+    ) {
+        (Some(full), Some(left_out)) if left_out.len() >= 2 => {
+            let weighted: Vec<_> = blocks.iter().map(|b| b.0).zip(left_out).collect();
+            Some(popmix_core::dates::check_pulses(&full, &weighted)?)
+        }
+        _ => None,
+    };
     crate::warnings::emit(|w| {
         popmix_core::warnings::check_chromosomes("ROLLOFF", out.chromosomes.len(), w);
     })?;
@@ -134,6 +153,20 @@ pub fn rolloff_py(
             .collect::<Vec<_>>(),
     )?;
     d.set_item("jackknife", jack)?;
+    match pulse_check {
+        Some(c) => {
+            let p = PyDict::new(py);
+            p.set_item("generations", (c.fit.generations[0], c.fit.generations[1]))?;
+            p.set_item("generations_se", (c.generations_se[0], c.generations_se[1]))?;
+            p.set_item("amplitudes", (c.fit.amplitudes[0], c.fit.amplitudes[1]))?;
+            p.set_item("amplitudes_se", (c.amplitudes_se[0], c.amplitudes_se[1]))?;
+            p.set_item("difference_se", c.difference_se)?;
+            p.set_item("rss", c.fit.rss)?;
+            p.set_item("multiple_pulses", c.multiple_pulses)?;
+            d.set_item("pulse_check", p)?;
+        }
+        None => d.set_item("pulse_check", py.None())?,
+    }
     d.set_item(
         "snp_weights",
         blocks.iter().map(|b| b.0).collect::<Vec<_>>(),

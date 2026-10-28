@@ -56,6 +56,15 @@ popmix rolloff -i aadr_v66p1 --admixed ASW.DG --sources CEU.DG,YRI.DG -o asw
 
 ## Reading the result
 
+The two-pulse check fits A₁·e^(−n₁·d) + A₂·e^(−n₂·d) + K to the same
+bins, with jackknife SEs over chromosomes (JSON `pulse_check`; Python
+`pulse_check`, a `PulseCheck`). Two pulses are reported only when both
+amplitudes and n₂ − n₁ are more than 2 SE from zero: then the single date
+averages admixture at different times. Otherwise one pulse is not
+rejected, which does not show a single pulse: admixture over a short span
+fits one exponential too, and the test has little power with few
+chromosomes. It needs the jackknife.
+
 `decay` is the full-data fit C + A exp(-m d) (m in generations) between 0.5
 and 100 cM; the jackknife over chromosomes gives the estimate and SE to
 report. The decay is bounded to (0, 500]: a value at 500, as in the toy

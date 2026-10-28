@@ -26,6 +26,7 @@ mod compat;
 mod dating;
 mod exponential_fit;
 mod ld_decay;
+mod two_pulse;
 mod weights;
 mod years;
 
@@ -34,5 +35,8 @@ pub use dating::{dates, DatesOptions, DatesResult, JackknifeBlock};
 pub use exponential_fit::{fit_exponential, weighted_jackknife, DecayFit, DecayFitOptions};
 pub use ld_decay::{
     compute_ld_decay, compute_ld_decay_by_chromosome, ChromosomeLd, LdBin, LdDecay, LdOptions,
+};
+pub use two_pulse::{
+    check_pulses, fit_two_pulse, fit_two_pulse_values, PulseCheck, TwoPulseFit, Z_SUPPORT,
 };
 pub use weights::{compute_weights, WeightResult};

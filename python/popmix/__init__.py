@@ -60,6 +60,7 @@ from popmix.errors import (
 _LAZY = {
     "AdmixtureResult": "admixture",
     "DatesResult": "results",
+    "PulseCheck": "results",
     "DecayFit": "results",
     "F4RatioResult": "results",
     "LdBin": "results",
@@ -210,6 +211,7 @@ if TYPE_CHECKING:
         F4RatioResult,
         LdBin,
         PopDropRow,
+        PulseCheck,
         QpAdmResult,
         QpGraphEdge,
         QpGraphF3,
@@ -332,6 +334,7 @@ __all__ = [
     "LdBin",
     "DecayFit",
     "DatesResult",
+    "PulseCheck",
     "QpGraphResult",
     "QpGraphEdge",
     "QpGraphF3",

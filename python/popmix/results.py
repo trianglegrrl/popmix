@@ -287,6 +287,28 @@ class DecayFit:
 
 
 @dataclass(frozen=True)
+class PulseCheck:
+    """Whether two admixture pulses fit the LD decay better than one.
+
+    A₁·e^(−n₁·d) + A₂·e^(−n₂·d) + K fitted to the same bins as the single
+    pulse, with leave-one-chromosome-out jackknife SEs. ``multiple_pulses``
+    is True only when both amplitudes and n₂ − n₁ are more than 2 SEs from
+    zero: then the single date is an average over admixture at different
+    times. False means the curve gives no evidence against one pulse, which
+    is not evidence for one: admixture over a short span fits one
+    exponential too.
+    """
+
+    generations: tuple[float, float]
+    generations_se: tuple[float, float]
+    amplitudes: tuple[float, float]
+    amplitudes_se: tuple[float, float]
+    difference_se: float
+    rss: float
+    multiple_pulses: bool
+
+
+@dataclass(frozen=True)
 class DatesResult:
     """DATES: the date of admixture of ``admixed`` from its two ``sources``.
 
@@ -316,6 +338,8 @@ class DatesResult:
     jackknife_by_chromosome: tuple[tuple[int, float, float], ...]
     ld_bins: tuple[LdBin, ...]
     fit: DecayFit
+    #: The two-pulse check (``PulseCheck``), None without the jackknife.
+    pulse_check: PulseCheck | None = None
 
     def to_ld_dataframe(self):
         """The LD bins as a pandas DataFrame, one row per bin.
@@ -375,6 +399,8 @@ def scored_graph(g) -> ScoredGraph:
 
 
 def dates_result(r) -> DatesResult:
+    check = r.pulse_check
     return _fields(DatesResult, r, ld_bins=tuple(_fields(LdBin, b) for b in r.ld_bins),
                    fit=_fields(DecayFit, r.fit),
+                   pulse_check=None if check is None else _fields(PulseCheck, check),
                    jackknife_by_chromosome=tuple(tuple(j) for j in r.jackknife_by_chromosome))

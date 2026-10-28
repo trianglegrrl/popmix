@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import math
 import textwrap
@@ -40,6 +41,8 @@ def rolloff(input_prefix: str, admixed: str, sources: list, binsize: float, maxd
         m, se = r.decay_jackknife
         click.echo(f"decay {r.decay:.3f} generations; jackknife {m:.3f} +/- {se:.3f} "
                    f"({len(r.chromosomes)} chromosomes, {r.n_snps_used} SNPs)")
+        if r.pulse_check is not None:
+            click.echo(_pulse_line(r.pulse_check))
         if output_prefix:
             r.bins.to_csv(f"{output_prefix}.bins.tsv", sep="\t", index=False, float_format="%.12g")
     except click.ClickException:
@@ -146,6 +149,7 @@ def dates(input_prefix: str, admixed: str, sources: list,
                     "decay_rate": result.fit.decay_rate,
                     "r_squared": result.fit.r_squared,
                 },
+                "pulse_check": None if result.pulse_check is None else dataclasses.asdict(result.pulse_check),
                 "ld_bins": [
                     {
                         "distance_cm": b.distance_cm,
@@ -170,6 +174,8 @@ def dates(input_prefix: str, admixed: str, sources: list,
             click.echo(_date_line(result))
             click.echo(f"Fit R²: {result.fit.r_squared:.4f} (how well one exponential fits; it does not show a "
                        "single pulse)")
+            if result.pulse_check is not None:
+                click.echo(_pulse_line(result.pulse_check))
             click.echo(f"SNPs used: {result.n_snps}")
             click.echo(f"LD bins: {len(result.ld_bins)}")
             click.echo()
@@ -180,3 +186,15 @@ def dates(input_prefix: str, admixed: str, sources: list,
 
     except EXPECTED_ERRORS as e:
         fail(e)
+
+
+def _pulse_line(c: pm.PulseCheck) -> str:
+    """The two-pulse check in a sentence (TASKS.md H8)."""
+    (n1, n2), (s1, s2) = c.generations, c.generations_se
+    if c.multiple_pulses:
+        text = (f"Two pulses: {n1:.1f} ± {s1:.1f} and {n2:.1f} ± {s2:.1f} generations fit better than one; the "
+                "single date averages admixture at different times")
+    else:
+        text = ("One pulse is not rejected: a second exponential is not supported (both amplitudes and the dates' "
+                "difference must clear 2 SE); admixture over a short span fits one too")
+    return textwrap.fill(text, width=79, subsequent_indent="  ")

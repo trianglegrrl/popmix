@@ -106,10 +106,50 @@ pub(crate) struct PyDatesResult {
     ld_bins: Vec<popmix_core::LdBin>,
     fit: popmix_core::DecayFit,
     jackknife: Vec<popmix_core::dates::JackknifeBlock>,
+    pulse_check: Option<popmix_core::dates::PulseCheck>,
+}
+
+/// Whether two pulses fit the LD decay better than one (TASKS.md H8).
+#[pyclass(module = "popmix._core", frozen, skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct PyPulseCheck {
+    /// The two-pulse fit's dates (generations), the more recent first.
+    #[pyo3(get)]
+    generations: (f64, f64),
+    #[pyo3(get)]
+    generations_se: (f64, f64),
+    /// Each term's value at the first fitted bin.
+    #[pyo3(get)]
+    amplitudes: (f64, f64),
+    #[pyo3(get)]
+    amplitudes_se: (f64, f64),
+    /// SE of the difference of the dates.
+    #[pyo3(get)]
+    difference_se: f64,
+    /// Mean squared error of the two-pulse fit.
+    #[pyo3(get)]
+    rss: f64,
+    /// Both amplitudes and the dates' difference more than 2 SEs from 0.
+    #[pyo3(get)]
+    multiple_pulses: bool,
 }
 
 #[pymethods]
 impl PyDatesResult {
+    /// The two-pulse check, or None without the jackknife.
+    #[getter]
+    fn pulse_check(&self) -> Option<PyPulseCheck> {
+        self.pulse_check.map(|c| PyPulseCheck {
+            generations: (c.fit.generations[0], c.fit.generations[1]),
+            generations_se: (c.generations_se[0], c.generations_se[1]),
+            amplitudes: (c.fit.amplitudes[0], c.fit.amplitudes[1]),
+            amplitudes_se: (c.amplitudes_se[0], c.amplitudes_se[1]),
+            difference_se: c.difference_se,
+            rss: c.fit.rss,
+            multiple_pulses: c.multiple_pulses,
+        })
+    }
+
     /// Per-chromosome jackknife blocks as (chromosome, weight, generations),
     /// matching the DATES `.jin` file. Empty if the jackknife did not run.
     #[getter]
@@ -286,6 +326,7 @@ pub(crate) fn dates(
             ld_bins: result.ld_bins,
             fit: result.fit,
             jackknife: result.jackknife_by_chromosome,
+            pulse_check: result.pulse_check,
         })
     })?;
     crate::warnings::emit(|w| {

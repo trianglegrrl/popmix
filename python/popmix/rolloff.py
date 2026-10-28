@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 
 from popmix import _core
+from popmix.results import PulseCheck
 
 
 @dataclass
@@ -39,6 +40,8 @@ class RolloffResult:
     chromosomes: list[str]
     n_snps_used: int
     jackknife_bins: list[pd.DataFrame] = field(default_factory=list)
+    #: Whether two pulses fit better than one (``popmix.PulseCheck``).
+    pulse_check: PulseCheck | None = None
 
 
 def _frame(b: dict) -> pd.DataFrame:
@@ -104,4 +107,5 @@ def rolloff(
     c, a, m = r["fit"]
     return RolloffResult(bins=_frame(r["bins"]), decay=m, affine=c, amplitude=a, decay_jackknife=tuple(r["jackknife"]),
                          chromosomes=list(r["chromosomes"]), n_snps_used=r["n_snps_used"],
-                         jackknife_bins=[_frame(b) for b in r["jackknife_bins"]])
+                         jackknife_bins=[_frame(b) for b in r["jackknife_bins"]],
+                         pulse_check=None if r["pulse_check"] is None else PulseCheck(**r["pulse_check"]))

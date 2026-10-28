@@ -12,7 +12,8 @@ use rayon::prelude::*;
 
 use super::compat::DatesCompat;
 use super::exponential_fit::{fit_exponential, weighted_jackknife, DecayFit, DecayFitOptions};
-use super::ld_decay::{compute_ld_decay_by_chromosome, LdBin, LdOptions};
+use super::ld_decay::{compute_ld_decay_by_chromosome, LdBin, LdDecay, LdOptions};
+use super::two_pulse::{check_pulses, fit_two_pulse, PulseCheck, TwoPulseFit};
 use super::weights::{compute_weights, WeightResult};
 use super::years::years_bp;
 use crate::error::{PopmixError, Result};
@@ -101,6 +102,9 @@ pub struct DatesResult {
     /// Mean observed alleles per SNP used, in source1 and source2.
     pub source_alleles: [f64; 2],
     pub jackknife_by_chromosome: Vec<JackknifeBlock>,
+    /// Whether two pulses fit better than one (`two_pulse`, TASKS.md H8);
+    /// None without the jackknife, or when the two-pulse fit fails.
+    pub pulse_check: Option<PulseCheck>,
 }
 
 /// `x` rounded to `decimals` decimals, as `printf("%.*f")` prints it.
@@ -225,6 +229,11 @@ pub fn dates(
     } else {
         (fit.decay_rate, f64::NAN, Vec::new())
     };
+    let pulse_check = if opts.run_jackknife {
+        pulse_check(&ld, &opts.fit_options)?
+    } else {
+        None
+    };
 
     let autosomes: std::collections::BTreeSet<_> = geno
         .snps()
@@ -256,7 +265,25 @@ pub fn dates(
         n_chromosomes: autosomes.len(),
         source_alleles,
         jackknife_by_chromosome: blocks,
+        pulse_check,
     })
+}
+
+/// The two-pulse check of `ld`: the full fit and one per chromosome left
+/// out, or None if any of them fails.
+fn pulse_check(ld: &LdDecay, options: &DecayFitOptions) -> Result<Option<PulseCheck>> {
+    let Some(full) = fit_two_pulse(&ld.bins, options) else {
+        return Ok(None);
+    };
+    let left_out: Option<Vec<(f64, TwoPulseFit)>> = ld
+        .chromosomes
+        .par_iter()
+        .map(|c| fit_two_pulse(&c.leave_one_out, options).map(|f| (c.n_snps as f64, f)))
+        .collect();
+    match left_out {
+        Some(l) if l.len() >= 2 => Ok(Some(check_pulses(&full, &l)?)),
+        _ => Ok(None),
+    }
 }
 
 #[cfg(test)]

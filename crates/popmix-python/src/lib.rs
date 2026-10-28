@@ -210,6 +210,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyLdBin>()?;
     m.add_class::<PyDecayFit>()?;
     m.add_class::<PyDatesResult>()?;
+    m.add_class::<dates::PyPulseCheck>()?;
 
     // Add version as module attribute
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
