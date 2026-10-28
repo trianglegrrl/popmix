@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 
 from popmix import _core
+from popmix._names import names
 
 
 @dataclass
@@ -139,7 +140,7 @@ def sfs(
     -------
     Sfs
     """
-    pops = list(populations)
+    pops = names(populations)
     r = _core.projected_sfs(os.fspath(prefix), pops, list(projection or []), folded, auto_only, pseudohaploid)
     return Sfs(pops=pops, data=np.asarray(r["data"]), mask=np.asarray(r["mask"]), folded=folded,
                not_integer=r["not_integer"])
@@ -181,7 +182,7 @@ def joint_sfs(
         One column per population and ``n``. ``df.attrs`` holds n_snps,
         in_sfs, missing and not_integer.
     """
-    pops = list(populations)
+    pops = names(populations)
     r = _core.joint_sfs(os.fspath(prefix), pops, compat, auto_only)
     data = np.asarray(r["data"])
     grid = list(itertools.product(*(range(d) for d in data.shape)))

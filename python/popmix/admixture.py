@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 
 from popmix import _core
+from popmix._names import names
 
 
 @dataclass
@@ -115,7 +116,7 @@ def admixture(
         populations = [p for p, _ in _core.list_populations(os.fspath(prefix)) if p != "Ignore"]
     chroms = None if chromosomes is None else [str(c) for c in chromosomes]
     p = None if fixed_p is None else np.ascontiguousarray(fixed_p, dtype=float)
-    r = _core.admixture(os.fspath(prefix), k, list(populations), None if supervised is None else list(supervised),
+    r = _core.admixture(os.fspath(prefix), k, names(populations), None if supervised is None else list(supervised),
                         p, cv, chroms, None if snps is None else list(snps), seed, tolerance, max_iterations)
     q = np.asarray(r["Q"])
     df = pd.DataFrame({"id": r["ids"], "pop": r["pops"]})
@@ -162,5 +163,5 @@ def admixture_loglik(
     if populations is None:
         populations = [pp for pp, _ in _core.list_populations(os.fspath(prefix)) if pp != "Ignore"]
     chroms = None if chromosomes is None else [str(c) for c in chromosomes]
-    return _core.admixture_loglik(os.fspath(prefix), list(populations), np.ascontiguousarray(q, dtype=float),
+    return _core.admixture_loglik(os.fspath(prefix), names(populations), np.ascontiguousarray(q, dtype=float),
                                   np.ascontiguousarray(p, dtype=float), chroms, None if snps is None else list(snps))

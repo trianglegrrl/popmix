@@ -22,6 +22,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from popmix import _core
+from popmix._names import names
 from popmix.errors import MissingFileError
 from popmix.rds import matrix, read_rds, write_rds
 
@@ -56,7 +57,7 @@ def read_admixtools2_f2(f2_dir: str | os.PathLike, populations: Sequence[str] | 
         (the stored fraction times the block length).
     """
     f2_dir = os.fspath(f2_dir)
-    pops = list(populations) if populations is not None else sorted(
+    pops = names(populations) if populations is not None else sorted(
         d for d in os.listdir(f2_dir) if os.path.isdir(os.path.join(f2_dir, d)))
     lengths_file = os.path.join(f2_dir, "block_lengths_f2.rds")
     if not os.path.exists(lengths_file):
@@ -144,7 +145,7 @@ def extract_f2_subset(f2_blocks: _core.F2Blocks, populations: Sequence[str]) -> 
     F2Blocks
         f2 blocks of ``populations`` only.
     """
-    return f2_blocks.subset(list(populations))
+    return f2_blocks.subset(names(populations))
 
 
 def read_f2_populations(path: str | os.PathLike) -> list[str]:

@@ -12,6 +12,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from popmix import _core
+from popmix._names import names
 
 METHODS = ("stepwise", "exhaustive")
 
@@ -47,5 +48,5 @@ def find_graphs(f2_blocks: _core.F2Blocks, populations: Sequence[str], *, nadmix
 
     if method not in METHODS:
         raise InputError(f"method must be one of {', '.join(METHODS)}, not {method!r}")
-    graphs, n_evaluated = _core.find_graphs(f2_blocks, list(populations), nadmix, outgroup, method, **kwargs)
+    graphs, n_evaluated = _core.find_graphs(f2_blocks, names(populations), nadmix, outgroup, method, **kwargs)
     return [scored_graph(g) for g in graphs], n_evaluated

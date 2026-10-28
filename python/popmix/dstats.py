@@ -427,7 +427,7 @@ def outgroup_f3_matrix(
     pandas.DataFrame
         Symmetric matrix indexed by ``populations``.
     """
-    pops = list(populations)
+    pops = _as_list(populations)
     pairs = [(a, b) for i, a in enumerate(pops) for b in pops[i:]]
     rows = _f3_rows(data, [(outgroup, a, b) for a, b in pairs], outgroupmode=True, apply_corr=apply_corr,
                     block_size=block_size, auto_only=auto_only, pseudohaploid=pseudohaploid)
@@ -477,7 +477,7 @@ def dstat_matrix(
     """
     if (pop1 is None) == (pop3 is None) or (pop1 is None) != (pop2 is None) or (pop3 is None) != (pop4 is None):
         raise ValueError("give pop1 and pop2, or pop3 and pop4")
-    pops = list(populations)
+    pops = _as_list(populations)
     pairs = [(a, b) for i, a in enumerate(pops) for b in pops[i + 1:]]
     combs = [(a, b, pop3, pop4) if pop3 is not None else (pop1, pop2, a, b) for a, b in pairs]
     if _is_prefix(data):

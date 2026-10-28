@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 
 from popmix import _core
+from popmix._names import names
 from popmix.results import PulseCheck
 
 
@@ -102,7 +103,7 @@ def rolloff(
     RolloffResult
     """
     chroms = None if chromosomes is None else [str(c) for c in chromosomes]
-    r = _core.rolloff(os.fspath(prefix), admixed, list(sources), binsize, maxdis, runmode, zdipcorr, chithresh,
+    r = _core.rolloff(os.fspath(prefix), admixed, names(sources), binsize, maxdis, runmode, zdipcorr, chithresh,
                       mincount, minparentcount, chroms, lval, hval)
     c, a, m = r["fit"]
     return RolloffResult(bins=_frame(r["bins"]), decay=m, affine=c, amplitude=a, decay_jackknife=tuple(r["jackknife"]),

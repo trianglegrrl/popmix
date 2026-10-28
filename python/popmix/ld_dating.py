@@ -6,6 +6,7 @@ import os
 from collections.abc import Sequence
 
 from popmix import _core
+from popmix._names import names
 from popmix.results import DatesResult, dates_result
 
 
@@ -59,7 +60,7 @@ def dates(prefix: str | os.PathLike[str], admixed: str, sources: Sequence[str], 
         Generations since admixture with SE, the LD bins and the fit.
     """
     return dates_result(_core.dates(
-        os.fspath(prefix), admixed, list(sources), generation_time=generation_time,
+        os.fspath(prefix), admixed, names(sources), generation_time=generation_time,
         generation_time_se=generation_time_se, sample_age=sample_age, sample_age_se=sample_age_se,
         min_distance_cm=min_distance_cm, max_distance_cm=max_distance_cm,
         bin_width_cm=bin_width_cm, jackknife=jackknife, qbin=qbin, compat=compat))

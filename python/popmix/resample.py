@@ -27,6 +27,7 @@ import numpy as np
 import pandas as pd
 
 from popmix import _core
+from popmix._names import names
 from popmix.dstats import qp3pop, qpdstat
 
 
@@ -99,14 +100,14 @@ def _run(fun: Callable[[Any], dict], data: Sequence, sel: Sequence) -> pd.DataFr
 
 def _qpadm_fit(target, left, right, args):
     def fit(d):
-        r = _core.qpadm(d, list(left), list(right), target, **args)
+        r = _core.qpadm(d, names(left), names(right), target, **args)
         return {"weights": list(r.weights), "chisq": r.chisq, "p": r.p, "result": r}
     return fit
 
 
 def _qpwave_fit(left, right, args):
     def fit(d):
-        r = _core.qpwave(d, list(left), list(right), **args)
+        r = _core.qpwave(d, names(left), names(right), **args)
         rankdrop = [{"f4rank": t.rank, "dof": t.dof, "chisq": t.chisq, "p": t.p}
                     for t in sorted(r.rank_tests, key=lambda t: -t.rank) if t.rank < len(left) - 1]
         return {"rankdrop": rankdrop, "result": r}

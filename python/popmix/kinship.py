@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from popmix import _core
+from popmix._names import names
 
 if TYPE_CHECKING:
     import numpy as np
@@ -50,7 +51,7 @@ def king_columns(
     """The columns of :func:`king`, as a dict of lists and arrays (no pandas)."""
     if populations is None:
         populations = [p for p, _ in _core.list_populations(os.fspath(prefix)) if p != "Ignore"]
-    return _core.king(os.fspath(prefix), list(populations))
+    return _core.king(os.fspath(prefix), names(populations))
 
 
 def king_tsv(prefix: str | os.PathLike[str], populations: Sequence[str] | None = None) -> str:
@@ -58,7 +59,7 @@ def king_tsv(prefix: str | os.PathLike[str], populations: Sequence[str] | None =
     command's fast path: no numpy, no loop over the pairs in Python)."""
     if populations is None:
         populations = [p for p, _ in _core.list_populations(os.fspath(prefix)) if p != "Ignore"]
-    return _core.king_tsv(os.fspath(prefix), list(populations))
+    return _core.king_tsv(os.fspath(prefix), names(populations))
 
 
 def read_kinship(
@@ -123,7 +124,7 @@ def read_kinship(
     """
     if populations is None:
         populations = [p for p, _ in _core.list_populations(os.fspath(prefix)) if p != "Ignore"]
-    out = _core.read_kinship(os.fspath(prefix), list(populations), norm, norm_value, window_size,
+    out = _core.read_kinship(os.fspath(prefix), names(populations), norm, norm_value, window_size,
                              window_estimate, thresholds, compat, auto_only)
     norm_used = out.pop("norm_value")
     import pandas as pd

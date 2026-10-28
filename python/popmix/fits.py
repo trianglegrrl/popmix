@@ -6,6 +6,7 @@ import os
 from collections.abc import Sequence
 
 from popmix import _core
+from popmix._names import names
 from popmix.errors import InputError
 from popmix.results import (
     F4RatioResult,
@@ -66,10 +67,10 @@ def qpwave(f2_blocks: _core.F2Blocks | str | os.PathLike[str], left: Sequence[st
     """
     prefix = _genotypes(f2_blocks)
     if prefix is not None:
-        return qpwave_result(_core.qpwave_geno(prefix, list(left), list(right), fudge=fudge, alpha=alpha,
+        return qpwave_result(_core.qpwave_geno(prefix, names(left), names(right), fudge=fudge, alpha=alpha,
                                                block_size=block_size, auto_only=auto_only,
                                                pseudohaploid=pseudohaploid))
-    return qpwave_result(_core.qpwave(f2_blocks, list(left), list(right), fudge=fudge, alpha=alpha))
+    return qpwave_result(_core.qpwave(f2_blocks, names(left), names(right), fudge=fudge, alpha=alpha))
 
 
 def qpadm(f2_blocks: _core.F2Blocks | str | os.PathLike[str], left: Sequence[str], right: Sequence[str],
@@ -119,10 +120,10 @@ def qpadm(f2_blocks: _core.F2Blocks | str | os.PathLike[str], left: Sequence[str
     prefix = _genotypes(f2_blocks)
     geno = _genotype_options(prefix, allsnps, block_size, auto_only, pseudohaploid)
     if prefix is not None:
-        r, n_blocks, n_snps = _core.qpadm_geno(prefix, list(left), list(right), target, constrained=constrained,
+        r, n_blocks, n_snps = _core.qpadm_geno(prefix, names(left), names(right), target, constrained=constrained,
                                                fudge=fudge, compat=compat, **geno)
         return qpadm_result(r, right=right, counts=(n_blocks, n_snps))
-    return qpadm_result(_core.qpadm(f2_blocks, list(left), list(right), target,
+    return qpadm_result(_core.qpadm(f2_blocks, names(left), names(right), target,
                                     constrained=constrained, fudge=fudge, compat=compat), f2_blocks, right)
 
 

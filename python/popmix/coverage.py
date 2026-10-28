@@ -15,6 +15,7 @@ from collections.abc import Sequence
 import pandas as pd
 
 from popmix import _core
+from popmix._names import names
 
 
 def sample_coverage(prefix: str | os.PathLike[str], populations: Sequence[str] | None = None, *,
@@ -41,7 +42,7 @@ def sample_coverage(prefix: str | os.PathLike[str], populations: Sequence[str] |
         the first 1,000 SNPs, as admixtools2).
     """
     prefix = os.fspath(prefix)
-    pops = list(populations) if populations is not None else \
+    pops = names(populations) if populations is not None else \
         [p for p, _ in _core.list_populations(prefix) if p != "Ignore"]
     rows, n_snps = _core.sample_calls(prefix, pops, auto_only=auto_only)
     df = pd.DataFrame(rows, columns=["id", "pop", "snps_called", "heterozygous"])
