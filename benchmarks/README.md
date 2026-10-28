@@ -27,6 +27,7 @@ entry at atol 1e-15 + rtol 1e-10.
 | Case | Reference |
 |------|-----------|
 | `convertf` | AdmixTools 8.0.2 convertf, packed to EIGENSTRAT |
+| `convertf_aadr` | AdmixTools 8.0.2 convertf, the whole of AADR v66.p1 (TGENO, 23,089 x 1,233,013) to PACKEDANCESTRYMAP; the files must be byte-identical |
 | `extract_f2` | admixtools2 2.0.10 `f2_from_geno` |
 | `qpadm` | admixtools2 2.0.10 `qpadm` on `f2_from_geno` blocks |
 | `qpdstat` | admixtools2 2.0.10 `qpdstat` |

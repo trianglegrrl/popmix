@@ -36,3 +36,21 @@ def test_a_scaling_point_reuses_its_reference(tmp_path):
     got = scaling.reused_reference(earlier, "samples", "pca:1000", tmp_path)
     assert got == {"0": {"wall_s": 1, "reused_from": "2026-10-25"}}
     assert json.dumps(got)
+
+
+def test_outputs_that_differ_only_in_provenance_digest_the_same(tmp_path):
+    # the provenance records the thread count, path and time of each run
+    a, b = tmp_path / "a", tmp_path / "b"
+    for d, threads in ((a, 1), (b, 4)):
+        d.mkdir()
+        (d / "out.geno").write_bytes(b"GENO")
+        (d / "out.provenance.json").write_text(json.dumps({"threads": threads}))
+    assert run._digest(a) == run._digest(b)
+
+
+def test_outputs_with_different_data_digest_differently(tmp_path):
+    a, b = tmp_path / "a", tmp_path / "b"
+    for d, body in ((a, b"GENO1"), (b, b"GENO2")):
+        d.mkdir()
+        (d / "out.geno").write_bytes(body)
+    assert run._digest(a) != run._digest(b)

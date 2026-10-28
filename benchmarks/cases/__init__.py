@@ -18,6 +18,7 @@ from .classic import (
 from .dating import DATES_CASE, ROLLOFF_CASE
 from .fstats import (
     _R_F2,
+    CONVERTF_AADR_CASE,
     CONVERTF_CASE,
     F2_CASE,
     QPADM_CASE,
@@ -61,7 +62,7 @@ __all__ = [
     "subset",
 ]
 
-CASES = {c.name: c for c in (CONVERTF_CASE, F2_CASE, QPADM_CASE, PCA_CASE, KING_CASE, QPGRAPH_CASE,
+CASES = {c.name: c for c in (CONVERTF_CASE, CONVERTF_AADR_CASE, F2_CASE, QPADM_CASE, PCA_CASE, KING_CASE, QPGRAPH_CASE,
                              QPDSTAT_CASE, ADMIXTURE_CASE, ROLLOFF_CASE, DATES_CASE, READ_CASE,
                              CLASSIC_QPDSTAT_CASE, CLASSIC_QP3POP_CASE, CLASSIC_QPADM_CASE, CLASSIC_QPGRAPH_CASE,
                              ROTATE_CASE, FIND_GRAPHS_CASE, RESAMPLE_CASE)}

@@ -67,6 +67,9 @@ class Case:
     ref: Callable[[Path, Path], list[str]]  # (input, outdir) -> argv
     agree: Callable[[Path, Path], dict]  # (popmix outdir, reference outdir) -> agreement
     prepare: Callable[[], Path] = subset
+    # an unmeasured run first to warm the page cache; off where one run of
+    # the reference takes hours and reading its input seconds
+    reference_warmup: bool = True
 
 
 def _eigenstrat_rows(prefix: Path) -> dict[str, tuple[str, str, str]]:

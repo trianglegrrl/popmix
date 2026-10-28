@@ -33,7 +33,9 @@ from harness import machine, measure  # noqa: E402
 
 def _digest(directory: Path) -> str:
     h = hashlib.sha256()
-    for path in sorted(p for p in directory.rglob("*") if p.is_file() and p.suffix not in (".par", ".R", ".log")):
+    # what a run produced, not how: inputs, logs and popmix's provenance (threads, time) left out
+    for path in sorted(p for p in directory.rglob("*") if p.is_file() and p.suffix not in (".par", ".R", ".log")
+                       and not p.name.endswith(".provenance.json")):
         h.update(path.name.encode())
         h.update(path.read_bytes())
     return h.hexdigest()
@@ -96,7 +98,8 @@ def main() -> None:
         else:
             print(f"{name}: reference ({case.reference})", flush=True)
             ref_dir = _fresh(work / "reference")
-            ref_runs = measure(case.ref(source, ref_dir), ref_dir, args.repeats, log=ref_dir / "run.log").summary()
+            ref_runs = measure(case.ref(source, ref_dir), ref_dir, args.repeats, log=ref_dir / "run.log",
+                               warmup=case.reference_warmup).summary()
         result = {"analysis": case.analysis, "reference": case.reference,
                   "reference_runs": ref_runs, "popmix": {}}
         digests = {}

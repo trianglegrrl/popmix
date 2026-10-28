@@ -8,6 +8,7 @@ from pathlib import Path
 import numpy as np
 
 from ._common import (
+    AADR,
     CONVERTF,
     POPS,
     QPADM,
@@ -33,6 +34,38 @@ CONVERTF_CASE = Case(
                             "-of", "eigenstrat"],
     ref=lambda i, o: [CONVERTF, "-p", str(_convertf_par(i, o / "out", "EIGENSTRAT"))],
     agree=_agree_convertf,
+)
+
+
+def _same_bytes(a: Path, b: Path) -> bool:
+    """Compared a block at a time (filecmp caches by size and mtime)."""
+    if a.stat().st_size != b.stat().st_size:
+        return False
+    with open(a, "rb") as fa, open(b, "rb") as fb:
+        while block := fa.read(64 << 20):
+            if block != fb.read(len(block)):
+                return False
+    return True
+
+
+def _agree_same_files(ours: Path, theirs: Path) -> dict:
+    """The same .geno, .snp and .ind, byte for byte (popmix writes AdmixTools' headers)."""
+    differ = [ext for ext in ("geno", "snp", "ind") if not _same_bytes(ours / f"out.{ext}", theirs / f"out.{ext}")]
+    return {"bytes": (ours / "out.geno").stat().st_size, "differing_files": differ, "pass": not differ}
+
+
+# the whole of AADR v66.p1 (23,089 samples x 1,233,013 SNPs), as it is
+# distributed (TGENO), to PACKEDANCESTRYMAP: read in place a part at a time (P4)
+CONVERTF_AADR_CASE = Case(
+    name="convertf_aadr", analysis="AADR v66.p1 TGENO to PACKEDANCESTRYMAP, 23,089 x 1.23M",
+    reference="AdmixTools 8.0.2 convertf",
+    popmix=lambda i, o, t: ["popmix", "--threads", str(t), "convertf", "-i", str(i), "-o", str(o / "out"),
+                            "-of", "packedancestrymap"],
+    ref=lambda i, o: [CONVERTF, "-p", str(_convertf_par(i, o / "out", "PACKEDANCESTRYMAP"))],
+    agree=_agree_same_files,
+    prepare=lambda: AADR,
+    # convertf takes about two hours here
+    reference_warmup=False,
 )
 
 

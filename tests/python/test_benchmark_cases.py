@@ -56,3 +56,14 @@ def test_stochastic_reference_scripts_take_the_seed():
     qp = cases._R_QPGRAPH
     assert "seed = as.integer(a[4])" in qp
     assert "set.seed(as.integer(a[5]))" in cases._R_FIND_GRAPHS
+
+
+def test_convertf_aadr_agrees_only_on_the_same_bytes(tmp_path):
+    ours, theirs = tmp_path / "ours", tmp_path / "theirs"
+    for d in (ours, theirs):
+        d.mkdir()
+        for ext in ("geno", "snp", "ind"):
+            (d / f"out.{ext}").write_bytes(b"GENO 1 1")
+    assert cases.CASES["convertf_aadr"].agree(ours, theirs)["pass"] is True
+    (theirs / "out.geno").write_bytes(b"GENO 1 2")
+    assert cases.CASES["convertf_aadr"].agree(ours, theirs)["differing_files"] == ["geno"]
