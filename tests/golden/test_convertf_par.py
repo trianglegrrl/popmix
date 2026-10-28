@@ -18,6 +18,8 @@ import pytest
 
 import popmix as pm
 
+from .genotype_letters import letters
+
 ROOT = Path(__file__).parents[1].parent
 SMALL = ROOT / "tests" / "golden" / "dates" / "family_chr20_22"
 CONVERTF = os.environ.get("POPMIX_CONVERTF",
@@ -67,15 +69,19 @@ def same(d: Path, fmt: str | None) -> None:
             assert lines(f"ours.{ext}") == lines(f"ref.{ext}"), ext
         return
     a, b = pm.read_genotypes(str(d / "ours")), pm.read_genotypes(str(d / "ref"))
-    # convertf's .fam has a family number where popmix writes the population
-    key = (lambda s: s.id) if fmt == "PACKEDPED" else (lambda s: (s.id, s.population))
+    # convertf's .fam and .pedind have a family number where popmix writes the population
+    key = (lambda s: s.id) if fmt in ("PACKEDPED", "PED") else (lambda s: (s.id, s.population))
     assert [key(s) for s in a.samples] == [key(s) for s in b.samples]
     assert [(s.id, s.chromosome, s.position_bp) for s in a.snps] == [(s.id, s.chromosome, s.position_bp)
                                                                       for s in b.snps]
-    np.testing.assert_array_equal(a.to_numpy(), b.to_numpy())
+    if fmt == "PED":
+        # convertf's .map has no alleles
+        np.testing.assert_array_equal(letters(a), letters(b))
+    else:
+        np.testing.assert_array_equal(a.to_numpy(), b.to_numpy())
 
 
-@pytest.mark.parametrize("fmt", [None, "EIGENSTRAT", "PACKEDPED", "ANCESTRYMAP", "TRANSPOSE_PACKED"])
+@pytest.mark.parametrize("fmt", [None, "EIGENSTRAT", "PACKEDPED", "PED", "ANCESTRYMAP", "TRANSPOSE_PACKED"])
 def test_populations_and_bad_snps(inputs, fmt):
     d = run_both(inputs, fmt, {"poplistname": str(inputs / "pops.txt"), "badsnpname": str(inputs / "bad.snp")})
     same(d, fmt)

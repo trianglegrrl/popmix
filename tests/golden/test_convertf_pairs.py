@@ -23,6 +23,8 @@ import pytest
 
 import popmix as pm
 
+from .genotype_letters import letters
+
 SMALL = Path(__file__).parent / "dates" / "family_chr20_22"
 CONVERTF = os.environ.get("POPMIX_CONVERTF",
                           str(Path.home() / ".local/share/popmix-references/admixtools-8.0.2/bin/convertf"))
@@ -57,18 +59,6 @@ def inputs(tmp_path_factory) -> Path:
     return d
 
 
-def _letters(g) -> np.ndarray:
-    """Each genotype as its two alleles, in sorted order ("" when missing)."""
-    codes = g.to_numpy()
-    first = np.array([s.allele_ref for s in g.snps])[:, None]
-    second = np.array([s.allele_alt for s in g.snps])[:, None]
-    swap = first > second
-    lo, hi = np.where(swap, second, first), np.where(swap, first, second)
-    het = np.char.add(lo, hi)
-    return np.select([codes == 2, codes == 1, codes == 0],
-                     [np.char.add(first, first), np.broadcast_to(het, codes.shape), np.char.add(second, second)], "")
-
-
 def _iid(sample_id: str) -> str:
     return sample_id.split(":", 1)[1]
 
@@ -83,7 +73,7 @@ def _same(ours: Path, theirs: Path, src_fmt: str, out_fmt: str) -> None:
         assert [(s.id, s.population) for s in a.samples] == [(s.id, s.population) for s in b.samples]
     assert [(s.id, s.chromosome, s.position_bp) for s in a.snps] == \
         [(s.id, s.chromosome, s.position_bp) for s in b.snps]
-    np.testing.assert_array_equal(_letters(a), _letters(b))
+    np.testing.assert_array_equal(letters(a), letters(b))
 
 
 @pytest.mark.parametrize(("src_fmt", "out_fmt"), list(itertools.product(FORMATS, FORMATS)))

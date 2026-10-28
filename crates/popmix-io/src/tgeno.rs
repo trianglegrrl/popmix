@@ -44,6 +44,7 @@ pub struct TgenoReader {
     snps: Vec<Snp>,
     record_len: usize,
     geno: Mmap,
+    path: std::path::PathBuf,
 }
 
 impl TgenoReader {
@@ -84,6 +85,7 @@ impl TgenoReader {
             snps,
             record_len,
             geno,
+            path: geno_path,
         })
     }
 
@@ -115,14 +117,48 @@ impl TgenoReader {
         }
         let mut data = Array2::<u8>::zeros((snps.len(), indices.len()));
         for (col, &sample) in indices.iter().enumerate() {
-            let start = HEADER_LEN + sample * self.record_len;
-            let record = &self.geno[start..start + self.record_len];
+            let record = self.record(sample);
             for (row, snp) in snps.clone().enumerate() {
                 data[[row, col]] = (record[snp / 4] >> (6 - 2 * (snp % 4))) & 0b11;
             }
         }
         let samples = indices.iter().map(|&i| self.samples[i].clone()).collect();
         GenotypeMatrix::new(data, samples, self.snps[snps].to_vec())
+    }
+
+    /// The .geno file.
+    pub fn geno_path(&self) -> &Path {
+        &self.path
+    }
+
+    /// The length of a sample's record: ceil(n_snps / 4) bytes.
+    pub fn record_len(&self) -> usize {
+        self.record_len
+    }
+
+    /// Let the kernel drop the mapped pages of the records before `sample`,
+    /// so that records read once, in order, do not stay resident (TASKS.md
+    /// P4); a page read again comes back from the file. A no-op off Unix.
+    pub fn release_before(&self, sample: usize) {
+        #[cfg(unix)]
+        {
+            let end = (HEADER_LEN + sample * self.record_len).min(self.geno.len());
+            // SAFETY: a read-only file mapping: dropped pages are read again
+            // from the file, which popmix assumes unchanged while it is open
+            let _ = unsafe {
+                self.geno
+                    .unchecked_advise_range(memmap2::UncheckedAdvice::DontNeed, 0, end)
+            };
+        }
+        #[cfg(not(unix))]
+        let _ = sample;
+    }
+
+    /// The packed record of `sample`: 2 bits per SNP, first SNP in the high
+    /// bits.
+    pub fn record(&self, sample: usize) -> &[u8] {
+        let start = HEADER_LEN + sample * self.record_len;
+        &self.geno[start..start + self.record_len]
     }
 
     /// Every sample's genotypes.

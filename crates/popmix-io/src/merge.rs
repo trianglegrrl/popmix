@@ -440,19 +440,18 @@ impl crate::writers::SampleGenotypes for MergedRows<'_> {
         let (out_a, out_b) = out.split_at_mut((split - samples.start) * n_snps);
         let snps = self.snps;
         if split > samples.start {
+            let of_a: Vec<usize> = (samples.start..split).collect();
             self.a
-                .fill_samples_of(samples.start..split, n_snps, out_a, &|j| {
-                    (snps[j].file_a_idx, false)
-                });
+                .fill_samples_of(&of_a, n_snps, out_a, &|j| (snps[j].file_a_idx, false));
         }
         if samples.end > split {
-            self.b
-                .fill_samples_of(split - na..samples.end - na, n_snps, out_b, &|j| {
-                    (
-                        snps[j].file_b_idx,
-                        snps[j].allele_match == AlleleMatch::Flipped,
-                    )
-                });
+            let of_b: Vec<usize> = (split - na..samples.end - na).collect();
+            self.b.fill_samples_of(&of_b, n_snps, out_b, &|j| {
+                (
+                    snps[j].file_b_idx,
+                    snps[j].allele_match == AlleleMatch::Flipped,
+                )
+            });
         }
     }
 }

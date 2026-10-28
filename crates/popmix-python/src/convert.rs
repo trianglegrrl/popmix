@@ -2,6 +2,7 @@
 //! streamed from inputs read in place where the formats allow, and the
 //! mapped-input helpers the other readers share.
 
+use popmix_io::sample_subset::{Source, SubsetSamples};
 use popmix_io::subset::Subset;
 use std::collections::HashMap;
 
@@ -224,28 +225,76 @@ fn convertf_streamed(
     if !written_streamed(out_format) {
         return Ok(None);
     }
-    let whole = subset.keeps_all_samples() && subset.keeps_all_snps();
-    // sample-major output of a part: through a matrix of that part
-    if by_samples(out_format) && !whole {
-        return Ok(None);
+    if in_format == GenoFormat::Tgeno {
+        return convertf_tgeno(
+            output_prefix,
+            TgenoReader::new(input_prefix)?,
+            out_format,
+            subset,
+        )
+        .map(Some);
     }
     let Some((file, samples, snps)) = mapped_input(input_prefix, in_format)? else {
         return Ok(None);
     };
-    if by_samples(out_format) {
-        write_samples(out_format, output_prefix, &samples, &snps, &file)?;
-        return Ok(Some((samples.len(), snps.len())));
-    }
     let (kept, samples) = subset.samples(&samples)?;
     let keep = subset.snps(&snps)?;
-    let snps: Vec<Snp> = snps
-        .into_iter()
-        .zip(&keep)
-        .filter_map(|(s, &k)| k.then_some(s))
-        .collect();
+    let snps = kept_snps(&snps, &keep);
+    if by_samples(out_format) {
+        let part = SubsetSamples {
+            source: Source::SnpMajor(&file),
+            samples: kept,
+            snps: kept_indices(&keep),
+        };
+        write_samples(out_format, output_prefix, &samples, &snps, &part)?;
+        return Ok(Some((samples.len(), snps.len())));
+    }
     let mut rows = popmix_io::SnpMajorRows::from_file(file, keep, kept)?;
     write_rows(out_format, output_prefix, &samples, &snps, &mut rows)?;
     Ok(Some((samples.len(), snps.len())))
+}
+
+/// The SNPs `keep` marks.
+fn kept_snps(snps: &[Snp], keep: &[bool]) -> Vec<Snp> {
+    snps.iter()
+        .zip(keep)
+        .filter(|(_, &k)| k)
+        .map(|(s, _)| s.clone())
+        .collect()
+}
+
+/// The indices of the SNPs `keep` marks.
+fn kept_indices(keep: &[bool]) -> Vec<usize> {
+    keep.iter()
+        .enumerate()
+        .filter(|(_, &k)| k)
+        .map(|(i, _)| i)
+        .collect()
+}
+
+/// [`convertf_streamed`] from TGENO, read in place a part at a time
+/// (`popmix_io::tgeno_stream`): the sample and SNP counts.
+fn convertf_tgeno(
+    output_prefix: &str,
+    reader: TgenoReader,
+    out_format: GenoFormat,
+    subset: &Subset,
+) -> PyResult<(usize, usize)> {
+    let (kept, samples) = subset.samples(reader.samples())?;
+    let keep = subset.snps(reader.snps())?;
+    let snps = kept_snps(reader.snps(), &keep);
+    if by_samples(out_format) {
+        let part = SubsetSamples {
+            source: Source::Tgeno(&reader),
+            samples: kept,
+            snps: kept_indices(&keep),
+        };
+        write_samples(out_format, output_prefix, &samples, &snps, &part)?;
+        return Ok((samples.len(), snps.len()));
+    }
+    let mut rows = popmix_io::TgenoRows::new(reader, keep, kept)?;
+    write_rows(out_format, output_prefix, &samples, &snps, &mut rows)?;
+    Ok((samples.len(), snps.len()))
 }
 
 /// `convertf`'s work: the sample and SNP counts and both formats.
@@ -267,8 +316,9 @@ fn convertf_files(
     // Parse output format
     let out_format = output_format.parse::<GenoFormat>()?;
 
-    // From a packed .geno or a PLINK .bed to a format written SNP by SNP:
-    // stream, without holding the genotypes in memory
+    // From a file read in place (packed, PLINK .bed, text EIGENSTRAT,
+    // TGENO, VCF) to any format: stream, without holding the genotypes in
+    // memory. PED and ANCESTRYMAP input are read whole, below.
     if let Some(done) =
         convertf_streamed(input_prefix, output_prefix, in_format, out_format, subset)?
     {

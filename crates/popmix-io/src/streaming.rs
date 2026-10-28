@@ -333,6 +333,24 @@ impl SnpMajor {
         self.n_samples
     }
 
+    /// Let the kernel drop the mapped pages of the records before SNP
+    /// `snp`, so that a file read once, in order, does not stay resident
+    /// (TASKS.md P4); a page read again comes back from the file. A no-op
+    /// for bytes held in memory, and off Unix.
+    pub fn release_before(&self, snp: usize) {
+        #[cfg(unix)]
+        if let Bytes::Mapped(map) = &self.map {
+            let end = (self.start + snp * self.bytes_per_snp).min(map.len());
+            // SAFETY: the map is a read-only file mapping: dropped pages are
+            // read again from the file, which popmix assumes no process
+            // changes while it is open (as for the map itself)
+            let _ =
+                unsafe { map.unchecked_advise_range(memmap2::UncheckedAdvice::DontNeed, 0, end) };
+        }
+        #[cfg(not(unix))]
+        let _ = snp;
+    }
+
     /// The bytes of SNP `snp`.
     #[inline]
     pub fn record(&self, snp: usize) -> &[u8] {
@@ -480,14 +498,15 @@ impl SnpMajor {
 }
 
 impl SnpMajor {
-    /// [`SampleGenotypes::fill_samples`] for `n_snps` SNPs, SNP `j` being
-    /// this file's SNP `snp_of(j).0`, its alleles swapped (0 <-> 2) if
-    /// `snp_of(j).1`.
+    /// [`SampleGenotypes::fill_samples`] for the samples at `samples` and
+    /// `n_snps` SNPs, SNP `j` being this file's SNP `snp_of(j).0`, its
+    /// alleles swapped (0 <-> 2) if `snp_of(j).1`. Every record is read for
+    /// a block, so the file's pages are released after it (P4).
     ///
     /// [`SampleGenotypes::fill_samples`]: crate::writers::SampleGenotypes::fill_samples
     pub fn fill_samples_of(
         &self,
-        samples: std::ops::Range<usize>,
+        samples: &[usize],
         n_snps: usize,
         out: &mut [u8],
         snp_of: &(dyn Fn(usize) -> (usize, bool) + Sync),
@@ -505,7 +524,7 @@ impl SnpMajor {
                 for j in lo..hi {
                     let (snp, flipped) = snp_of(j);
                     let record = self.record(snp);
-                    for (k, s) in samples.clone().enumerate() {
+                    for (k, &s) in samples.iter().enumerate() {
                         let g = self.code(record, s);
                         tile[k * (hi - lo) + j - lo] = if flipped && g != 1 && g != 3 {
                             2 - g
@@ -524,12 +543,14 @@ impl SnpMajor {
                     .copy_from_slice(&tile[k * len..(k + 1) * len]);
             }
         }
+        self.release_before(self.n_snps);
     }
 }
 
 impl crate::writers::SampleGenotypes for SnpMajor {
     fn fill_samples(&self, samples: std::ops::Range<usize>, n_snps: usize, out: &mut [u8]) {
-        self.fill_samples_of(samples, n_snps, out, &|j| (j, false));
+        let samples: Vec<usize> = samples.collect();
+        self.fill_samples_of(&samples, n_snps, out, &|j| (j, false));
     }
 }
 
@@ -540,6 +561,8 @@ pub struct SnpMajorRows {
     keep: Vec<bool>,
     samples: Vec<usize>,
     next_snp: usize,
+    /// The SNP before which the file's pages were last released.
+    released: usize,
 }
 
 /// Rows of a PACKEDANCESTRYMAP file (the name before PLINK was streamed too).
@@ -566,7 +589,17 @@ impl SnpMajorRows {
             keep,
             samples,
             next_snp: 0,
+            released: 0,
         })
+    }
+
+    /// Release the pages of the rows read, every [`crate::writers::BLOCK_BYTES`].
+    fn release_read(&mut self) {
+        if (self.next_snp - self.released) * self.file.bytes_per_snp >= crate::writers::BLOCK_BYTES
+        {
+            self.file.release_before(self.next_snp);
+            self.released = self.next_snp;
+        }
     }
 
     /// Rows of a PACKEDANCESTRYMAP .geno with `keep.len()` SNPs.
@@ -620,6 +653,7 @@ impl popmix_core::GenotypeRows for SnpMajorRows {
                     *o = self.file.code(record, s);
                 }
             });
+        self.release_read();
         Ok(())
     }
 
@@ -634,10 +668,11 @@ impl popmix_core::GenotypeRows for SnpMajorRows {
             });
         }
         let record = self.file.record(self.next_snp);
-        self.next_snp += 1;
         for (o, &s) in out.iter_mut().zip(&self.samples) {
             *o = self.file.code(record, s);
         }
+        self.next_snp += 1;
+        self.release_read();
         Ok(())
     }
 }

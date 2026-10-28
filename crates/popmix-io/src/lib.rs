@@ -35,9 +35,11 @@ pub mod packedancestrymap;
 pub mod ped;
 pub mod plink;
 mod provenance;
+pub mod sample_subset;
 pub mod streaming;
 pub mod subset;
 pub mod tgeno;
+pub mod tgeno_stream;
 pub mod vcf;
 pub mod vcf_writer;
 pub mod writers;
@@ -217,6 +219,7 @@ pub use streaming::{
     compute_allele_frequencies_packedancestrymap, detect_ploidy_packedancestrymap,
     detect_ploidy_packedancestrymap_selected, PackedRows, SnpMajor, SnpMajorRows,
 };
+pub use tgeno_stream::TgenoRows;
 pub use vcf::{VcfReader, VcfSkipped};
 pub use writers::{
     write_ancestrymap, write_ancestrymap_rows, write_eigenstrat, write_eigenstrat_rows,

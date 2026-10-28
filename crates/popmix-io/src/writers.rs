@@ -453,105 +453,6 @@ fn write_ancestrymap_geno(
     Ok(())
 }
 
-fn write_eigenstrat_geno(
-    path: &str,
-    n_samples: usize,
-    n_snps: usize,
-    rows: &mut dyn GenotypeRows,
-) -> Result<()> {
-    let file = File::create(path).with_path(path)?;
-    let mut writer = BufWriter::new(file);
-    let mut row = vec![0u8; n_samples];
-    let mut line = vec![b'\n'; n_samples + 1];
-    for _ in 0..n_snps {
-        rows.next_row(&mut row)?;
-        for (c, &code) in line.iter_mut().zip(&row) {
-            *c = genotype(code).to_eigenstrat_char();
-        }
-        writer.write_all(&line).with_path(path)?;
-    }
-    writer.flush().with_path(path)?;
-    Ok(())
-}
-
-fn write_packedancestrymap_geno(
-    path: &str,
-    samples: &[Sample],
-    snps: &[Snp],
-    rows: &mut dyn GenotypeRows,
-) -> Result<()> {
-    let file = File::create(path).with_path(path)?;
-    let mut writer = BufWriter::new(file);
-
-    let n_samples = samples.len();
-    let n_snps = snps.len();
-
-    // Bytes per row (4 samples per byte, rounded up)
-    // Minimum record size is 48 bytes per EIGENSTRAT spec
-    let bytes_per_row = n_samples.div_ceil(4);
-    let record_size = bytes_per_row.max(48);
-
-    // Write header: "GENO" magic + metadata, padded to record_size
-    // Format: GENO {n_samples} {n_snps} {ind_hash} {snp_hash}
-    let ind_ids: Vec<&str> = samples.iter().map(|s| s.id.as_str()).collect();
-    let snp_ids: Vec<&str> = snps.iter().map(|s| s.id.as_str()).collect();
-    let header_text = format!(
-        "GENO {} {} {:x} {:x}",
-        n_samples,
-        n_snps,
-        crate::packedancestrymap::header_hash(&ind_ids),
-        crate::packedancestrymap::header_hash(&snp_ids)
-    );
-    let mut header = vec![0u8; record_size];
-    let header_bytes = header_text.as_bytes();
-    header[..header_bytes.len()].copy_from_slice(header_bytes);
-    writer.write_all(&header).with_path(path)?;
-
-    let mut codes = vec![0u8; n_samples];
-    let mut record = vec![0u8; record_size];
-    for _ in 0..n_snps {
-        rows.next_row(&mut codes)?;
-        record.fill(0);
-        for (sample_idx, &code) in codes.iter().enumerate() {
-            // Sample 0 in HIGH bits (6-7), Sample 3 in LOW bits (0-1)
-            let bit_offset = 6 - (sample_idx % 4) * 2;
-            record[sample_idx / 4] |= genotype(code).to_packed_bits() << bit_offset;
-        }
-        writer.write_all(&record).with_path(path)?;
-    }
-    writer.flush().with_path(path)?;
-    Ok(())
-}
-
-fn write_plink_bed(
-    path: &str,
-    n_samples: usize,
-    n_snps: usize,
-    rows: &mut dyn GenotypeRows,
-) -> Result<()> {
-    let file = File::create(path).with_path(path)?;
-    let mut writer = BufWriter::new(file);
-
-    // Write magic number and mode byte
-    // 0x6c 0x1b = PLINK magic
-    // 0x01 = SNP-major mode
-    writer.write_all(&[0x6c, 0x1b, 0x01]).with_path(path)?;
-
-    let mut codes = vec![0u8; n_samples];
-    let mut record = vec![0u8; n_samples.div_ceil(4)];
-    for _ in 0..n_snps {
-        rows.next_row(&mut codes)?;
-        record.fill(0);
-        for (sample_idx, &code) in codes.iter().enumerate() {
-            // PLINK: Sample 0 in LOW bits (0-1), Sample 3 in HIGH bits (6-7)
-            record[sample_idx / 4] |= genotype(code).to_plink_bits() << ((sample_idx % 4) * 2);
-        }
-        writer.write_all(&record).with_path(path)?;
-    }
-    writer.flush().with_path(path)?;
-    Ok(())
-}
-
 // ============================================================================
 // Internal helper functions - Metadata files
 // ============================================================================
@@ -695,6 +596,9 @@ fn write_fam_file(path: &str, samples: &[Sample]) -> Result<()> {
 
     Ok(())
 }
+
+mod rows;
+use rows::{write_eigenstrat_geno, write_packedancestrymap_geno, write_plink_bed};
 
 #[cfg(test)]
 mod tests;

@@ -111,7 +111,17 @@ never passes silently.
   ([convertf: reading .snp and .bim](https://github.com/trianglegrrl/popmix/blob/main/DEVIATIONS.md#convertf-admixtools-802-reading-snp-and-bim)).
 - PLINK chromosome codes X, Y, XY and MT are read; they are not autosomes.
 - PACKEDANCESTRYMAP is the format to keep large data in: `extract-f2` and
-  the f-statistic commands stream it, and read other formats into memory.
+  the f-statistic commands stream it (and PLINK `.bed` and text
+  EIGENSTRAT); from TGENO they read the selected populations' samples, and
+  other formats whole.
+- `convertf` itself reads packed, PLINK, text EIGENSTRAT, TGENO and VCF
+  input a part at a time, for every output format and subset: the whole of
+  AADR v66.p1 (TGENO, 23,089 samples x 1.23M SNPs) converts to
+  PACKEDANCESTRYMAP holding about 0.6 GB. PED and ANCESTRYMAP input are
+  read whole.
+- A PLINK sample is named by its IID and its population is the FID, where
+  convertf names it `FID:IID`
+  ([convertf: reading .snp and .bim](https://github.com/trianglegrrl/popmix/blob/main/DEVIATIONS.md#convertf-admixtools-802-reading-snp-and-bim)).
 - Sex is carried between formats: M/F/U in `.ind`, 1/2/0 in `.fam` and `.ped`;
   a VCF has none, so its samples are U.
 
