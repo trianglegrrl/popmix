@@ -777,7 +777,7 @@ thread count.
 - [ ] **K2. Portable AADR goldens:** a Zenodo-hosted AADR subset with
   checksums; nightly or self-hosted run of the AADR goldens; record
   `sessionInfo()` and tool versions in every reference. PD
-- [ ] **K3. Cross-format reference tests:** the same individuals through VCF,
+- [x] **K3. Cross-format reference tests:** *Done in 538589b (every convertf format pair; the f2-per-format, VCF and mergeit goldens were in place; found PED written and read inverted, fixed before it, and ANCESTRYMAP not read by prefix).* the same individuals through VCF,
   PLINK, PED, text and packed EIGENSTRAT give identical f2, including a
   pseudohaploid population; VCF → EIGENSTRAT/PLINK round-trips checked
   against plink2 and EIGENSOFT convertf; merge checked against mergeit and
@@ -971,8 +971,8 @@ thread count.
   `--chromosomes`, `--region` (`popmix_io::subset`).
 - [ ] **P4. Fast:** streaming, parallel, bounded memory; benchmarked against
   convertf in section E.
-- [ ] **P5. Checked against convertf on every format pair** (golden), with
-  K3.
+- [x] **P5. Checked against convertf on every format pair** (golden), with
+  K3. *Done in 538589b (`tests/golden/test_convertf_pairs.py`, 36 pairs).*
 - [x] **P6. Packed headers carry AdmixTools' hashes.** *Done in 281226d.* popmix wrote
   `GENO <n> <m> 0`, so AdmixTools 8 convertf aborts on popmix's packed files
   ("indiv file has changed since genotype file was created"). Found by
