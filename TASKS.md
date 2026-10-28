@@ -543,9 +543,14 @@ thread count.
 - [ ] **H2. Sample selection on the CLI:** include/exclude individuals and
   relabel them (`inds`/`pops` exist only in Python); a population subset for
   `convertf`. PG
-- [ ] **H3. Provenance in outputs:** f2 directory `metadata.json` and result
+- [x] **H3. Provenance in outputs:** f2 directory `metadata.json` and result
   files record all parameters (maxmiss, block size, auto_only, ploidy per
   sample, SNP count) and the popmix version. PG
+  *Done in b166a68:* `F2Blocks.provenance` (version, source, every
+  extraction parameter, SNPs read and used, each sample's ploidy) in
+  metadata.json, kept through save, read, pickle and subset; every command
+  writing files leaves `OUTPUT.provenance.json` (argv, every parameter,
+  inputs' size and mtime).
 - [ ] **H4. qpAdm CLI output complete:** SEs and z in text and TSV, rank
   tests, popdrop/nested models, SNP and block counts, rotation output in
   TSV; p-values and SEs in full precision or scientific notation (not
