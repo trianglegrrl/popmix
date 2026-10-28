@@ -784,7 +784,7 @@ thread count.
   `plink --bmerge`. PG (Merge against mergeit done with A10: plink 1.9
   --bmerge stops at the first SNP needing a strand flip, so it serves only
   as a list of SNPs to `--flip`.)
-- [ ] **K4. Repeated-population and degenerate-model goldens:**
+- [x] **K4. Repeated-population and degenerate-model goldens:** *Done in 0aa7160 (the f3/f4 goldens were in e3d4f45; now degenerate qpadm/qpwave models against admixtools2 and the identities as properties; found that a population given as a string was split into characters, fixed in the commit before).*
   f4(A,B;A,C) = f3(A;B,C), f3(A;A,B) = 0 as properties; dof 0; overlapping
   left/right; against admixtools2. PD, PR
 - [x] **K5. Replace mock-based and can't-fail tests:** *Done in d536e51 (the named files and mocks were already gone; the qpadm weights, f4ratio options, relabelling, plot, round-trip and DATES smoke tests now check exact values).* `MockF2Result`,
