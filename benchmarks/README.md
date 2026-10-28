@@ -44,6 +44,10 @@ entry at atol 1e-15 + rtol 1e-10.
 | `dates` | DATES v753 with its numbins fix |
 
 Results are kept in `results/`, with the machine and the tool versions.
+`convertf_aadr` was measured on a dedicated GCP `c2d-standard-16` VM
+(`results/gcp-c2d-standard-16-2026-10-28-convertf_aadr.*`): its reference
+takes 40 minutes there and over two and a half hours on a laptop under load,
+where thermal throttling made popmix's times vary twofold between runs.
 
 ### Rerunning popmix only
 

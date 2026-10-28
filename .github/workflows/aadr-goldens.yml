@@ -41,7 +41,9 @@ jobs:
       - name: Fetch the AADR v66.p1 subset
         run: python tests/golden/aadr/archive_aadr_v66p1.py fetch
 
+      # all of them, slow ones too: 6.5 minutes on 4 CPUs (measured on a
+      # 4-CPU-pinned GCP VM, 2026-10-28), after a build of about 5
       - name: Golden tests on AADR
         run: |
           source .venv/bin/activate
-          pytest tests/golden --durations=20
+          pytest tests/golden --run-slow --durations=20

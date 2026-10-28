@@ -46,7 +46,7 @@ def test_caches_the_subset_keyed_on_the_archive_script(steps: list[dict]) -> Non
 
 
 def test_runs_the_golden_tests(steps: list[dict]) -> None:
-    assert "pytest tests/golden" in _run(steps)
+    assert "pytest tests/golden --run-slow" in _run(steps)
 
 
 def test_reads_the_subset_where_the_goldens_look(workflow: dict) -> None:

@@ -1,0 +1,161 @@
+{
+ "date": "2026-10-28",
+ "machine": {
+  "python": "3.10.12",
+  "system": "Linux-6.8.0-1070-gcp-x86_64-with-glibc2.35",
+  "cpus": 16,
+  "cpu": "AMD EPYC 7B13",
+  "memory_gb": 62.8
+ },
+ "versions": {
+  "popmix": "1.0.0",
+  "popmix_commit": "c9f07b8",
+  "admixtools2": "unavailable",
+  "R": "unavailable"
+ },
+ "repeats": 1,
+ "cases": {
+  "convertf_aadr": {
+   "analysis": "AADR v66.p1 TGENO to PACKEDANCESTRYMAP, 23,089 x 1.23M",
+   "reference": "AdmixTools 8.0.2 convertf",
+   "reference_runs": {
+    "runs": [
+     {
+      "wall_s": 2503.478150088,
+      "cpu_s": 2503.285419,
+      "peak_rss_mb": 7597.203125
+     }
+    ],
+    "wall_s": {
+     "median": 2503.478150088,
+     "iqr": 0.0,
+     "min": 2503.478150088,
+     "max": 2503.478150088,
+     "cv": 0.0
+    },
+    "cpu_s": {
+     "median": 2503.285419,
+     "iqr": 0.0,
+     "min": 2503.285419,
+     "max": 2503.285419,
+     "cv": 0.0
+    },
+    "peak_rss_mb": {
+     "median": 7597.203125,
+     "iqr": 0.0,
+     "min": 7597.203125,
+     "max": 7597.203125,
+     "cv": 0.0
+    }
+   },
+   "popmix": {
+    "1": {
+     "runs": [
+      {
+       "wall_s": 79.00048888499987,
+       "cpu_s": 77.22328,
+       "peak_rss_mb": 503.25390625
+      }
+     ],
+     "wall_s": {
+      "median": 79.00048888499987,
+      "iqr": 0.0,
+      "min": 79.00048888499987,
+      "max": 79.00048888499987,
+      "cv": 0.0
+     },
+     "cpu_s": {
+      "median": 77.22328,
+      "iqr": 0.0,
+      "min": 77.22328,
+      "max": 77.22328,
+      "cv": 0.0
+     },
+     "peak_rss_mb": {
+      "median": 503.25390625,
+      "iqr": 0.0,
+      "min": 503.25390625,
+      "max": 503.25390625,
+      "cv": 0.0
+     },
+     "agreement": {
+      "bytes": 7118189822,
+      "differing_files": [],
+      "pass": true
+     }
+    },
+    "4": {
+     "runs": [
+      {
+       "wall_s": 53.25865838899972,
+       "cpu_s": 83.898099,
+       "peak_rss_mb": 522.83984375
+      }
+     ],
+     "wall_s": {
+      "median": 53.25865838899972,
+      "iqr": 0.0,
+      "min": 53.25865838899972,
+      "max": 53.25865838899972,
+      "cv": 0.0
+     },
+     "cpu_s": {
+      "median": 83.898099,
+      "iqr": 0.0,
+      "min": 83.898099,
+      "max": 83.898099,
+      "cv": 0.0
+     },
+     "peak_rss_mb": {
+      "median": 522.83984375,
+      "iqr": 0.0,
+      "min": 522.83984375,
+      "max": 522.83984375,
+      "cv": 0.0
+     },
+     "agreement": {
+      "bytes": 7118189822,
+      "differing_files": [],
+      "pass": true
+     }
+    },
+    "16": {
+     "runs": [
+      {
+       "wall_s": 44.82561377899992,
+       "cpu_s": 149.774845,
+       "peak_rss_mb": 528.859375
+      }
+     ],
+     "wall_s": {
+      "median": 44.82561377899992,
+      "iqr": 0.0,
+      "min": 44.82561377899992,
+      "max": 44.82561377899992,
+      "cv": 0.0
+     },
+     "cpu_s": {
+      "median": 149.774845,
+      "iqr": 0.0,
+      "min": 149.774845,
+      "max": 149.774845,
+      "cv": 0.0
+     },
+     "peak_rss_mb": {
+      "median": 528.859375,
+      "iqr": 0.0,
+      "min": 528.859375,
+      "max": 528.859375,
+      "cv": 0.0
+     },
+     "agreement": {
+      "bytes": 7118189822,
+      "differing_files": [],
+      "pass": true
+     }
+    }
+   },
+   "identical_across_threads": true
+  }
+ }
+}
