@@ -581,8 +581,11 @@ thread count.
   rate and power of a qpAdm or f4 design on msprime simulations. PR
   Decided: popmix reads simulated genotypes the user makes with msprime
   (GPL-3, never imported); the README's caveats section says so.
-- [ ] **H8. Admixture dating model checks:** single pulse vs extended
+- [x] **H8. Admixture dating model checks:** single pulse vs extended
   admixture (residual test or two-exponential fit). PR
+  *Done in 6beeb8f:* two-exponential fit with chromosome-jackknife SEs
+  in DATES and ROLLOFF (`pulse_check`); two pulses only when both
+  amplitudes and the dates' difference clear 2 SE.
 - [x] **H9. Ascertainment awareness:** record the SNP panel in f2 metadata;
   warn when f2 directories from different panels are combined. PR
   *Done in d12ec0e:* f2 provenance `snp_panel` (SNPs read, a
