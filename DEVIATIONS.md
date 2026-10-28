@@ -861,6 +861,12 @@ Checked black-box with AdmixTools 8 convertf.
 
 ### Interface differences
 
+- **A PLINK sample is named by its IID.** convertf names a sample read
+  from a .fam or .pedind `FID:IID` (`1:NA00000`, and `NA00000:NA00000`
+  when the two are the same) and takes its population from the phenotype
+  (`Case`); popmix names it by the IID and takes the FID as its
+  population, as it writes them (`tests/golden/test_convertf_pairs.py`,
+  TASKS.md P5).
 - **A genetic position must be a number.** convertf reads `abc` as 0 (C
   `atof`), which puts the SNP at the start of its chromosome's map; popmix
   stops with the file and line. A map of all zeros is still read, and f2
