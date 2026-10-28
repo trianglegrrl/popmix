@@ -28,8 +28,9 @@ use popmix_core::IoResultExt;
 /// - `{prefix}.snp`: SNP metadata (ID CHR GPOS PPOS)
 /// - `{prefix}.ind`: Sample metadata (ID SEX POP)
 ///
-/// ANCESTRYMAP format is sparse: each line contains SNP_ID, Sample_ID, and
-/// genotype (0, 1, or 2). Missing genotypes are represented by absence of entry.
+/// Each line holds SNP_ID, Sample_ID and the genotype as EIGENSTRAT codes it
+/// (copies of the first allele), -1 for a missing call, as AdmixTools
+/// convertf writes it.
 pub fn write_ancestrymap(prefix: impl AsRef<Path>, matrix: &GenotypeMatrix) -> Result<()> {
     write_ancestrymap_rows(
         prefix,
@@ -437,12 +438,12 @@ fn write_ancestrymap_geno(
     for snp in snps {
         rows.next_row(&mut row)?;
         for (sample, &code) in samples.iter().zip(&row) {
-            // Only write non-missing genotypes (sparse format)
-            let dosage = match genotype(code) {
-                Genotype::HomRef => 2,
+            // the EIGENSTRAT code, every genotype, -1 missing, as convertf
+            let dosage: i8 = match genotype(code) {
+                Genotype::HomRef => 0,
                 Genotype::Het => 1,
-                Genotype::HomAlt => 0,
-                Genotype::Missing => continue,
+                Genotype::HomAlt => 2,
+                Genotype::Missing => -1,
             };
             writeln!(writer, "{} {} {}", snp.id, sample.id, dosage).with_path(path)?;
         }

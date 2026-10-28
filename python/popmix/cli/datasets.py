@@ -121,13 +121,16 @@ def populations(prefix: str, pattern: str | None, output_format: str):
 
 
 @click.command()
-@click.option("--input", "-i", "input_prefix", required=True, help="Input genotype file prefix (or full path for VCF)")
-@click.option("--output", "-o", "output_prefix", required=True, help="Output genotype file prefix")
+@click.option("--par", "-p", "par_file", type=click.Path(exists=True, dir_okay=False), default=None,
+              help="Run a convertf parameter file (genotypename, snpname, indivname, outputformat, "
+                   "genotypeoutname, ..., poplistname, badsnpname, chrom, lopos, hipos) instead of the options")
+@click.option("--input", "-i", "input_prefix", default=None, help="Input genotype file prefix (or full path for VCF)")
+@click.option("--output", "-o", "output_prefix", default=None, help="Output genotype file prefix")
 @click.option("--input-format", "-if", "input_format", default=None,
               type=click.Choice(["ancestrymap", "eigenstrat", "ped", "packedped", "plink", "packedancestrymap", "tgeno",
                                 "vcf"]),
               help="Input format (auto-detected if not specified)")
-@click.option("--output-format", "-of", "output_format", required=True,
+@click.option("--output-format", "-of", "output_format", default=None,
               type=click.Choice(["ancestrymap", "eigenstrat", "ped", "packedped", "plink", "packedancestrymap",
                                 "tgeno", "vcf"]),
               help="Output format")
@@ -142,7 +145,8 @@ def populations(prefix: str, pattern: str | None, output_format: str):
               help="Comma-separated chromosomes to keep (1-22, X, Y, MT)")
 @click.option("--region", callback=_parse_region, default=None,
               help="Keep only SNPs in CHROM:START-END (base pairs, both ends included)")
-def convertf(input_prefix: str, output_prefix: str, input_format: str | None, output_format: str,
+def convertf(par_file: str | None, input_prefix: str | None, output_prefix: str | None, input_format: str | None,
+             output_format: str | None,
              keep_inds: str | None, exclude_inds: str | None, relabel: str | None, relabel_pops: str | None,
              populations: list, keep_snps: str | None, exclude_snps: str | None, chromosomes: list,
              region: tuple[str, int, int] | None):
@@ -162,6 +166,22 @@ def convertf(input_prefix: str, output_prefix: str, input_format: str | None, ou
     Samples can be kept or left out by ID, given new populations and
     chosen by population; SNPs by ID, chromosome and region.
     """
+    if par_file is not None:
+        given = [k for k, v in [("--input", input_prefix), ("--output", output_prefix),
+                                ("--output-format", output_format)] if v is not None]
+        if given:
+            raise click.UsageError(f"{', '.join(given)}: give either --par or the options, not both")
+        try:
+            from popmix.convertf_par import convertf_par
+
+            result = convertf_par(par_file)
+            click.echo(f"Converted {result['n_snps']} SNPs x {result['n_samples']} samples")
+        except EXPECTED_ERRORS as e:
+            fail(e)
+        return
+    for flag, value in [("--input", input_prefix), ("--output", output_prefix), ("--output-format", output_format)]:
+        if value is None:
+            raise click.UsageError(f"Missing option {flag} (or give --par)")
     try:
         # Detect input format if not specified
         if input_format is None:

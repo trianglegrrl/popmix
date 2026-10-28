@@ -1,8 +1,9 @@
 //! ANCESTRYMAP format reader.
 //!
-//! ANCESTRYMAP is a sparse format where only non-missing genotypes are stored.
-//! Files:
-//! - `.ancestrymapgeno`: Sparse genotype data (SNP_ID, Sample_ID, Count)
+//! ANCESTRYMAP stores one genotype per line. Files:
+//! - `.ancestrymapgeno`: SNP_ID, Sample_ID, Count, Count the copies of the
+//!   SNP's first allele as in EIGENSTRAT, and -1 for a missing call, as
+//!   AdmixTools convertf writes it (a genotype without a line is missing too)
 //! - `.snp`: SNP metadata (same as EIGENSTRAT)
 //! - `.ind`: Sample metadata (same as EIGENSTRAT)
 
@@ -122,11 +123,16 @@ impl AncestryMapReader {
 
             let snp_id = fields[0];
             let sample_id = fields[1];
-            let count: u8 = fields[2].parse().map_err(|_| PopmixError::ParseError {
-                path: self.geno_path.clone().into(),
-                line: line_num + 1,
-                details: format!("Invalid genotype count: {}", fields[2]),
-            })?;
+            let count: i8 = match fields[2].parse() {
+                Ok(c @ -1..=2) => c,
+                _ => {
+                    return Err(PopmixError::ParseError {
+                        path: self.geno_path.clone().into(),
+                        line: line_num + 1,
+                        details: format!("Invalid genotype count: {}", fields[2]),
+                    })
+                }
+            };
 
             // Look up indices
             let snp_idx = self
@@ -147,13 +153,11 @@ impl AncestryMapReader {
                         details: format!("Unknown sample ID: {sample_id}"),
                     })?;
 
-            // ANCESTRYMAP count is number of reference alleles (0, 1, or 2)
-            // Our encoding: 0=HomRef, 1=Het, 2=HomAlt
-            // So count=2 -> HomRef, count=1 -> Het, count=0 -> HomAlt
+            // the count is the EIGENSTRAT code, as convertf writes it
             let geno = match count {
-                2 => Genotype::HomRef,
+                0 => Genotype::HomRef,
                 1 => Genotype::Het,
-                0 => Genotype::HomAlt,
+                2 => Genotype::HomAlt,
                 _ => Genotype::Missing,
             };
 
@@ -186,10 +190,11 @@ mod tests {
 
         // Write .ancestrymapgeno file
         let mut geno = File::create(format!("{prefix_str}.ancestrymapgeno")).unwrap();
-        writeln!(geno, "rs1 Sample1 2").unwrap(); // HomRef
+        // counts as EIGENSTRAT's, as convertf writes them
+        writeln!(geno, "rs1 Sample1 0").unwrap(); // HomRef
         writeln!(geno, "rs1 Sample2 1").unwrap(); // Het
-        writeln!(geno, "rs2 Sample1 0").unwrap(); // HomAlt
-                                                  // rs2 Sample2 is missing (no entry)
+        writeln!(geno, "rs2 Sample1 2").unwrap(); // HomAlt
+        writeln!(geno, "rs2 Sample2 -1").unwrap(); // missing
 
         prefix_str
     }

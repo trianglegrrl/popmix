@@ -7,16 +7,18 @@ PLINK to EIGENSTRAT, anything to PACKEDANCESTRYMAP, ...).
 
 ```text
 popmix convertf --input PREFIX --output PREFIX --output-format FORMAT [--input-format FORMAT]
+popmix convertf --par FILE.par
 ```
 
 ## Arguments and options
 
 | Option | Type | Default | Meaning |
 |--------|------|---------|---------|
-| `--input`, `-i` | text (path) | required | Input genotype prefix, or the full path of a `.vcf` / `.vcf.gz`. |
-| `--output`, `-o` | text (path) | required | Output prefix; the files are written as PREFIX plus the format's extensions, overwriting any that exist. |
+| `--par`, `-p` | text (path) | none | Run a convertf parameter file instead of the options (see below); give it alone. |
+| `--input`, `-i` | text (path) | required (unless `--par`) | Input genotype prefix, or the full path of a `.vcf` / `.vcf.gz`. |
+| `--output`, `-o` | text (path) | required (unless `--par`) | Output prefix; the files are written as PREFIX plus the format's extensions, overwriting any that exist. |
 | `--input-format`, `-if` | `ancestrymap`, `eigenstrat`, `ped`, `packedped`, `plink`, `packedancestrymap`, `tgeno`, `vcf` | none (auto-detected) | Input format, when detection from the files is not wanted. |
-| `--output-format`, `-of` | `ancestrymap`, `eigenstrat`, `ped`, `packedped`, `plink`, `packedancestrymap`, `tgeno`, `vcf` | required | Output format. `plink` and `packedped` are the same (`.bed/.bim/.fam`). `vcf` writes `OUTPUT.vcf` (or `OUTPUT` itself if it ends in `.vcf`, or `.vcf.gz`, gzip-compressed), as PLINK 2's `--export vcf`: REF is the second allele, ALT the counted first one, and males' homozygous chrX calls are haploid. |
+| `--output-format`, `-of` | `ancestrymap`, `eigenstrat`, `ped`, `packedped`, `plink`, `packedancestrymap`, `tgeno`, `vcf` | required (unless `--par`) | Output format. `plink` and `packedped` are the same (`.bed/.bim/.fam`). `vcf` writes `OUTPUT.vcf` (or `OUTPUT` itself if it ends in `.vcf`, or `.vcf.gz`, gzip-compressed), as PLINK 2's `--export vcf`: REF is the second allele, ALT the counted first one, and males' homozygous chrX calls are haploid. |
 | `--keep-inds` | text (path) | none | Use only the sample IDs in this file (one per line, or a `.ind`/`.fam` file). |
 | `--exclude-inds` | text (path) | none | Never use the sample IDs in this file (one per line, or a `.ind`/`.fam` file). |
 | `--relabel` | text (path) | none | Give samples new populations: `ID POPULATION` per line, as admixtools2 `inds`/`pops`. Population names given to the command are those after relabelling. |
@@ -55,6 +57,33 @@ popmix info small_plink
 # not run: needs large data
 # convert once to PACKEDANCESTRYMAP, which extract-f2 streams instead of loading
 popmix convertf -i my_samples.vcf.gz -o my_samples -of packedancestrymap
+```
+
+## Parameter files
+
+`popmix convertf -p file.par` runs a convertf parameter file, so a pipeline
+can swap popmix in. Keys: `genotypename`, `snpname`, `indivname` (inputs;
+their names need not share a stem); `outputformat` (`ANCESTRYMAP`,
+`EIGENSTRAT`, `PED`, `PACKEDPED`, `PACKEDANCESTRYMAP` (the default),
+`TRANSPOSE_PACKED`); `genotypeoutname`, `snpoutname`, `indivoutname` (or
+`genooutfilename`, `snpoutfilename`, `indoutfilename`); `poplistname` (a
+file of populations to keep); `badsnpname` (SNPs to leave out; ones the data
+lacks are ignored); `chrom`, with `lopos` and `hipos` for a region. A value
+may start with a name defined earlier and `/` (`DIR: /data`,
+`genotypename: DIR/x.geno`); `#` starts a comment. Any other key is an
+error, not silently ignored. Each key is checked against AdmixTools 8
+convertf on the same file.
+
+```text
+DIR: /data/aadr
+genotypename: DIR/v66.p1.geno
+snpname: DIR/v66.p1.snp
+indivname: DIR/v66.p1.ind
+outputformat: EIGENSTRAT
+poplistname: pops.txt
+genotypeoutname: subset.geno
+snpoutname: subset.snp
+indivoutname: subset.ind
 ```
 
 ## Reading the result

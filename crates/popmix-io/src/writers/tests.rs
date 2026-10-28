@@ -368,22 +368,16 @@ fn test_ancestrymap_write() {
     // Write ANCESTRYMAP
     write_ancestrymap(&prefix, &matrix).unwrap();
 
-    // Read the geno file and verify sparse format
+    // Every genotype, the EIGENSTRAT code, -1 missing, as convertf writes it
     let geno_content =
         std::fs::read_to_string(format!("{}.ancestrymapgeno", prefix.display())).unwrap();
     let lines: Vec<&str> = geno_content.lines().collect();
-
-    // Should have 6 lines (9 genotypes - 3 missing = 6)
-    assert_eq!(lines.len(), 6);
-
-    // Verify format: SNP_ID Sample_ID Dosage
-    for line in &lines {
-        let parts: Vec<&str> = line.split_whitespace().collect();
-        assert_eq!(parts.len(), 3);
-        // Dosage should be 0, 1, or 2
-        let dosage: u8 = parts[2].parse().unwrap();
-        assert!(dosage <= 2);
-    }
+    assert_eq!(lines.len(), 9);
+    let codes: Vec<&str> = lines
+        .iter()
+        .map(|l| l.split_whitespace().nth(2).unwrap())
+        .collect();
+    assert_eq!(codes, ["0", "1", "-1", "-1", "2", "0", "2", "-1", "1"]);
 }
 
 #[test]
