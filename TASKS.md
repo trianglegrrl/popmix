@@ -577,10 +577,13 @@ thread count.
   JSON) and takes `--compat admixtools2-2.0.10`; `qpgraph --dot` takes it
   for the DOT text. `test_every_compat_switch_is_on_the_cli` holds every
   public function with `compat` to its command.
-- [ ] **H7. Calibration by simulation:** a command giving the false-positive
+- [x] **H7. Calibration by simulation:** a command giving the false-positive
   rate and power of a qpAdm or f4 design on msprime simulations. PR
   Decided: popmix reads simulated genotypes the user makes with msprime
   (GPL-3, never imported); the README's caveats section says so.
+  *Done in fe597e5:* `calibrate-qpadm`, `calibrate-f4`
+  (`pm.calibrate_qpadm`/`calibrate_f4`): rejection rate with a Wilson
+  interval over replicates; README Caveats section.
 - [x] **H8. Admixture dating model checks:** single pulse vs extended
   admixture (residual test or two-exponential fit). PR
   *Done in 6beeb8f:* two-exponential fit with chromosome-jackknife SEs
