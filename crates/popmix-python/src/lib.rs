@@ -7,6 +7,7 @@
 
 mod admixture;
 mod convert;
+mod coverage;
 mod datasets;
 mod dates;
 mod extract;
@@ -174,6 +175,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     rolloff::register(m)?;
     subset::register(m)?;
     qpadm_geno::register(m)?;
+    coverage::register(m)?;
 
     // qpAdm/qpWave functions
     m.add_function(wrap_pyfunction!(qpadm::qpwave, m)?)?;

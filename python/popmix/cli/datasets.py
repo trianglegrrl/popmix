@@ -12,9 +12,12 @@ from ._common import (
     _sample_selection_options,
     _snp_ids,
     parse_population_list,
+    scan_output_options,
     with_options,
+    write_table,
 )
 from ._errors import EXPECTED_ERRORS, fail
+from ._population_checks import validate_populations
 
 
 def _parse_region(ctx, param, value: str | None) -> tuple[str, int, int] | None:
@@ -367,5 +370,28 @@ def install_skill(dest: str, force: bool):
                 target.rmdir()
         n = _copy_resource_tree(resources.files("popmix") / "skill", target)
         click.echo(f"Installed the popmix {pm.__version__} skill ({n} files) to {target}")
+    except EXPECTED_ERRORS as e:
+        fail(e)
+
+
+@click.command()
+@click.option("--input", "-i", "input_prefix", required=True, help="Genotype prefix")
+@click.option("--populations", callback=parse_population_list, default="",
+              help="Comma-separated populations whose samples are listed (default: all but Ignore)")
+@click.option("--all-chromosomes", is_flag=True, default=False,
+              help="Count every chromosome, not only autosomes 1-22")
+@with_options(scan_output_options)
+def samples(input_prefix: str, populations: list, all_chromosomes: bool, output_format: str, output: str | None):
+    """Each sample's coverage: SNPs called, heterozygosity and ploidy.
+
+    Tells which samples to project rather than use to build PCA axes, which
+    share too few SNPs for KING-robust kinship (use --method read), and on
+    how many calls each ploidy rule decides.
+    """
+    try:
+        if populations:
+            validate_populations(input_prefix, populations)
+        df = pm.sample_coverage(input_prefix, populations or None, auto_only=not all_chromosomes)
+        write_table(df, output_format, output)
     except EXPECTED_ERRORS as e:
         fail(e)

@@ -80,6 +80,7 @@ reference tool.
 - [qpgraph](commands/qpgraph.md): fit an admixture graph
 - [qpwave](commands/qpwave.md): rank test of left against right populations
 - [rolloff](commands/rolloff.md): admixture date by ROLLOFF
+- [samples](commands/samples.md): each sample's SNPs called, heterozygosity and ploidy
 - [sfs](commands/sfs.md): site-frequency spectra
 
 ## Global options

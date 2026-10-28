@@ -83,6 +83,7 @@ _LAZY = {
     "cluster_order": "dstats",
     "compare_fits": "resample",
     "convertf_par": "convertf_par",
+    "sample_coverage": "coverage",
     "dates": "ld_dating",
     "dstat_matrix": "dstats",
     "extract_f2_subset": "f2_dirs",
@@ -160,6 +161,7 @@ sys.modules[__name__].__class__ = _Package
 if TYPE_CHECKING:
     from popmix.admixture import AdmixtureResult, admixture, admixture_loglik
     from popmix.convertf_par import convertf_par
+    from popmix.coverage import sample_coverage
     from popmix.dot import parse_dot, write_dot
     from popmix.dstats import (
         cluster_order,
@@ -251,6 +253,7 @@ __all__ = [
     "suggest_populations",
     "convertf",
     "convertf_par",
+    "sample_coverage",
     "merge",
     "detect_format",
     # F-statistics functions

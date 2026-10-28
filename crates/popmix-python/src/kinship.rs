@@ -37,6 +37,8 @@ pub fn king(
             w(popmix_core::Warning::KingWithoutHeterozygotes { samples: names });
         })?;
     }
+    let shared: Vec<u64> = pairs.iter().map(|p| p.nsnp).collect();
+    crate::warnings::emit(|w| popmix_core::warnings::check_king_snps(&shared, w))?;
     let d = PyDict::new(py);
     let id = |k: usize| samples[k].id.clone();
     d.set_item("id1", pairs.iter().map(|p| id(p.i)).collect::<Vec<_>>())?;

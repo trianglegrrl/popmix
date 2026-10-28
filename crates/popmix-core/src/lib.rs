@@ -27,6 +27,7 @@
 //! signature (`tests/python/test_dependencies.py`).
 
 pub mod admixture;
+pub mod coverage;
 pub mod dates;
 pub mod error;
 pub mod fstats;

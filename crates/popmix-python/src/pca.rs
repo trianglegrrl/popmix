@@ -145,6 +145,14 @@ pub fn smartpca_py(
         smartpca(&geno, &roles, &options)
     })?;
 
+    let in_pca: Vec<f64> = out
+        .samples
+        .iter()
+        .zip(&out.missing_fraction)
+        .filter(|(&s, _)| roles[s] == SampleRole::Pca)
+        .map(|(_, &f)| f)
+        .collect();
+    crate::warnings::emit(|w| popmix_core::warnings::check_pca_sample_missing(&in_pca, w))?;
     if !lsqproject {
         let projected: Vec<f64> = out
             .samples

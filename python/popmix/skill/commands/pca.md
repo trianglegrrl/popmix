@@ -68,6 +68,9 @@ keep everyone.
 
 ## Caveats
 
+- A PCA sample missing more than half the SNPs warns: low-coverage samples
+  add noise to the axes; project them instead (see
+  [samples](samples.md) for each sample's coverage).
 - Eigenvector signs are arbitrary (they can differ from smartpca's).
 - Pseudo-haploid samples are read as called (0/2), as smartpca does; that
   is why ancient samples should be projected, not used to build the axes.

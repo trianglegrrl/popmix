@@ -7,6 +7,7 @@ Usage:
 Commands:
     info        Show dataset information
     populations List all populations with sample counts
+    samples     Each sample's SNPs called, heterozygosity and ploidy
     extract-f2  Extract F2 blocks from genotype data
     f2          Compute f2 statistic between two populations
     f3          Compute f3 statistic (admixture test)
@@ -40,7 +41,7 @@ import popmix as pm
 from ._common import write_columns, write_table
 from ._errors import print_popmix_warnings
 from ._provenance import record
-from .datasets import convertf, info, install_skill, merge, populations
+from .datasets import convertf, info, install_skill, merge, populations, samples
 from .dating import dates, rolloff
 from .fstats import dstat_matrix, extract_f2, f2, f3, f4, outgroup_f3, qp3pop, qpdstat
 from .graphs import find_graphs, qpgraph
@@ -72,6 +73,7 @@ def cli(ctx, threads: int, debug: bool):
 for _command in (
     info,
     populations,
+    samples,
     convertf,
     merge,
     install_skill,

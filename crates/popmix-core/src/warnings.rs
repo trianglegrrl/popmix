@@ -61,6 +61,51 @@ pub enum Warning {
     /// the smaller one's SNPs: the merge keeps only those, a panel of its
     /// own (TASKS.md H9).
     PanelsDiffer { shared: usize, smaller: usize },
+    /// Samples that build the PCA's axes while missing much of their data;
+    /// low-coverage samples are better projected (TASKS.md H10).
+    LowCoveragePcaSamples { samples: usize, max_fraction: f64 },
+    /// KING-robust pairs sharing few SNPs; KING reports no standard error
+    /// for the noise in their kinship (TASKS.md H10).
+    KingFewSnps { pairs: usize, fewest: u64 },
+}
+
+/// Largest share of missing SNPs for a sample that builds PCA axes before
+/// [`Warning::LowCoveragePcaSamples`].
+pub const MAX_PCA_SAMPLE_MISSING: f64 = 0.5;
+
+/// Warn when PCA samples (`fractions`: each one's share of missing SNPs)
+/// miss more than [`MAX_PCA_SAMPLE_MISSING`] of the SNPs.
+pub fn check_pca_sample_missing(fractions: &[f64], warn: &mut dyn FnMut(Warning)) {
+    let over: Vec<f64> = fractions
+        .iter()
+        .copied()
+        .filter(|&x| x > MAX_PCA_SAMPLE_MISSING)
+        .collect();
+    if !over.is_empty() {
+        warn(Warning::LowCoveragePcaSamples {
+            samples: over.len(),
+            max_fraction: over.iter().copied().fold(0.0, f64::max),
+        });
+    }
+}
+
+/// Fewest SNPs a KING-robust pair shares before [`Warning::KingFewSnps`].
+pub const MIN_KING_SNPS: u64 = 10_000;
+
+/// Warn when KING-robust pairs share fewer than [`MIN_KING_SNPS`] SNPs
+/// (`snps`: one count per pair).
+pub fn check_king_snps(snps: &[u64], warn: &mut dyn FnMut(Warning)) {
+    let few: Vec<u64> = snps
+        .iter()
+        .copied()
+        .filter(|&n| n < MIN_KING_SNPS)
+        .collect();
+    if let Some(&fewest) = few.iter().min() {
+        warn(Warning::KingFewSnps {
+            pairs: few.len(),
+            fewest,
+        });
+    }
 }
 
 /// Smallest share of the smaller dataset's SNPs two merged datasets share
@@ -288,6 +333,22 @@ impl fmt::Display for Warning {
                  toward the origin in proportion; project by least squares (lsqproject, \
                  --lsqproject)",
                 max_fraction * 100.0
+            ),
+            Warning::LowCoveragePcaSamples {
+                samples,
+                max_fraction,
+            } => write!(
+                f,
+                "{samples} PCA sample(s) miss more than half of the SNPs (up to {:.0}%): the axes are \
+                 best built from well-covered samples, with low-coverage ones projected \
+                 (--project-pops, with --lsqproject)",
+                max_fraction * 100.0
+            ),
+            Warning::KingFewSnps { pairs, fewest } => write!(
+                f,
+                "{pairs} pair(s) share fewer than {MIN_KING_SNPS} SNPs (as few as {fewest}): KING-robust \
+                 gives no standard error, and its kinship from so few SNPs is noisy; for \
+                 low-coverage samples use --method read"
             ),
             Warning::PanelsDiffer { shared, smaller } => write!(
                 f,

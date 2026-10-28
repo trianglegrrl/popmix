@@ -67,6 +67,9 @@ popmix kinship -i aadr_v66p1 --populations France_Gurgy_MN --method read -o gurg
 
 ## Caveats
 
+- KING-robust warns when pairs share fewer than 10,000 SNPs: it gives no
+  standard error. [samples](samples.md) lists each sample's calls and
+  heterozygosity.
 - KING needs heterozygous calls: a pseudo-haploid sample gives kinship minus
   infinity, as in PLINK 2, and popmix warns; use `--method read`.
 - READ normalizes within the group given, so compare samples of one
