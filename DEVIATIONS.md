@@ -525,6 +525,13 @@ qpWave/qpAdm fits by the C++ code path (`cpp = TRUE`, the default).
 
 These change no number that both tools compute.
 
+- **A target among its own sources is an error.** admixtools2's `qpadm()`
+  drops the target from `left` without a word and fits the other sources
+  (French.DG as Yamnaya, LBK and French.DG gives the weights of Yamnaya and
+  LBK); popmix raises an error, as both tools do for a population in both
+  `left` and `right` ("Duplicated pops"), since a model with its target as
+  a source is a mistake rather than a request
+  (`tests/golden/test_degenerate_models_admixtools2.py`, TASKS.md K4).
 - **qpdstat D mode on f2 blocks is an error.** admixtools2 ignores
   `f4mode = FALSE` when given f2 blocks and returns f4; D needs genotypes.
   popmix raises an error rather than return f4 under the name D.

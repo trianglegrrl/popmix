@@ -1,0 +1,127 @@
+{
+  "admixtools_version": "2.0.10",
+  "prefix": "aadr_v66p1",
+  "populations": ["French.DG", "Russia_Samara_EBA_Yamnaya.AG", "Germany_HalberstadtSonntagsfeld_EN_LBK.AG", "Mbuti.DG", "Han.DG", "Papuan.DG", "Karitiana.DG", "CEU.DG"],
+  "qpadm": {
+    "dof_zero": {
+      "target": "French.DG",
+      "left": ["Russia_Samara_EBA_Yamnaya.AG", "Germany_HalberstadtSonntagsfeld_EN_LBK.AG"],
+      "right": ["Mbuti.DG", "Han.DG"],
+      "weights": [0.63190617152584538, 0.36809382847415456],
+      "se": [0.043774369274973926, 0.043774369274973871],
+      "rankdrop": [
+        {
+          "f4rank": 1,
+          "dof": 0,
+          "chisq": 1.6415783167730681e-06,
+          "p": null,
+          "dofdiff": 2,
+          "chisqdiff": 150.56862059783333,
+          "p_nested": 2.0157629720054707e-33
+        },
+        {
+          "f4rank": 0,
+          "dof": 2,
+          "chisq": 150.56862223941164,
+          "p": 2.0157613174897653e-33,
+          "dofdiff": null,
+          "chisqdiff": null,
+          "p_nested": null
+        }
+      ]
+    },
+    "one_source": {
+      "target": "French.DG",
+      "left": "CEU.DG",
+      "right": ["Mbuti.DG", "Han.DG", "Papuan.DG"],
+      "weights": 1,
+      "se": 3.1996900738067911e-14,
+      "rankdrop": [
+        {
+          "f4rank": 0,
+          "dof": 2,
+          "chisq": 7.746619706250172,
+          "p": 0.020789445413089538,
+          "dofdiff": null,
+          "chisqdiff": null,
+          "p_nested": null
+        }
+      ]
+    },
+    "sources_as_many_as_right": {
+      "target": "French.DG",
+      "left": ["Russia_Samara_EBA_Yamnaya.AG", "Germany_HalberstadtSonntagsfeld_EN_LBK.AG", "CEU.DG"],
+      "right": ["Mbuti.DG", "Han.DG", "Papuan.DG"],
+      "weights": [-0.20619402155604891, 0.018595158249694637, 1.1875988633063543],
+      "se": [0.31195533376285156, 0.13370964055075912, 0.44018470069915377],
+      "rankdrop": [
+        {
+          "f4rank": 2,
+          "dof": 0,
+          "chisq": 0.00043465085397122579,
+          "p": null,
+          "dofdiff": 2,
+          "chisqdiff": 4.8660271531564927,
+          "p_nested": 0.087771926203990075
+        },
+        {
+          "f4rank": 1,
+          "dof": 2,
+          "chisq": 4.8664618040104637,
+          "p": 0.087752853205249309,
+          "dofdiff": 4,
+          "chisqdiff": 164.40112073318306,
+          "p_nested": 1.6629395975695536e-34
+        },
+        {
+          "f4rank": 0,
+          "dof": 6,
+          "chisq": 169.26758253719353,
+          "p": 6.4317778728322327e-34,
+          "dofdiff": null,
+          "chisqdiff": null,
+          "p_nested": null
+        }
+      ]
+    },
+    "source_in_right": {
+      "target": "French.DG",
+      "left": ["Russia_Samara_EBA_Yamnaya.AG", "Germany_HalberstadtSonntagsfeld_EN_LBK.AG"],
+      "right": ["Mbuti.DG", "Han.DG", "Papuan.DG", "Germany_HalberstadtSonntagsfeld_EN_LBK.AG"],
+      "error": "Duplicated pops: Germany_HalberstadtSonntagsfeld_EN_LBK.AG"
+    },
+    "target_in_right": {
+      "target": "French.DG",
+      "left": ["Russia_Samara_EBA_Yamnaya.AG", "Germany_HalberstadtSonntagsfeld_EN_LBK.AG"],
+      "right": ["Mbuti.DG", "Han.DG", "Papuan.DG", "French.DG"],
+      "error": "Duplicated pops: French.DG"
+    }
+  },
+  "qpwave": {
+    "dof_zero": {
+      "left": ["French.DG", "CEU.DG"],
+      "right": ["Mbuti.DG", "Han.DG"],
+      "rankdrop": [
+        {
+          "f4rank": 0,
+          "dof": 1,
+          "chisq": 7.3372439831111622,
+          "p": 0.0067540311431604433,
+          "dofdiff": null,
+          "chisqdiff": null,
+          "p_nested": null
+        }
+      ]
+    },
+    "one_left": {
+      "left": "French.DG",
+      "right": ["Mbuti.DG", "Han.DG", "Papuan.DG"],
+      "error": "Not enough left populations!"
+    },
+    "left_in_right": {
+      "left": ["French.DG", "CEU.DG", "Han.DG"],
+      "right": ["Mbuti.DG", "Han.DG", "Papuan.DG", "Karitiana.DG"],
+      "error": "Duplicated pops: Han.DG"
+    }
+  }
+}
