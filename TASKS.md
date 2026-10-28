@@ -354,7 +354,7 @@ thread count.
   inputs plus output are in memory, ~65 GB for two AADR-sized files).
   PD, PG
   Progress: convertf from packed .geno or .bed to EIGENSTRAT, ANCESTRYMAP, PACKEDANCESTRYMAP or PLINK streams one SNP at a time (0bcf74c): 3,970 samples 15 s, 1.3 GB resident (mostly the mapped input) instead of the 4.9 GB matrix. `merge` of two packed .geno or .bed inputs streams too (MergedRows, read in place): 2 x 1,201 samples 22.7 s / 6.3 GB to 8.7 s / 1.3 GB, byte-identical. PED and TGENO output (stored sample by sample) are written from 256 MB blocks of samples read in place, from convertf and merge (SampleGenotypes): AADR 1,201 samples to TGENO 17.2 s / 2.1 GB to 2.6 s / 1.05 GB, to PED 79 s / 2.1 GB to 18 s / 1.0 GB (5.9 GB written), byte-identical. Done.
-- [ ] **F4. f2 extraction:** no copy of the frequency table (index through
+- [x] **F4. f2 extraction:** no copy of the frequency table (index through
   `keep`, `f2_blocks.rs:216-222`); one pass for f2 and FST; write block
   results in place; GEMM formulation (Σp² + Σq² − 2pq plus bias terms) for
   many populations; population-pair chunking with a memory limit
@@ -362,6 +362,7 @@ thread count.
   55.7 s / 3.48 GB; ~1,000 pops extrapolates to ~35 GB. PD
   [reviewer-verified]
   Progress: block sums are matrix products and the kept SNPs are indexed in place (10dd2f5): `--maxmiss 1`, 4 threads, 128 populations 47.7 s to 15.7 s, 497 populations 676 s / 19.8 GB to 158 s / 13.8 GB; no block value differs from admixtools2 (16-256 populations). Then a chromosome at a time (F2Blocks::from_parts; blocks never span chromosomes, the map-or-base-pairs choice made from every SNP and checked against the kept ones at the end), block sums written in place: 497 populations 8.5 GB to 2.2 GB (1.5 GB of it the mapped input), with --maxmiss 1 13.8 GB / 158 s to 8.8 GB / 121 s, the same bytes. Left: past about 1,000 populations the blocks themselves (pairs x blocks) dominate; writing them to disk by pair chunks, as admixtools2's maxmem, would bound that.
+  *Done in baa305e:* the blocks are written to the f2 directory a chromosome at a time (bounded by one chromosome's blocks; 497 populations --maxmiss 1: 8.8 GB to 2.8 GB, same bytes) and `--f2-dir` commands read only their populations' pairs (4 of 497: 77 MB, 0.09 s). TGENO input is still read whole; convert it to packed .geno for the streamed path.
 - [x] **F5. PCA eigensolver.** nalgebra `SymmetricEigen` is dense,
   single-threaded, O(n³), rerun every outlier iteration (n = 2000: 9.9 s;
   ~20 min per iteration at 10k). Use a parallel solver (faer) or a partial
