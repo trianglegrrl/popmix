@@ -569,8 +569,12 @@ thread count.
   (GPL-3, never imported); the README's caveats section says so.
 - [ ] **H8. Admixture dating model checks:** single pulse vs extended
   admixture (residual test or two-exponential fit). PR
-- [ ] **H9. Ascertainment awareness:** record the SNP panel in f2 metadata;
+- [x] **H9. Ascertainment awareness:** record the SNP panel in f2 metadata;
   warn when f2 directories from different panels are combined. PR
+  *Done in d12ec0e:* f2 provenance `snp_panel` (SNPs read, a
+  fingerprint of their positions). No popmix operation combines f2
+  directories; `merge` does combine panels, and warns when the datasets
+  share under 90% of the smaller one's SNPs (`Warning::PanelsDiffer`).
 - [ ] **H10. Coverage-aware ancient-sample handling** across PCA, kinship and
   ploidy (G6, A6). PR
 
