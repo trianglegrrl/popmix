@@ -592,10 +592,13 @@ thread count.
 - [ ] **H10. Coverage-aware ancient-sample handling** across PCA, kinship and
   ploidy (G6, A6). PR
 
-- [ ] **H11. qpAdm/qpWave on all SNPs of each f4** (admixtools2's
+- [x] **H11. qpAdm/qpWave on all SNPs of each f4** (admixtools2's
   `qpadm(prefix)`, which computes each f4 from the genotypes on the SNPs its
   populations share): an option beside today's f2-block path, which matches
   `qpadm(f2_from_geno(...))`. Found by the E benchmark (DEVIATIONS.md).
+  *Done in b444669:* `pm.qpadm(prefix)`/`pm.qpwave(prefix)` and
+  `--f4-snps model|each`; matches admixtools2 qpadm(prefix) with and
+  without allsnps on three AADR models (weights, SEs, rankdrop, popdrop).
 
 ## I. Rust API and error design (P1)
 
