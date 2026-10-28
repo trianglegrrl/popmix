@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Sequence
 
 from popmix import _core
+from popmix.errors import InputError
 from popmix.results import (
     F4RatioResult,
     QpAdmResult,
@@ -17,15 +19,33 @@ from popmix.results import (
 )
 
 
-def qpwave(f2_blocks: _core.F2Blocks, left: Sequence[str], right: Sequence[str], *,
-           fudge: float = 1e-4, alpha: float = 0.05) -> QpWaveResult:
+def _genotypes(data) -> str | None:
+    """The genotype prefix ``data`` names, or None for f2 blocks."""
+    return os.fspath(data) if isinstance(data, (str, os.PathLike)) else None
+
+
+def _genotype_options(prefix: str | None, allsnps: bool, block_size: float, auto_only: bool,
+                      pseudohaploid: str) -> dict:
+    if prefix is None:
+        if allsnps:
+            raise InputError("allsnps applies to genotypes: give a genotype prefix, not f2 blocks")
+        return {}
+    return {"allsnps": allsnps, "block_size": block_size, "auto_only": auto_only, "pseudohaploid": pseudohaploid}
+
+
+def qpwave(f2_blocks: _core.F2Blocks | str | os.PathLike[str], left: Sequence[str], right: Sequence[str], *,
+           fudge: float = 1e-4, alpha: float = 0.05, block_size: float = 0.05, auto_only: bool = True,
+           pseudohaploid: str = "detect") -> QpWaveResult:
     """qpWave (admixtools2 ``qpwave``): how many waves of ancestry, as seen
     from ``right``, ``left`` descends from.
 
     Parameters
     ----------
     f2_blocks
-        f2 blocks holding every population.
+        f2 blocks holding every population, or a genotype prefix: then, as
+        admixtools2 ``qpwave(prefix)``, each f4 is computed from the
+        genotypes on the SNPs every population has data for (monomorphic
+        ones included), not from f2 blocks.
     left, right
         The left and right (outgroup) populations.
     fudge
@@ -33,6 +53,10 @@ def qpwave(f2_blocks: _core.F2Blocks, left: Sequence[str], right: Sequence[str],
     alpha
         Significance level of the rank tests: the estimated rank is the
         lowest rank whose ``p`` exceeds it.
+    block_size, auto_only, pseudohaploid
+        With a genotype prefix: the jackknife block size in Morgans, use
+        only autosomes, and which samples count one allele per SNP
+        ("detect", "admixtools2", "diploid").
 
     Returns
     -------
@@ -40,18 +64,28 @@ def qpwave(f2_blocks: _core.F2Blocks, left: Sequence[str], right: Sequence[str],
         The rank tests, rank 0 first, and the estimated rank: a lower
         bound on the number of streams minus one (see ``QpWaveResult``).
     """
+    prefix = _genotypes(f2_blocks)
+    if prefix is not None:
+        return qpwave_result(_core.qpwave_geno(prefix, list(left), list(right), fudge=fudge, alpha=alpha,
+                                               block_size=block_size, auto_only=auto_only,
+                                               pseudohaploid=pseudohaploid))
     return qpwave_result(_core.qpwave(f2_blocks, list(left), list(right), fudge=fudge, alpha=alpha))
 
 
-def qpadm(f2_blocks: _core.F2Blocks, left: Sequence[str], right: Sequence[str], target: str, *,
-          constrained: bool = False, fudge: float = 1e-4, compat: str | None = None) -> QpAdmResult:
+def qpadm(f2_blocks: _core.F2Blocks | str | os.PathLike[str], left: Sequence[str], right: Sequence[str],
+          target: str, *, constrained: bool = False, fudge: float = 1e-4, compat: str | None = None,
+          allsnps: bool = False, block_size: float = 0.05, auto_only: bool = True,
+          pseudohaploid: str = "detect") -> QpAdmResult:
     """qpAdm (admixtools2 ``qpadm``): ``target`` as a mixture of the ``left``
     populations, tested against ``right``.
 
     Parameters
     ----------
     f2_blocks
-        f2 blocks holding every population.
+        f2 blocks holding every population, or a genotype prefix: then, as
+        admixtools2 ``qpadm(prefix)``, each f4 is computed from the
+        genotypes, on the SNPs every population of the model has data for
+        (monomorphic ones included), not from f2 blocks.
     left
         The sources (admixtools2's ``left``, the target apart).
     right
@@ -65,13 +99,29 @@ def qpadm(f2_blocks: _core.F2Blocks, left: Sequence[str], right: Sequence[str], 
     compat
         ``"admixtools2-2.0.10"`` reproduces admixtools2's known quirks
         instead of correcting them (DEVIATIONS.md); None corrects them.
+    allsnps
+        With a genotype prefix: compute each f4 on the SNPs its own four
+        populations have data for (admixtools2 ``allsnps = TRUE``), so
+        statistics use different SNPs; more SNPs, but with much missing
+        data, admixtools2 warns, false positives.
+    block_size, auto_only, pseudohaploid
+        With a genotype prefix: the jackknife block size in Morgans, use
+        only autosomes, and which samples count one allele per SNP
+        ("detect", "admixtools2", "diploid").
 
     Returns
     -------
     QpAdmResult
         Weights, their SEs, the model's chisq, dof and p, popdrop,
-        rankdrop, and the blocks' and SNPs' counts.
+        rankdrop, and the counts of blocks and SNPs (from genotypes: blocks
+        with SNPs, and the SNPs of the statistic with most in each block).
     """
+    prefix = _genotypes(f2_blocks)
+    geno = _genotype_options(prefix, allsnps, block_size, auto_only, pseudohaploid)
+    if prefix is not None:
+        r, n_blocks, n_snps = _core.qpadm_geno(prefix, list(left), list(right), target, constrained=constrained,
+                                               fudge=fudge, compat=compat, **geno)
+        return qpadm_result(r, right=right, counts=(n_blocks, n_snps))
     return qpadm_result(_core.qpadm(f2_blocks, list(left), list(right), target,
                                     constrained=constrained, fudge=fudge, compat=compat), f2_blocks, right)
 

@@ -17,6 +17,7 @@ mod kinship;
 mod pca;
 mod ploidy;
 mod qpadm;
+mod qpadm_geno;
 mod qpadm_models;
 mod qpgraph;
 mod rcompat;
@@ -172,6 +173,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     rcompat::register(m)?;
     rolloff::register(m)?;
     subset::register(m)?;
+    qpadm_geno::register(m)?;
 
     // qpAdm/qpWave functions
     m.add_function(wrap_pyfunction!(qpadm::qpwave, m)?)?;

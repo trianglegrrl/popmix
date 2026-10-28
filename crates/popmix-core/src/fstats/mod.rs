@@ -26,8 +26,8 @@ pub use f2_arrays::F2Arrays;
 pub use f2_blocks::{F2Blocks, FstBlocks};
 pub use f3_f4::{F3Result, F4Result, FstResult};
 pub use geno_fstats::{
-    f3_from_genotypes, f4_from_genotypes, F3GenoOptions, F4Mode, GenoPopulations, GenoStat,
-    GenoStatBlocks, GenoStats, GenotypeRows, MatrixRows,
+    f3_from_genotypes, f4_from_genotypes, f4_from_genotypes_requiring, F3GenoOptions, F4Mode,
+    GenoPopulations, GenoStat, GenoStatBlocks, GenoStats, GenotypeRows, MatrixRows,
 };
 pub use jackknife::{
     block_jackknife, block_jackknife_cov, jackknife_cov_from_loo, jackknife_from_loo,

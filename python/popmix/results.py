@@ -353,8 +353,8 @@ def qpwave_result(r) -> QpWaveResult:
                    f4_matrix=_array(r.f4_matrix), f4_covariance=_array(r.f4_covariance))
 
 
-def qpadm_result(r, f2_blocks=None, right=()) -> QpAdmResult:
-    counts = {"n_blocks": 0, "n_snps": 0} if f2_blocks is None else \
+def qpadm_result(r, f2_blocks=None, right=(), counts=(0, 0)) -> QpAdmResult:
+    counts = {"n_blocks": counts[0], "n_snps": counts[1]} if f2_blocks is None else \
         {"n_blocks": f2_blocks.n_blocks, "n_snps": sum(f2_blocks.block_lengths)}
     return _fields(QpAdmResult, r, popdrop=tuple(_fields(PopDropRow, row) for row in r.popdrop),
                    rankdrop=tuple(_fields(RankTest, t) for t in r.rankdrop), right=tuple(right), **counts)

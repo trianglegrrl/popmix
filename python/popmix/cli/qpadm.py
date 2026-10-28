@@ -14,12 +14,16 @@ from . import _qpadm_output as out
 from ._common import (
     _json_number,
     _p_text,
+    _pseudohaploid,
     f2_source_options,
     load_f2_blocks,
     parse_population_list,
+    sample_selection,
+    snp_filters,
     write_columns,
 )
 from ._errors import EXPECTED_ERRORS, fail
+from ._population_checks import validate_populations
 
 
 @click.command()
@@ -35,13 +39,16 @@ from ._errors import EXPECTED_ERRORS, fail
 @click.option("--alpha", type=click.FloatRange(0, 1, min_open=True, max_open=True), default=0.05,
               help="Significance level: p at or below it rejects the model (default: 0.05)")
 @f2_source_options
+@click.option("--f4-snps", type=click.Choice(["f2", "model", "each"]), default="f2",
+              help="With --input: where each f4 comes from. f2 (default): f2 blocks on the SNPs every population has data for, polymorphic ones, as admixtools2 qpadm(f2_from_geno(...)); model: from the genotypes on the SNPs every population has data for, as admixtools2 qpadm(prefix); each: each f4 on the SNPs its four populations have data for, as "
+                   "qpadm(prefix, allsnps = TRUE)")
 @click.option("--output-prefix", "-o", default=None,
               help="Also write PREFIX.weights.tsv, .rankdrop.tsv, .popdrop.tsv and .json")
 @click.option("--format", "output_format", type=click.Choice(["text", "json", "tsv"]), default="text",
               help="Output format")
 def qpadm(target: str, left: list, right: list, constrained: bool, compat: str | None, fudge: float,
           alpha: float, input_prefix: str | None,
-          f2_dir: str | None, block_size: float, maxmiss: float, all_chromosomes: bool,
+          f2_dir: str | None, block_size: float, maxmiss: float, all_chromosomes: bool, f4_snps: str,
           output_prefix: str | None, output_format: str):
     """Estimate admixture weights using qpAdm.
 
@@ -60,9 +67,8 @@ def qpadm(target: str, left: list, right: list, constrained: bool, compat: str |
 
     all_pops = [target] + list(left) + list(right)
     try:
-        f2_blocks = load_f2_blocks(input_prefix, f2_dir, all_pops, block_size, maxmiss, all_chromosomes)
-
-        result = pm.qpadm(f2_blocks, left, right, target, constrained=constrained, fudge=fudge, compat=compat)
+        data, kw = _f4_source(f4_snps, input_prefix, f2_dir, all_pops, block_size, maxmiss, all_chromosomes)
+        result = pm.qpadm(data, left, right, target, constrained=constrained, fudge=fudge, compat=compat, **kw)
         assessment = result.assess(alpha)
 
         if output_prefix:
@@ -81,6 +87,23 @@ def qpadm(target: str, left: list, right: list, constrained: bool, compat: str |
 
     except EXPECTED_ERRORS as e:
         fail(e)
+
+
+def _f4_source(f4_snps: str, input_prefix: str | None, f2_dir: str | None, pops: list, block_size: float,
+               maxmiss: float, all_chromosomes: bool) -> tuple:
+    """The data qpAdm or qpWave fits, and its keywords: f2 blocks, or with
+    --f4-snps model or each, the genotype prefix (TASKS.md H11)."""
+    if f4_snps == "f2":
+        return load_f2_blocks(input_prefix, f2_dir, pops, block_size, maxmiss, all_chromosomes), {}
+    if input_prefix is None:
+        raise click.UsageError(f"--f4-snps {f4_snps} computes f4 from genotypes: give --input, not --f2-dir")
+    given = [flag for flag, on in [("--maxmiss", maxmiss != 0), ("SNP filters", bool(snp_filters())),
+                                   ("sample selection", bool(sample_selection()))] if on]
+    if given:
+        raise click.UsageError(f"{', '.join(given)} apply to f2 blocks, not to --f4-snps {f4_snps}")
+    validate_populations(input_prefix, pops)
+    return input_prefix, {"allsnps": f4_snps == "each", "block_size": block_size,
+                          "auto_only": not all_chromosomes, "pseudohaploid": _pseudohaploid()}
 
 
 def _echo_text(result: pm.QpAdmResult, right: list, assessment: pm.QpAdmAssessment) -> None:
@@ -158,10 +181,12 @@ def _rank_reading(rank: int, max_rank: int) -> str:
 @click.option("--alpha", type=click.FloatRange(0, 1, min_open=True, max_open=True), default=0.05,
               help="Significance level of the rank tests (default: 0.05)")
 @f2_source_options
+@click.option("--f4-snps", type=click.Choice(["f2", "model"]), default="f2",
+              help="With --input: where each f4 comes from. f2 (default): f2 blocks on the SNPs every population has data for, polymorphic ones, as admixtools2 qpadm(f2_from_geno(...)); model: from the genotypes on the SNPs every population has data for, as admixtools2 qpadm(prefix)")
 @click.option("--format", "output_format", type=click.Choice(["text", "json", "tsv"]), default="text",
               help="Output format")
 def qpwave(left: list, right: list, fudge: float, alpha: float, input_prefix: str | None, f2_dir: str | None,
-           block_size: float, maxmiss: float, all_chromosomes: bool, output_format: str):
+           block_size: float, maxmiss: float, all_chromosomes: bool, f4_snps: str, output_format: str):
     """Test admixture wave count using qpWave.
 
     Tests whether LEFT populations can be modeled as mixtures of common
@@ -176,9 +201,9 @@ def qpwave(left: list, right: list, fudge: float, alpha: float, input_prefix: st
 
     all_pops = list(left) + list(right)
     try:
-        f2_blocks = load_f2_blocks(input_prefix, f2_dir, all_pops, block_size, maxmiss, all_chromosomes)
-
-        result = pm.qpwave(f2_blocks, left, right, fudge=fudge, alpha=alpha)
+        data, kw = _f4_source(f4_snps, input_prefix, f2_dir, all_pops, block_size, maxmiss, all_chromosomes)
+        kw.pop("allsnps", None)
+        result = pm.qpwave(data, left, right, fudge=fudge, alpha=alpha, **kw)
 
         if output_format == "json":
             output = {

@@ -164,21 +164,67 @@ impl F4Matrix {
 
         let stats: Vec<Vec<f64>> = block_f4s.iter().map(ndarray::ArrayBase::to_vec).collect();
         let lengths: Vec<f64> = f2_blocks.block_lengths.iter().map(|&l| l as f64).collect();
-        let covariance = match block_jackknife_cov(&stats, &lengths) {
-            Some((_, cov)) => cov,
-            None => Array2::zeros((n_stats, n_stats)), // Not enough valid blocks
-        };
+        Ok(jackknife_parts(&stats, &lengths, n_rows, n_cols))
+    }
 
-        // Leave-one-out f4 matrices, stats in row-major order
-        let loo: Vec<Vec<f64>> = stats
+    /// F4 matrix of per-block f4 means: `stats[i * (n_right - 1) + j][k]`
+    /// is f4(left[i+1], left[0]; right[j+1], right[0]) in block k, each
+    /// block weighted by `weights[k]` in the estimate and the jackknife.
+    /// Blocks of zero weight are left out; so, in the covariance, are blocks
+    /// where a statistic is not finite (see [`block_jackknife_cov`]).
+    ///
+    /// admixtools2's `qpadm(prefix)` weights each block of a model by the
+    /// most SNPs any of its f4 statistics has there (measured: the only
+    /// weight that reproduces its chi-squared with `allsnps = TRUE`; with
+    /// `allsnps = FALSE` every statistic has the same SNPs).
+    pub fn from_block_means(
+        left: &[&str],
+        right: &[&str],
+        stats: &[Vec<f64>],
+        weights: &[f64],
+    ) -> Result<Self> {
+        let (n_rows, n_cols) = (left.len().saturating_sub(1), right.len().saturating_sub(1));
+        if n_rows == 0 || n_cols == 0 || stats.len() != n_rows * n_cols {
+            return Err(crate::PopmixError::DimensionMismatch {
+                context: "f4 block means".to_string(),
+                expected: format!("{} statistics", n_rows * n_cols),
+                actual: stats.len().to_string(),
+            });
+        }
+        let keep: Vec<usize> = (0..weights.len()).filter(|&k| weights[k] > 0.0).collect();
+        let w: Vec<f64> = keep.iter().map(|&k| weights[k]).collect();
+        let stats: Vec<Vec<f64>> = stats
             .iter()
-            .map(|x| leave_one_out_nafix(x, &lengths))
+            .map(|s| keep.iter().map(|&k| s[k]).collect())
             .collect();
-        let leave_one_out = (0..n_blocks)
-            .map(|k| Array2::from_shape_fn((n_rows, n_cols), |(i, j)| loo[i * n_cols + j][k]))
-            .collect();
-
-        Ok((covariance, leave_one_out))
+        let mut values = Array2::zeros((n_rows, n_cols));
+        let mut std_errors = Array2::zeros((n_rows, n_cols));
+        for (s, x) in stats.iter().enumerate() {
+            let (est, se) = crate::fstats::block_jackknife(x, &w).ok_or_else(|| {
+                crate::PopmixError::data(format!(
+                    "no SNP with data for f4({}, {}; {}, {})",
+                    left[s / n_cols + 1],
+                    left[0],
+                    right[s % n_cols + 1],
+                    right[0]
+                ))
+            })?;
+            values[[s / n_cols, s % n_cols]] = est;
+            std_errors[[s / n_cols, s % n_cols]] = se;
+        }
+        let (covariance, leave_one_out) = if w.len() < 2 {
+            (Array2::zeros((stats.len(), stats.len())), Vec::new())
+        } else {
+            jackknife_parts(&stats, &w, n_rows, n_cols)
+        };
+        Ok(Self {
+            values,
+            std_errors,
+            covariance,
+            leave_one_out,
+            left_pops: left.iter().map(|s| PopulationId::from(*s)).collect(),
+            right_pops: right.iter().map(|s| PopulationId::from(*s)).collect(),
+        })
     }
 
     /// Get the number of rows (n_left - 1).
@@ -195,6 +241,30 @@ impl F4Matrix {
     pub fn to_vector(&self) -> Array1<f64> {
         Array1::from_iter(self.values.iter().copied())
     }
+}
+
+/// The jackknife covariance of the f4 statistics `stats` (row-major in the
+/// matrix) over blocks of `lengths`, and the leave-one-block-out matrices.
+fn jackknife_parts(
+    stats: &[Vec<f64>],
+    lengths: &[f64],
+    n_rows: usize,
+    n_cols: usize,
+) -> (Array2<f64>, Vec<Array2<f64>>) {
+    let n_stats = stats.len();
+    let covariance = match block_jackknife_cov(stats, lengths) {
+        Some((_, cov)) => cov,
+        None => Array2::zeros((n_stats, n_stats)), // Not enough valid blocks
+    };
+    // Leave-one-out f4 matrices, stats in row-major order
+    let loo: Vec<Vec<f64>> = stats
+        .iter()
+        .map(|x| leave_one_out_nafix(x, lengths))
+        .collect();
+    let leave_one_out = (0..lengths.len())
+        .map(|k| Array2::from_shape_fn((n_rows, n_cols), |(i, j)| loo[i * n_cols + j][k]))
+        .collect();
+    (covariance, leave_one_out)
 }
 
 #[cfg(test)]

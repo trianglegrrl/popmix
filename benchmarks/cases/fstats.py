@@ -79,8 +79,8 @@ _R_QPADM = """
 suppressMessages(library(admixtools))
 a <- commandArgs(TRUE)
 left <- strsplit(a[3], ",")[[1]]; right <- strsplit(a[4], ",")[[1]]
-# f2 blocks first, as popmix qpadm --input does; qpadm(prefix) would compute
-# each f4 from the genotypes on its own SNPs (DEVIATIONS.md)
+# f2 blocks first, as popmix qpadm --input does by default; qpadm(prefix)
+# computes each f4 from the genotypes (popmix --f4-snps model)
 f2 <- f2_from_geno(a[1], pops = c(a[2], left, right), verbose = FALSE)
 r <- qpadm(f2, left = left, right = right, target = a[2], verbose = FALSE)
 jsonlite::write_json(list(weights = r$weights$weight, se = r$weights$se,
@@ -93,10 +93,10 @@ def _agree_qpadm(ours: Path, theirs: Path) -> dict:
     got = json.loads((ours / "qpadm.json").read_text())
     want = json.loads((theirs / "qpadm.json").read_text())
     w = np.array([got["weights"][s] for s in got["sources"]])
-    se = np.array([got["std_errors"][s] for s in got["sources"]])
+    se = np.array([got["se"][s] for s in got["sources"]])
     rel = lambda x, y: float(np.max(np.abs(np.asarray(x) - np.asarray(y)) / np.abs(np.asarray(y))))  # noqa: E731
     out = {"weights_rel": rel(w, want["weights"]), "se_rel": rel(se, want["se"]),
-           "p_rel": rel([got["p_value"]], [want["p"]])}
+           "p_rel": rel([got["p"]], [want["p"]])}
     out["pass"] = out["weights_rel"] <= 1e-6 and out["se_rel"] <= 1e-6 and out["p_rel"] <= 1e-4
     return out
 

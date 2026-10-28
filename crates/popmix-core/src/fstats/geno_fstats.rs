@@ -299,13 +299,31 @@ pub fn f4_from_genotypes(
     mode: F4Mode,
     block_size: f64,
 ) -> Result<GenoStats> {
-    let refs: Vec<&[usize]> = quads.iter().map(|q| &q[..]).collect();
+    f4_from_genotypes_requiring(rows, snps, pops, quads, mode, block_size, &[])
+}
+
+/// [`f4_from_genotypes`] on only the SNPs where every population of
+/// `require` has data too (admixtools2 `allsnps = FALSE`: a model's SNPs).
+pub fn f4_from_genotypes_requiring(
+    rows: &mut dyn GenotypeRows,
+    snps: &[Snp],
+    pops: &GenoPopulations,
+    quads: &[[usize; 4]],
+    mode: F4Mode,
+    block_size: f64,
+    require: &[usize],
+) -> Result<GenoStats> {
+    let mut refs: Vec<&[usize]> = quads.iter().map(|q| &q[..]).collect();
+    refs.push(require);
     check_indices(pops, &refs)?;
     let block_lengths = blocks_for(snps, block_size);
     let sums = accumulate(rows, pops, &block_lengths, quads.len(), |t, j| {
         let [i1, i2, i3, i4] = quads[j];
         let (mut num, mut den, mut n) = (0.0, 0.0, 0u64);
         for s in 0..t.n_snps() {
+            if require.iter().any(|&p| !t.af[t.idx(s, p)].is_finite()) {
+                continue;
+            }
             let (a, b, c, d) = (
                 t.af[t.idx(s, i1)],
                 t.af[t.idx(s, i2)],

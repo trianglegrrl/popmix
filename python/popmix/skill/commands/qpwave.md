@@ -36,6 +36,7 @@ popmix qpwave --left L1,L2,... --right R1,R2,... (--input PREFIX | --f2-dir DIR)
 | `--exclude-inds` | text (path) | none | With `--input`: never use the sample IDs in this file (one per line, or a `.ind`/`.fam` file). |
 | `--relabel` | text (path) | none | With `--input`: give samples new populations: `ID POPULATION` per line, as admixtools2 `inds`/`pops`. Population names given to the command are those after relabelling. |
 | `--relabel-pops` | text (path) | none | With `--input`: rename populations: `OLD NEW` per line, applied after `--relabel` (merge two populations by giving them one name). |
+| `--f4-snps` | `f2`, `model` | `f2` | With `--input`: where each f4 comes from. `f2`: f2 blocks on the SNPs every population has data for, polymorphic ones only, as admixtools2 `qpwave(f2_from_geno(...))`. `model`: from the genotypes on the SNPs every population has data for, monomorphic ones included, as admixtools2 `qpwave(prefix)`; the f2-block options (`--maxmiss`, SNP filters, sample selection) do not apply. (admixtools2's `qpwave()` has no `allsnps`.) |
 | `--format` | `text`, `json`, `tsv` | `text` | `json`: left, right, alpha, estimated_rank, rank_tests (rank, chisq, dof, p). `tsv`: one row per rank test. |
 
 ## Inputs and outputs

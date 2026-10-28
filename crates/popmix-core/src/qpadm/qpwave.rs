@@ -99,9 +99,12 @@ pub fn qpwave(
         f2_blocks.pop_index(p).is_some()
     })?;
 
-    // Compute F4 matrix
-    let f4_matrix = F4Matrix::from_f2_blocks(f2_blocks, left, right)?;
+    qpwave_on(F4Matrix::from_f2_blocks(f2_blocks, left, right)?, opts)
+}
 
+/// qpWave on an f4 matrix already computed (from f2 blocks, or from
+/// genotypes as admixtools2's `qpwave(prefix)`).
+pub fn qpwave_on(f4_matrix: F4Matrix, opts: &QpWaveOptions) -> Result<QpWaveResult> {
     // admixtools2 drop_ranks tests ranks nrow(f4) - 1 down to 0
     let max_rank = opts.max_rank.unwrap_or(f4_matrix.n_rows() - 1);
 

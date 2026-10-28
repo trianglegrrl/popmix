@@ -509,6 +509,20 @@ qpWave/qpAdm fits by the C++ code path (`cpp = TRUE`, the default).
 
 ### Interface differences
 
+- **`qpadm(prefix)` is `--f4-snps model`.** Given a genotype prefix,
+  admixtools2's `qpadm()` and `qpwave()` compute each f4 from the genotypes
+  on the SNPs every population of the model has data for, monomorphic
+  ones included (`allsnps = TRUE`: on each f4's own SNPs). popmix's
+  `qpadm --input` extracts f2 blocks first by default, as
+  `qpadm(f2_from_geno(...))` does, so that one SNP set serves every model;
+  `pm.qpadm(prefix, ...)` and `--f4-snps model`/`each` give
+  `qpadm(prefix)`'s numbers (`tests/golden/test_qpadm_geno_admixtools2.py`,
+  TASKS.md H11). The two differ by about the noise: French.DG as Yamnaya
+  and LBK gives p = 3.2e-8 on f2 blocks, 3.9e-8 on the model's SNPs and
+  1.1e-7 with `allsnps`. On this path admixtools2 weights a block's
+  statistics by the most SNPs any of them has there (measured; the only
+  weight that reproduces its chi-squared with `allsnps = TRUE`).
+
 These change no number that both tools compute.
 
 - **qpdstat D mode on f2 blocks is an error.** admixtools2 ignores

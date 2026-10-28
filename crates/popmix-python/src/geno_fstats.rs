@@ -149,9 +149,9 @@ impl GenotypeRows for RowsRef<'_> {
     }
 }
 
-fn run<F>(source: Source, f: F) -> PyResult<GenoStats>
+pub(crate) fn run<T, F>(source: Source, f: F) -> PyResult<T>
 where
-    F: FnOnce(&mut dyn GenotypeRows) -> popmix_core::Result<GenoStats>,
+    F: FnOnce(&mut dyn GenotypeRows) -> popmix_core::Result<T>,
 {
     match source {
         Source::Packed(mut rows) => f(&mut rows),

@@ -313,7 +313,20 @@ pub(crate) fn qpwave(
         };
 
         let result = popmix_core::qpwave(&f2_blocks.inner, &left_refs, &right_refs, &opts)?;
+        Ok(wave_result(&result, alpha, left, right))
+    })?;
+    crate::warnings::emit(|w| popmix_core::warnings::check_blocks_for_f4(blocks, statistics, w))?;
+    Ok(out)
+}
 
+/// The Python qpWave result of `result`.
+pub(crate) fn wave_result(
+    result: &popmix_core::QpWaveResult,
+    alpha: f64,
+    left: Vec<String>,
+    right: Vec<String>,
+) -> PyQpWaveResult {
+    {
         let rank_tests = result
             .rank_tests
             .iter()
@@ -326,7 +339,7 @@ pub(crate) fn qpwave(
             .collect();
 
         let rows = |m: &ndarray::Array2<f64>| m.outer_iter().map(|r| r.to_vec()).collect();
-        Ok(PyQpWaveResult {
+        PyQpWaveResult {
             rank_tests,
             estimated_rank: result.estimated_rank,
             alpha,
@@ -334,10 +347,8 @@ pub(crate) fn qpwave(
             right_pops: right,
             f4_matrix: rows(&result.f4_matrix.values),
             f4_covariance: rows(&result.f4_matrix.covariance),
-        })
-    })?;
-    crate::warnings::emit(|w| popmix_core::warnings::check_blocks_for_f4(blocks, statistics, w))?;
-    Ok(out)
+        }
+    }
 }
 
 /// Parse a qpAdm `compat` argument.

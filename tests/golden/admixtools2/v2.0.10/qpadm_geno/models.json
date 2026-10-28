@@ -1,0 +1,677 @@
+{
+  "admixtools_version": "2.0.10",
+  "prefix": "aadr_v66p1",
+  "models": [
+    {
+      "target": "French.DG",
+      "left": ["Russia_Samara_EBA_Yamnaya.AG", "Germany_HalberstadtSonntagsfeld_EN_LBK.AG"],
+      "right": ["Mbuti.DG", "Han.DG", "Papuan.DG", "Karitiana.DG", "Ulchi.DG"],
+      "allsnps": false,
+      "weights": [0.41823671950765012, 0.58176328049234993],
+      "se": [0.027183602924927833, 0.02718360292492783],
+      "rankdrop": [
+        {
+          "f4rank": 1,
+          "dof": 3,
+          "chisq": 37.348532803438857,
+          "p": 3.8827503463118036e-08,
+          "dofdiff": 5,
+          "chisqdiff": 650.64737304677351,
+          "p_nested": 2.2938041624531875e-138
+        },
+        {
+          "f4rank": 0,
+          "dof": 8,
+          "chisq": 687.99590585021235,
+          "p": 2.7472395503994017e-143,
+          "dofdiff": null,
+          "chisqdiff": null,
+          "p_nested": null
+        }
+      ],
+      "popdrop": [
+        {
+          "pat": "00",
+          "wt": 0,
+          "dof": 3,
+          "chisq": 37.348532803438857,
+          "p": 3.8827503463118036e-08,
+          "f4rank": 1,
+          "Russia_Samara_EBA_Yamnaya.AG": 0.41823671950765012,
+          "Germany_HalberstadtSonntagsfeld_EN_LBK.AG": 0.58176328049234993,
+          "feasible": true,
+          "best": null,
+          "dofdiff": null,
+          "chisqdiff": null,
+          "p_nested": null
+        },
+        {
+          "pat": "01",
+          "wt": 1,
+          "dof": 4,
+          "chisq": 433.43902592449939,
+          "p": 1.6512344996573749e-92,
+          "f4rank": 0,
+          "Russia_Samara_EBA_Yamnaya.AG": 1,
+          "Germany_HalberstadtSonntagsfeld_EN_LBK.AG": null,
+          "feasible": true,
+          "best": true,
+          "dofdiff": 0,
+          "chisqdiff": 230.34064114796621,
+          "p_nested": 0
+        },
+        {
+          "pat": "10",
+          "wt": 1,
+          "dof": 4,
+          "chisq": 203.09838477653318,
+          "p": 8.1036065824016872e-43,
+          "f4rank": 0,
+          "Russia_Samara_EBA_Yamnaya.AG": null,
+          "Germany_HalberstadtSonntagsfeld_EN_LBK.AG": 1,
+          "feasible": true,
+          "best": true,
+          "dofdiff": null,
+          "chisqdiff": null,
+          "p_nested": null
+        }
+      ],
+      "qpwave": [
+        {
+          "f4rank": 1,
+          "dof": 3,
+          "chisq": 37.348532803438857,
+          "p": 3.8827503463118036e-08,
+          "dofdiff": 5,
+          "chisqdiff": 650.64737304677351,
+          "p_nested": 2.2938041624531875e-138
+        },
+        {
+          "f4rank": 0,
+          "dof": 8,
+          "chisq": 687.99590585021235,
+          "p": 2.7472395503994017e-143,
+          "dofdiff": null,
+          "chisqdiff": null,
+          "p_nested": null
+        }
+      ]
+    },
+    {
+      "target": "French.DG",
+      "left": ["Russia_Samara_EBA_Yamnaya.AG", "Germany_HalberstadtSonntagsfeld_EN_LBK.AG"],
+      "right": ["Mbuti.DG", "Han.DG", "Papuan.DG", "Karitiana.DG", "Ulchi.DG"],
+      "allsnps": true,
+      "weights": [0.41941005898900463, 0.58058994101099537],
+      "se": [0.026747011279124752, 0.026747011279124756],
+      "rankdrop": [
+        {
+          "f4rank": 1,
+          "dof": 3,
+          "chisq": 35.220626290650074,
+          "p": 1.0942603099871388e-07,
+          "dofdiff": 5,
+          "chisqdiff": 648.08152252882905,
+          "p_nested": 8.2254099279967536e-138
+        },
+        {
+          "f4rank": 0,
+          "dof": 8,
+          "chisq": 683.30214881947916,
+          "p": 2.8134539379501581e-142,
+          "dofdiff": null,
+          "chisqdiff": null,
+          "p_nested": null
+        }
+      ],
+      "popdrop": [
+        {
+          "pat": "00",
+          "wt": 0,
+          "dof": 3,
+          "chisq": 35.220626290650074,
+          "p": 1.0942603099871388e-07,
+          "f4rank": 1,
+          "Russia_Samara_EBA_Yamnaya.AG": 0.41941005898900463,
+          "Germany_HalberstadtSonntagsfeld_EN_LBK.AG": 0.58058994101099537,
+          "feasible": true,
+          "best": null,
+          "dofdiff": null,
+          "chisqdiff": null,
+          "p_nested": null
+        },
+        {
+          "pat": "01",
+          "wt": 1,
+          "dof": 4,
+          "chisq": 428.01087937778061,
+          "p": 2.4607522656795868e-91,
+          "f4rank": 0,
+          "Russia_Samara_EBA_Yamnaya.AG": 1,
+          "Germany_HalberstadtSonntagsfeld_EN_LBK.AG": null,
+          "feasible": true,
+          "best": true,
+          "dofdiff": 0,
+          "chisqdiff": 223.29108754793342,
+          "p_nested": 0
+        },
+        {
+          "pat": "10",
+          "wt": 1,
+          "dof": 4,
+          "chisq": 204.7197918298472,
+          "p": 3.6308984220422917e-43,
+          "f4rank": 0,
+          "Russia_Samara_EBA_Yamnaya.AG": null,
+          "Germany_HalberstadtSonntagsfeld_EN_LBK.AG": 1,
+          "feasible": true,
+          "best": true,
+          "dofdiff": null,
+          "chisqdiff": null,
+          "p_nested": null
+        }
+      ]
+    },
+    {
+      "target": "Papuan.DG",
+      "left": ["Han.DG", "French.DG"],
+      "right": ["Chimp.REF", "Mbuti.DG", "Yoruba.DG"],
+      "allsnps": false,
+      "weights": [6.1518340309307975, -5.1518340309307975],
+      "se": [2.0077912079514726, 2.0077912079514726],
+      "rankdrop": [
+        {
+          "f4rank": 1,
+          "dof": 1,
+          "chisq": 3.1932304055741616,
+          "p": 0.073943756436989999,
+          "dofdiff": 3,
+          "chisqdiff": 126.04211738711615,
+          "p_nested": 3.8539440369177202e-27
+        },
+        {
+          "f4rank": 0,
+          "dof": 4,
+          "chisq": 129.23534779269031,
+          "p": 5.6744219168628453e-27,
+          "dofdiff": null,
+          "chisqdiff": null,
+          "p_nested": null
+        }
+      ],
+      "popdrop": [
+        {
+          "pat": "00",
+          "wt": 0,
+          "dof": 1,
+          "chisq": 3.1932304055741616,
+          "p": 0.073943756436989999,
+          "f4rank": 1,
+          "Han.DG": 6.1518340309307975,
+          "French.DG": -5.1518340309307975,
+          "feasible": false,
+          "best": null,
+          "dofdiff": null,
+          "chisqdiff": null,
+          "p_nested": null
+        },
+        {
+          "pat": "01",
+          "wt": 1,
+          "dof": 2,
+          "chisq": 287.58443625745736,
+          "p": 3.5631419644080674e-63,
+          "f4rank": 0,
+          "Han.DG": 1,
+          "French.DG": null,
+          "feasible": true,
+          "best": true,
+          "dofdiff": 0,
+          "chisqdiff": -50.070395136415584,
+          "p_nested": 1
+        },
+        {
+          "pat": "10",
+          "wt": 1,
+          "dof": 2,
+          "chisq": 337.65483139387294,
+          "p": 4.7773269978688758e-74,
+          "f4rank": 0,
+          "Han.DG": null,
+          "French.DG": 1,
+          "feasible": true,
+          "best": true,
+          "dofdiff": null,
+          "chisqdiff": null,
+          "p_nested": null
+        }
+      ],
+      "qpwave": [
+        {
+          "f4rank": 1,
+          "dof": 1,
+          "chisq": 3.1932304055741616,
+          "p": 0.073943756436989999,
+          "dofdiff": 3,
+          "chisqdiff": 126.04211738711615,
+          "p_nested": 3.8539440369177202e-27
+        },
+        {
+          "f4rank": 0,
+          "dof": 4,
+          "chisq": 129.23534779269031,
+          "p": 5.6744219168628453e-27,
+          "dofdiff": null,
+          "chisqdiff": null,
+          "p_nested": null
+        }
+      ]
+    },
+    {
+      "target": "Papuan.DG",
+      "left": ["Han.DG", "French.DG"],
+      "right": ["Chimp.REF", "Mbuti.DG", "Yoruba.DG"],
+      "allsnps": true,
+      "weights": [6.126972059244105, -5.126972059244105],
+      "se": [1.9896311781590443, 1.9896311781590441],
+      "rankdrop": [
+        {
+          "f4rank": 1,
+          "dof": 1,
+          "chisq": 3.2091098482188385,
+          "p": 0.073229312969532404,
+          "dofdiff": 3,
+          "chisqdiff": 126.15034638692404,
+          "p_nested": 3.652475115111707e-27
+        },
+        {
+          "f4rank": 0,
+          "dof": 4,
+          "chisq": 129.35945623514289,
+          "p": 5.3380462695575917e-27,
+          "dofdiff": null,
+          "chisqdiff": null,
+          "p_nested": null
+        }
+      ],
+      "popdrop": [
+        {
+          "pat": "00",
+          "wt": 0,
+          "dof": 1,
+          "chisq": 3.2091098482188385,
+          "p": 0.073229312969532404,
+          "f4rank": 1,
+          "Han.DG": 6.126972059244105,
+          "French.DG": -5.126972059244105,
+          "feasible": false,
+          "best": null,
+          "dofdiff": null,
+          "chisqdiff": null,
+          "p_nested": null
+        },
+        {
+          "pat": "01",
+          "wt": 1,
+          "dof": 2,
+          "chisq": 287.59024085899603,
+          "p": 3.5528156470314619e-63,
+          "f4rank": 0,
+          "Han.DG": 1,
+          "French.DG": null,
+          "feasible": true,
+          "best": true,
+          "dofdiff": 0,
+          "chisqdiff": -50.686281031195961,
+          "p_nested": 1
+        },
+        {
+          "pat": "10",
+          "wt": 1,
+          "dof": 2,
+          "chisq": 338.27652189019199,
+          "p": 3.5009555182950783e-74,
+          "f4rank": 0,
+          "Han.DG": null,
+          "French.DG": 1,
+          "feasible": true,
+          "best": true,
+          "dofdiff": null,
+          "chisqdiff": null,
+          "p_nested": null
+        }
+      ]
+    },
+    {
+      "target": "Basque.DG",
+      "left": ["France_Yonne_N.AG", "Russia_Samara_EBA_Yamnaya.AG", "Druze.DG"],
+      "right": ["Mbuti.DG", "Han.DG", "Papuan.DG", "Karitiana.DG", "Ulchi.DG", "Dinka.DG"],
+      "allsnps": false,
+      "weights": [0.96587445442616515, 0.25193738715706065, -0.21781184158322578],
+      "se": [0.17580555005332787, 0.037871020212655378, 0.15111194079661031],
+      "rankdrop": [
+        {
+          "f4rank": 2,
+          "dof": 3,
+          "chisq": 5.0493663118609549,
+          "p": 0.16821778574383517,
+          "dofdiff": 5,
+          "chisqdiff": 69.697749261789411,
+          "p_nested": 1.1844826916599218e-13
+        },
+        {
+          "f4rank": 1,
+          "dof": 8,
+          "chisq": 74.747115573650362,
+          "p": 5.5426092932499565e-13,
+          "dofdiff": 7,
+          "chisqdiff": 1158.5983572213327,
+          "p_nested": 6.3258582937603689e-246
+        },
+        {
+          "f4rank": 0,
+          "dof": 15,
+          "chisq": 1233.3454727949829,
+          "p": 1.1226668175670154e-253,
+          "dofdiff": null,
+          "chisqdiff": null,
+          "p_nested": null
+        }
+      ],
+      "popdrop": [
+        {
+          "pat": "000",
+          "wt": 0,
+          "dof": 3,
+          "chisq": 5.0493663118609549,
+          "p": 0.16821778574383517,
+          "f4rank": 2,
+          "France_Yonne_N.AG": 0.96587445442616515,
+          "Russia_Samara_EBA_Yamnaya.AG": 0.25193738715706065,
+          "Druze.DG": -0.21781184158322578,
+          "feasible": false,
+          "best": null,
+          "dofdiff": null,
+          "chisqdiff": null,
+          "p_nested": null
+        },
+        {
+          "pat": "001",
+          "wt": 1,
+          "dof": 4,
+          "chisq": 11.309669962092796,
+          "p": 0.023295587227066438,
+          "f4rank": 1,
+          "France_Yonne_N.AG": 0.721787171484079,
+          "Russia_Samara_EBA_Yamnaya.AG": 0.27821282851592105,
+          "Druze.DG": null,
+          "feasible": true,
+          "best": true,
+          "dofdiff": 0,
+          "chisqdiff": -10.800037995598386,
+          "p_nested": 1
+        },
+        {
+          "pat": "010",
+          "wt": 1,
+          "dof": 4,
+          "chisq": 22.109707957691182,
+          "p": 0.00019058989590356004,
+          "f4rank": 1,
+          "France_Yonne_N.AG": 2.0868610807484598,
+          "Russia_Samara_EBA_Yamnaya.AG": null,
+          "Druze.DG": -1.0868610807484598,
+          "feasible": false,
+          "best": true,
+          "dofdiff": 0,
+          "chisqdiff": -41.746518056333414,
+          "p_nested": 1
+        },
+        {
+          "pat": "100",
+          "wt": 1,
+          "dof": 4,
+          "chisq": 63.8562260140246,
+          "p": 4.4808824097734664e-13,
+          "f4rank": 1,
+          "France_Yonne_N.AG": null,
+          "Russia_Samara_EBA_Yamnaya.AG": 0.40173090499619546,
+          "Druze.DG": 0.59826909500380465,
+          "feasible": true,
+          "best": true,
+          "dofdiff": null,
+          "chisqdiff": null,
+          "p_nested": null
+        },
+        {
+          "pat": "011",
+          "wt": 2,
+          "dof": 5,
+          "chisq": 133.12706470859334,
+          "p": 5.1617031864602662e-27,
+          "f4rank": 0,
+          "France_Yonne_N.AG": 1,
+          "Russia_Samara_EBA_Yamnaya.AG": null,
+          "Druze.DG": null,
+          "feasible": true,
+          "best": null,
+          "dofdiff": null,
+          "chisqdiff": null,
+          "p_nested": null
+        },
+        {
+          "pat": "101",
+          "wt": 2,
+          "dof": 5,
+          "chisq": 521.25645194808487,
+          "p": 2.0582243049947389e-110,
+          "f4rank": 0,
+          "France_Yonne_N.AG": null,
+          "Russia_Samara_EBA_Yamnaya.AG": 1,
+          "Druze.DG": null,
+          "feasible": true,
+          "best": null,
+          "dofdiff": null,
+          "chisqdiff": null,
+          "p_nested": null
+        },
+        {
+          "pat": "110",
+          "wt": 2,
+          "dof": 5,
+          "chisq": 522.53890072494266,
+          "p": 1.0879455039750592e-110,
+          "f4rank": 0,
+          "France_Yonne_N.AG": null,
+          "Russia_Samara_EBA_Yamnaya.AG": null,
+          "Druze.DG": 1,
+          "feasible": true,
+          "best": null,
+          "dofdiff": null,
+          "chisqdiff": null,
+          "p_nested": null
+        }
+      ],
+      "qpwave": [
+        {
+          "f4rank": 2,
+          "dof": 3,
+          "chisq": 5.0493663118609549,
+          "p": 0.16821778574383517,
+          "dofdiff": 5,
+          "chisqdiff": 69.697749261789411,
+          "p_nested": 1.1844826916599218e-13
+        },
+        {
+          "f4rank": 1,
+          "dof": 8,
+          "chisq": 74.747115573650362,
+          "p": 5.5426092932499565e-13,
+          "dofdiff": 7,
+          "chisqdiff": 1158.5983572213327,
+          "p_nested": 6.3258582937603689e-246
+        },
+        {
+          "f4rank": 0,
+          "dof": 15,
+          "chisq": 1233.3454727949829,
+          "p": 1.1226668175670154e-253,
+          "dofdiff": null,
+          "chisqdiff": null,
+          "p_nested": null
+        }
+      ]
+    },
+    {
+      "target": "Basque.DG",
+      "left": ["France_Yonne_N.AG", "Russia_Samara_EBA_Yamnaya.AG", "Druze.DG"],
+      "right": ["Mbuti.DG", "Han.DG", "Papuan.DG", "Karitiana.DG", "Ulchi.DG", "Dinka.DG"],
+      "allsnps": true,
+      "weights": [0.96899329189722205, 0.25079408431133338, -0.21978737620855546],
+      "se": [0.17263909420896975, 0.03770827105795601, 0.14837332769784797],
+      "rankdrop": [
+        {
+          "f4rank": 2,
+          "dof": 3,
+          "chisq": 4.6866135484044227,
+          "p": 0.1962366467602161,
+          "dofdiff": 5,
+          "chisqdiff": 71.607634264823815,
+          "p_nested": 4.7415688496856848e-14
+        },
+        {
+          "f4rank": 1,
+          "dof": 8,
+          "chisq": 76.294247813228239,
+          "p": 2.7147304022764639e-13,
+          "dofdiff": 7,
+          "chisqdiff": 1151.7656828861557,
+          "p_nested": 1.8984756559155478e-244
+        },
+        {
+          "f4rank": 0,
+          "dof": 15,
+          "chisq": 1228.0599306993838,
+          "p": 1.5342210216948321e-252,
+          "dofdiff": null,
+          "chisqdiff": null,
+          "p_nested": null
+        }
+      ],
+      "popdrop": [
+        {
+          "pat": "000",
+          "wt": 0,
+          "dof": 3,
+          "chisq": 4.6866135484044227,
+          "p": 0.1962366467602161,
+          "f4rank": 2,
+          "France_Yonne_N.AG": 0.96899329189722205,
+          "Russia_Samara_EBA_Yamnaya.AG": 0.25079408431133338,
+          "Druze.DG": -0.21978737620855546,
+          "feasible": false,
+          "best": null,
+          "dofdiff": null,
+          "chisqdiff": null,
+          "p_nested": null
+        },
+        {
+          "pat": "001",
+          "wt": 1,
+          "dof": 4,
+          "chisq": 10.982496961744959,
+          "p": 0.02676143022639298,
+          "f4rank": 1,
+          "France_Yonne_N.AG": 0.72253202643727144,
+          "Russia_Samara_EBA_Yamnaya.AG": 0.27746797356272862,
+          "Druze.DG": null,
+          "feasible": true,
+          "best": true,
+          "dofdiff": 0,
+          "chisqdiff": -10.83706922741044,
+          "p_nested": 1
+        },
+        {
+          "pat": "010",
+          "wt": 1,
+          "dof": 4,
+          "chisq": 21.819566189155399,
+          "p": 0.00021769339645481186,
+          "f4rank": 1,
+          "France_Yonne_N.AG": 2.0757964299952842,
+          "Russia_Samara_EBA_Yamnaya.AG": null,
+          "Druze.DG": -1.0757964299952842,
+          "feasible": false,
+          "best": true,
+          "dofdiff": 0,
+          "chisqdiff": -44.020501910764665,
+          "p_nested": 1
+        },
+        {
+          "pat": "100",
+          "wt": 1,
+          "dof": 4,
+          "chisq": 65.84006809992006,
+          "p": 1.7118556776314202e-13,
+          "f4rank": 1,
+          "France_Yonne_N.AG": null,
+          "Russia_Samara_EBA_Yamnaya.AG": 0.40322059432432994,
+          "Druze.DG": 0.59677940567567,
+          "feasible": true,
+          "best": true,
+          "dofdiff": null,
+          "chisqdiff": null,
+          "p_nested": null
+        },
+        {
+          "pat": "011",
+          "wt": 2,
+          "dof": 5,
+          "chisq": 131.58453607518558,
+          "p": 1.0971612297542705e-26,
+          "f4rank": 0,
+          "France_Yonne_N.AG": 1,
+          "Russia_Samara_EBA_Yamnaya.AG": null,
+          "Druze.DG": null,
+          "feasible": true,
+          "best": null,
+          "dofdiff": null,
+          "chisqdiff": null,
+          "p_nested": null
+        },
+        {
+          "pat": "101",
+          "wt": 2,
+          "dof": 5,
+          "chisq": 521.94970099072657,
+          "p": 1.4582033323262917e-110,
+          "f4rank": 0,
+          "France_Yonne_N.AG": null,
+          "Russia_Samara_EBA_Yamnaya.AG": 1,
+          "Druze.DG": null,
+          "feasible": true,
+          "best": null,
+          "dofdiff": null,
+          "chisqdiff": null,
+          "p_nested": null
+        },
+        {
+          "pat": "110",
+          "wt": 2,
+          "dof": 5,
+          "chisq": 525.90617176435114,
+          "p": 2.0397740030266167e-111,
+          "f4rank": 0,
+          "France_Yonne_N.AG": null,
+          "Russia_Samara_EBA_Yamnaya.AG": null,
+          "Druze.DG": 1,
+          "feasible": true,
+          "best": null,
+          "dofdiff": null,
+          "chisqdiff": null,
+          "p_nested": null
+        }
+      ]
+    }
+  ]
+}

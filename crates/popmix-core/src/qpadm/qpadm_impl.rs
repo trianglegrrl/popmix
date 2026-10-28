@@ -11,6 +11,7 @@
 //! Weights can be constrained to [0,1] or left unconstrained.
 
 use super::compat::Admixtools2Compat;
+use super::f4_matrix::F4Matrix;
 use super::fit;
 use super::qpwave::{qpwave, QpWaveOptions, QpWaveResult};
 use crate::fstats::F2Blocks;
@@ -116,6 +117,40 @@ pub fn qpadm(
         ..QpWaveOptions::default()
     };
     let qpwave_result = qpwave(f2_blocks, &left, right, &qpwave_opts)?;
+    qpadm_from_qpwave(target, sources, qpwave_result, opts)
+}
+
+/// qpAdm on an f4 matrix already computed, its left populations the target
+/// then `sources` (from genotypes, as admixtools2's `qpadm(prefix)`).
+pub fn qpadm_on(
+    target: &str,
+    sources: &[&str],
+    f4_matrix: F4Matrix,
+    options: &QpAdmOptions,
+) -> Result<QpAdmResult> {
+    if sources.is_empty() || f4_matrix.n_rows() != sources.len() || f4_matrix.n_cols() < 1 {
+        return Err(crate::PopmixError::DimensionMismatch {
+            context: "qpAdm f4 matrix".to_string(),
+            expected: format!("{} rows, one per source, and a column", sources.len()),
+            actual: format!("{} x {}", f4_matrix.n_rows(), f4_matrix.n_cols()),
+        });
+    }
+    let qpwave_opts = QpWaveOptions {
+        fudge: options.fudge,
+        ..QpWaveOptions::default()
+    };
+    let qpwave_result = super::qpwave::qpwave_on(f4_matrix, &qpwave_opts)?;
+    qpadm_from_qpwave(target, sources, qpwave_result, options)
+}
+
+/// Weights, SEs, fit and popdrop from the qpWave result of the target and
+/// sources.
+fn qpadm_from_qpwave(
+    target: &str,
+    sources: &[&str],
+    qpwave_result: QpWaveResult,
+    opts: &QpAdmOptions,
+) -> Result<QpAdmResult> {
     let f4 = &qpwave_result.f4_matrix;
 
     let rnk = sources.len() - 1;
