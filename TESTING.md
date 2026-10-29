@@ -35,7 +35,8 @@ reference cache (`~/.cache/popmix-references`, or `POPMIX_REFERENCE_CACHE`),
 among them the AADR v66.p1 dataset labelled by data type that every AADR
 golden reads (`python tests/golden/aadr/build_aadr_v66p1.py`; see AADR
 v66.p1 Reference Data below). Without the full release, fetch that dataset
-from its Zenodo record instead, checked against the MD5s the build recorded:
+from its Zenodo record (doi:10.5281/zenodo.23750150) instead, checked
+against the MD5s the build recorded:
 `python tests/golden/aadr/archive_aadr_v66p1.py fetch`. A reference names its
 data under the cache of the machine that made it; the goldens read it from
 this machine's cache (`tests/golden/reference_paths.py`). The

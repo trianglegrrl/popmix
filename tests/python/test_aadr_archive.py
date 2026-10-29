@@ -105,3 +105,14 @@ def test_the_expected_checksums_are_those_the_build_recorded():
         pytest.skip(f"AADR v66.p1 subset not built: {manifest}")
     outputs = json.loads(manifest.read_text())["outputs"]
     assert {ext: entry["md5"] for ext, entry in outputs.items()} == archive.MD5
+
+
+def test_fetch_reads_the_published_record_by_default(monkeypatch):
+    monkeypatch.delenv("POPMIX_AADR_ZENODO_RECORD", raising=False)
+    assert load("archive_aadr_v66p1").RECORD == "23750150"
+
+
+def test_fetch_refuses_an_archive_with_the_wrong_sha256(tmp_path, monkeypatch):
+    monkeypatch.setattr(archive.urllib.request, "urlopen", lambda url: BytesIO(b"not the archive"))
+    with pytest.raises(ValueError, match="SHA-256"):
+        archive.fetch("23750150", tmp_path / "dest")

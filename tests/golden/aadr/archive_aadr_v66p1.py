@@ -11,7 +11,8 @@ reference cache, checking every file against the MD5 the build recorded:
     python tests/golden/aadr/archive_aadr_v66p1.py fetch
 
 AADR is released under CC0 1.0 (doi:10.7910/DVN/FFIDCW), and so is the
-archive. `fetch` reads the record from $POPMIX_AADR_ZENODO_RECORD when set.
+archive. The record is doi:10.5281/zenodo.23750150; `fetch` reads another
+from $POPMIX_AADR_ZENODO_RECORD when set.
 """
 
 from __future__ import annotations
@@ -35,9 +36,9 @@ MD5 = {"geno": "006c09f886d0039dd4beb3b8ba3cfe42",
        "snp": "50f66178fc81b8aa087cc4b135317e59",
        "ind": "2298265d7281b77fd65c7b7ece2e41ff"}
 
-# The published Zenodo record and its archive; set when the record is published.
-RECORD = os.environ.get("POPMIX_AADR_ZENODO_RECORD", "")
-ARCHIVE_SHA256 = ""
+# The published Zenodo record (doi:10.5281/zenodo.23750150) and its archive.
+RECORD = os.environ.get("POPMIX_AADR_ZENODO_RECORD", "23750150")
+ARCHIVE_SHA256 = "0f7a9f95b43a2cc893905112ea8542608b43e100ba482c7d4f4189f77885604f"
 
 README = """\
 # AADR v66.p1 subset for the popmix golden tests
@@ -133,14 +134,12 @@ def fetch(record: str = RECORD, dest: Path = CACHE) -> None:
     if installed(dest, MD5):
         print(f"{dest}: already installed")
         return
-    if not record:
-        raise SystemExit("No Zenodo record: set POPMIX_AADR_ZENODO_RECORD")
     url = f"https://zenodo.org/records/{record}/files/{ARCHIVE}?download=1"
     with tempfile.TemporaryDirectory() as tmp:
         target = Path(tmp) / ARCHIVE
         with urllib.request.urlopen(url) as response, open(target, "wb") as out:
             shutil.copyfileobj(response, out, 1 << 24)
-        if ARCHIVE_SHA256 and sha256(target) != ARCHIVE_SHA256:
+        if sha256(target) != ARCHIVE_SHA256:
             raise ValueError(f"{url}: SHA-256 {sha256(target)}, expected {ARCHIVE_SHA256}")
         install(target, dest, MD5)
     print(f"{dest}: installed from {url}")
