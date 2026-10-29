@@ -793,7 +793,7 @@ thread count.
   `test_cli.py:61`), the mismatched docstring at `test_statistical_rigor.py:101`,
   the tag-presence checks in `test_html_reports.py`, the weights-sum-to-1
   qpadm test (`qpadm_impl.rs:227-269`). Most go with D1. AI, PD
-- [ ] **K6. Mutation testing** (`cargo-mutants`, `mutmut`) on core statistics
+- [x] **K6. Mutation testing:** *Done in c0ff97f (with cf1dd84 and 1536573; TESTING.md "Mutation Testing": of 1751 cargo-mutants mutants 192 escaped every test, now 118 tested, 50 removed as unneeded code, 24 unable to change a result; mutmut's 24 survivors of 136 each tested).* (`cargo-mutants`, `mutmut`) on core statistics
   and Python helpers, to find tests that cannot fail. AI
 - [x] **K7. Process rules in CLAUDE.md:** *Done in d68dc3d (`tests/python/test_process_rules.py` checks the mock, `or`-assertion and file-size rules).* a feature is done only when it is
   reachable from the CLI or `popmix.__all__` and an end-to-end test runs it
