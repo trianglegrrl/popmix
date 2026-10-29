@@ -32,18 +32,18 @@ def eig(tmp_path_factory) -> str:
 
 def cut(eig: str, out: str, snps: slice, pops: set[str]) -> str:
     """EIGENSTRAT data of some SNPs (rows) and the samples of some populations."""
-    ind = Path(f"{eig}.ind").read_text().splitlines()
+    ind = Path(f"{eig}.ind").read_text(encoding="utf-8").splitlines()
     keep = [k for k, line in enumerate(ind) if line.split()[2] in pops]
-    Path(f"{out}.ind").write_text("".join(ind[k] + "\n" for k in keep))
-    Path(f"{out}.snp").write_text("".join(x + "\n" for x in Path(f"{eig}.snp").read_text().splitlines()[snps]))
-    rows = Path(f"{eig}.geno").read_text().splitlines()[snps]
-    Path(f"{out}.geno").write_text("".join("".join(r[k] for k in keep) + "\n" for r in rows))
+    Path(f"{out}.ind").write_text("".join(ind[k] + "\n" for k in keep), encoding="utf-8")
+    Path(f"{out}.snp").write_text("".join(x + "\n" for x in Path(f"{eig}.snp").read_text(encoding="utf-8").splitlines()[snps]), encoding="utf-8")
+    rows = Path(f"{eig}.geno").read_text(encoding="utf-8").splitlines()[snps]
+    Path(f"{out}.geno").write_text("".join("".join(r[k] for k in keep) + "\n" for r in rows), encoding="utf-8")
     return out
 
 
 def test_an_extraction_records_its_panel():
     panel = pm.extract_f2(SMALL, ["French", "Yoruba"]).provenance["snp_panel"]
-    assert panel["snps"] == len(Path(f"{SMALL}.snp").read_text().splitlines())
+    assert panel["snps"] == len(Path(f"{SMALL}.snp").read_text(encoding="utf-8").splitlines())
     assert len(panel["fingerprint"]) == 16
 
 
@@ -54,7 +54,7 @@ def test_the_fingerprint_is_the_panels_not_the_populations():
 
 
 def test_another_panel_has_another_fingerprint(eig, tmp_path):
-    n = len(Path(f"{eig}.snp").read_text().splitlines())
+    n = len(Path(f"{eig}.snp").read_text(encoding="utf-8").splitlines())
     fewer = cut(eig, str(tmp_path / "fewer"), slice(0, n - 1), {"French", "Yoruba"})
     a = pm.extract_f2(SMALL, ["French", "Yoruba"]).provenance["snp_panel"]
     b = pm.extract_f2(fewer, ["French", "Yoruba"]).provenance["snp_panel"]
@@ -68,7 +68,7 @@ def merge(a: str, b: str, out: str) -> subprocess.CompletedProcess:
 
 
 def test_merging_partly_overlapping_panels_warns(eig, tmp_path):
-    n = len(Path(f"{eig}.snp").read_text().splitlines())
+    n = len(Path(f"{eig}.snp").read_text(encoding="utf-8").splitlines())
     a = cut(eig, str(tmp_path / "a"), slice(0, n * 7 // 10), {"French"})
     b = cut(eig, str(tmp_path / "b"), slice(n * 3 // 10, n), {"Yoruba"})
     shared = n * 7 // 10 - n * 3 // 10
@@ -89,7 +89,7 @@ def test_merging_one_panel_does_not_warn(eig, tmp_path):
 
 
 def test_the_python_merge_warns_too(eig, tmp_path):
-    n = len(Path(f"{eig}.snp").read_text().splitlines())
+    n = len(Path(f"{eig}.snp").read_text(encoding="utf-8").splitlines())
     a = cut(eig, str(tmp_path / "a"), slice(0, n // 2), {"French"})
     b = cut(eig, str(tmp_path / "b"), slice(n // 4, n), {"Yoruba"})
     with warnings.catch_warnings(record=True) as w:

@@ -12,7 +12,6 @@ f-statistic tolerance, and the blocks exactly.
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 import numpy as np
@@ -20,7 +19,7 @@ import pytest
 
 import popmix as pm
 
-from .reference_paths import local
+from .reference_paths import local, missing
 
 REF_DIR = Path(__file__).parent / "admixtools2" / "v2.0.10" / "vcf_ped"
 
@@ -41,18 +40,18 @@ def _check(ours, ref: dict, which: str):
 
 @pytest.mark.parametrize("name", _cases())
 def test_ped(name):
-    ref = json.loads((REF_DIR / f"{name}.json").read_text())
+    ref = json.loads((REF_DIR / f"{name}.json").read_text(encoding="utf-8"))
     ped = f"{local(ref['prefix'])}_ped"
-    if not os.path.exists(f"{ped}.ped"):
+    if missing(f"{ped}.ped"):
         pytest.skip("PED test data not generated")
     _check(pm.extract_f2(ped, ref["pops"], auto_only=ref["auto_only"]), ref, "cm")
 
 
 @pytest.mark.parametrize("name", _cases())
 def test_vcf(name):
-    ref = json.loads((REF_DIR / f"{name}.json").read_text())
+    ref = json.loads((REF_DIR / f"{name}.json").read_text(encoding="utf-8"))
     vcf = f"{local(ref['prefix'])}.vcf.gz"
-    if not os.path.exists(vcf):
+    if missing(vcf):
         pytest.skip("VCF test data not generated")
     # a VCF has samples but no populations
     ours = pm.extract_f2(vcf, ref["pops"], auto_only=ref["auto_only"], inds=ref["inds"], pops=ref["ind_pops"])

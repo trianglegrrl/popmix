@@ -22,7 +22,7 @@ CRATES = ["crates/popmix-python/Cargo.toml", "crates/popmix-io/Cargo.toml"]
 
 def main(ref: str, root: Path) -> None:
     workspace = root / "Cargo.toml"
-    version = re.search(r'(?m)^version = "([^"]+)"', workspace.read_text()).group(1)
+    version = re.search(r'(?m)^version = "([^"]+)"', workspace.read_text(encoding="utf-8")).group(1)
     if not ref.startswith("v"):
         print(version)
         return
@@ -37,11 +37,11 @@ def main(ref: str, root: Path) -> None:
     python, cargo = f"{version}rc{tag.group(2)}", f"{version}-rc.{tag.group(2)}"
     for path, old, new in [(workspace, f'version = "{version}"', f'version = "{cargo}"'),
                            (root / "pyproject.toml", f'version = "{version}"', f'version = "{python}"')]:
-        text = path.read_text()
-        path.write_text(text.replace(old, new, 1))
+        text = path.read_text(encoding="utf-8")
+        path.write_text(text.replace(old, new, 1), encoding="utf-8")
     for name in CRATES:
         path = root / name
-        path.write_text(path.read_text().replace(f'version = "={version}"', f'version = "={cargo}"'))
+        path.write_text(path.read_text(encoding="utf-8").replace(f'version = "={version}"', f'version = "={cargo}"'), encoding="utf-8")
     print(python)
 
 

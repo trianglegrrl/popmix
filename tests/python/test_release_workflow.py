@@ -16,7 +16,7 @@ OLDEST, NEWEST = "3.9", "3.14"
 
 @pytest.fixture(scope="module")
 def workflow() -> dict:
-    return yaml.safe_load(WORKFLOW.read_text())
+    return yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
 
 
 def _triggers(workflow: dict) -> dict:
@@ -60,10 +60,10 @@ def test_builds_one_wheel_for_each_platform(workflow: dict) -> None:
 
 
 def test_the_wheel_uses_the_stable_abi_from_the_oldest_python() -> None:
-    maturin = (ROOT / "pyproject.toml").read_text().split("[tool.maturin]")[1].split("\n[")[0]
+    maturin = (ROOT / "pyproject.toml").read_text(encoding="utf-8").split("[tool.maturin]")[1].split("\n[")[0]
     features = next(line for line in maturin.splitlines() if line.startswith("features"))
     assert f'"pyo3/abi3-py{OLDEST.replace(".", "")}"' in features
-    project = (ROOT / "pyproject.toml").read_text()
+    project = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     assert f'requires-python = ">={OLDEST}"' in project
 
 
@@ -87,7 +87,7 @@ def test_wheels_are_installed_and_run_on_the_oldest_and_newest_python(workflow: 
 
 def test_the_check_installs_the_wheel_runs_it_and_finds_the_skill() -> None:
     # the skill is package data (python/popmix/skill/): the built wheel must hold it
-    script = "".join((ROOT / ".github/scripts" / name).read_text()
+    script = "".join((ROOT / ".github/scripts" / name).read_text(encoding="utf-8")
                      for name in ("check-wheel.sh", "check-installed.sh"))
     for line in ("pip install popmix --no-index --find-links dist --no-deps",
                  "pip install popmix --find-links dist",

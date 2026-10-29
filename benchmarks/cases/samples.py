@@ -26,18 +26,18 @@ from ._common import (
 
 
 def _smartpca(i: Path, o: Path) -> list[str]:
-    (o / "pops.txt").write_text("".join(f"{p}\n" for p in PRESENT_DAY))
+    (o / "pops.txt").write_text("".join(f"{p}\n" for p in PRESENT_DAY), encoding="utf-8")
     par = o / "smartpca.par"
     par.write_text("".join(f"{k}: {v}\n" for k, v in {
         "genotypename": f"{i}.geno", "snpname": f"{i}.snp", "indivname": f"{i}.ind",
         "evecoutname": o / "out.evec", "evaloutname": o / "out.eval", "poplistname": o / "pops.txt",
-        "numoutevec": 10, "numoutlieriter": 0}.items()))
+        "numoutevec": 10, "numoutlieriter": 0}.items()), encoding="utf-8")
     return [SMARTPCA, "-p", str(par)]
 
 
 def _agree_pca(ours: Path, theirs: Path) -> dict:
-    got = np.array([float(x) for x in (ours / "out.eval").read_text().split()][:10])
-    want = np.array([float(x) for x in (theirs / "out.eval").read_text().split()][:10])
+    got = np.array([float(x) for x in (ours / "out.eval").read_text(encoding="utf-8").split()][:10])
+    want = np.array([float(x) for x in (theirs / "out.eval").read_text(encoding="utf-8").split()][:10])
     rel = float(np.max(np.abs(got - want) / np.abs(want)))
     return {"eigenvalues": len(want), "max_rel": rel, "pass": rel <= 1e-9}
 
@@ -52,14 +52,14 @@ PCA_CASE = Case(
 
 
 def _agree_king(ours: Path, theirs: Path) -> dict:
-    ids = [line.split("\t")[-1] for line in (theirs / "king.king.id").read_text().splitlines()[1:]]
+    ids = [line.split("\t")[-1] for line in (theirs / "king.king.id").read_text(encoding="utf-8").splitlines()[1:]]
     tri = np.fromfile(theirs / "king.king.bin", dtype=np.float64)
     want, k = {}, 0
     for a in range(1, len(ids)):
         for b in range(a):
             want[frozenset((ids[a], ids[b]))] = tri[k]
             k += 1
-    rows = [line.split("\t") for line in (ours / "kin.tsv").read_text().splitlines()[1:]]
+    rows = [line.split("\t") for line in (ours / "kin.tsv").read_text(encoding="utf-8").splitlines()[1:]]
     def diff(got: float, ref: float) -> float:
         # a sample with no heterozygous call gives -inf in both
         return 0.0 if got == ref else abs(got - ref)
@@ -103,11 +103,11 @@ def admixture_bed() -> Path:
     src = present_day_bed()
     out = CACHE / "bench16_admixture"
     if not Path(f"{out}.bed").exists():
-        pop = {line.split()[0]: line.split()[2] for line in Path(f"{subset()}.ind").read_text().splitlines()}
+        pop = {line.split()[0]: line.split()[2] for line in Path(f"{subset()}.ind").read_text(encoding="utf-8").splitlines()}
         keep = CACHE / "admixture.keep"
         keep.write_text("".join(f"{f} {i}\n" for f, i, *_ in (line.split() for line in
-                                                                 Path(f"{src}.fam").read_text().splitlines())
-                                if pop[i] in ADMIXTURE_POPS))
+                                                                 Path(f"{src}.fam").read_text(encoding="utf-8").splitlines())
+                                if pop[i] in ADMIXTURE_POPS), encoding="utf-8")
         common = [PLINK2, "--bfile", str(src), "--keep", str(keep), "--threads", "4"]
         subprocess.run([*common, "--autosome", "--geno", "0.1", "--maf", "0.01", "--indep-pairwise", "200", "50",
                         "0.1", "--out", str(CACHE / "admixture_prune")], check=True, stdout=subprocess.DEVNULL)
@@ -128,7 +128,7 @@ def _admixture(i: Path, o: Path, seed: int = 1) -> list[str]:
 
 def _loglik(log: Path) -> float:
     """The last log-likelihood either tool printed (both print 'Loglikelihood: x')."""
-    return float(re.findall(r"^Loglikelihood: (\S+)", log.read_text(), re.M)[-1])
+    return float(re.findall(r"^Loglikelihood: (\S+)", log.read_text(encoding="utf-8"), re.M)[-1])
 
 
 def _seed_runs(theirs: Path, tool: str, cmd: Callable[[Path, int], list[str]],
@@ -142,10 +142,10 @@ def _seed_runs(theirs: Path, tool: str, cmd: Callable[[Path, int], list[str]],
             d = theirs / f"seed{seed}-{tool}"
             d.mkdir(exist_ok=True)
             run = subprocess.run(cmd(d, seed), cwd=d, check=True, capture_output=True, text=True)
-            (d / "run.log").write_text(run.stdout)
+            (d / "run.log").write_text(run.stdout, encoding="utf-8")
             out[seed] = value(d)
-        cached.write_text(json.dumps(out))
-    return {int(k): v for k, v in json.loads(cached.read_text()).items()}
+        cached.write_text(json.dumps(out), encoding="utf-8")
+    return {int(k): v for k, v in json.loads(cached.read_text(encoding="utf-8")).items()}
 
 
 def _seed_logliks(theirs: Path, tool: str, cmd: Callable[[Path, int], list[str]]) -> dict[int, float]:
@@ -183,11 +183,11 @@ def read_bed() -> Path:
     out = CACHE / "bench16_read_bed"
     if not Path(f"{out}.bed").exists():
         pops = CACHE / "read.pops"
-        pops.write_text(f"{READ_POP}\n")
+        pops.write_text(f"{READ_POP}\n", encoding="utf-8")
         par = CACHE / "read_bed.par"
         par.write_text(f"genotypename: {src}.geno\nsnpname: {src}.snp\nindivname: {src}.ind\n"
                        f"outputformat: PACKEDPED\ngenotypeoutname: {out}.bed\nsnpoutname: {out}.bim\n"
-                       f"indivoutname: {out}.fam\npoplistname: {pops}\n")
+                       f"indivoutname: {out}.fam\npoplistname: {pops}\n", encoding="utf-8")
         subprocess.run([CONVERTF, "-p", str(par)], cwd=CACHE, check=True, stdout=subprocess.DEVNULL)
     return out
 

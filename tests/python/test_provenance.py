@@ -9,6 +9,7 @@ command, every parameter (defaults included) and the inputs.
 from __future__ import annotations
 
 import json
+import os
 import pickle
 import subprocess
 from pathlib import Path
@@ -29,7 +30,7 @@ def f2() -> pm.F2Blocks:
 
 
 def samples_of(pops: list[str]) -> list[tuple[str, str]]:
-    rows = (line.split() for line in Path(f"{SMALL}.ind").read_text().splitlines())
+    rows = (line.split() for line in Path(f"{SMALL}.ind").read_text(encoding="utf-8").splitlines())
     return [(i, pop) for i, _, pop in rows if pop in pops]
 
 
@@ -45,7 +46,7 @@ def test_extract_f2_records_its_parameters(f2):
 
 def test_extract_f2_records_the_snps_used(f2):
     assert f2.provenance["n_snps_used"] == sum(f2.block_lengths)
-    n_snps = len(Path(f"{SMALL}.snp").read_text().splitlines())
+    n_snps = len(Path(f"{SMALL}.snp").read_text(encoding="utf-8").splitlines())
     assert f2.provenance["n_snps_read"] == n_snps
 
 
@@ -63,7 +64,7 @@ def test_the_ploidy_rule_shows_in_the_ploidy():
 
 def test_provenance_survives_saving_reading_and_pickling(f2, tmp_path):
     f2.save(str(tmp_path / "d"))
-    assert json.loads((tmp_path / "d" / "metadata.json").read_text())["provenance"] == f2.provenance
+    assert json.loads((tmp_path / "d" / "metadata.json").read_text(encoding="utf-8"))["provenance"] == f2.provenance
     assert pm.read_f2(str(tmp_path / "d")).provenance == f2.provenance
     assert pickle.loads(pickle.dumps(f2)).provenance == f2.provenance
 
@@ -86,7 +87,7 @@ def test_a_result_file_gets_a_provenance_sidecar(tmp_path):
     r = popmix("qpdstat", "-i", SMALL, "--pop1", "French", "--pop2", "Yoruba", "--pop3", "Simulation.1",
                "--pop4", "Simulation", "-o", str(out))
     assert r.returncode == 0, r.stderr
-    p = json.loads((tmp_path / "f4.tsv.provenance.json").read_text())
+    p = json.loads((tmp_path / "f4.tsv.provenance.json").read_text(encoding="utf-8"))
     assert p["popmix_version"] == pm.__version__
     assert p["command"] == "qpdstat"
     assert p["argv"][:2] == ["qpdstat", "-i"]
@@ -98,7 +99,7 @@ def test_a_result_file_gets_a_provenance_sidecar(tmp_path):
 def test_an_output_prefix_gets_one_sidecar(tmp_path):
     r = popmix("pca", "-i", SMALL, "--pca-pops", "French,Yoruba", "--components", "2", "-o", str(tmp_path / "p"))
     assert r.returncode == 0, r.stderr
-    p = json.loads((tmp_path / "p.provenance.json").read_text())
+    p = json.loads((tmp_path / "p.provenance.json").read_text(encoding="utf-8"))
     assert p["parameters"]["outlier_sigma"] == 6.0
     assert p["parameters"]["pca_pops"] == ["French", "Yoruba"]
 
@@ -106,7 +107,7 @@ def test_an_output_prefix_gets_one_sidecar(tmp_path):
 def test_an_f2_directory_gets_its_sidecar_inside(tmp_path):
     r = popmix("extract-f2", "-i", SMALL, "--populations", "French,Yoruba", "-o", str(tmp_path / "f2"))
     assert r.returncode == 0, r.stderr
-    assert json.loads((tmp_path / "f2" / "provenance.json").read_text())["command"] == "extract-f2"
+    assert json.loads((tmp_path / "f2" / "provenance.json").read_text(encoding="utf-8"))["command"] == "extract-f2"
     assert pm.read_f2(str(tmp_path / "f2")).provenance["parameters"]["populations"] == ["French", "Yoruba"]
 
 
@@ -130,5 +131,5 @@ def test_every_command_records_provenance():
 
 def test_a_device_gets_no_sidecar():
     r = popmix("qpdstat", "-i", SMALL, "--pop1", "French", "--pop2", "Yoruba", "--pop3", "Simulation.1",
-               "--pop4", "Simulation", "-o", "/dev/null")
+               "--pop4", "Simulation", "-o", os.devnull)
     assert r.returncode == 0, r.stderr

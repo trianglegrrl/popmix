@@ -19,7 +19,7 @@ PRINTED6, PRINTED3 = 5e-7 + 1e-12, 5e-4 + 1e-9
 def _classic_par(i: Path, o: Path, name: str, **keys) -> Path:
     par = o / f"{name}.par"
     par.write_text("".join(f"{k}: {v}\n" for k, v in {"genotypename": f"{i}.geno", "snpname": f"{i}.snp",
-                                                       "indivname": f"{i}.ind", **keys}.items()))
+                                                       "indivname": f"{i}.ind", **keys}.items()), encoding="utf-8")
     return par
 
 
@@ -29,7 +29,7 @@ def _classic(prog: str, par: Path, *args: str) -> list[str]:
 
 
 def _results(out: Path) -> list[list[str]]:
-    return [line.split()[1:] for line in out.read_text().splitlines() if line.split()[:1] == ["result:"]]
+    return [line.split()[1:] for line in out.read_text(encoding="utf-8").splitlines() if line.split()[:1] == ["result:"]]
 
 
 def _quads() -> list[tuple[str, ...]]:
@@ -37,13 +37,13 @@ def _quads() -> list[tuple[str, ...]]:
 
 
 def _classic_qpdstat(i: Path, o: Path) -> list[str]:
-    (o / "quads").write_text("".join(" ".join(q) + "\n" for q in _quads()))
+    (o / "quads").write_text("".join(" ".join(q) + "\n" for q in _quads()), encoding="utf-8")
     return _classic("qpDstat", _classic_par(i, o, "qpdstat", popfilename=o / "quads", f4mode="YES"))
 
 
 def _agree_classic_qpdstat(ours: Path, theirs: Path) -> dict:
     got = {tuple(r[k] for k in ("pop1", "pop2", "pop3", "pop4")): r
-           for r in json.loads((ours / "qpdstat.json").read_text())}
+           for r in json.loads((ours / "qpdstat.json").read_text(encoding="utf-8"))}
     # result: pop1 pop2 pop3 pop4 f4 Z BABA ABBA n
     want = {tuple(r[:4]): (float(r[4]), float(r[5]), int(r[8])) for r in _results(theirs / "qpdstat.out")}
     if got.keys() != want.keys():
@@ -72,12 +72,12 @@ QP3POP = {"pop1": ["Mbuti"], "pop2": ["French", "Han", "Papuan", "Karitiana"],
 def _classic_qp3pop(i: Path, o: Path) -> list[str]:
     # qp3Pop's lines are "source1 source2 target"
     (o / "triples").write_text("".join(f"{b} {c} {a}\n" for a in QP3POP["pop1"] for b in QP3POP["pop2"]
-                                       for c in QP3POP["pop3"]))
+                                       for c in QP3POP["pop3"]), encoding="utf-8")
     return _classic("qp3Pop", _classic_par(i, o, "qp3pop", popfilename=o / "triples", outgroupmode="YES"))
 
 
 def _agree_classic_qp3pop(ours: Path, theirs: Path) -> dict:
-    got = {(r["pop1"], r["pop2"], r["pop3"]): r for r in json.loads((ours / "qp3pop.json").read_text())}
+    got = {(r["pop1"], r["pop2"], r["pop3"]): r for r in json.loads((ours / "qp3pop.json").read_text(encoding="utf-8"))}
     # result: source1 source2 target f3 se Z n; outgroupmode prints f3 and se x 1000
     want = {(r[2], r[0], r[1]): (float(r[3]) / 1000, float(r[4]) / 1000, float(r[5])) for r in
             _results(theirs / "qp3pop.out")}
@@ -102,14 +102,14 @@ CLASSIC_QP3POP_CASE = Case(
 
 def _classic_qpadm(i: Path, o: Path) -> list[str]:
     q = QPADM
-    (o / "left").write_text("".join(f"{p}\n" for p in [q["target"], *q["left"]]))
-    (o / "right").write_text("".join(f"{p}\n" for p in q["right"]))
+    (o / "left").write_text("".join(f"{p}\n" for p in [q["target"], *q["left"]]), encoding="utf-8")
+    (o / "right").write_text("".join(f"{p}\n" for p in q["right"]), encoding="utf-8")
     return _classic("qpAdm", _classic_par(i, o, "qpadm", popleft=o / "left", popright=o / "right"))
 
 
 def _agree_classic_qpadm(ours: Path, theirs: Path) -> dict:
-    got = json.loads((ours / "qpadm.json").read_text())
-    text = (theirs / "qpadm.out").read_text()
+    got = json.loads((ours / "qpadm.json").read_text(encoding="utf-8"))
+    text = (theirs / "qpadm.out").read_text(encoding="utf-8")
     weights = [float(x) for x in re.search(r"^best coefficients:(.*)$", text, re.M).group(1).split()]
     se = [float(x) for x in re.search(r"^\s*std\. errors:(.*)$", text, re.M).group(1).split()]
     rank = len(QPADM["left"]) - 1
@@ -155,7 +155,7 @@ def _classic_graph(o: Path) -> Path:
             lines.append(f"edge e{k} {a} {b}")
     lines += [f"admix {b} {' '.join(p)}" for b, p in parents.items() if len(p) == 2]
     path = o / "graph.classic"
-    path.write_text("\n".join(lines) + "\n")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return path
 
 
@@ -167,8 +167,8 @@ def _classic_qpgraph(i: Path, o: Path) -> list[str]:
 
 
 def _agree_classic_qpgraph(ours: Path, theirs: Path) -> dict:
-    got = json.loads((ours / "qpgraph.json").read_text())["score"]
-    want = float(re.search(r"final score:\s+(\S+)", (theirs / "qpgraph.out").read_text()).group(1))
+    got = json.loads((ours / "qpgraph.json").read_text(encoding="utf-8"))["score"]
+    want = float(re.search(r"final score:\s+(\S+)", (theirs / "qpgraph.out").read_text(encoding="utf-8")).group(1))
     # printed to 3 decimals; both optimize, R's L-BFGS-B to about 1e-8 of the score
     return {"score": want, "score_abs": abs(got - want), "pass": abs(got - want) <= PRINTED3 + 1e-6 * abs(want)}
 

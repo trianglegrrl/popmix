@@ -79,7 +79,7 @@ def test_qpgraph_resample_multi_scores_held_out_blocks(f2):
 
 
 def test_resample_inds_leaves_out_each_individual_of_a_larger_population():
-    ind = [line.split() for line in Path(f"{PREFIX}.ind").read_text().splitlines()]
+    ind = [line.split() for line in Path(f"{PREFIX}.ind").read_text(encoding="utf-8").splitlines()]
     def first(pop, n):
         return [r for r in ind if r[2] == pop][:n]
 

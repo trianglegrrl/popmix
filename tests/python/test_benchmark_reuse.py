@@ -15,7 +15,7 @@ import scaling  # noqa: E402
 def test_a_case_reuses_the_earlier_reference_timing_and_its_outputs(tmp_path):
     ref_dir = tmp_path / "reference"
     ref_dir.mkdir()
-    (ref_dir / "out.json").write_text("{}")
+    (ref_dir / "out.json").write_text("{}", encoding="utf-8")
     earlier = {"date": "2026-10-25", "cases": {"qpadm": {"reference_runs": {"wall_s": {"median": 21.5}}}}}
     got = run.reused_reference(earlier, "qpadm", ref_dir)
     assert got == {"wall_s": {"median": 21.5}, "reused_from": "2026-10-25"}
@@ -32,7 +32,7 @@ def test_reuse_needs_the_earlier_case_and_its_outputs(tmp_path):
 def test_a_scaling_point_reuses_its_reference(tmp_path):
     earlier = {"date": "2026-10-25", "curves": {"samples": {"pca:1000": {"reference": {"0": {"wall_s": 1}}}}}}
     (tmp_path / "reference-t0").mkdir()
-    (tmp_path / "reference-t0" / "out.eval").write_text("1\n")
+    (tmp_path / "reference-t0" / "out.eval").write_text("1\n", encoding="utf-8")
     got = scaling.reused_reference(earlier, "samples", "pca:1000", tmp_path)
     assert got == {"0": {"wall_s": 1, "reused_from": "2026-10-25"}}
     assert json.dumps(got)
@@ -44,7 +44,7 @@ def test_outputs_that_differ_only_in_provenance_digest_the_same(tmp_path):
     for d, threads in ((a, 1), (b, 4)):
         d.mkdir()
         (d / "out.geno").write_bytes(b"GENO")
-        (d / "out.provenance.json").write_text(json.dumps({"threads": threads}))
+        (d / "out.provenance.json").write_text(json.dumps({"threads": threads}), encoding="utf-8")
     assert run._digest(a) == run._digest(b)
 
 

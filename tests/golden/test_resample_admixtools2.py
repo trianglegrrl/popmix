@@ -24,7 +24,6 @@ fit does not minimize, so they move with the weights) at 1e-6.
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 import numpy as np
@@ -32,7 +31,7 @@ import pytest
 
 import popmix as pm
 
-from .reference_paths import local
+from .reference_paths import local, missing
 
 REF_DIR = Path(__file__).parent / "admixtools2" / "v2.0.10" / "dg_6pop"
 REF_FILE = REF_DIR / "resample.json"
@@ -43,11 +42,11 @@ P_RTOL = 1e-4
 # Optimized qpgraph scores: L-BFGS-B stops at a relative reduction of 2e-9
 OPT_RTOL = 1e-8
 
-pytestmark = pytest.mark.skipif(not REF_FILE.exists(), reason="resample.json not generated")
+pytestmark = pytest.mark.skipif(missing(REF_FILE), reason="resample.json not generated")
 
 
 def _ref() -> dict:
-    return json.loads(REF_FILE.read_text())
+    return json.loads(REF_FILE.read_text(encoding="utf-8"))
 
 
 def _f(x) -> float:
@@ -60,8 +59,8 @@ def _list(x) -> list:
 
 @pytest.fixture(scope="module")
 def f2_blocks():
-    f2_ref = json.loads((REF_DIR / "f2.json").read_text())
-    if not os.path.exists(f"{local(f2_ref['prefix'])}.geno"):
+    f2_ref = json.loads((REF_DIR / "f2.json").read_text(encoding="utf-8"))
+    if missing(f"{local(f2_ref['prefix'])}.geno"):
         pytest.skip(f"genotype data not available: {local(f2_ref['prefix'])}")
     assert f2_ref["pops"] == _ref()["pops"]
     p = f2_ref["params"]
@@ -186,10 +185,10 @@ INDS_FILE = REF_DIR / "resample_inds.json"
 
 @pytest.fixture(scope="module")
 def inds_ref():
-    if not INDS_FILE.exists():
+    if missing(INDS_FILE):
         pytest.skip("resample_inds.json not generated")
-    ref = json.loads(INDS_FILE.read_text())
-    if not os.path.exists(f"{local(ref['prefix'])}.geno"):
+    ref = json.loads(INDS_FILE.read_text(encoding="utf-8"))
+    if missing(f"{local(ref['prefix'])}.geno"):
         pytest.skip(f"genotype data not available: {local(ref['prefix'])}")
     return ref
 

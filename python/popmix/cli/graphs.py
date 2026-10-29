@@ -20,7 +20,7 @@ def read_graph_file(path: str) -> list:
     """Read an admixture graph: one edge per line, "from to" (whitespace-
     separated). Blank lines and text after "#" are ignored."""
     edges = []
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         for n, line in enumerate(f, 1):
             fields = line.split("#", 1)[0].split()
             if not fields:
@@ -193,7 +193,7 @@ def find_graphs(populations: list, nadmix: int, outgroup: str | None, method: st
 
             plots.graph(graphs[0].edges, path=plot, title=f"score {graphs[0].score:.4f}")
         if output_graph is not None:
-            with open(output_graph, "w") as f:
+            with open(output_graph, "w", encoding="utf-8") as f:
                 f.write(f"# popmix find-graphs: score {graphs[0].score!r}\n")
                 for a, b in graphs[0].edges:
                     f.write(f"{a}\t{b}\n")

@@ -60,19 +60,19 @@ CONFIGS = {
 
 def counts(prefix: str, pops: list[str], work: Path) -> dict[str, tuple[np.ndarray, np.ndarray]]:
     """(REF count, ALT count) per SNP for each population, from PLINK 2."""
-    (work / "pops.txt").write_text("\n".join(pops) + "\n")
+    (work / "pops.txt").write_text("\n".join(pops) + "\n", encoding="utf-8")
     bed = work / "data"
     (work / "convertf.par").write_text(
         f"genotypename: {prefix}.geno\nsnpname: {prefix}.snp\nindivname: {prefix}.ind\n"
         f"outputformat: PACKEDPED\ngenotypeoutname: {bed}.bed\nsnpoutname: {bed}.bim\n"
-        f"indivoutname: {bed}.fam\npoplistname: {work / 'pops.txt'}\n")
+        f"indivoutname: {bed}.fam\npoplistname: {work / 'pops.txt'}\n", encoding="utf-8")
     subprocess.run([CONVERTF, "-p", str(work / "convertf.par")], capture_output=True, check=True)
-    pop_of = {line.split()[0]: line.split()[2] for line in Path(prefix + ".ind").read_text().splitlines()}
-    fam = [line.split() for line in Path(f"{bed}.fam").read_text().splitlines()]
+    pop_of = {line.split()[0]: line.split()[2] for line in Path(prefix + ".ind").read_text(encoding="utf-8").splitlines()}
+    fam = [line.split() for line in Path(f"{bed}.fam").read_text(encoding="utf-8").splitlines()]
     out = {}
     for pop in pops:
         keep = work / f"{pop}.keep"
-        keep.write_text("".join(f"{f[0]} {f[1]}\n" for f in fam if pop_of[f[1]] == pop))
+        keep.write_text("".join(f"{f[0]} {f[1]}\n" for f in fam if pop_of[f[1]] == pop), encoding="utf-8")
         subprocess.run([PLINK2, "--bfile", str(bed), "--keep", str(keep), "--autosome", "--freq", "counts",
                         "--out", str(work / pop)], capture_output=True, check=True)
         table = np.loadtxt(work / f"{pop}.acount", dtype=np.int64, comments="#", usecols=(5, 6))
@@ -119,10 +119,10 @@ def run(name: str) -> None:
         "spectra": spectra,
     }
     if cfg["prefix"] == AADR:
-        out["dataset"] = json.loads((AADR_DIR / "manifest.json").read_text())
+        out["dataset"] = json.loads((AADR_DIR / "manifest.json").read_text(encoding="utf-8"))
     dest = HERE / "v2.4.4" / name
     dest.mkdir(parents=True, exist_ok=True)
-    (dest / "sfs.json").write_text(json.dumps(out) + "\n")
+    (dest / "sfs.json").write_text(json.dumps(out) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":

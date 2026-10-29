@@ -53,12 +53,12 @@ def by_hand(tmp_path_factory) -> pm.PcaResult:
         Path(f"{prefix}.{ext}").symlink_to(f"{AADR}.{ext}")
     seen: dict[str, int] = {}
     out = []
-    for i, sex, pop in (line.split() for line in Path(f"{AADR}.ind").read_text().splitlines()):
+    for i, sex, pop in (line.split() for line in Path(f"{AADR}.ind").read_text(encoding="utf-8").splitlines()):
         if pop in KGP:
             k = seen[pop] = seen.get(pop, 0) + 1
             pop = f"{pop}_B" if k % 2 == 0 else pop
         out.append(f"{i} {sex} {pop}\n")
-    Path(f"{prefix}.ind").write_text("".join(out))
+    Path(f"{prefix}.ind").write_text("".join(out), encoding="utf-8")
     return run(str(prefix), KGP, [f"{p}_B" for p in KGP] + ANCIENT)
 
 

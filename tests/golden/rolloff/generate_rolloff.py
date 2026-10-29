@@ -51,7 +51,7 @@ CONFIGS = {
 
 def parse(path: Path) -> list[list[float]]:
     rows = []
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         if not line.strip() or line.strip().startswith("#"):
             continue
         rows.append([float(x) for x in line.split()])
@@ -59,21 +59,21 @@ def parse(path: Path) -> list[list[float]]:
 
 
 def run_rolloff(binary: Path, cfg: dict, params: dict, work: Path, tag: str) -> Path:
-    (work / "refs").write_text("\n".join(cfg["refs"]) + "\n")
+    (work / "refs").write_text("\n".join(cfg["refs"]) + "\n", encoding="utf-8")
     out = work / f"{tag}.out"
     par = {"genotypename": f"{cfg['prefix']}.geno", "snpname": f"{cfg['prefix']}.snp",
            "indivname": f"{cfg['prefix']}.ind", "poplistname": str(work / "refs"), "admixpop": cfg["admixpop"],
            "output": str(out), **params}
     if cfg["chromosomes"]:
         keep = set(cfg["chromosomes"])
-        bad = [line.split()[0] for line in Path(cfg["prefix"] + ".snp").read_text().splitlines()
+        bad = [line.split()[0] for line in Path(cfg["prefix"] + ".snp").read_text(encoding="utf-8").splitlines()
                if line.split()[1] not in keep]
-        (work / "bad.snps").write_text("\n".join(bad) + "\n")
+        (work / "bad.snps").write_text("\n".join(bad) + "\n", encoding="utf-8")
         par["badsnpname"] = str(work / "bad.snps")
-    (work / f"{tag}.par").write_text("".join(f"{k}: {v}\n" for k, v in par.items()))
+    (work / f"{tag}.par").write_text("".join(f"{k}: {v}\n" for k, v in par.items()), encoding="utf-8")
     log = subprocess.run([str(binary), "-p", str(work / f"{tag}.par")], capture_output=True, text=True,
                          check=True).stdout
-    (work / f"{tag}.log").write_text(log)
+    (work / f"{tag}.log").write_text(log, encoding="utf-8")
     return out
 
 
@@ -86,11 +86,11 @@ def fit(path: Path) -> list[float | None]:
 def rexpfit_stock(path: Path, work: Path) -> float:
     """rexpfit.r itself (seeded the same way), its printed estimate of m."""
     script = work / "rexpfit_seeded.R"
-    src = (BIN / "rexpfit.r").read_text().replace("library('DEoptim')", "library('DEoptim'); set.seed(1)")
-    script.write_text('.libPaths(c("~/R/popmix-references", .libPaths()))\n' + src)
+    src = (BIN / "rexpfit.r").read_text(encoding="utf-8").replace("library('DEoptim')", "library('DEoptim'); set.seed(1)")
+    script.write_text('.libPaths(c("~/R/popmix-references", .libPaths()))\n' + src, encoding="utf-8")
     subprocess.run(["/usr/bin/Rscript", str(script), str(path), str(work / "stockfit"), "4", "0.5", "100", "TRUE",
                     "FALSE", "FALSE"], capture_output=True, text=True, check=True)
-    flog = (work / "stockfit.flog").read_text()
+    flog = (work / "stockfit.flog").read_text(encoding="utf-8")
     return float(re.search(r"mean \(generations\):\s+(\S+)", flog).group(1))
 
 
@@ -114,14 +114,14 @@ def run(name: str) -> None:
         full_fit = fit(hi)
         assert abs(rexpfit_stock(hi, work) - full_fit[2]) <= 5e-8 * abs(full_fit[2]) + 1e-12, "rexpfit.r disagrees"
         jack_fits = {c: fit(work / f"hiprec.out:{c}") for c in jack}
-        snp_counts = Counter(line.split()[1] for line in Path(cfg["prefix"] + ".snp").read_text().splitlines())
+        snp_counts = Counter(line.split()[1] for line in Path(cfg["prefix"] + ".snp").read_text(encoding="utf-8").splitlines())
         jin = work / "run.jin"
-        jin.write_text("".join(f"{c} {snp_counts[c]} {jack_fits[c][2]!r}\n" for c in jack))
+        jin.write_text("".join(f"{c} {snp_counts[c]} {jack_fits[c][2]!r}\n" for c in jack), encoding="utf-8")
         subprocess.run([str(BIN / "dowtjack-hiprec"), "-i", str(jin), "-m", repr(full_fit[2]), "-o",
                         str(work / "run.jout")], capture_output=True, text=True, check=True)
-        jout = (work / "run.jout").read_text()
+        jout = (work / "run.jout").read_text(encoding="utf-8")
         m = re.search(r"mean:\s+(\S+)\s+std error:\s+(\S+)", jout)
-        n_used = re.search(r"snps processes \(outer \+ inner loop\) (\d+) (\d+)", (work / "hiprec.log").read_text())
+        n_used = re.search(r"snps processes \(outer \+ inner loop\) (\d+) (\d+)", (work / "hiprec.log").read_text(encoding="utf-8"))
     out = {
         "admixtools_version": "7.0.2",
         "prefix": os.path.relpath(cfg["prefix"], REPO) if cfg["prefix"].startswith(str(REPO)) else cfg["prefix"],
@@ -132,10 +132,10 @@ def run(name: str) -> None:
         "pairs_visited": [int(n_used.group(1)), int(n_used.group(2))],
     }
     if cfg["prefix"] == AADR:
-        out["dataset"] = json.loads((AADR_DIR / "manifest.json").read_text())
+        out["dataset"] = json.loads((AADR_DIR / "manifest.json").read_text(encoding="utf-8"))
     dest = HERE / "v7.0.2" / name
     dest.mkdir(parents=True, exist_ok=True)
-    (dest / "rolloff.json").write_text(json.dumps(out) + "\n")
+    (dest / "rolloff.json").write_text(json.dumps(out) + "\n", encoding="utf-8")
     print(f"  {len(bins)} bins, decay {full_fit[2]:.4f}, jackknife {out['jackknife']}", flush=True)
 
 

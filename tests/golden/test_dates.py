@@ -6,11 +6,12 @@ jackknife, the corrected default) is test_dates_v753.py.
 
 import inspect
 import json
-import os
 
 import pytest
 
 import popmix as pm
+
+from .reference_paths import missing
 
 
 def test_dates_function_signature():
@@ -36,11 +37,11 @@ def test_dates_vs_reference():
     """
     data_path = "tests/golden/dates/family_chr20_22"
 
-    if not os.path.exists(f"{data_path}.geno"):
+    if missing(f"{data_path}.geno"):
         pytest.skip("Chr20-22 subset data not available")
 
     # Load reference values from DATES v753
-    with open("tests/golden/dates/chr20_22_reference.json") as f:
+    with open("tests/golden/dates/chr20_22_reference.json", encoding="utf-8") as f:
         ref = json.load(f)
 
     ref_bins = ref["ld_decay_bins"]

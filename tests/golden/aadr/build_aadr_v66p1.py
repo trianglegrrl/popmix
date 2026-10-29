@@ -79,7 +79,7 @@ def relabel(line: str) -> str:
 
 
 def main() -> None:
-    listed = dict(reversed(line.split()) for line in CHECKSUMS.read_text().splitlines() if line.strip())
+    listed = dict(reversed(line.split()) for line in CHECKSUMS.read_text(encoding="utf-8").splitlines() if line.strip())
     inputs = {}
     for ext in ("geno", "snp", "ind"):
         path = Path(f"{SOURCE}.{ext}")
@@ -90,17 +90,17 @@ def main() -> None:
 
     CACHE.mkdir(parents=True, exist_ok=True)
     relabelled = CACHE / "relabelled.ind"
-    relabelled.write_text("".join(relabel(line) + "\n" for line in Path(f"{SOURCE}.ind").read_text().splitlines()))
-    labels = {line.split()[2] for line in relabelled.read_text().splitlines()}
+    relabelled.write_text("".join(relabel(line) + "\n" for line in Path(f"{SOURCE}.ind").read_text(encoding="utf-8").splitlines()), encoding="utf-8")
+    labels = {line.split()[2] for line in relabelled.read_text(encoding="utf-8").splitlines()}
     missing = [p for p in POPULATIONS if p not in labels]
     if missing:
         raise SystemExit(f"not in v66.p1: {missing}")
     pops = CACHE / "populations.txt"
-    pops.write_text("".join(f"{p}\n" for p in POPULATIONS))
+    pops.write_text("".join(f"{p}\n" for p in POPULATIONS), encoding="utf-8")
     par = CACHE / "convertf.par"
     par.write_text(f"genotypename: {SOURCE}.geno\nsnpname: {SOURCE}.snp\nindivname: {relabelled}\n"
                    f"outputformat: PACKEDANCESTRYMAP\ngenooutfilename: {OUT}.geno\n"
-                   f"snpoutfilename: {OUT}.snp\nindoutfilename: {OUT}.ind\npoplistname: {pops}\n")
+                   f"snpoutfilename: {OUT}.snp\nindoutfilename: {OUT}.ind\npoplistname: {pops}\n", encoding="utf-8")
     # convertf writes a profile (gmon.out) where it runs
     subprocess.run([CONVERTF, "-p", str(par)], check=True, stdout=subprocess.DEVNULL, cwd=CACHE)
     if Path(f"{OUT}.snp").read_bytes() != Path(f"{SOURCE}.snp").read_bytes():
@@ -114,8 +114,8 @@ def main() -> None:
         "populations": POPULATIONS,
         "outputs": {ext: {"path": f"{OUT}.{ext}", "md5": md5(Path(f"{OUT}.{ext}"))} for ext in ("geno", "snp", "ind")},
     }
-    (CACHE / "manifest.json").write_text(json.dumps(manifest, indent=1) + "\n")
-    n = len(Path(f"{OUT}.ind").read_text().splitlines())
+    (CACHE / "manifest.json").write_text(json.dumps(manifest, indent=1) + "\n", encoding="utf-8")
+    n = len(Path(f"{OUT}.ind").read_text(encoding="utf-8").splitlines())
     print(f"wrote {OUT}.{{geno,snp,ind}}: {n} samples of {len(POPULATIONS)} populations")
 
 

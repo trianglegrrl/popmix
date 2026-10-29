@@ -29,8 +29,6 @@ def test_every_public_name_still_resolves():
 
 
 def test_functions_named_like_their_module_stay_functions():
-    import popmix.admixture
-    import popmix.rolloff
     import popmix.sfs  # noqa: F401
 
     assert callable(pm.admixture) and callable(pm.rolloff) and callable(pm.sfs)

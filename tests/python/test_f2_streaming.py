@@ -56,13 +56,13 @@ def test_a_second_pass_when_the_kept_snps_have_no_map(tmp_path):
     prefix = str(tmp_path / "data")
     subprocess.run(["popmix", "convertf", "-i", SMALL, "-o", prefix, "-of", "eigenstrat"], check=True,
                    capture_output=True)
-    rows = [line.split() for line in Path(f"{prefix}.snp").read_text().splitlines()]
+    rows = [line.split() for line in Path(f"{prefix}.snp").read_text(encoding="utf-8").splitlines()]
     for r in rows[10:]:
         r[2] = "0"
-    Path(f"{prefix}.snp").write_text("".join(" ".join(r) + "\n" for r in rows))
+    Path(f"{prefix}.snp").write_text("".join(" ".join(r) + "\n" for r in rows), encoding="utf-8")
     streamed, whole = both(tmp_path, prefix, POPS, excludesnps=[r[0] for r in rows[:10]])
     same_directory(streamed, whole)
-    lengths = json.loads((whole / "metadata.json").read_text())["block_lengths"]
+    lengths = json.loads((whole / "metadata.json").read_text(encoding="utf-8"))["block_lengths"]
     assert len(lengths) == len(pm.extract_f2(prefix, POPS, excludesnps=[r[0] for r in rows[:10]]).block_lengths)
 
 

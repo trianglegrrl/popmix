@@ -22,7 +22,7 @@ SMALL = str(ROOT / "tests" / "golden" / "dates" / "family_chr20_22")
 def test_the_rust_table_is_write_columns_text(tmp_path):
     out = tmp_path / "cols.tsv"
     write_columns(king_columns(SMALL, None), str(out))
-    assert king_tsv(SMALL) == out.read_text()
+    assert king_tsv(SMALL) == out.read_text(encoding="utf-8")
 
 
 def test_a_minus_infinite_kinship_is_written_as_python_writes_it(tmp_path):
@@ -30,13 +30,13 @@ def test_a_minus_infinite_kinship_is_written_as_python_writes_it(tmp_path):
     prefix = str(tmp_path / "p")
     subprocess.run(["popmix", "convertf", "-i", SMALL, "-o", prefix, "-of", "eigenstrat"], check=True,
                    capture_output=True)
-    lines = Path(f"{prefix}.geno").read_text().splitlines()
-    Path(f"{prefix}.geno").write_text("".join(("2" if x[0] == "1" else x[0]) + x[1:] + "\n" for x in lines))
+    lines = Path(f"{prefix}.geno").read_text(encoding="utf-8").splitlines()
+    Path(f"{prefix}.geno").write_text("".join(("2" if x[0] == "1" else x[0]) + x[1:] + "\n" for x in lines), encoding="utf-8")
     out = tmp_path / "cols.tsv"
     write_columns(king_columns(prefix, ["Simulation", "French"]), str(out))
     text = king_tsv(prefix, ["Simulation", "French"])
     assert "-inf" in text
-    assert text == out.read_text()
+    assert text == out.read_text(encoding="utf-8")
 
 
 def test_the_command_imports_no_numpy(tmp_path):

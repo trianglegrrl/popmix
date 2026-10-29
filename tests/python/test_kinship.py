@@ -64,7 +64,7 @@ def test_columns_are_written_as_the_table_writer_writes_them(tmp_path):
             "kinship": np.array([0.1234567890123456, -np.inf, np.nan]), "x": np.array([1e-20, 2.5, -0.0])}
     write_table(pd.DataFrame(cols), "tsv", str(tmp_path / "pandas.tsv"))
     write_columns(cols, str(tmp_path / "columns.tsv"))
-    assert (tmp_path / "columns.tsv").read_text() == (tmp_path / "pandas.tsv").read_text()
+    assert (tmp_path / "columns.tsv").read_text(encoding="utf-8") == (tmp_path / "pandas.tsv").read_text(encoding="utf-8")
 
 
 def test_the_king_command_does_not_load_pandas():
@@ -73,3 +73,12 @@ def test_the_king_command_does_not_load_pandas():
             "assert r.exit_code == 0, r.output\nprint('pandas' in sys.modules)")
     out = subprocess.run([sys.executable, "-c", code], check=True, capture_output=True, text=True).stdout
     assert out.strip() == "False"
+
+
+def test_tables_end_their_lines_with_a_newline_only(tmp_path):
+    """On every platform: pandas would end lines with os.linesep, which a text
+    file on Windows turns into a blank line after every row."""
+    from popmix.cli import write_table
+
+    write_table(pd.DataFrame({"a": [1, 2]}), "tsv", str(tmp_path / "t.tsv"))
+    assert (tmp_path / "t.tsv").read_bytes() == b"a\n1\n2\n"

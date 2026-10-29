@@ -82,7 +82,7 @@ def main() -> None:
                         help="take the reference timings from this earlier report and its outputs from the "
                              "run directories, and run only popmix")
     args = parser.parse_args()
-    earlier = json.loads(args.reuse_reference.read_text()) if args.reuse_reference else None
+    earlier = json.loads(args.reuse_reference.read_text(encoding="utf-8")) if args.reuse_reference else None
     threads = [int(t) for t in args.threads.split(",")]
     today = datetime.date.today().isoformat()
     out = args.out or Path(__file__).parent / "results" / f"{socket.gethostname()}-{today}.json"
@@ -129,7 +129,7 @@ def _plain(value):
 
 def _write(out: Path, report: dict) -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(report, indent=1, default=_plain) + "\n")
+    out.write_text(json.dumps(report, indent=1, default=_plain) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":

@@ -14,27 +14,26 @@ two-admixture fit reaches.
 """
 
 import json
-import os
 from pathlib import Path
 
 import pytest
 
 import popmix as pm
 
-from .reference_paths import local
+from .reference_paths import local, missing
 
 REF_DIR = Path(__file__).parent / "admixtools2" / "v2.0.10" / "dg_6pop"
 REF_FILE = REF_DIR / "all_graphs.json"
 
-pytestmark = pytest.mark.skipif(not REF_FILE.exists(), reason="all_graphs.json not generated")
+pytestmark = pytest.mark.skipif(missing(REF_FILE), reason="all_graphs.json not generated")
 
 
 def _reference() -> dict:
-    return json.loads(REF_FILE.read_text())
+    return json.loads(REF_FILE.read_text(encoding="utf-8"))
 
 
 def _cases():
-    if not REF_FILE.exists():
+    if missing(REF_FILE):
         return []
     return [pytest.param(i, id=f"{len(c['leaves'])}leaves_{c['nadmix']}admix")
             for i, c in enumerate(_reference()["cases"])]
@@ -46,8 +45,8 @@ def _edges(g: dict) -> list:
 
 @pytest.fixture(scope="module")
 def f2_blocks():
-    f2_ref = json.loads((REF_DIR / "f2.json").read_text())
-    if not os.path.exists(f"{local(f2_ref['prefix'])}.geno"):
+    f2_ref = json.loads((REF_DIR / "f2.json").read_text(encoding="utf-8"))
+    if missing(f"{local(f2_ref['prefix'])}.geno"):
         pytest.skip(f"genotype data not available: {local(f2_ref['prefix'])}")
     assert f2_ref["pops"] == _reference()["pops"]
     p = f2_ref["params"]

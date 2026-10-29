@@ -7,6 +7,7 @@ These tests define the expected CLI behavior. Written BEFORE implementation (TDD
 import json
 import os
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -25,7 +26,7 @@ AADR_HO_PREFIX = "/references/aadr_v54.1.p1/HO_public"
 def run_cli(*args, check=True, timeout=300):
     """Run popmix CLI and return result."""
     result = subprocess.run(
-        ["python", "-m", "popmix.cli"] + list(args),
+        [sys.executable, "-m", "popmix.cli"] + list(args),
         capture_output=True,
         text=True,
         timeout=timeout,
@@ -214,7 +215,7 @@ DG6_REF = Path("tests/golden/admixtools2/v2.0.10/dg_6pop")
 
 
 def _dg6(file: str) -> dict:
-    return json.loads((DG6_REF / file).read_text())
+    return json.loads((DG6_REF / file).read_text(encoding="utf-8"))
 
 
 @pytest.fixture(scope="module")
@@ -431,10 +432,10 @@ class TestDatesCommand:
     def test_dates_qbin_matches_dates_v753_mesh_mode(self):
         """popmix dates --qbin 10 --compat dates-v753 should reproduce DATES v753 run with qbin: 10."""
         ref_dir = Path("tests/golden/dates/v753/chr20_22_q10")
-        ref_est, ref_se = (float(x) for x in (ref_dir / "dates.jout").read_text().split())
+        ref_est, ref_se = (float(x) for x in (ref_dir / "dates.jout").read_text(encoding="utf-8").split())
         ref_full = next(
             float(line.split(":")[1])
-            for line in (ref_dir / "dates.flog").read_text().splitlines()
+            for line in (ref_dir / "dates.flog").read_text(encoding="utf-8").splitlines()
             if line.startswith("mean (generations):")
         )
 
@@ -610,11 +611,11 @@ class TestQpGraphCommand:
     def write_graph(tmp_path, edges, name="graph.txt"):
         path = tmp_path / name
         lines = ["# from to"] + [f"{a}\t{b}" for a, b in edges]
-        path.write_text("\n".join(lines) + "\n")
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         return str(path)
 
     def reference(self, graph_name):
-        return next(g for g in json.loads(self.REF.read_text())["graphs"] if g["name"] == graph_name)
+        return next(g for g in json.loads(self.REF.read_text(encoding="utf-8"))["graphs"] if g["name"] == graph_name)
 
     @pytest.mark.skipif(not os.path.exists(f"{AADR_PREFIX}.geno"), reason="AADR data not available")
     def test_qpgraph_json_matches_admixtools2(self, tmp_path):
@@ -742,8 +743,12 @@ def test_closed_stdout_exits_quietly():
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     proc.stdout.close()  # before popmix has started writing
     err = proc.stderr.read().decode()
-    assert proc.wait(timeout=60) == 141
+    status = proc.wait(timeout=60)
     assert err == ""
+    if sys.platform == "win32":  # no SIGPIPE
+        assert status != 0
+    else:
+        assert status == 141
 
 
 @pytest.mark.parametrize("fmt", ["eigenstrat", "packedancestrymap", "plink", "ped", "tgeno"])
@@ -752,14 +757,14 @@ def test_sex_survives_convertf_and_merge(tmp_path, fmt):
     src = tmp_path / "src"
     other = tmp_path / "other"
     for prefix, rows in [(src, ["A1 M PopA", "A2 F PopA", "A3 U PopB"]), (other, ["B1 F PopC"])]:
-        Path(f"{prefix}.ind").write_text("".join(f"{r}\n" for r in rows))
-        Path(f"{prefix}.snp").write_text("rs1 1 0.01 100 G A\nrs2 1 0.02 200 T C\n")
-        Path(f"{prefix}.geno").write_text("".join(f"{g * len(rows)}\n" for g in "01"))
+        Path(f"{prefix}.ind").write_text("".join(f"{r}\n" for r in rows), encoding="utf-8")
+        Path(f"{prefix}.snp").write_text("rs1 1 0.01 100 G A\nrs2 1 0.02 200 T C\n", encoding="utf-8")
+        Path(f"{prefix}.geno").write_text("".join(f"{g * len(rows)}\n" for g in "01"), encoding="utf-8")
     conv, merged, back = tmp_path / "conv", tmp_path / "merged", tmp_path / "back"
     run_cli("convertf", "-i", str(src), "-o", str(conv), "-of", fmt)
     run_cli("merge", "-a", str(conv), "-b", str(other), "-o", str(merged), "-of", fmt)
     run_cli("convertf", "-i", str(merged), "-o", str(back), "-of", "eigenstrat")
-    sexes = {line.split()[0]: line.split()[1] for line in Path(f"{back}.ind").read_text().splitlines()}
+    sexes = {line.split()[0]: line.split()[1] for line in Path(f"{back}.ind").read_text(encoding="utf-8").splitlines()}
     assert sexes == {"A1": "M", "A2": "F", "A3": "U", "B1": "F"}
 
 

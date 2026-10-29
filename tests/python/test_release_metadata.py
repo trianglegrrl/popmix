@@ -26,7 +26,7 @@ def _match(text: str, pattern: str) -> str:
 
 
 def _read(path: str) -> str:
-    return (ROOT / path).read_text()
+    return (ROOT / path).read_text(encoding="utf-8")
 
 
 def test_versions_agree() -> None:

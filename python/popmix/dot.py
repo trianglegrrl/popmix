@@ -98,7 +98,7 @@ def write_dot(graph: Any, path: str | os.PathLike | None = None, *, title: str =
         body.append(f"{name(a)}{arrow}{name(b)}{sep}{lab}")
     text = "\n".join(lines) + "\n" + "\n".join(body) + "\n}\n"
     if path is not None:
-        with open(path, "w") as fh:
+        with open(path, "w", encoding="utf-8") as fh:
             fh.write(text)
     return text
 
@@ -121,7 +121,7 @@ def parse_dot(source: str | os.PathLike) -> list[tuple[str, str]]:
     """
     text = source
     if isinstance(source, os.PathLike) or (isinstance(source, str) and "->" not in source and os.path.exists(source)):
-        with open(source) as fh:
+        with open(source, encoding="utf-8") as fh:
             text = fh.read()
     out = []
     for line in str(text).splitlines():

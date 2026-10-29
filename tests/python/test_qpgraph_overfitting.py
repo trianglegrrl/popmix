@@ -20,7 +20,7 @@ import popmix as pm
 
 ROOT = Path(__file__).parents[2]
 DG6 = str(ROOT / "tests" / "golden" / "admixtools2" / "v2.0.10" / "dg_6pop" / "f2_dir")
-REF = json.loads((ROOT / "tests/golden/admixtools2/v2.0.10/dg_6pop/qpgraph.json").read_text())
+REF = json.loads((ROOT / "tests/golden/admixtools2/v2.0.10/dg_6pop/qpgraph.json").read_text(encoding="utf-8"))
 ADMIX1 = [tuple(e) for e in next(g for g in REF["graphs"] if g["name"] == "admix1")["edges"]]
 # two admixtures on Mbuti, French, Han, Papuan whose weights trade off: every
 # start reaches the same score with a different weight
@@ -74,7 +74,7 @@ def test_the_cli_reports_parameters_and_the_out_of_sample_score(dg6, tmp_path):
     f2_dir = str(tmp_path / "f2")
     dg6.save(f2_dir)
     graph = tmp_path / "graph.txt"
-    graph.write_text("".join(f"{a}\t{b}\n" for a, b in ADMIX1))
+    graph.write_text("".join(f"{a}\t{b}\n" for a, b in ADMIX1), encoding="utf-8")
     r = pm.qpgraph(dg6, ADMIX1)
     oos = pm.qpgraph_out_of_sample(dg6, ADMIX1)
     out = subprocess.run(["popmix", "qpgraph", "--f2-dir", f2_dir, "--graph", str(graph)], capture_output=True,

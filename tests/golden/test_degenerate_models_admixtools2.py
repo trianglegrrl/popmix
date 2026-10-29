@@ -23,7 +23,7 @@ import pytest
 import popmix as pm
 
 REF = json.loads((Path(__file__).parent / "admixtools2" / "v2.0.10" / "degenerate_models" / "models.json")
-                 .read_text())
+                 .read_text(encoding="utf-8"))
 AADR = Path(os.environ.get("POPMIX_REFERENCE_CACHE", Path.home() / ".cache/popmix-references")) / "aadr_v66p1" \
     / "aadr_v66p1"
 QPADM = {k: m for k, m in REF["qpadm"].items() if "error" not in m}

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -41,7 +42,7 @@ def _convertf_par(src: Path, out: Path, fmt: str, **extra: str) -> Path:
     keys = {"genotypename": f"{src}.geno", "snpname": f"{src}.snp", "indivname": f"{src}.ind",
             "outputformat": fmt, "genooutfilename": f"{out}.geno", "snpoutfilename": f"{out}.snp",
             "indoutfilename": f"{out}.ind", **extra}
-    par.write_text("".join(f"{k}: {v}\n" for k, v in keys.items()))
+    par.write_text("".join(f"{k}: {v}\n" for k, v in keys.items()), encoding="utf-8")
     return par
 
 
@@ -51,7 +52,7 @@ def subset() -> Path:
     if not Path(f"{out}.geno").exists():
         CACHE.mkdir(parents=True, exist_ok=True)
         pops = CACHE / "bench16.pops"
-        pops.write_text("".join(f"{p}\n" for p in POPS))
+        pops.write_text("".join(f"{p}\n" for p in POPS), encoding="utf-8")
         par = _convertf_par(AADR, out, "PACKEDANCESTRYMAP", poplistname=str(pops))
         # convertf writes a profile (gmon.out) where it runs
         subprocess.run([CONVERTF, "-p", str(par)], cwd=CACHE, check=True, stdout=subprocess.DEVNULL)
@@ -73,14 +74,14 @@ class Case:
 
 
 def _eigenstrat_rows(prefix: Path) -> dict[str, tuple[str, str, str]]:
-    snps = [line.split() for line in Path(f"{prefix}.snp").read_text().splitlines()]
-    with open(f"{prefix}.geno") as g:
+    snps = [line.split() for line in Path(f"{prefix}.snp").read_text(encoding="utf-8").splitlines()]
+    with open(f"{prefix}.geno", encoding="utf-8") as g:
         return {s[0]: (s[4], s[5], line.rstrip("\n")) for s, line in zip(snps, g)}
 
 
 def _r(script: str, outdir: Path, *args: str) -> list[str]:
     path = outdir / "run.R"
-    path.write_text(script)
+    path.write_text(script, encoding="utf-8")
     return [RSCRIPT, str(path), *args, str(outdir)]
 
 
@@ -113,8 +114,8 @@ def present_day() -> Path:
         for ext in (".geno", ".snp"):
             Path(f"{out}{ext}").symlink_to(f"{src}{ext}")
         keep = set(PRESENT_DAY)
-        lines = [line.split() for line in Path(f"{src}.ind").read_text().splitlines()]
-        Path(f"{out}.ind").write_text("".join(f"{i} {s} {p if p in keep else 'Ignore'}\n" for i, s, p in lines))
+        lines = [line.split() for line in Path(f"{src}.ind").read_text(encoding="utf-8").splitlines()]
+        Path(f"{out}.ind").write_text("".join(f"{i} {s} {p if p in keep else 'Ignore'}\n" for i, s, p in lines), encoding="utf-8")
     return out
 
 
@@ -124,11 +125,11 @@ def present_day_bed() -> Path:
     out = CACHE / "bench16_present_bed"
     if not Path(f"{out}.bed").exists():
         pops = CACHE / "present.pops"
-        pops.write_text("".join(f"{p}\n" for p in PRESENT_DAY))
+        pops.write_text("".join(f"{p}\n" for p in PRESENT_DAY), encoding="utf-8")
         par = CACHE / "present_bed.par"
         par.write_text(f"genotypename: {src}.geno\nsnpname: {src}.snp\nindivname: {src}.ind\n"
                        f"outputformat: PACKEDPED\ngenotypeoutname: {out}.bed\nsnpoutname: {out}.bim\n"
-                       f"indivoutname: {out}.fam\npoplistname: {pops}\n")
+                       f"indivoutname: {out}.fam\npoplistname: {pops}\n", encoding="utf-8")
         subprocess.run([CONVERTF, "-p", str(par)], cwd=CACHE, check=True, stdout=subprocess.DEVNULL)
     return out
 
@@ -138,5 +139,5 @@ CLASSIC = Path(os.environ.get("POPMIX_ADMIXTOOLS7", HOME / ".local/share/popmix-
 
 def _py(script: str, outdir: Path, threads: int, *args: str) -> list[str]:
     path = outdir / "run.py"
-    path.write_text(script)
-    return ["python", str(path), str(threads), *args, str(outdir)]
+    path.write_text(script, encoding="utf-8")
+    return [sys.executable, str(path), str(threads), *args, str(outdir)]

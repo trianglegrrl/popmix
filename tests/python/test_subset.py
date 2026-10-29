@@ -40,7 +40,7 @@ def convert(tmp_path: Path, *args: str, fmt: str = "packedancestrymap") -> pm.Ge
 
 def file_of(tmp_path: Path, name: str, lines: list[str]) -> str:
     path = tmp_path / name
-    path.write_text("".join(x + "\n" for x in lines))
+    path.write_text("".join(x + "\n" for x in lines), encoding="utf-8")
     return str(path)
 
 
@@ -106,7 +106,7 @@ def test_f2_commands_take_a_relabelling(tmp_path):
 
 def test_extract_f2_takes_the_selection(tmp_path):
     rename = file_of(tmp_path, "rename.txt", ["French Fr"])
-    exclude = file_of(tmp_path, "exclude.ind", [line for line in Path(f"{SMALL}.ind").read_text().splitlines()
+    exclude = file_of(tmp_path, "exclude.ind", [line for line in Path(f"{SMALL}.ind").read_text(encoding="utf-8").splitlines()
                                                 if line.split()[2] == "Simulation"])
     r = popmix("extract-f2", "-i", SMALL, "--relabel-pops", rename, "--exclude-inds", exclude,
                "-o", str(tmp_path / "f2"))

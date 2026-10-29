@@ -319,7 +319,7 @@ def _is_popmix_skill(path) -> bool:
     """Whether PATH holds a copy of this skill (so --force may replace it)."""
     skill_md = path / "SKILL.md"
     try:
-        return skill_md.is_file() and "\nname: popmix\n" in skill_md.read_text(errors="replace")
+        return skill_md.is_file() and "\nname: popmix\n" in skill_md.read_text(errors="replace", encoding="utf-8")
     except OSError:
         return False
 

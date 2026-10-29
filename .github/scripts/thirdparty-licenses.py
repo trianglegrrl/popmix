@@ -71,7 +71,7 @@ def main() -> None:
         names = authors[(lib["package_name"], lib["package_version"])]
         holders = ", ".join(n.split(" <")[0] for n in names) or f"the {lib['package_name']} authors"
         lib["licenses"] = [{"license": "MIT", "text": MIT.format(holders=holders)}]
-    OUT.write_text(yaml.safe_dump(bundle, sort_keys=False, allow_unicode=True, width=1000))
+    OUT.write_text(yaml.safe_dump(bundle, sort_keys=False, allow_unicode=True, width=1000), encoding="utf-8")
     print(f"{OUT}: {len(bundle['third_party_libraries'])} crates")
 
 

@@ -27,6 +27,8 @@ import pytest
 
 import popmix as pm
 
+from .reference_paths import missing
+
 pytestmark = pytest.mark.slow
 
 REF = Path(__file__).parent / "formats" / "v2.0.10" / "reference.json"
@@ -48,9 +50,9 @@ FORMATS = {
 
 @pytest.fixture(scope="module")
 def ref() -> dict:
-    if not REF.exists() or not (CACHE / "packed.geno").exists():
+    if missing(REF) or missing(CACHE / "packed.geno"):
         pytest.skip("format reference not generated (tests/golden/formats/generate_formats.py)")
-    return json.loads(REF.read_text())
+    return json.loads(REF.read_text(encoding="utf-8"))
 
 
 @pytest.mark.parametrize("fmt", list(FORMATS))
@@ -68,9 +70,9 @@ def test_f2_from_each_format_matches_admixtools2(ref: dict, fmt: str) -> None:
 
 def _eigenstrat(prefix: Path) -> tuple[list[str], dict[str, tuple[str, str, str]]]:
     """Samples, and per SNP id (counted allele, other allele, genotype digits)."""
-    samples = [line.split()[0].split(":")[-1] for line in Path(f"{prefix}.ind").read_text().splitlines()]
-    snps = [line.split() for line in Path(f"{prefix}.snp").read_text().splitlines()]
-    with open(f"{prefix}.geno") as g:
+    samples = [line.split()[0].split(":")[-1] for line in Path(f"{prefix}.ind").read_text(encoding="utf-8").splitlines()]
+    snps = [line.split() for line in Path(f"{prefix}.snp").read_text(encoding="utf-8").splitlines()]
+    with open(f"{prefix}.geno", encoding="utf-8") as g:
         rows = {s[0]: (s[4], s[5], line.rstrip("\n")) for s, line in zip(snps, g)}
     return samples, rows
 
@@ -111,7 +113,7 @@ def _to_text_with_convertf(prefix: Path, out: Path) -> None:
     par = out.with_suffix(".par")
     par.write_text("".join(f"{k}: {v}\n" for k, v in {
         **names, "outputformat": "EIGENSTRAT", "genooutfilename": f"{out}.geno",
-        "snpoutfilename": f"{out}.snp", "indoutfilename": f"{out}.ind"}.items()))
+        "snpoutfilename": f"{out}.snp", "indoutfilename": f"{out}.ind"}.items()), encoding="utf-8")
     # convertf writes a profile (gmon.out) where it runs
     subprocess.run([CONVERTF, "-p", str(par)], check=True, capture_output=True, cwd=out.parent)
 

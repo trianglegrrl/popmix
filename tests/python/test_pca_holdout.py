@@ -37,7 +37,7 @@ def every_second(pops: tuple[str, ...]) -> list[str]:
     """Ids of the 2nd, 4th, ... sample of each population, in .ind order."""
     seen: dict[str, int] = {}
     out = []
-    for i, _, pop in (line.split() for line in Path(f"{SMALL}.ind").read_text().splitlines()):
+    for i, _, pop in (line.split() for line in Path(f"{SMALL}.ind").read_text(encoding="utf-8").splitlines()):
         k = seen[pop] = seen.get(pop, 0) + 1
         if pop in pops and k % 2 == 0:
             out.append(i)
@@ -51,9 +51,9 @@ def halves(tmp_path_factory) -> str:
     for ext in ("geno", "snp"):
         Path(f"{prefix}.{ext}").symlink_to(f"{SMALL}.{ext}")
     held = set(every_second(("French", "Yoruba")))
-    rows = [line.split() for line in Path(f"{SMALL}.ind").read_text().splitlines()]
+    rows = [line.split() for line in Path(f"{SMALL}.ind").read_text(encoding="utf-8").splitlines()]
     Path(f"{prefix}.ind").write_text("".join(f"{i} {sex} {pop}_B\n" if i in held else f"{i} {sex} {pop}\n"
-                                             for i, sex, pop in rows))
+                                             for i, sex, pop in rows), encoding="utf-8")
     return str(prefix)
 
 

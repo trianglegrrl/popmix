@@ -90,7 +90,7 @@ def record(command: click.Command) -> click.Command:
                 "python": platform.python_version(),
                 "platform": platform.platform(),
             }
-            with open(_sidecar(*output), "w") as f:
+            with open(_sidecar(*output), "w", encoding="utf-8") as f:
                 json.dump(provenance, f, indent=2)
                 f.write("\n")
         return result

@@ -25,9 +25,9 @@ def _convert(src: str, dst: Path, fmt: str) -> str:
 
 
 def _swap_first_two(path: Path) -> None:
-    lines = path.read_text().splitlines(keepends=True)
+    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
     lines[0], lines[1] = lines[1], lines[0]
-    path.write_text("".join(lines))
+    path.write_text("".join(lines), encoding="utf-8")
 
 
 @pytest.fixture(scope="module")

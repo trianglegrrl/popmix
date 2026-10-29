@@ -36,8 +36,8 @@ def no_map(tmp_path_factory) -> str:
     prefix = tmp_path_factory.mktemp("nomap") / "data"
     for ext in ("geno", "ind"):
         shutil.copy(f"{SMALL}.{ext}", f"{prefix}.{ext}")
-    rows = [line.split() for line in Path(f"{SMALL}.snp").read_text().splitlines()]
-    Path(f"{prefix}.snp").write_text("".join(" ".join([r[0], r[1], "0", *r[3:]]) + "\n" for r in rows))
+    rows = [line.split() for line in Path(f"{SMALL}.snp").read_text(encoding="utf-8").splitlines()]
+    Path(f"{prefix}.snp").write_text("".join(" ".join([r[0], r[1], "0", *r[3:]]) + "\n" for r in rows), encoding="utf-8")
     return str(prefix)
 
 

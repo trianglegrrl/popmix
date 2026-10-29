@@ -34,10 +34,10 @@ _cache: dict = {}
 
 def run(case: str):
     if case not in _cache:
-        ref = json.loads((REF / f"{case}.json").read_text())
+        ref = json.loads((REF / f"{case}.json").read_text(encoding="utf-8"))
         p = dict(ref["params"])
         if "keepsnps" in p:
-            p["keepsnps"] = (REF / p["keepsnps"]).read_text().split()
+            p["keepsnps"] = (REF / p["keepsnps"]).read_text(encoding="utf-8").split()
         _cache[case] = ref, pm.extract_f2(str(AADR), ref["pops"], **p)
     return _cache[case]
 

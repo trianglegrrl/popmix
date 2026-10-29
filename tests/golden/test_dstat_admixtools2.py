@@ -32,7 +32,7 @@ import pytest
 
 import popmix as pm
 
-from .reference_paths import local
+from .reference_paths import local, missing
 
 REF_ROOT = Path(__file__).parent / "admixtools2" / "v2.0.10"
 # The AADR configs read the 5 GB genotype file several times: --run-slow
@@ -49,7 +49,7 @@ def _reference(name: str) -> dict:
     path = REF_ROOT / name / "dstat.json"
     if not path.exists():
         pytest.skip(f"no reference: {path}")
-    return json.loads(path.read_text())
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 _prefixes: dict = {}
@@ -57,7 +57,7 @@ _prefixes: dict = {}
 
 def _prefix(name: str, ref: dict, tmp_root: Path) -> str:
     """The genotype prefix, relabeled as the reference was (symlinked .geno/.snp)."""
-    if not os.path.exists(f"{local(ref['prefix'])}.geno"):
+    if missing(f"{local(ref['prefix'])}.geno"):
         pytest.skip(f"genotype data not available: {local(ref['prefix'])}")
     if not ref.get("relabel"):
         return local(ref["prefix"])
@@ -68,10 +68,10 @@ def _prefix(name: str, ref: dict, tmp_root: Path) -> str:
             os.symlink(os.path.realpath(local(ref["prefix"]) + ext), str(out) + ext)
         relabel = {old: new for new, olds in ref["relabel"].items() for old in olds}
         lines = []
-        for line in Path(local(ref["prefix"]) + ".ind").read_text().splitlines():
+        for line in Path(local(ref["prefix"]) + ".ind").read_text(encoding="utf-8").splitlines():
             ind, sex, pop = line.split()
             lines.append(f"{ind}\t{sex}\t{relabel.get(pop, pop)}")
-        Path(str(out) + ".ind").write_text("\n".join(lines) + "\n")
+        Path(str(out) + ".ind").write_text("\n".join(lines) + "\n", encoding="utf-8")
         _prefixes[name] = str(out)
     return _prefixes[name]
 
@@ -181,11 +181,11 @@ def test_qp3pop_outgroup(name, tmp_root):
 @pytest.mark.parametrize("name", ["family_4pop", pytest.param("dg_6pop", marks=pytest.mark.slow)])
 def test_scans_from_f2_blocks(name):
     """qpdstat and qp3pop on f2 blocks: admixtools2's f4() and f3() on its f2 blocks (f3_f4.json)."""
-    ref = json.loads((REF_ROOT / name / "f2.json").read_text())
-    if not os.path.exists(f"{local(ref['prefix'])}.geno"):
+    ref = json.loads((REF_ROOT / name / "f2.json").read_text(encoding="utf-8"))
+    if missing(f"{local(ref['prefix'])}.geno"):
         pytest.skip(f"genotype data not available: {local(ref['prefix'])}")
     f2 = pm.extract_f2(local(ref["prefix"]), ref["pops"])
-    stats = json.loads((REF_ROOT / name / "f3_f4.json").read_text())
+    stats = json.loads((REF_ROOT / name / "f3_f4.json").read_text(encoding="utf-8"))
     # admixtools2 returns qp3pop() on f2 blocks sorted by population (dplyr
     # summarize); popmix keeps the combination order, as both do from genotypes.
     f3_cols = ["pop1", "pop2", "pop3"]

@@ -18,7 +18,7 @@ import popmix as pm
 ROOT = Path(__file__).parents[2]
 SMALL = str(ROOT / "tests" / "golden" / "dates" / "family_chr20_22")
 POPS = ["French", "Yoruba", "Simulation", "Simulation.1"]
-IDS = [line.split()[0] for line in Path(f"{SMALL}.snp").read_text().splitlines()]
+IDS = [line.split()[0] for line in Path(f"{SMALL}.snp").read_text(encoding="utf-8").splitlines()]
 
 
 def n_snps(**kw) -> int:
@@ -66,13 +66,13 @@ def test_extract_f2_takes_transversions_only(tmp_path):
     f2 = pm.read_f2(str(tmp_path / "f2"))
     assert sum(f2.block_lengths) == 254
     assert f2.provenance["parameters"]["transitions"] is False
-    sidecar = json.loads((tmp_path / "f2" / "provenance.json").read_text())
+    sidecar = json.loads((tmp_path / "f2" / "provenance.json").read_text(encoding="utf-8"))
     assert sidecar["parameters"]["transversions_only"] is True
 
 
 def test_statistics_on_genotypes_take_the_filters(tmp_path):
     keep = tmp_path / "keep.snp"
-    keep.write_text("".join(line + "\n" for line in Path(f"{SMALL}.snp").read_text().splitlines()[:5000]))
+    keep.write_text("".join(line + "\n" for line in Path(f"{SMALL}.snp").read_text(encoding="utf-8").splitlines()[:5000]), encoding="utf-8")
     r = popmix("f2", "--pop1", "French", "--pop2", "Yoruba", "-i", SMALL, "--keep-snps", str(keep),
                "--minmaf", "0.05", "--format", "json")
     assert r.returncode == 0, r.stderr

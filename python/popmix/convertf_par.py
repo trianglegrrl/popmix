@@ -47,7 +47,7 @@ def read_par(path: str | os.PathLike[str]) -> tuple[dict[str, str], set[str]]:
     names that were substituted."""
     out: dict[str, str] = {}
     names: set[str] = set()
-    for n, line in enumerate(Path(path).read_text().splitlines(), 1):
+    for n, line in enumerate(Path(path).read_text(encoding="utf-8").splitlines(), 1):
         line = line.split("#", 1)[0].strip()
         if not line:
             continue
@@ -63,7 +63,7 @@ def read_par(path: str | os.PathLike[str]) -> tuple[dict[str, str], set[str]]:
 
 
 def _ids(path: str) -> list[str]:
-    return [line.split()[0] for line in Path(path).read_text().splitlines() if line.split()]
+    return [line.split()[0] for line in Path(path).read_text(encoding="utf-8").splitlines() if line.split()]
 
 
 def _input_prefix(par: dict[str, str], work: Path) -> str:
@@ -113,7 +113,7 @@ def convertf_par(path: str | os.PathLike[str]) -> dict:
     if "badsnpname" in par:
         # SNPs listed that the data does not have are nothing to leave out
         snp = par["snpname"]
-        present = {line.split()[1 if snp.endswith(".bim") else 0] for line in Path(snp).read_text().splitlines()
+        present = {line.split()[1 if snp.endswith(".bim") else 0] for line in Path(snp).read_text(encoding="utf-8").splitlines()
                    if line.split()}
         subset["exclude_snps"] = [s for s in _ids(par["badsnpname"]) if s in present]
     if "chrom" in par:

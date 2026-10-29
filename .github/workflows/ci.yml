@@ -1,10 +1,12 @@
-# Tests on every push and pull request: the Rust and Python suites, the
-# golden tests whose reference data ship in the repository, and the small
-# benchmark (benchmarks/smoke.py), whose times go to the job summary.
+# Tests on every push and pull request: the lints once, then on every
+# platform a wheel is built for (release.yml) the Rust and Python suites and
+# the golden tests whose reference data ship in the repository, and the
+# small benchmark (benchmarks/smoke.py), whose times go to the job summary.
 #
 # The goldens that need AADR or a reference tool (admixtools2 in R,
 # smartpca, PLINK 2, ...) skip here; they run on a machine that has them
-# (TESTING.md). TASKS.md K1 adds macOS, Windows and aarch64.
+# (TESTING.md), and the AADR ones weekly (aadr-goldens.yml). A golden whose
+# data ship cannot skip: POPMIX_REQUIRE_GOLDEN=1 fails it (TASKS.md K1).
 name: ci
 
 on:
@@ -17,7 +19,7 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,11 +30,38 @@ jobs:
         with:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
-
       - name: Rust format and lints
         run: |
           cargo fmt --all -- --check
           cargo clippy --workspace --all-targets -- -D warnings
+      - name: Python lints
+        run: |
+          pip install ruff
+          ruff check python tests benchmarks
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+          - runner: ubuntu-24.04-arm
+          - runner: macos-15
+          # the macOS wheel is universal2: Apple Silicon above, Intel here
+          - runner: macos-15-intel
+          - runner: windows-latest
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
       - name: Rust tests
         run: |
           cargo test --workspace
@@ -41,23 +70,21 @@ jobs:
       - name: Build and install popmix
         run: |
           python -m venv .venv
-          source .venv/bin/activate
-          pip install maturin
-          maturin develop --release -m crates/popmix-python/Cargo.toml -E dev,plot
-      - name: Python lints
-        run: |
-          source .venv/bin/activate
-          ruff check python tests benchmarks
+          if [ -d .venv/Scripts ]; then bin=.venv/Scripts; else bin=.venv/bin; fi
+          # GITHUB_PATH and GITHUB_ENV take native paths (C:\...) on Windows
+          native() { if command -v cygpath >/dev/null; then cygpath -w "$1"; else echo "$1"; fi; }
+          echo "$(native "$PWD/$bin")" >> "$GITHUB_PATH"
+          export VIRTUAL_ENV="$(native "$PWD/.venv")"
+          echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> "$GITHUB_ENV"
+          "$bin/python" -m pip install maturin
+          "$bin/maturin" develop --release -m crates/popmix-python/Cargo.toml -E dev,plot
       - name: Python tests
-        run: |
-          source .venv/bin/activate
-          pytest tests/python
+        run: python -m pytest tests/python
       - name: Golden tests with shipped reference data
-        run: |
-          source .venv/bin/activate
-          pytest tests/golden
+        env:
+          POPMIX_REQUIRE_GOLDEN: "1"
+        run: python -m pytest tests/golden
 
       - name: Small benchmark
-        run: |
-          source .venv/bin/activate
-          python benchmarks/smoke.py --repeats 3 --out "$GITHUB_STEP_SUMMARY"
+        if: matrix.runner == 'ubuntu-latest'
+        run: python benchmarks/smoke.py --repeats 3 --out "$GITHUB_STEP_SUMMARY"

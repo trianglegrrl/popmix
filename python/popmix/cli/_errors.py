@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import os
 import signal
 import sys
@@ -41,13 +42,19 @@ def fail(error: Exception) -> NoReturn:
     """
     if isinstance(error, pm.InternalError):
         raise error
-    if isinstance(error, BrokenPipeError):
+    # a closed stdout: BrokenPipeError, or on Windows an OSError EINVAL with no
+    # file name (a file's own errors name it)
+    closed_stdout = isinstance(error, BrokenPipeError) or (
+        sys.platform == "win32" and isinstance(error, OSError)
+        and error.errno == errno.EINVAL and error.filename is None)
+    if closed_stdout:
 
         # `popmix ... | head`: the reader closed the pipe. Exit as a process
-        # killed by SIGPIPE, without a message, with stdout on /dev/null so
-        # the interpreter's final flush cannot fail again.
+        # killed by SIGPIPE (Windows has none: 1), without a message, with
+        # stdout on the null device so the interpreter's final flush cannot
+        # fail again.
         os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
-        sys.exit(128 + signal.SIGPIPE)
+        sys.exit(128 + signal.SIGPIPE if hasattr(signal, "SIGPIPE") else 1)
     ctx = click.get_current_context(silent=True)
     if ctx is not None and (ctx.find_root().obj or {}).get("debug"):
         raise error

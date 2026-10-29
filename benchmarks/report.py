@@ -53,4 +53,4 @@ def render(results: dict) -> str:
 
 
 if __name__ == "__main__":
-    print(render(json.loads(Path(sys.argv[1]).read_text())), end="")
+    print(render(json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))), end="")

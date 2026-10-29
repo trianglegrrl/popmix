@@ -31,7 +31,7 @@ import pytest
 
 import popmix as pm
 
-from .reference_paths import local
+from .reference_paths import local, missing
 
 REF_ROOT = Path(__file__).parent / "readv2" / "73739be"
 REPO = Path(__file__).parents[2]
@@ -49,9 +49,9 @@ def _num(values) -> np.ndarray:
 def _run(name: str, compat: str | None = "readv2-2.01"):
     key = (name, compat)
     if key not in _results:
-        ref = json.loads((REF_ROOT / name / "read.json").read_text())
+        ref = json.loads((REF_ROOT / name / "read.json").read_text(encoding="utf-8"))
         prefix = local(ref["prefix"]) if os.path.isabs(local(ref["prefix"])) else str(REPO / local(ref["prefix"]))
-        if not os.path.exists(prefix + ".geno"):
+        if missing(prefix + ".geno"):
             pytest.skip(f"genotype data not available: {prefix}")
         ours = pm.read_kinship(prefix, ref["pops"], compat=compat)
         # READv2 lists pairs sorted by "id1,id2"

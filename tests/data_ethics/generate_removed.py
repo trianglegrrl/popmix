@@ -30,10 +30,10 @@ def variants(name: str) -> set[str]:
 
 
 def main() -> None:
-    header, *rows = [line.split("\t") for line in V62.read_text().splitlines()]
+    header, *rows = [line.split("\t") for line in V62.read_text(encoding="utf-8").splitlines()]
     pub = next(i for i, h in enumerate(header) if h.startswith("Publication abbreviation"))
     group = next(i for i, h in enumerate(header) if h.startswith("Group ID"))
-    kept = {line.split()[0] for line in V66P1.read_text().splitlines()}
+    kept = {line.split()[0] for line in V66P1.read_text(encoding="utf-8").splitlines()}
     jacobs = [r for r in rows if r[pub] == "JacobsCell2019"]
     removed = [r for r in jacobs if r[0] not in kept]
     assert len(removed) == len(jacobs) == 161, (len(removed), len(jacobs))
@@ -52,7 +52,7 @@ def main() -> None:
         "individuals": len(removed),
         "populations": len(whole),
         "sha256": sorted(hashlib.sha256(n.encode()).hexdigest() for n in names),
-    }, indent=1) + "\n")
+    }, indent=1) + "\n", encoding="utf-8")
     print(f"{len(removed)} individuals, {len(whole)} populations, {len(names)} hashes -> {OUT}")
 
 

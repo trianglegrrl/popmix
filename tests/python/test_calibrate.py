@@ -39,9 +39,9 @@ def replicate(path: Path, seed: int, admixture: float) -> str:
     prefix = path / f"rep{seed}"
     per = N_SNPS // N_CHROM
     Path(f"{prefix}.snp").write_text("".join(
-        f"s{k} {k // per + 1} {(k % per) * 0.5 / per:.6f} {(k % per) * 1000 + 1} A G\n" for k in range(N_SNPS)))
-    Path(f"{prefix}.geno").write_text("".join("".join(map(str, row)) + "\n" for row in geno))
-    Path(f"{prefix}.ind").write_text("".join(f"{p}{i} U {p}\n" for p in "ABCDEF" for i in range(PER_POP)))
+        f"s{k} {k // per + 1} {(k % per) * 0.5 / per:.6f} {(k % per) * 1000 + 1} A G\n" for k in range(N_SNPS)), encoding="utf-8")
+    Path(f"{prefix}.geno").write_text("".join("".join(map(str, row)) + "\n" for row in geno), encoding="utf-8")
+    Path(f"{prefix}.ind").write_text("".join(f"{p}{i} U {p}\n" for p in "ABCDEF" for i in range(PER_POP)), encoding="utf-8")
     return str(prefix)
 
 
@@ -89,7 +89,7 @@ def test_the_cli_summarizes(flow, tmp_path):
     a = pm.calibrate_f4(flow, "A", "B", "C", "D", block_size=0.02).attrs
     assert (f"10 replicates, {a['rejected']} rejected at alpha 0.05: rate {a['rate']:.3f} "
             f"(95% CI {a['ci_low']:.3f}-{a['ci_high']:.3f})") in r.stdout
-    assert len((tmp_path / "reps.tsv").read_text().splitlines()) == 11
+    assert len((tmp_path / "reps.tsv").read_text(encoding="utf-8").splitlines()) == 11
 
 
 def test_popmix_never_imports_msprime():

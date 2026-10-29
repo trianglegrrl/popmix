@@ -51,7 +51,7 @@ def convertf(src: Path, out: Path, fmt: str, **extra: str) -> None:
     par = {**names, "outputformat": fmt, "genooutfilename": f"{out}.{ext[0]}",
            "snpoutfilename": f"{out}.{ext[1]}", "indoutfilename": f"{out}.{ext[2]}", **extra}
     p = out.with_suffix(".par")
-    p.write_text("".join(f"{k}: {v}\n" for k, v in par.items()))
+    p.write_text("".join(f"{k}: {v}\n" for k, v in par.items()), encoding="utf-8")
     # convertf writes a profile (gmon.out) where it runs
     subprocess.run([CONVERTF, "-p", str(p)], check=True, stdout=subprocess.DEVNULL, cwd=out.parent)
 
@@ -59,7 +59,7 @@ def convertf(src: Path, out: Path, fmt: str, **extra: str) -> None:
 def main() -> None:
     CACHE.mkdir(parents=True, exist_ok=True)
     pops = CACHE / "pops.txt"
-    pops.write_text("\n".join(POPS) + "\n")
+    pops.write_text("\n".join(POPS) + "\n", encoding="utf-8")
     packed = CACHE / "packed"
     convertf(AADR, packed, "PACKEDANCESTRYMAP", poplistname=str(pops))
     convertf(packed, CACHE / "text", "EIGENSTRAT")

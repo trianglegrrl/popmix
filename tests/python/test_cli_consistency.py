@@ -45,7 +45,7 @@ def test_sfs_summary_stays_off_the_table_file(tmp_path):
     path = tmp_path / "sfs.tsv"
     out = popmix("sfs", "-i", SMALL, "--populations", "French", "-o", str(path))
     assert out.stdout == ""
-    assert path.read_text().startswith("French\tn\tmasked\n")
+    assert path.read_text(encoding="utf-8").startswith("French\tn\tmasked\n")
 
 
 @pytest.mark.parametrize("rule", ["detect", "admixtools2", "diploid"])
@@ -148,9 +148,9 @@ def test_extract_f2_of_all_populations_leaves_out_ignore(tmp_path):
     prefix = tmp_path / "data"
     for ext in ("geno", "snp"):
         shutil.copy(f"{SMALL}.{ext}", f"{prefix}.{ext}")
-    lines = Path(f"{SMALL}.ind").read_text().splitlines()
+    lines = Path(f"{SMALL}.ind").read_text(encoding="utf-8").splitlines()
     lines[0] = lines[0].rsplit(" ", 1)[0] + " Ignore"
-    Path(f"{prefix}.ind").write_text("\n".join(lines) + "\n")
+    Path(f"{prefix}.ind").write_text("\n".join(lines) + "\n", encoding="utf-8")
     popmix("extract-f2", "-i", str(prefix), "-o", str(tmp_path / "f2"))
     assert "Ignore" not in pm.read_f2(str(tmp_path / "f2")).populations
 
@@ -172,7 +172,7 @@ def test_convertf_help_names_every_input_format():
 
 
 def test_readme_names_every_input_format():
-    readme = (ROOT / "README.md").read_text()
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "reads 6 " not in readme
     inputs = next(line for line in readme.splitlines() if line.startswith("**Input formats:**"))
     for fmt in _input_formats():
@@ -204,23 +204,23 @@ def test_every_compat_switch_is_on_the_cli():
 @pytest.mark.parametrize("compat", [None, "admixtools2-2.0.10"])
 def test_qpgraph_dot_takes_compat(dg6, f2_dir, tmp_path, compat):
     """--dot writes what write_dot does, admixtools2's text with --compat (ADMIXTOOLS2-0004)."""
-    ref = json.loads((ROOT / "tests/golden/admixtools2/v2.0.10/dg_6pop/qpgraph.json").read_text())
+    ref = json.loads((ROOT / "tests/golden/admixtools2/v2.0.10/dg_6pop/qpgraph.json").read_text(encoding="utf-8"))
     edges = next(g for g in ref["graphs"] if g["name"] == "admix1")["edges"]
     graph = tmp_path / "graph.txt"
-    graph.write_text("".join(f"{a}\t{b}\n" for a, b in edges))
+    graph.write_text("".join(f"{a}\t{b}\n" for a, b in edges), encoding="utf-8")
     dot = tmp_path / "graph.dot"
     popmix("qpgraph", "--f2-dir", f2_dir, "--graph", str(graph), "--dot", str(dot),
            *(["--compat", compat] if compat else []))
     expected = pm.write_dot(pm.qpgraph(dg6, [tuple(e) for e in edges]), compat=compat)
-    assert dot.read_text() == expected
+    assert dot.read_text(encoding="utf-8") == expected
 
 
 def test_qpgraph_compat_fits_as_admixtools2(dg6, f2_dir, tmp_path):
     """--compat stops the fit where admixtools2 does (ADMIXTOOLS2-0009), with or without --dot."""
-    ref = json.loads((ROOT / "tests/golden/admixtools2/v2.0.10/dg_6pop/qpgraph.json").read_text())
+    ref = json.loads((ROOT / "tests/golden/admixtools2/v2.0.10/dg_6pop/qpgraph.json").read_text(encoding="utf-8"))
     edges = next(g for g in ref["graphs"] if g["name"] == "admix1")["edges"]
     graph = tmp_path / "graph.txt"
-    graph.write_text("".join(f"{a}\t{b}\n" for a, b in edges))
+    graph.write_text("".join(f"{a}\t{b}\n" for a, b in edges), encoding="utf-8")
     out = json.loads(popmix("qpgraph", "--f2-dir", f2_dir, "--graph", str(graph), "--compat", "admixtools2-2.0.10",
                             "--format", "json").stdout)
     expected = pm.qpgraph(dg6, [tuple(e) for e in edges], compat="admixtools2-2.0.10")

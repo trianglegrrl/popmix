@@ -11,7 +11,6 @@ are installed).
 from __future__ import annotations
 
 import json
-import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -21,17 +20,17 @@ import pytest
 
 import popmix as pm
 
-from .reference_paths import local
+from .reference_paths import local, missing
 
 REF_DIR = Path(__file__).parent / "admixtools2" / "v2.0.10" / "dg_6pop"
 F2_DIR = REF_DIR / "f2_dir"
 RSCRIPT = "/usr/bin/Rscript"
 
-pytestmark = pytest.mark.skipif(not F2_DIR.exists(), reason="f2_dir not generated")
+pytestmark = pytest.mark.skipif(missing(F2_DIR), reason="f2_dir not generated")
 
 
 def _ref() -> dict:
-    return json.loads((REF_DIR / "f2.json").read_text())
+    return json.loads((REF_DIR / "f2.json").read_text(encoding="utf-8"))
 
 
 @pytest.fixture(scope="module")
@@ -42,7 +41,7 @@ def theirs():
 @pytest.fixture(scope="module")
 def ours():
     ref = _ref()
-    if not os.path.exists(f"{local(ref['prefix'])}.geno"):
+    if missing(f"{local(ref['prefix'])}.geno"):
         pytest.skip(f"genotype data not available: {local(ref['prefix'])}")
     p = ref["params"]
     return pm.extract_f2(local(ref["prefix"]), ref["pops"], auto_only=p["auto_only"], block_size=p["blgsize"],
@@ -92,7 +91,7 @@ def test_write_then_read_round_trips(theirs, tmp_path):
 
 
 @pytest.mark.slow
-@pytest.mark.skipif(not os.path.exists(RSCRIPT), reason="R not installed")
+@pytest.mark.skipif(missing(RSCRIPT), reason="R not installed")
 def test_admixtools2_reads_what_popmix_writes(ours, tmp_path):
     out = tmp_path / "popmix_f2"
     pm.write_admixtools2_f2(ours, out)

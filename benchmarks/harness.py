@@ -49,7 +49,7 @@ def run_once(cmd: list[str], cwd: Path, env: dict[str, str] | None = None, log: 
     """Run cmd to completion; raise if it fails."""
     # GNU time reports the command's own peak RSS: a child forked from this
     # (large) Python process would start with this process's resident set
-    with tempfile.NamedTemporaryFile("r", suffix=".rss") as rss, contextlib.ExitStack() as stack:
+    with tempfile.NamedTemporaryFile("r", encoding="utf-8", suffix=".rss") as rss, contextlib.ExitStack() as stack:
         out = stack.enter_context(open(log, "ab")) if log else subprocess.DEVNULL
         start = time.perf_counter()
         proc = subprocess.Popen([GNU_TIME, "-f", "%M", "-o", rss.name, *cmd], cwd=cwd, env=env, stdout=out,
@@ -78,11 +78,11 @@ def measure(cmd: list[str], cwd: Path, repeats: int, env: dict[str, str] | None 
 def machine() -> dict:
     info = {"python": platform.python_version(), "system": platform.platform(), "cpus": os.cpu_count()}
     try:
-        for line in Path("/proc/cpuinfo").read_text().splitlines():
+        for line in Path("/proc/cpuinfo").read_text(encoding="utf-8").splitlines():
             if line.startswith("model name"):
                 info["cpu"] = line.split(":", 1)[1].strip()
                 break
-        mem = Path("/proc/meminfo").read_text().split()[1]
+        mem = Path("/proc/meminfo").read_text(encoding="utf-8").split()[1]
         info["memory_gb"] = round(int(mem) / 1024 / 1024, 1)
     except OSError:
         pass

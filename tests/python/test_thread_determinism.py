@@ -94,8 +94,8 @@ def test_merged_files_do_not_depend_on_the_thread_count(tmp_path):
     pm.convertf(SMALL, str(tmp_path / "a"), "packedancestrymap")
     for ext in ("geno", "snp"):
         (tmp_path / f"b.{ext}").write_bytes((tmp_path / f"a.{ext}").read_bytes())
-    ind = (tmp_path / "a.ind").read_text().splitlines()
-    (tmp_path / "b.ind").write_text("".join(f"copy_{line.lstrip()}\n" for line in ind))
+    ind = (tmp_path / "a.ind").read_text(encoding="utf-8").splitlines()
+    (tmp_path / "b.ind").write_text("".join(f"copy_{line.lstrip()}\n" for line in ind), encoding="utf-8")
 
     def run():
         out = tmp_path / f"merged{pm.get_threads()}"

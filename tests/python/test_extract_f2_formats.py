@@ -71,7 +71,7 @@ def test_cli_json_is_byte_identical_across_runs():
 
 
 def _ind(prefix: str) -> list[tuple[str, str]]:
-    return [(line.split()[0], line.split()[2]) for line in Path(f"{prefix}.ind").read_text().splitlines()]
+    return [(line.split()[0], line.split()[2]) for line in Path(f"{prefix}.ind").read_text(encoding="utf-8").splitlines()]
 
 
 @pytest.mark.parametrize("fmt", ["packedancestrymap", "eigenstrat"])
@@ -96,10 +96,10 @@ def test_inds_and_pops_select_and_relabel_samples(tmp_path, fmt):
     labelled = tmp_path / "labelled"
     for ext in ("geno", "snp"):
         shutil.copy(f"{prefix}.{ext}", f"{labelled}.{ext}")
-    lines = Path(f"{prefix}.ind").read_text().splitlines()
+    lines = Path(f"{prefix}.ind").read_text(encoding="utf-8").splitlines()
     new = dict(zip(inds, relabelled))
     Path(f"{labelled}.ind").write_text("".join(
-        " ".join([f[0], f[1], new.get(f[0], f[2])]) + "\n" for f in (line.split() for line in lines)))
+        " ".join([f[0], f[1], new.get(f[0], f[2])]) + "\n" for f in (line.split() for line in lines)), encoding="utf-8")
     _assert_same_blocks(f2, pm.extract_f2(str(labelled), POPS + ["Half"]))
 
 
@@ -120,16 +120,16 @@ def pseudohaploid(tmp_path_factory) -> str:
     text = d / "text"
     subprocess.run(["popmix", "convertf", "-i", SMALL, "-o", str(text), "-of", "eigenstrat"], check=True,
                    capture_output=True)
-    inds = Path(f"{text}.ind").read_text().splitlines()
+    inds = Path(f"{text}.ind").read_text(encoding="utf-8").splitlines()
     cols = [i for i, line in enumerate(inds) if line.split()[2] == "Simulation.1"]
     rows = []
-    for j, line in enumerate(Path(f"{text}.geno").read_text().splitlines()):
+    for j, line in enumerate(Path(f"{text}.geno").read_text(encoding="utf-8").splitlines()):
         row = list(line)
         for i in cols:
             if row[i] == "1":
                 row[i] = "2" if (i + j) % 2 else "0"
         rows.append("".join(row))
-    Path(f"{text}.geno").write_text("\n".join(rows) + "\n")
+    Path(f"{text}.geno").write_text("\n".join(rows) + "\n", encoding="utf-8")
     return str(text)
 
 
@@ -170,14 +170,14 @@ def late_hets(tmp_path_factory) -> str:
     text = d / "text"
     subprocess.run(["popmix", "convertf", "-i", SMALL, "-o", str(text), "-of", "eigenstrat"], check=True,
                    capture_output=True)
-    inds = Path(f"{text}.ind").read_text().splitlines()
+    inds = Path(f"{text}.ind").read_text(encoding="utf-8").splitlines()
     col = next(i for i, line in enumerate(inds) if line.split()[2] == "French")
-    rows = Path(f"{text}.geno").read_text().splitlines()
+    rows = Path(f"{text}.geno").read_text(encoding="utf-8").splitlines()
     for j in range(1000):
         if rows[j][col] == "1":
             rows[j] = rows[j][:col] + "2" + rows[j][col + 1:]
     assert any(row[col] == "1" for row in rows[1000:])
-    Path(f"{text}.geno").write_text("\n".join(rows) + "\n")
+    Path(f"{text}.geno").write_text("\n".join(rows) + "\n", encoding="utf-8")
     return str(text)
 
 

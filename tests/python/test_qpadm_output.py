@@ -89,7 +89,7 @@ def test_an_output_prefix_writes_every_table(result, f2_dir, tmp_path):
     assert rankdrop.f4rank.tolist() == [0, 1]
     assert popdrop.pattern.tolist() == [r.pattern for r in result.popdrop]
     assert popdrop.p.tolist() == pytest.approx([r.p for r in result.popdrop], rel=1e-11)
-    assert json.loads((tmp_path / "m.json").read_text())["p"] == pytest.approx(result.p, rel=1e-15)
+    assert json.loads((tmp_path / "m.json").read_text(encoding="utf-8"))["p"] == pytest.approx(result.p, rel=1e-15)
 
 
 def test_rotation_writes_one_row_per_model(f2_dir):

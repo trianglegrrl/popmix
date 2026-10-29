@@ -22,7 +22,7 @@ import pytest
 
 import popmix as pm
 
-from .reference_paths import local
+from .reference_paths import local, missing
 
 ROOT = Path(__file__).parent
 REPO = ROOT.parents[1]
@@ -32,13 +32,13 @@ DADI = ["family", pytest.param("aadr_1kg", marks=pytest.mark.slow)]
 
 def _prefix(ref: dict) -> str:
     prefix = local(ref["prefix"]) if os.path.isabs(local(ref["prefix"])) else str(REPO / local(ref["prefix"]))
-    if not os.path.exists(prefix + ".geno"):
+    if missing(prefix + ".geno"):
         pytest.skip(f"genotype data not available: {prefix}")
     return prefix
 
 
 def _a2(name: str) -> dict:
-    return json.loads((ROOT / "admixtools2" / "v2.0.10" / name / "sfs.json").read_text())
+    return json.loads((ROOT / "admixtools2" / "v2.0.10" / name / "sfs.json").read_text(encoding="utf-8"))
 
 
 @pytest.mark.parametrize("name", A2)
@@ -66,7 +66,7 @@ def test_joint_sfs_corrected_keeps_the_inexact_snps(name):
 
 
 def _dadi(name: str) -> dict:
-    return json.loads((ROOT / "dadi" / "v2.4.4" / name / "sfs.json").read_text())
+    return json.loads((ROOT / "dadi" / "v2.4.4" / name / "sfs.json").read_text(encoding="utf-8"))
 
 
 @pytest.mark.parametrize("name", DADI)

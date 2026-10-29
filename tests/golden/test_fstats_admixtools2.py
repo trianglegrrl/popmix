@@ -55,7 +55,6 @@ rtol 1e-6. SNP counts and block lengths must match exactly.
 
 import json
 import math
-import os
 from pathlib import Path
 
 import numpy as np
@@ -63,7 +62,7 @@ import pytest
 
 import popmix as pm
 
-from .reference_paths import local
+from .reference_paths import local, missing
 
 REF_ROOT = Path(__file__).parent / "admixtools2" / "v2.0.10"
 CONFIGS = ["dg_6pop", "ancient_5pop", "dg_11pop", "ancient_maxmiss", "family_4pop"]
@@ -81,7 +80,7 @@ STALL_WEIGHT_TOL = 1e-3
 
 
 def load_reference(name: str, file: str = "f2.json") -> dict:
-    return json.loads((REF_ROOT / name / file).read_text())
+    return json.loads((REF_ROOT / name / file).read_text(encoding="utf-8"))
 
 
 _results = {}
@@ -90,7 +89,7 @@ _results = {}
 def _result_for(name: str):
     if name not in _results:
         ref = load_reference(name)
-        if not os.path.exists(f"{local(ref['prefix'])}.geno"):
+        if missing(f"{local(ref['prefix'])}.geno"):
             pytest.skip(f"genotype data not available: {local(ref['prefix'])}")
         params = ref["params"]
         f2 = pm.extract_f2(
@@ -420,7 +419,7 @@ def _qpgraph_reference(name: str) -> list:
     path = REF_ROOT / name / "qpgraph.json"
     if not path.exists():
         pytest.skip(f"{name} has no qpgraph graphs")
-    return json.loads(path.read_text())["graphs"]
+    return json.loads(path.read_text(encoding="utf-8"))["graphs"]
 
 
 def _as_list(x) -> list:
@@ -557,7 +556,7 @@ def _fst_result_for(name: str):
     if name not in _fst:
         ref = load_reference(name)
         fst_ref = load_reference(name, "fst.json")
-        if not os.path.exists(f"{local(ref['prefix'])}.geno"):
+        if missing(f"{local(ref['prefix'])}.geno"):
             pytest.skip(f"genotype data not available: {local(ref['prefix'])}")
         f2 = pm.extract_f2(
             local(ref["prefix"]),

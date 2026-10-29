@@ -13,7 +13,7 @@ WORKFLOW = ROOT / ".github/workflows/aadr-goldens.yml"
 
 @pytest.fixture(scope="module")
 def workflow() -> dict:
-    return yaml.safe_load(WORKFLOW.read_text())
+    return yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
 
 
 @pytest.fixture(scope="module")

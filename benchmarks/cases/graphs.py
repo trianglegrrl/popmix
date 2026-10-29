@@ -37,12 +37,12 @@ jsonlite::write_json(list(score = r$score), file.path(a[5], "qpgraph.json"), dig
 
 def _graph_file(o: Path) -> Path:
     path = o / "graph.txt"
-    path.write_text("".join(f"{a}\t{b}\n" for a, b in GRAPH))
+    path.write_text("".join(f"{a}\t{b}\n" for a, b in GRAPH), encoding="utf-8")
     return path
 
 
 def _score(name: str) -> Callable[[Path], float]:
-    return lambda d: json.loads((d / name).read_text())["score"]
+    return lambda d: json.loads((d / name).read_text(encoding="utf-8"))["score"]
 
 
 def _popmix_qpgraph(i: Path, o: Path, t: int, seed: int = 1) -> list[str]:
@@ -110,7 +110,7 @@ def _ref_find_graphs(i: Path, o: Path, seed: int = 1) -> list[str]:
 
 
 def _agree_find_graphs(ours: Path, theirs: Path) -> dict:
-    got = json.loads((ours / "find_graphs.json").read_text())
+    got = json.loads((ours / "find_graphs.json").read_text(encoding="utf-8"))
     want = _score("find_graphs.json")(theirs)
     best = got["graphs"][0]["score"]
     # the evolutionary search's best by seed; popmix's exhaustive search has

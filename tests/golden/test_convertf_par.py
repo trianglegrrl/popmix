@@ -37,16 +37,16 @@ def write_par(path: Path, out: Path, fmt: str | None, extra: dict[str, str], mer
              "snpname": f"DIR/{SMALL.name}.snp", "indivname": str(path.parent / "renamed.ind"),
              **({"outputformat": fmt} if fmt else {}),
              keys[0]: f"{out}.{geno}", keys[1]: f"{out}.{snp}", keys[2]: f"{out}.{ind}", **extra}
-    path.write_text("".join(f"{k}: {v}\n" for k, v in lines.items()))
+    path.write_text("".join(f"{k}: {v}\n" for k, v in lines.items()), encoding="utf-8")
     return path
 
 
 @pytest.fixture
 def inputs(tmp_path) -> Path:
-    (tmp_path / "renamed.ind").write_text(Path(f"{SMALL}.ind").read_text())
-    (tmp_path / "pops.txt").write_text("Yoruba\nSimulation.1\n")
-    snps = [line.split()[0] for line in Path(f"{SMALL}.snp").read_text().splitlines()]
-    (tmp_path / "bad.snp").write_text("".join(f"{s}\n" for s in snps[::7]) + "rs_not_in_the_data\n")
+    (tmp_path / "renamed.ind").write_text(Path(f"{SMALL}.ind").read_text(encoding="utf-8"), encoding="utf-8")
+    (tmp_path / "pops.txt").write_text("Yoruba\nSimulation.1\n", encoding="utf-8")
+    snps = [line.split()[0] for line in Path(f"{SMALL}.snp").read_text(encoding="utf-8").splitlines()]
+    (tmp_path / "bad.snp").write_text("".join(f"{s}\n" for s in snps[::7]) + "rs_not_in_the_data\n", encoding="utf-8")
     return tmp_path
 
 
@@ -64,7 +64,7 @@ def same(d: Path, fmt: str | None) -> None:
     if fmt == "ANCESTRYMAP":
         # SNP, sample, genotype lines; read as text, both named .geno
         def lines(name: str) -> list[list[str]]:
-            return [line.split() for line in Path(d / name).read_text().splitlines()]
+            return [line.split() for line in Path(d / name).read_text(encoding="utf-8").splitlines()]
         for ext in ("geno", "snp", "ind"):
             assert lines(f"ours.{ext}") == lines(f"ref.{ext}"), ext
         return

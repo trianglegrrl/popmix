@@ -16,14 +16,16 @@ import pytest
 
 import popmix as pm
 
+from .reference_paths import missing
+
 REF = Path(__file__).parent / "admixtools2" / "v2.0.10" / "dg_6pop" / "dot.json"
-pytestmark = pytest.mark.skipif(not REF.exists(), reason="dot.json not generated")
+pytestmark = pytest.mark.skipif(missing(REF), reason="dot.json not generated")
 
 
 def _graphs():
-    if not REF.exists():
+    if missing(REF):
         return []
-    return [pytest.param(g, id=g["name"]) for g in json.loads(REF.read_text())["graphs"]]
+    return [pytest.param(g, id=g["name"]) for g in json.loads(REF.read_text(encoding="utf-8"))["graphs"]]
 
 
 @pytest.mark.parametrize("g", _graphs())
@@ -45,7 +47,7 @@ def test_qpgraph_result_and_file(tmp_path):
     g = _graphs()[-1].values[0]
     fit = [(e["from"], e["to"], e["type"], e["weight"]) for e in g["fit_edges"]]
     text = pm.write_dot(fit, path=tmp_path / "g.dot")
-    assert (tmp_path / "g.dot").read_text() == text
+    assert (tmp_path / "g.dot").read_text(encoding="utf-8") == text
     assert '"Han.DG" [shape' not in text and '"n1" [shape = point];' in text
     assert pm.parse_dot(tmp_path / "g.dot") == [(a, b) for a, b, *_ in fit]
     with pytest.raises(ValueError, match="compat"):

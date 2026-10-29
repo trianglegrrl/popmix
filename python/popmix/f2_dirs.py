@@ -166,6 +166,6 @@ def read_f2_populations(path: str | os.PathLike) -> list[str]:
 
     meta = Path(path) / "metadata.json"
     try:
-        return list(json.loads(meta.read_text())["populations"])
+        return list(json.loads(meta.read_text(encoding="utf-8"))["populations"])
     except FileNotFoundError:
         raise MissingFileError(f"no f2 directory at {path}: {meta} not found") from None

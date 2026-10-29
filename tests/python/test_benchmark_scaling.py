@@ -44,7 +44,7 @@ def test_sample_series_is_one_population(tmp_path, monkeypatch):
     written = {}
 
     def fake_run(cmd, **kwargs):
-        written["ind"] = (tmp_path / "samples3_1pop.in.ind").read_text()
+        written["ind"] = (tmp_path / "samples3_1pop.in.ind").read_text(encoding="utf-8")
 
     monkeypatch.setattr(scaling, "SCALING", tmp_path)
     monkeypatch.setattr(scaling.subprocess, "run", fake_run)
@@ -69,7 +69,7 @@ def test_numpy_agreement_values_are_written_as_json(tmp_path, monkeypatch):
     out = tmp_path / "out.json"
     monkeypatch.setattr("sys.argv", ["scaling.py", "--curves", "samples", "--out", str(out)])
     scaling.main()
-    assert json.loads(out.read_text())["curves"]["samples"][point.key]["agreement"]["pass"] is True
+    assert json.loads(out.read_text(encoding="utf-8"))["curves"]["samples"][point.key]["agreement"]["pass"] is True
 
 
 def test_f2_points_read_ploidy_as_admixtools2():

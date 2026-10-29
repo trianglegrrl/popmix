@@ -20,9 +20,9 @@ def test_a_missing_file(tmp_path):
 
 def test_a_malformed_file(tmp_path):
     prefix = tmp_path / "bad"
-    Path(f"{prefix}.snp").write_text("rs1 1 0.0\n")
-    Path(f"{prefix}.ind").write_text("a U P\n")
-    Path(f"{prefix}.geno").write_text("0\n")
+    Path(f"{prefix}.snp").write_text("rs1 1 0.0\n", encoding="utf-8")
+    Path(f"{prefix}.ind").write_text("a U P\n", encoding="utf-8")
+    Path(f"{prefix}.geno").write_text("0\n", encoding="utf-8")
     with pytest.raises(ValueError, match="line 1"):
         pm.read_eigenstrat(str(prefix))
 
@@ -60,9 +60,9 @@ def test_errors_from_the_rust_core_are_popmix_classes(tmp_path):
     with pytest.raises(pm.MissingFileError):
         pm.read_eigenstrat(str(tmp_path / "nothing"))
     prefix = tmp_path / "bad"
-    Path(f"{prefix}.snp").write_text("rs1 1 0.0\n")
-    Path(f"{prefix}.ind").write_text("a U P\n")
-    Path(f"{prefix}.geno").write_text("0\n")
+    Path(f"{prefix}.snp").write_text("rs1 1 0.0\n", encoding="utf-8")
+    Path(f"{prefix}.ind").write_text("a U P\n", encoding="utf-8")
+    Path(f"{prefix}.geno").write_text("0\n", encoding="utf-8")
     with pytest.raises(pm.InputError, match="line 1"):
         pm.read_eigenstrat(str(prefix))
     with pytest.raises(pm.InputError, match="thread count"):

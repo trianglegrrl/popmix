@@ -25,7 +25,7 @@ PAIR = re.compile(r"```bash\n([^`]*)```\n\n(\*\*Output[^\n]*)\n```[a-z]*\n([^`]*
 
 
 def _examples() -> list[tuple[str, str, str]]:
-    readme = (ROOT / "README.md").read_text()
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
     return [(code, header, output) for code, header, output in PAIR.findall(readme)]
 
 

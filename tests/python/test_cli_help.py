@@ -31,7 +31,7 @@ def test_the_command_list_calls_f4_f4():
 
 
 def test_the_readme_calls_f4_f4():
-    readme = (Path(__file__).parents[2] / "README.md").read_text()
+    readme = (Path(__file__).parents[2] / "README.md").read_text(encoding="utf-8")
     f4_lines = [line for line in readme.splitlines() if "`f4`" in line or line.startswith("Compute f4")]
     assert f4_lines
     for line in f4_lines:

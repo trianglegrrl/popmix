@@ -34,8 +34,8 @@ def lone(tmp_path_factory) -> str:
     prefix = str(tmp_path_factory.mktemp("lone") / "lone")
     subprocess.run(["popmix", "convertf", "-i", str(SMALL), "-o", prefix, "-of", "eigenstrat"], check=True,
                    capture_output=True)
-    lines = Path(f"{prefix}.geno").read_text().splitlines()
-    Path(f"{prefix}.geno").write_text("".join(("2" if x[0] == "1" else x[0]) + x[1:] + "\n" for x in lines))
+    lines = Path(f"{prefix}.geno").read_text(encoding="utf-8").splitlines()
+    Path(f"{prefix}.geno").write_text("".join(("2" if x[0] == "1" else x[0]) + x[1:] + "\n" for x in lines), encoding="utf-8")
     return prefix
 
 

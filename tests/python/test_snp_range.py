@@ -43,12 +43,12 @@ def test_in_range(prefixes, fmt):
 
 def _write_eigenstrat(prefix, chroms):
     """Two populations of two samples, one SNP per chromosome given, 1 cM apart."""
-    with open(f"{prefix}.ind", "w") as f:
+    with open(f"{prefix}.ind", "w", encoding="utf-8") as f:
         f.writelines(f"S{i} U {pop}\n" for i, pop in enumerate(["PopA", "PopA", "PopB", "PopB"]))
-    with open(f"{prefix}.snp", "w") as f:
+    with open(f"{prefix}.snp", "w", encoding="utf-8") as f:
         f.writelines(f"rs{i} {c} {i / 100} {i * 1000 + 1} A G\n" for i, c in enumerate(chroms))
     rows = ["0122", "2101", "1020", "0211", "2012", "1102"]
-    with open(f"{prefix}.geno", "w") as f:
+    with open(f"{prefix}.geno", "w", encoding="utf-8") as f:
         f.writelines(f"{rows[i % len(rows)]}\n" for i in range(len(chroms)))
 
 

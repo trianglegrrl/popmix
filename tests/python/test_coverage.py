@@ -34,10 +34,10 @@ def ancient(tmp_path_factory) -> str:
     prefix = str(tmp_path_factory.mktemp("ancient") / "a")
     subprocess.run(["popmix", "convertf", "-i", SMALL, "-o", prefix, "-of", "eigenstrat"], check=True,
                    capture_output=True)
-    ind = [line.split() for line in Path(f"{prefix}.ind").read_text().splitlines()]
+    ind = [line.split() for line in Path(f"{prefix}.ind").read_text(encoding="utf-8").splitlines()]
     gappy = next(k for k, r in enumerate(ind) if r[0] == "HGDP00521")
     haploid = next(k for k, r in enumerate(ind) if r[2] == "Yoruba")
-    lines = Path(f"{prefix}.geno").read_text().splitlines()
+    lines = Path(f"{prefix}.geno").read_text(encoding="utf-8").splitlines()
     out = []
     for n, line in enumerate(lines):
         row = list(line)
@@ -46,7 +46,7 @@ def ancient(tmp_path_factory) -> str:
         if row[haploid] == "1":
             row[haploid] = "2"
         out.append("".join(row))
-    Path(f"{prefix}.geno").write_text("\n".join(out) + "\n")
+    Path(f"{prefix}.geno").write_text("\n".join(out) + "\n", encoding="utf-8")
     return prefix
 
 
@@ -77,8 +77,8 @@ def test_low_coverage_pca_samples_warn(ancient):
 
 def test_projecting_them_does_not(ancient, tmp_path):
     keep = tmp_path / "keep.ind"
-    keep.write_text("".join(line + "\n" for line in Path(f"{ancient}.ind").read_text().splitlines()
-                            if "HGDP00521" not in line))
+    keep.write_text("".join(line + "\n" for line in Path(f"{ancient}.ind").read_text(encoding="utf-8").splitlines()
+                            if "HGDP00521" not in line), encoding="utf-8")
     sub = str(tmp_path / "sub")
     subprocess.run(["popmix", "convertf", "-i", ancient, "-o", sub, "-of", "eigenstrat", "--keep-inds", str(keep)],
                    check=True, capture_output=True)

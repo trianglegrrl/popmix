@@ -57,11 +57,11 @@ def pca(input_prefix: str, pca_pops: list, project_pops: list, components: int, 
         r = pm.smartpca(input_prefix, pca_pops or None, project_pops, n_components=components,
                         outlier_iterations=outlier_iterations, outlier_components=outlier_components,
                         outlier_sigma=outlier_sigma, lsqproject=lsqproject, compat=compat, holdout=holdout)
-        r.coords.to_csv(f"{output_prefix}.coords.tsv", sep="\t", index=False, float_format="%.12g")
-        with open(f"{output_prefix}.eval", "w") as f:
+        r.coords.to_csv(f"{output_prefix}.coords.tsv", sep="\t", index=False, float_format="%.12g", lineterminator="\n")
+        with open(f"{output_prefix}.eval", "w", encoding="utf-8") as f:
             f.write("".join(f"{x:.12g}\n" for x in r.eigenvalues))
-        r.tracy_widom.to_csv(f"{output_prefix}.tracy_widom.tsv", sep="\t", index=False, float_format="%.12g")
-        r.outliers.to_csv(f"{output_prefix}.outliers.tsv", sep="\t", index=False, float_format="%.12g")
+        r.tracy_widom.to_csv(f"{output_prefix}.tracy_widom.tsv", sep="\t", index=False, float_format="%.12g", lineterminator="\n")
+        r.outliers.to_csv(f"{output_prefix}.outliers.tsv", sep="\t", index=False, float_format="%.12g", lineterminator="\n")
         click.echo(f"{r.n_pca_samples} PCA samples, {len(r.coords) - r.n_pca_samples} projected, "
                    f"{r.n_snps_used} SNPs, {len(r.outliers)} outliers removed")
         if holdout:
@@ -112,7 +112,7 @@ def kinship(input_prefix: str, populations: list, method: str, norm: str, norm_v
                 # written in Rust: the same text as write_columns, without numpy
                 text = king_tsv(input_prefix, pops)
                 if output:
-                    with open(output, "w") as f:
+                    with open(output, "w", encoding="utf-8") as f:
                         f.write(text)
                 else:
                     click.echo(text, nl=False)
@@ -217,7 +217,7 @@ def admixture(input_prefix: str, populations: list, k: int, supervised: list, fi
         p = None if fixed_p is None else np.loadtxt(fixed_p, ndmin=2)
         r = pm.admixture(input_prefix, k, populations or None, supervised=supervised or None, fixed_p=p, cv=cv,
                          chromosomes=chromosomes or None, seed=seed, tolerance=tolerance)
-        r.Q.to_csv(f"{output_prefix}.{k}.Q.tsv", sep="\t", index=False, float_format="%.12g")
+        r.Q.to_csv(f"{output_prefix}.{k}.Q.tsv", sep="\t", index=False, float_format="%.12g", lineterminator="\n")
         np.savetxt(f"{output_prefix}.{k}.Q", r.q_matrix(), fmt="%.6f")
         np.savetxt(f"{output_prefix}.{k}.P", r.P, fmt="%.6f")
         click.echo(f"Loglikelihood: {r.loglik:.6f} ({r.iterations} iterations"

@@ -26,7 +26,7 @@ CRATES = sorted(p.parent for p in (ROOT / "crates").glob("*/Cargo.toml"))
 
 
 def _toml(path: Path) -> dict:
-    return tomllib.loads(path.read_text())
+    return tomllib.loads(path.read_text(encoding="utf-8"))
 
 
 WORKSPACE = _toml(ROOT / "Cargo.toml")["workspace"]
@@ -67,4 +67,4 @@ def test_the_published_crate_carries_the_licence_and_notices(crate: str) -> None
         assert name in listed, name
     # what the packaged files say is the repository's own text
     for name in ("LICENSE", "NOTICE"):
-        assert (ROOT / "crates" / crate / name).read_text() == (ROOT / name).read_text()
+        assert (ROOT / "crates" / crate / name).read_text(encoding="utf-8") == (ROOT / name).read_text(encoding="utf-8")

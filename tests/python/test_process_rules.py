@@ -6,6 +6,9 @@
 - Source files stay small: none past ``MAX_LINES``. The files over it when
   the rule came in are listed with their size then; they may only shrink,
   and leave the list once under the limit.
+- Text files are read and written as UTF-8, never in the platform's
+  encoding (cp1252 on Windows): every ``read_text``/``write_text`` names its
+  encoding (ruff's PLW1514 checks ``open``).
 """
 
 from __future__ import annotations
@@ -30,7 +33,7 @@ def _files(dirs: list[Path], suffixes: tuple[str, ...]) -> list[Path]:
 
 
 def _test_modules() -> list[tuple[Path, ast.Module]]:
-    return [(p, ast.parse(p.read_text(), str(p))) for p in _files(TEST_DIRS, (".py",))]
+    return [(p, ast.parse(p.read_text(encoding="utf-8"), str(p))) for p in _files(TEST_DIRS, (".py",))]
 
 
 def test_no_assertion_is_an_or_of_expectations():
@@ -55,7 +58,7 @@ def test_no_mock_result_classes():
 
 
 def test_source_files_stay_small():
-    sizes = {str(p.relative_to(ROOT)): len(p.read_text().splitlines())
+    sizes = {str(p.relative_to(ROOT)): len(p.read_text(encoding="utf-8").splitlines())
              for p in _files(SOURCE_DIRS, (".rs", ".py"))}
     new = {f: n for f, n in sizes.items() if n > MAX_LINES and f not in TOO_LONG}
     grown = {f: (TOO_LONG[f], sizes[f]) for f in TOO_LONG if f in sizes and sizes[f] > TOO_LONG[f]}
@@ -63,3 +66,14 @@ def test_source_files_stay_small():
     assert new == {}, f"split these, or keep them under {MAX_LINES} lines"
     assert grown == {}, "files over the limit may only shrink (was, now)"
     assert fixed == [], "under the limit (or gone) now: take them out of TOO_LONG"
+
+
+def test_text_files_name_their_encoding():
+    found = []
+    for path in _files(SOURCE_DIRS + [ROOT / ".github" / "scripts"], (".py",)):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                    and node.func.attr in ("read_text", "write_text")
+                    and not any(k.arg == "encoding" for k in node.keywords)):
+                found.append(f"{path.relative_to(ROOT)}:{node.lineno}")
+    assert found == []

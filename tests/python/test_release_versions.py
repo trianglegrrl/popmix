@@ -29,32 +29,32 @@ def run(ref: str, root: Path) -> subprocess.CompletedProcess:
 def test_a_final_tag_matching_the_version_changes_nothing(tmp_path):
     root = copy(tmp_path)
     assert run("v1.0.0", root).returncode == 0
-    assert [(root / f).read_text() for f in FILES] == [(ROOT / f).read_text() for f in FILES]
+    assert [(root / f).read_text(encoding="utf-8") for f in FILES] == [(ROOT / f).read_text(encoding="utf-8") for f in FILES]
 
 
 def test_a_branch_changes_nothing(tmp_path):
     root = copy(tmp_path)
     assert run("main", root).returncode == 0
-    assert (root / "pyproject.toml").read_text() == (ROOT / "pyproject.toml").read_text()
+    assert (root / "pyproject.toml").read_text(encoding="utf-8") == (ROOT / "pyproject.toml").read_text(encoding="utf-8")
 
 
 def test_a_test_tag_sets_the_python_version(tmp_path):
     root = copy(tmp_path)
     run("v1.0.0rc1", root)
-    assert 'version = "1.0.0rc1"' in (root / "pyproject.toml").read_text()
+    assert 'version = "1.0.0rc1"' in (root / "pyproject.toml").read_text(encoding="utf-8")
 
 
 def test_a_test_tag_sets_the_workspace_version(tmp_path):
     root = copy(tmp_path)
     run("v1.0.0rc1", root)
-    assert 'version = "1.0.0-rc.1"' in (root / "Cargo.toml").read_text()
+    assert 'version = "1.0.0-rc.1"' in (root / "Cargo.toml").read_text(encoding="utf-8")
 
 
 def test_a_test_tag_moves_the_pinned_path_dependencies(tmp_path):
     root = copy(tmp_path)
     run("v1.0.0rc2", root)
     for name in ("crates/popmix-python/Cargo.toml", "crates/popmix-io/Cargo.toml"):
-        text = (root / name).read_text()
+        text = (root / name).read_text(encoding="utf-8")
         assert 'version = "=1.0.0-rc.2"' in text, name
         assert 'version = "=1.0.0"' not in text, name
 

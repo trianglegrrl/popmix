@@ -39,10 +39,10 @@ def test_seed_runs_run_each_seed_once_and_cache(tmp_path):
 
     def cmd(d: Path, seed: int) -> list[str]:
         calls.append(seed)
-        return ["sh", "-c", f"echo {seed * 10} > {d / 'out.txt'}"]
+        return [sys.executable, "-c", f"open({str(d / 'out.txt')!r}, 'w').write('{seed * 10}')"]
 
     def read(d: Path) -> float:
-        return float((d / "out.txt").read_text())
+        return float((d / "out.txt").read_text(encoding="utf-8"))
 
     assert cases._seed_runs(tmp_path, "tool", cmd, read) == {s: s * 10.0 for s in cases.SPREAD_SEEDS}
     assert cases._seed_runs(tmp_path, "tool", cmd, read) == {s: s * 10.0 for s in cases.SPREAD_SEEDS}

@@ -41,12 +41,12 @@ DATA = {
 def aadr_subset(out: Path, pops: list[str]) -> None:
     """`pops` of the AADR v66.p1 dataset, as PACKEDANCESTRYMAP."""
     poplist = out.with_name(f"{out.name}.pops")
-    poplist.write_text("\n".join(pops) + "\n")
+    poplist.write_text("\n".join(pops) + "\n", encoding="utf-8")
     src = AADR_DIR / "aadr_v66p1"
     par = out.with_name(f"{out.name}.par")
     par.write_text(f"genotypename: {src}.geno\nsnpname: {src}.snp\nindivname: {src}.ind\n"
                    f"outputformat: PACKEDANCESTRYMAP\ngenooutfilename: {out}.geno\nsnpoutfilename: {out}.snp\n"
-                   f"indoutfilename: {out}.ind\npoplistname: {poplist}\n")
+                   f"indoutfilename: {out}.ind\npoplistname: {poplist}\n", encoding="utf-8")
     # convertf writes a profile (gmon.out) where it runs
     subprocess.run([CONVERTF, "-p", str(par)], check=True, stdout=subprocess.DEVNULL, cwd=out.parent)
 
@@ -95,9 +95,9 @@ def main():
         if name.startswith("aadr"):
             # the f2 values are strings: rewriting the file keeps them exactly
             path = OUT / f"{name}.json"
-            ref = json.loads(path.read_text())
-            ref["dataset"] = json.loads((AADR_DIR / "manifest.json").read_text())
-            path.write_text(json.dumps(ref, separators=(",", ":")) + "\n")
+            ref = json.loads(path.read_text(encoding="utf-8"))
+            ref["dataset"] = json.loads((AADR_DIR / "manifest.json").read_text(encoding="utf-8"))
+            path.write_text(json.dumps(ref, separators=(",", ":")) + "\n", encoding="utf-8")
         print("wrote", OUT / f"{name}.json")
 
 

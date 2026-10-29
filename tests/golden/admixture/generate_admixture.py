@@ -65,12 +65,12 @@ CONFIGS = {
 
 def to_bed(prefix: str, pops: list[str], work: Path, name: str, chromosomes: str | None,
            extract: Path | None = None) -> Path:
-    (work / f"{name}.pops").write_text("\n".join(pops) + "\n")
+    (work / f"{name}.pops").write_text("\n".join(pops) + "\n", encoding="utf-8")
     out = work / (name + "_all" if chromosomes or extract else name)
     (work / f"{name}.par").write_text(
         f"genotypename: {prefix}.geno\nsnpname: {prefix}.snp\nindivname: {prefix}.ind\n"
         f"outputformat: PACKEDPED\ngenotypeoutname: {out}.bed\nsnpoutname: {out}.bim\n"
-        f"indivoutname: {out}.fam\npoplistname: {work / (name + '.pops')}\n")
+        f"indivoutname: {out}.fam\npoplistname: {work / (name + '.pops')}\n", encoding="utf-8")
     subprocess.run([CONVERTF, "-p", str(work / f"{name}.par")], capture_output=True, check=True)
     if chromosomes or extract:
         # ADMIXTURE refuses SNPs with no genotype at all
@@ -83,10 +83,10 @@ def to_bed(prefix: str, pops: list[str], work: Path, name: str, chromosomes: str
 
 def common_snps(work: Path, beds: list[Path]) -> Path:
     """SNPs present in every one of `beds` (each already without all-missing SNPs)."""
-    sets = [[line.split()[1] for line in Path(f"{b}.bim").read_text().splitlines()] for b in beds]
+    sets = [[line.split()[1] for line in Path(f"{b}.bim").read_text(encoding="utf-8").splitlines()] for b in beds]
     keep = set(sets[0]).intersection(*sets[1:])
     path = work / "common.snps"
-    path.write_text("".join(f"{s}\n" for s in sets[0] if s in keep))
+    path.write_text("".join(f"{s}\n" for s in sets[0] if s in keep), encoding="utf-8")
     return path
 
 
@@ -114,8 +114,8 @@ def run(name: str) -> None:
     with tempfile.TemporaryDirectory() as tmp:
         work = Path(tmp)
         bed = to_bed(cfg["prefix"], cfg["pops"], work, "data", cfg.get("chromosomes"))
-        ids = [line.split()[1] for line in Path(f"{bed}.fam").read_text().splitlines()]
-        pop_of = {line.split()[0]: line.split()[2] for line in Path(cfg["prefix"] + ".ind").read_text().splitlines()}
+        ids = [line.split()[1] for line in Path(f"{bed}.fam").read_text(encoding="utf-8").splitlines()]
+        pop_of = {line.split()[0]: line.split()[2] for line in Path(cfg["prefix"] + ".ind").read_text(encoding="utf-8").splitlines()}
         out = {"snps": None, "admixture_version": "1.3.0", "flags": FLAGS, "prefix": os.path.relpath(cfg["prefix"], REPO)
                if cfg["prefix"].startswith(str(REPO)) else cfg["prefix"], "pops": cfg["pops"], "k": k,
                "mode": cfg["mode"], "chromosomes": cfg.get("chromosomes")}
@@ -123,7 +123,7 @@ def run(name: str) -> None:
             out.update(ids=ids, **run_admixture(bed, k, ["--cv=5"]))
         elif cfg["mode"] == "supervised":
             (work / "data.pop").write_text(
-                "".join(f"{pop_of[i] if pop_of[i] in cfg['references'] else '-'}\n" for i in ids))
+                "".join(f"{pop_of[i] if pop_of[i] in cfg['references'] else '-'}\n" for i in ids), encoding="utf-8")
             out.update(ids=ids, references=cfg["references"], **run_admixture(bed, k, ["--supervised"]))
         else:
             new = to_bed(cfg["prefix"], cfg["project"], work, "new", cfg.get("chromosomes"))
@@ -132,20 +132,20 @@ def run(name: str) -> None:
                 snps = common_snps(work, [bed, new])
                 bed = to_bed(cfg["prefix"], cfg["pops"], work, "data2", None, extract=snps)
                 new = to_bed(cfg["prefix"], cfg["project"], work, "new2", None, extract=snps)
-                ids = [line.split()[1] for line in Path(f"{bed}.fam").read_text().splitlines()]
-            assert Path(f"{new}.bim").read_text() == Path(f"{bed}.bim").read_text()
+                ids = [line.split()[1] for line in Path(f"{bed}.fam").read_text(encoding="utf-8").splitlines()]
+            assert Path(f"{new}.bim").read_text(encoding="utf-8") == Path(f"{bed}.bim").read_text(encoding="utf-8")
             fit = run_admixture(bed, k, [])
             shutil.copy(f"{bed}.{k}.P", f"{new}.{k}.P.in")
             proj = run_admixture(new, k, ["-P"])
-            out["snps"] = [line.split()[1] for line in Path(f"{new}.bim").read_text().splitlines()]
-            out.update(ids=[line.split()[1] for line in Path(f"{new}.fam").read_text().splitlines()],
+            out["snps"] = [line.split()[1] for line in Path(f"{new}.bim").read_text(encoding="utf-8").splitlines()]
+            out.update(ids=[line.split()[1] for line in Path(f"{new}.fam").read_text(encoding="utf-8").splitlines()],
                        project=cfg["project"], P_in=fit["P"], fit_ids=ids, fit_Q=fit["Q"], fit_loglik=fit["loglik"],
                        loglik=proj["loglik"], iterations=proj["iterations"], Q=proj["Q"])
     if cfg["prefix"] == AADR:
-        out["dataset"] = json.loads((AADR_DIR / "manifest.json").read_text())
+        out["dataset"] = json.loads((AADR_DIR / "manifest.json").read_text(encoding="utf-8"))
     dest = HERE / "v1.3.0" / name
     dest.mkdir(parents=True, exist_ok=True)
-    (dest / "admixture.json").write_text(json.dumps(out) + "\n")
+    (dest / "admixture.json").write_text(json.dumps(out) + "\n", encoding="utf-8")
     print(f"  {len(out['ids'])} samples, loglik {out['loglik']}, cv {out.get('cv_error')}", flush=True)
 
 

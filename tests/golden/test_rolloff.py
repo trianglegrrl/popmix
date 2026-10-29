@@ -26,7 +26,7 @@ import pytest
 
 import popmix._core as core
 
-from .reference_paths import local
+from .reference_paths import local, missing
 
 REF_ROOT = Path(__file__).parent / "rolloff" / "v7.0.2"
 REPO = Path(__file__).parents[2]
@@ -37,9 +37,9 @@ _results: dict = {}
 
 def _run(name: str):
     if name not in _results:
-        ref = json.loads((REF_ROOT / name / "rolloff.json").read_text())
+        ref = json.loads((REF_ROOT / name / "rolloff.json").read_text(encoding="utf-8"))
         prefix = local(ref["prefix"]) if os.path.isabs(local(ref["prefix"])) else str(REPO / local(ref["prefix"]))
-        if not os.path.exists(prefix + ".geno"):
+        if missing(prefix + ".geno"):
             pytest.skip(f"genotype data not available: {prefix}")
         p = ref["params"]
         ours = core.rolloff(prefix, ref["admixpop"], ref["refs"], binsize=p["binsize"], maxdis=p["maxdis"],

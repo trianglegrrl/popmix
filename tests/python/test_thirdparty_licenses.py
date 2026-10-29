@@ -14,12 +14,12 @@ import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
-THIRDPARTY = yaml.safe_load((ROOT / "THIRDPARTY.yml").read_text())["third_party_libraries"]
-NOTICE = (ROOT / "NOTICE").read_text()
+THIRDPARTY = yaml.safe_load((ROOT / "THIRDPARTY.yml").read_text(encoding="utf-8"))["third_party_libraries"]
+NOTICE = (ROOT / "NOTICE").read_text(encoding="utf-8")
 
 
 def _license_files() -> str:
-    return re.search(r"(?m)^license-files = \[(.*)\]", (ROOT / "pyproject.toml").read_text()).group(1)
+    return re.search(r"(?m)^license-files = \[(.*)\]", (ROOT / "pyproject.toml").read_text(encoding="utf-8")).group(1)
 
 
 @pytest.mark.parametrize("name", ["LICENSE", "NOTICE", "THIRDPARTY.yml"])
@@ -72,5 +72,5 @@ def test_notice_names_every_l_bfgs_b_author() -> None:
 
 @pytest.mark.parametrize("name", ["LICENSE", "NOTICE", "THIRDPARTY.yml"])
 def test_the_release_checks_each_built_wheel_carries_the_licence_file(name: str) -> None:
-    check = (ROOT / ".github/scripts/check-wheel.sh").read_text()
+    check = (ROOT / ".github/scripts/check-wheel.sh").read_text(encoding="utf-8")
     assert f"licenses/{name}" in check

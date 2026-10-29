@@ -83,7 +83,7 @@ jsonlite::write_json(list(dim = dim(f2), pops = dimnames(f2)[[1]]), file.path(a[
 def _agree_f2(ours: Path, theirs: Path) -> dict:
     import popmix as pm
 
-    meta = json.loads((theirs / "f2.json").read_text())
+    meta = json.loads((theirs / "f2.json").read_text(encoding="utf-8"))
     n, _, nb = meta["dim"]
     ref = np.fromfile(theirs / "f2.bin", dtype="<f8").reshape((nb, n, n)).transpose(1, 2, 0)
     f2 = pm.read_f2(str(ours / "f2"))
@@ -123,8 +123,8 @@ jsonlite::write_json(list(weights = r$weights$weight, se = r$weights$se,
 
 
 def _agree_qpadm(ours: Path, theirs: Path) -> dict:
-    got = json.loads((ours / "qpadm.json").read_text())
-    want = json.loads((theirs / "qpadm.json").read_text())
+    got = json.loads((ours / "qpadm.json").read_text(encoding="utf-8"))
+    want = json.loads((theirs / "qpadm.json").read_text(encoding="utf-8"))
     w = np.array([got["weights"][s] for s in got["sources"]])
     se = np.array([got["se"][s] for s in got["sources"]])
     rel = lambda x, y: float(np.max(np.abs(np.asarray(x) - np.asarray(y)) / np.abs(np.asarray(y))))  # noqa: E731
@@ -164,8 +164,8 @@ jsonlite::write_json(r, file.path(a[6], "qpdstat.json"), digits = NA)
 
 def _agree_qpdstat(ours: Path, theirs: Path) -> dict:
     key = ("pop1", "pop2", "pop3", "pop4")
-    want = {tuple(r[k] for k in key): r for r in json.loads((theirs / "qpdstat.json").read_text())}
-    got = {tuple(r[k] for k in key): r for r in json.loads((ours / "qpdstat.json").read_text())}
+    want = {tuple(r[k] for k in key): r for r in json.loads((theirs / "qpdstat.json").read_text(encoding="utf-8"))}
+    got = {tuple(r[k] for k in key): r for r in json.loads((ours / "qpdstat.json").read_text(encoding="utf-8"))}
     est = max(abs(got[k]["est"] - w["est"]) / abs(w["est"]) for k, w in want.items())
     se = max(abs(got[k]["se"] - w["se"]) / abs(w["se"]) for k, w in want.items())
     return {"statistics": len(want), "est_rel": est, "se_rel": se,
@@ -217,8 +217,8 @@ def _agree_rotate(ours: Path, theirs: Path) -> dict:
     def key(r: dict) -> tuple:
         return tuple(r["left"]), tuple(r["right"])
 
-    got = {key(r): r for r in json.loads((ours / "rotate.json").read_text())}
-    want = {key(r): r for r in json.loads((theirs / "rotate.json").read_text())}
+    got = {key(r): r for r in json.loads((ours / "rotate.json").read_text(encoding="utf-8"))}
+    want = {key(r): r for r in json.loads((theirs / "rotate.json").read_text(encoding="utf-8"))}
     if got.keys() != want.keys():
         return {"models": len(want), "pass": False}
     # tests/golden/test_qpadm_models_admixtools2.py
@@ -282,8 +282,8 @@ open(out + "/resample.json", "w").write(json.dumps({"score": [float(s) for s in 
 
 
 def _agree_resample(ours: Path, theirs: Path) -> dict:
-    got = json.loads((ours / "resample.json").read_text())
-    want = json.loads((theirs / "resample.json").read_text())
+    got = json.loads((ours / "resample.json").read_text(encoding="utf-8"))
+    want = json.loads((theirs / "resample.json").read_text(encoding="utf-8"))
     same_draws = got["sel"] == want["sel"]
     rel = max(abs(a - b) / abs(b) for a, b in zip(got["score"], want["score"]))  # noqa: B905
     # tests/golden/test_resample_admixtools2.py: optimized scores rtol 1e-8

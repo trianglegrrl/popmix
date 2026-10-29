@@ -81,12 +81,12 @@ def sha256(path: Path) -> str:
 def pack(src: Path, out: Path) -> Path:
     """Write `aadr_v66p1.tar.xz` from the built subset in `src` into `out`."""
     out.mkdir(parents=True, exist_ok=True)
-    manifest = json.loads((src / "manifest.json").read_text())
+    manifest = json.loads((src / "manifest.json").read_text(encoding="utf-8"))
     for entry in manifest.get("outputs", {}).values():
         entry["path"] = Path(entry["path"]).name
     with tempfile.TemporaryDirectory() as tmp:
-        (Path(tmp) / "manifest.json").write_text(json.dumps(manifest, indent=1) + "\n")
-        (Path(tmp) / "README.md").write_text(README)
+        (Path(tmp) / "manifest.json").write_text(json.dumps(manifest, indent=1) + "\n", encoding="utf-8")
+        (Path(tmp) / "README.md").write_text(README, encoding="utf-8")
         target = out / ARCHIVE
         with tarfile.open(target, "w:xz") as tar:
             for ext in ("geno", "snp", "ind"):

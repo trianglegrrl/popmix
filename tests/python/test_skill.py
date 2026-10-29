@@ -61,7 +61,7 @@ PATHS = {stem: path for stem, (path, _) in walk(cli).items()}
 
 
 def doc(stem: str) -> str:
-    return (COMMANDS / f"{stem}.md").read_text()
+    return (COMMANDS / f"{stem}.md").read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------- tables
@@ -264,7 +264,7 @@ def test_file_has_the_sections(stem):
 
 
 def test_global_options_are_documented():
-    rows = table_rows((SKILL / "SKILL.md").read_text())
+    rows = table_rows((SKILL / "SKILL.md").read_text(encoding="utf-8"))
     errors = []
     for param in cli.params:
         cells = row_for(param, rows)
@@ -276,7 +276,7 @@ def test_global_options_are_documented():
 
 
 def test_skill_md_frontmatter_and_index():
-    text = (SKILL / "SKILL.md").read_text()
+    text = (SKILL / "SKILL.md").read_text(encoding="utf-8")
     front = re.match(r"^---\n(.*?)\n---\n", text, re.S)
     assert front, "SKILL.md needs YAML frontmatter"
     assert re.search(r"^name: popmix$", front.group(1), re.M)
@@ -287,17 +287,17 @@ def test_skill_md_frontmatter_and_index():
 
 
 def test_skill_states_the_popmix_version():
-    text = (SKILL / "SKILL.md").read_text()
+    text = (SKILL / "SKILL.md").read_text(encoding="utf-8")
     stated = re.search(r"^This skill documents popmix (\S+)\.$", text, re.M)
     assert stated, "SKILL.md must say 'This skill documents popmix <version>.'"
-    pyproject = re.search(r'^version = "([^"]+)"', (ROOT / "pyproject.toml").read_text(), re.M).group(1)
+    pyproject = re.search(r'^version = "([^"]+)"', (ROOT / "pyproject.toml").read_text(encoding="utf-8"), re.M).group(1)
     assert stated.group(1) == pm.__version__ == pyproject
 
 
 @pytest.mark.parametrize("path", skill_files(), ids=lambda p: p.name)
 def test_shell_blocks_are_marked_and_use_real_flags(path):
     errors = []
-    for line, body in shell_blocks(path.read_text()):
+    for line, body in shell_blocks(path.read_text(encoding="utf-8")):
         first = body.splitlines()[0] if body else ""
         if not (first == "# runs" or first.startswith("# not run: ")):
             errors.append(f"{path.name}:{line}: first line must be '# runs' or '# not run: <reason>'")
@@ -323,13 +323,13 @@ def example_data(directory: Path) -> None:
     # qpAdm and qpWave have enough populations (a toy, not a real labeling)
     seen: dict[str, int] = {}
     out = []
-    for line in Path(f"{FAMILY}.ind").read_text().splitlines():
+    for line in Path(f"{FAMILY}.ind").read_text(encoding="utf-8").splitlines():
         sample, sex, pop = line.split()
         if pop in ("French", "Yoruba"):
             seen[pop] = seen.get(pop, 0) + 1
             pop = f"{pop}_{seen[pop] % 3 + 1}"
         out.append(f"{sample} {sex} {pop}")
-    (directory / "family6.ind").write_text("\n".join(out) + "\n")
+    (directory / "family6.ind").write_text("\n".join(out) + "\n", encoding="utf-8")
     for path in FIXTURES.iterdir():
         if path.is_file():
             shutil.copy(path, directory / path.name)
@@ -339,22 +339,29 @@ def run_env(home: Path) -> dict[str, str]:
     env = dict(os.environ)
     env["PATH"] = f"{Path(sys.executable).parent}{os.pathsep}{env.get('PATH', '')}"
     env["HOME"] = str(home)  # never the real ~/.claude
+    env["USERPROFILE"] = str(home)  # Path.home() on Windows
     env["MPLBACKEND"] = "Agg"
     return env
 
 
-@pytest.mark.skipif(shutil.which("bash") is None, reason="bash not available")
+# by full path: on Windows a bare "bash" is System32's WSL launcher, found
+# before PATH; the examples need a POSIX bash (Git Bash there)
+BASH = shutil.which("bash")
+POSIX_BASH = BASH is not None and "system32" not in BASH.lower()
+
+
+@pytest.mark.skipif(not POSIX_BASH, reason="no POSIX bash")
 @pytest.mark.skipif(not Path(f"{FAMILY}.geno").exists(), reason="example data not available")
 @pytest.mark.parametrize("path", skill_files(), ids=lambda p: p.name)
 def test_examples_run(path, tmp_path):
-    blocks = [(n, b) for n, b in shell_blocks(path.read_text()) if b.startswith("# runs")]
+    blocks = [(n, b) for n, b in shell_blocks(path.read_text(encoding="utf-8")) if b.startswith("# runs")]
     if not blocks:
         pytest.skip("no runnable examples")
     work = tmp_path / "work"
     work.mkdir()
     example_data(work)
     for line, body in blocks:
-        r = subprocess.run(["bash", "-e", "-o", "pipefail", "-c", body], cwd=work, env=run_env(tmp_path),
+        r = subprocess.run([BASH, "-e", "-o", "pipefail", "-c", body], cwd=work, env=run_env(tmp_path),
                            capture_output=True, text=True, timeout=300)
         assert r.returncode == 0, f"{path.name}:{line} failed:\n{body}\n--- stdout\n{r.stdout}\n--- stderr\n{r.stderr}"
     if path.stem != "install-skill":
@@ -393,12 +400,12 @@ def test_install_skill_defaults_to_claude_skills_in_home(tmp_path):
 def test_install_skill_replaces_an_old_copy_only_with_force(tmp_path):
     dest = tmp_path / "popmix"
     dest.mkdir()
-    (dest / "SKILL.md").write_text("---\nname: popmix\n---\nold\n")
-    (dest / "stale.md").write_text("stale")
+    (dest / "SKILL.md").write_text("---\nname: popmix\n---\nold\n", encoding="utf-8")
+    (dest / "stale.md").write_text("stale", encoding="utf-8")
     r = subprocess.run(["popmix", "install-skill", "--dest", str(dest)], env=run_env(tmp_path),
                        capture_output=True, text=True)
     assert r.returncode == 1 and "--force" in r.stderr
-    assert (dest / "SKILL.md").read_text().endswith("old\n")
+    assert (dest / "SKILL.md").read_text(encoding="utf-8").endswith("old\n")
     r = subprocess.run(["popmix", "install-skill", "--dest", str(dest), "--force"], env=run_env(tmp_path),
                        capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
@@ -408,18 +415,18 @@ def test_install_skill_replaces_an_old_copy_only_with_force(tmp_path):
 
 def test_install_skill_refuses_a_file(tmp_path):
     dest = tmp_path / "popmix"
-    dest.write_text("not a directory")
+    dest.write_text("not a directory", encoding="utf-8")
     r = subprocess.run(["popmix", "install-skill", "--dest", str(dest), "--force"], env=run_env(tmp_path),
                        capture_output=True, text=True)
     assert r.returncode == 1
-    assert dest.read_text() == "not a directory"
+    assert dest.read_text(encoding="utf-8") == "not a directory"
 
 
 def test_install_skill_never_replaces_something_else(tmp_path):
     dest = tmp_path / "notes"
     dest.mkdir()
-    (dest / "mine.txt").write_text("keep")
+    (dest / "mine.txt").write_text("keep", encoding="utf-8")
     r = subprocess.run(["popmix", "install-skill", "--dest", str(dest), "--force"], env=run_env(tmp_path),
                        capture_output=True, text=True)
     assert r.returncode == 1 and "not a popmix skill" in r.stderr
-    assert (dest / "mine.txt").read_text() == "keep"
+    assert (dest / "mine.txt").read_text(encoding="utf-8") == "keep"

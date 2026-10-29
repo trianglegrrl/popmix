@@ -26,7 +26,7 @@ import pytest
 
 import popmix as pm
 
-from .reference_paths import local
+from .reference_paths import local, missing
 
 REF_ROOT = Path(__file__).parent / "eigensoft" / "v7.2.1"
 REPO = Path(__file__).parents[2]
@@ -45,9 +45,9 @@ _results: dict = {}
 
 def _run(name: str):
     if name not in _results:
-        ref = json.loads((REF_ROOT / name / "pca.json").read_text())
+        ref = json.loads((REF_ROOT / name / "pca.json").read_text(encoding="utf-8"))
         prefix = local(ref["prefix"]) if os.path.isabs(local(ref["prefix"])) else str(REPO / local(ref["prefix"]))
-        if not os.path.exists(prefix + ".geno"):
+        if missing(prefix + ".geno"):
             pytest.skip(f"genotype data not available: {prefix}")
         p = ref["params"]
         ours = pm.smartpca(prefix, ref["pca_pops"], ref["project_pops"],

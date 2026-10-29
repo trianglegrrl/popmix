@@ -24,8 +24,8 @@ REF = HERE / "formats" / "multiallelic" / "reference"
 
 
 def _eigenstrat(prefix: Path) -> list[tuple[str, str, str, str]]:
-    snps = [line.split() for line in Path(f"{prefix}.snp").read_text().splitlines()]
-    geno = Path(f"{prefix}.geno").read_text().splitlines()
+    snps = [line.split() for line in Path(f"{prefix}.snp").read_text(encoding="utf-8").splitlines()]
+    geno = Path(f"{prefix}.geno").read_text(encoding="utf-8").splitlines()
     return [(s[0], s[4], s[5], g) for s, g in zip(snps, geno)]
 
 

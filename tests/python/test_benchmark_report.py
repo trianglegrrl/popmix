@@ -17,7 +17,7 @@ def _payload(page: str) -> dict:
 
 
 def test_embeds_the_results():
-    results = json.loads(RESULTS.read_text())
+    results = json.loads(RESULTS.read_text(encoding="utf-8"))
     page = report_html.render(results)
     data = _payload(page)
     assert data["cases"] == results["cases"]

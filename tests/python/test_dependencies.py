@@ -28,17 +28,17 @@ def _declared(manifest: dict) -> list[str]:
 
 @pytest.mark.parametrize("crate", CRATES, ids=lambda p: p.name)
 def test_every_declared_dependency_is_used(crate: Path) -> None:
-    manifest = tomllib.loads((crate / "Cargo.toml").read_text())
-    source = "\n".join(p.read_text() for p in crate.rglob("*.rs") if "target" not in p.parts)
+    manifest = tomllib.loads((crate / "Cargo.toml").read_text(encoding="utf-8"))
+    source = "\n".join(p.read_text(encoding="utf-8") for p in crate.rglob("*.rs") if "target" not in p.parts)
     unused = [name for name in _declared(manifest)
               if not re.search(rf"\b{name.replace('-', '_')}(::|\s*;|\s+as\b)", source)]
     assert unused == []
 
 
 def test_every_workspace_dependency_is_used_by_a_crate() -> None:
-    workspace = tomllib.loads((ROOT / "Cargo.toml").read_text())["workspace"]["dependencies"]
+    workspace = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))["workspace"]["dependencies"]
     declared = {name for crate in CRATES
-                for name in _declared(tomllib.loads((crate / "Cargo.toml").read_text()))}
+                for name in _declared(tomllib.loads((crate / "Cargo.toml").read_text(encoding="utf-8")))}
     assert sorted(set(workspace) - declared) == []
 
 
@@ -53,7 +53,7 @@ def test_public_rust_types_are_ndarray_not_nalgebra_or_faer() -> None:
             if path.name == "tests.rs" or "tests" in path.parts:
                 continue
             signature = None
-            for number, line in enumerate(path.read_text().splitlines(), 1):
+            for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
                 if public.match(line):
                     signature = [line]
                 elif signature is not None and not line.rstrip().endswith(("{", ";", ",")):

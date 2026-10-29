@@ -56,13 +56,13 @@ def plink2_version() -> str:
 
 
 def to_bed(prefix: str, pops: list[str], work: Path) -> Path:
-    (work / "pops.txt").write_text("\n".join(pops) + "\n")
+    (work / "pops.txt").write_text("\n".join(pops) + "\n", encoding="utf-8")
     out = work / "data"
     par = work / "convertf.par"
     par.write_text(
         f"genotypename: {prefix}.geno\nsnpname: {prefix}.snp\nindivname: {prefix}.ind\n"
         f"outputformat: PACKEDPED\ngenotypeoutname: {out}.bed\nsnpoutname: {out}.bim\n"
-        f"indivoutname: {out}.fam\npoplistname: {work / 'pops.txt'}\n")
+        f"indivoutname: {out}.fam\npoplistname: {work / 'pops.txt'}\n", encoding="utf-8")
     subprocess.run([CONVERTF, "-p", str(par)], capture_output=True, text=True, check=True)
     return out
 
@@ -77,13 +77,13 @@ def run(name: str) -> None:
                         "cols=id,nsnp,hethet,ibs0,ibs1,kinship", "--make-king", "triangle", "bin",
                         "--threads", "4", "--out", str(work / "king")],
                        capture_output=True, text=True, check=True)
-        ids = [line.split("\t")[-1] for line in (work / "king.king.id").read_text().splitlines()[1:]]
-        table = (work / "king.kin0").read_text().splitlines()
+        ids = [line.split("\t")[-1] for line in (work / "king.king.id").read_text(encoding="utf-8").splitlines()[1:]]
+        table = (work / "king.kin0").read_text(encoding="utf-8").splitlines()
         header = table[0].lstrip("#").split("\t")
         rows = [dict(zip(header, line.split("\t"))) for line in table[1:]]  # noqa: B905 (strict= needs Python 3.10)
         tri = np.fromfile(work / "king.king.bin", dtype=np.float64)
-        fam_ids = [line.split()[1] for line in Path(f"{bed}.fam").read_text().splitlines()]
-    pop_of = {line.split()[0]: line.split()[2] for line in Path(cfg["prefix"] + ".ind").read_text().splitlines()}
+        fam_ids = [line.split()[1] for line in Path(f"{bed}.fam").read_text(encoding="utf-8").splitlines()]
+    pop_of = {line.split()[0]: line.split()[2] for line in Path(cfg["prefix"] + ".ind").read_text(encoding="utf-8").splitlines()}
     fam_pops = [pop_of[i] for i in fam_ids]
     n = len(ids)
     assert len(tri) == n * (n - 1) // 2
@@ -107,10 +107,10 @@ def run(name: str) -> None:
         "kinship_lower_triangle": tri.tolist(),
     }
     if cfg["prefix"] == AADR:
-        out["dataset"] = json.loads((AADR_DIR / "manifest.json").read_text())
+        out["dataset"] = json.loads((AADR_DIR / "manifest.json").read_text(encoding="utf-8"))
     dest = HERE / plink2_version() / name
     dest.mkdir(parents=True, exist_ok=True)
-    (dest / "king.json").write_text(json.dumps(out) + "\n")
+    (dest / "king.json").write_text(json.dumps(out) + "\n", encoding="utf-8")
     print(f"  {n} samples, {len(rows)} pairs, max kinship {tri.max():.4f}", flush=True)
 
 

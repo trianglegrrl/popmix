@@ -75,7 +75,7 @@ def qpadm(target: str, left: list, right: list, constrained: bool, compat: str |
             write_columns(out.weight_columns(result), f"{output_prefix}.weights.tsv")
             write_columns(out.rankdrop_columns(result), f"{output_prefix}.rankdrop.tsv")
             write_columns(out.popdrop_columns(result), f"{output_prefix}.popdrop.tsv")
-            with open(f"{output_prefix}.json", "w") as f:
+            with open(f"{output_prefix}.json", "w", encoding="utf-8") as f:
                 json.dump(out.as_json(result, assessment), f, indent=2)
                 f.write("\n")
         if output_format == "json":

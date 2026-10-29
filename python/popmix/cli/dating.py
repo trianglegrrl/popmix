@@ -44,7 +44,7 @@ def rolloff(input_prefix: str, admixed: str, sources: list, binsize: float, maxd
         if r.pulse_check is not None:
             click.echo(_pulse_line(r.pulse_check))
         if output_prefix:
-            r.bins.to_csv(f"{output_prefix}.bins.tsv", sep="\t", index=False, float_format="%.12g")
+            r.bins.to_csv(f"{output_prefix}.bins.tsv", sep="\t", index=False, float_format="%.12g", lineterminator="\n")
     except click.ClickException:
         raise
     except EXPECTED_ERRORS as e:

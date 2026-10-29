@@ -39,7 +39,7 @@ def subset(tmp_path: Path) -> tuple[Path, dict[str, str]]:
         md5s[ext] = hashlib.md5(body).hexdigest()
     manifest = {"release": "AADR v66.p1", "outputs": {ext: {"path": f"/home/x/aadr_v66p1.{ext}", "md5": m}
                                                       for ext, m in md5s.items()}}
-    (src / "manifest.json").write_text(json.dumps(manifest))
+    (src / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     return src, md5s
 
 
@@ -55,7 +55,7 @@ def test_the_packed_manifest_names_files_not_local_paths(tmp_path):
     src, md5s = subset(tmp_path)
     dest = tmp_path / "dest"
     archive.install(archive.pack(src, tmp_path / "out"), dest, md5s)
-    manifest = json.loads((dest / "manifest.json").read_text())
+    manifest = json.loads((dest / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["outputs"]["geno"]["path"] == "aadr_v66p1.geno"
 
 
@@ -63,7 +63,7 @@ def test_the_archive_carries_a_readme_with_the_licence(tmp_path):
     src, md5s = subset(tmp_path)
     dest = tmp_path / "dest"
     archive.install(archive.pack(src, tmp_path / "out"), dest, md5s)
-    assert "CC0 1.0" in (dest / "README.md").read_text()
+    assert "CC0 1.0" in (dest / "README.md").read_text(encoding="utf-8")
 
 
 def test_install_refuses_a_file_with_the_wrong_checksum(tmp_path):
@@ -103,7 +103,7 @@ def test_the_expected_checksums_are_those_the_build_recorded():
     manifest = archive.CACHE / "manifest.json"
     if not manifest.exists():
         pytest.skip(f"AADR v66.p1 subset not built: {manifest}")
-    outputs = json.loads(manifest.read_text())["outputs"]
+    outputs = json.loads(manifest.read_text(encoding="utf-8"))["outputs"]
     assert {ext: entry["md5"] for ext, entry in outputs.items()} == archive.MD5
 
 

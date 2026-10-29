@@ -40,7 +40,7 @@ pytestmark = [
 
 
 def _ref(file: str) -> dict:
-    return json.loads((DG6 / file).read_text())
+    return json.loads((DG6 / file).read_text(encoding="utf-8"))
 
 
 def _groovy(value) -> str:
@@ -64,7 +64,7 @@ def run(tmp_path_factory):
     qpadm = next(m for m in _ref("qpadm.json")["models"] if not m["constrained"])
     graph = next(g for g in _ref("qpgraph.json")["graphs"] if g["name"] == "admix1")
     graph_file = work / "admix1.txt"
-    graph_file.write_text("".join(f"{a}\t{b}\n" for a, b in graph["edges"]))
+    graph_file.write_text("".join(f"{a}\t{b}\n" for a, b in graph["edges"]), encoding="utf-8")
 
     names = ["extractf2", "f2", "f3", "f4", "qpwave", "qpadm", "qpgraph", "findgraphs", "dates", "convertf",
              "merge"]
@@ -91,7 +91,7 @@ workflow {{
     POPMIX_MERGE([ [ id:'a' ], [ {_files(FIXTURES / 'merge_a')} ] ], [ [ id:'b' ], [ {_files(FIXTURES / 'merge_b')} ] ],
                  'eigenstrat')
 }}
-""")
+""", encoding="utf-8")
     (work / "nextflow.config").write_text(f"""
 params.outdir = '{work / "results"}'
 process {{
@@ -100,7 +100,7 @@ process {{
     publishDir = [ path: {{ "${{params.outdir}}/${{task.process.tokenize(':')[-1].toLowerCase()}}" }}, mode: 'copy' ]
     withName: 'POPMIX_FINDGRAPHS' {{ ext.args = '--nadmix 1 --method exhaustive --top 3' }}
 }}
-""")
+""", encoding="utf-8")
     env = dict(os.environ, PATH=f"{Path(shutil.which('popmix')).parent}:{os.environ['PATH']}", NXF_ANSI_LOG="false")
     result = subprocess.run(["nextflow", "run", "main.nf", "-c", "nextflow.config"], cwd=work, env=env,
                             capture_output=True, text=True, timeout=3600)
@@ -114,7 +114,7 @@ process {{
 
 def _json(run, process: str) -> dict:
     (path,) = run(process).glob("*.json")
-    return json.loads(path.read_text())
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def test_f2(run):
@@ -159,7 +159,7 @@ def test_findgraphs(run):
     graphs, n = pm.find_graphs(f2, SMALL_POPS, nadmix=1, method="exhaustive")
     assert out["n_evaluated"] == n == 84
     assert [g["score"] for g in out["graphs"]] == [g.score for g in graphs[:3]]
-    best = (run("findgraphs") / "small_best_graph.txt").read_text().splitlines()
+    best = (run("findgraphs") / "small_best_graph.txt").read_text(encoding="utf-8").splitlines()
     assert [tuple(line.split("\t")) for line in best if not line.startswith("#")] == graphs[0].edges
 
 
@@ -181,7 +181,7 @@ def test_convertf(run):
 
 def test_merge(run):
     out = run("merge")
-    inds = (out / "a_merged.ind").read_text().split()
+    inds = (out / "a_merged.ind").read_text(encoding="utf-8").split()
     assert [w for w in inds if w.startswith("IND")] == ["IND1", "IND2", "IND3"]
 
 
@@ -194,7 +194,7 @@ def _f4_reference(pops):
     a, b, c, d = pops
     signs = {(a, b, c, d): 1, (b, a, d, c): 1, (c, d, a, b): 1, (d, c, b, a): 1,
              (b, a, c, d): -1, (a, b, d, c): -1, (d, c, a, b): -1, (c, d, b, a): -1}
-    for row in json.loads((FAMILY / "f3_f4.json").read_text())["f4"]:
+    for row in json.loads((FAMILY / "f3_f4.json").read_text(encoding="utf-8"))["f4"]:
         key = (row["pop1"], row["pop2"], row["pop3"], row["pop4"])
         if key in signs:
             return signs[key] * row["est"], row["se"]
@@ -216,7 +216,7 @@ workflow {{
         'Simulation', ['French', 'Yoruba'], ['Simulation.1', 'Yoruba']
     )
 }}
-""")
+""", encoding="utf-8")
     (work / "nextflow.config").write_text(f"""
 params.outdir = '{work / "results"}'
 process {{
@@ -224,7 +224,7 @@ process {{
     cpus = 4
     publishDir = [ path: {{ "${{params.outdir}}/${{task.process.tokenize(':')[-1].toLowerCase()}}" }}, mode: 'copy' ]
 }}
-""")
+""", encoding="utf-8")
     env = dict(os.environ, PATH=f"{Path(shutil.which('popmix')).parent}:{os.environ['PATH']}", NXF_ANSI_LOG="false")
     result = subprocess.run(["nextflow", "run", "main.nf", "-c", "nextflow.config"], cwd=work, env=env,
                             capture_output=True, text=True, timeout=3600)
@@ -234,7 +234,7 @@ process {{
 
 def test_subworkflow_f3_and_f4(subworkflow):
     f3 = _json(subworkflow, "f3")
-    ref = next(r for r in json.loads((FAMILY / "f3_f4.json").read_text())["f3"]
+    ref = next(r for r in json.loads((FAMILY / "f3_f4.json").read_text(encoding="utf-8"))["f3"]
                if (r["pop1"], r["pop2"], r["pop3"]) == ("Simulation", "French", "Yoruba"))
     assert f3["est"] == pytest.approx(ref["est"], rel=1e-10)
     assert f3["se"] == pytest.approx(ref["se"], rel=1e-6)

@@ -20,7 +20,6 @@ feasibility and the models themselves exactly.
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 import numpy as np
@@ -28,7 +27,7 @@ import pytest
 
 import popmix as pm
 
-from .reference_paths import local
+from .reference_paths import local, missing
 
 REF_DIR = Path(__file__).parent / "admixtools2" / "v2.0.10" / "dg_11pop"
 REF_FILE = REF_DIR / "qpadm_models.json"
@@ -36,11 +35,11 @@ CHISQ_RTOL = 1e-6
 P_RTOL = 1e-4
 WEIGHT_RTOL = 1e-6
 
-pytestmark = pytest.mark.skipif(not REF_FILE.exists(), reason="qpadm_models.json not generated")
+pytestmark = pytest.mark.skipif(missing(REF_FILE), reason="qpadm_models.json not generated")
 
 
 def _ref() -> dict:
-    return json.loads(REF_FILE.read_text())
+    return json.loads(REF_FILE.read_text(encoding="utf-8"))
 
 
 def _list(x) -> list:
@@ -53,8 +52,8 @@ def _num(x):
 
 @pytest.fixture(scope="module")
 def f2_blocks():
-    f2_ref = json.loads((REF_DIR / "f2.json").read_text())
-    if not os.path.exists(f"{local(f2_ref['prefix'])}.geno"):
+    f2_ref = json.loads((REF_DIR / "f2.json").read_text(encoding="utf-8"))
+    if missing(f"{local(f2_ref['prefix'])}.geno"):
         pytest.skip(f"genotype data not available: {local(f2_ref['prefix'])}")
     assert f2_ref["pops"] == _ref()["pops"]
     p = f2_ref["params"]

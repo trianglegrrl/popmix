@@ -57,24 +57,24 @@ def to_bed(prefix: str, pops: list[str], merge: str | None, work: Path) -> Path:
             os.symlink(os.path.realpath(prefix + ext), src + ext)
         keep = set(pops)
         lines = []
-        for line in Path(prefix + ".ind").read_text().splitlines():
+        for line in Path(prefix + ".ind").read_text(encoding="utf-8").splitlines():
             ind, sex, pop = line.split()
             lines.append(f"{ind} {sex} {merge if pop in keep else pop}")
-        Path(src + ".ind").write_text("\n".join(lines) + "\n")
+        Path(src + ".ind").write_text("\n".join(lines) + "\n", encoding="utf-8")
         pops = [merge]
-    (work / "pops.txt").write_text("\n".join(pops) + "\n")
+    (work / "pops.txt").write_text("\n".join(pops) + "\n", encoding="utf-8")
     out = work / "data"
     (work / "convertf.par").write_text(
         f"genotypename: {src}.geno\nsnpname: {src}.snp\nindivname: {src}.ind\n"
         f"outputformat: PACKEDPED\ngenotypeoutname: {out}.bed\nsnpoutname: {out}.bim\n"
-        f"indivoutname: {out}.fam\npoplistname: {work / 'pops.txt'}\n")
+        f"indivoutname: {out}.fam\npoplistname: {work / 'pops.txt'}\n", encoding="utf-8")
     subprocess.run([CONVERTF, "-p", str(work / "convertf.par")], capture_output=True, text=True, check=True)
     return out
 
 
 def run(name: str) -> None:
     cfg = dict(CONFIGS[name])
-    commit = (READV2 / "COMMIT").read_text().strip()
+    commit = (READV2 / "COMMIT").read_text(encoding="utf-8").strip()
     print(f"== {name}", flush=True)
     with tempfile.TemporaryDirectory() as tmp:
         work = Path(tmp)
@@ -83,7 +83,7 @@ def run(name: str) -> None:
                        capture_output=True, text=True, check=True)
         results = pd.read_csv(work / "Read_Results.tsv", sep="\t", dtype=str)
         means = pd.read_csv(work / "meansP0_AncientDNA_normalized_READv2", sep="\t", dtype=str)
-        ids = [line.split()[1] for line in Path(f"{bed}.fam").read_text().splitlines()]
+        ids = [line.split()[1] for line in Path(f"{bed}.fam").read_text(encoding="utf-8").splitlines()]
     nonnorm = means["Nonnormalized_P0"].astype(float)
     out = {
         "read_commit": commit,
@@ -97,10 +97,10 @@ def run(name: str) -> None:
         "means": means.to_dict(orient="list"),
     }
     if cfg["prefix"] == AADR:
-        out["dataset"] = json.loads((AADR_DIR / "manifest.json").read_text())
+        out["dataset"] = json.loads((AADR_DIR / "manifest.json").read_text(encoding="utf-8"))
     dest = HERE / commit[:7] / name
     dest.mkdir(parents=True, exist_ok=True)
-    (dest / "read.json").write_text(json.dumps(out) + "\n")
+    (dest / "read.json").write_text(json.dumps(out) + "\n", encoding="utf-8")
     print(f"  {len(ids)} samples, {len(results)} pairs:", results["Rel"].value_counts().to_dict(), flush=True)
 
 

@@ -22,7 +22,7 @@ DOCS = ["README.md", "TESTING.md"]
 
 def _command_lines(path: Path) -> list[tuple[int, str]]:
     """`popmix ...` lines inside fenced shell blocks, continuations joined."""
-    lines, out, in_block, lang = path.read_text().splitlines(), [], False, ""
+    lines, out, in_block, lang = path.read_text(encoding="utf-8").splitlines(), [], False, ""
     i = 0
     while i < len(lines):
         line = lines[i]

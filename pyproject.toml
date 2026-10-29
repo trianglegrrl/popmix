@@ -76,8 +76,12 @@ line-length = 100
 target-version = "py39"
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "PLW1514"]
 ignore = ["E501"]
+# PLW1514 (text files opened without an encoding: cp1252 on Windows) is a
+# preview rule; no other preview rule is enabled
+preview = true
+explicit-preview-rules = true
 
 [tool.ruff.lint.isort]
 known-first-party = ["popmix"]

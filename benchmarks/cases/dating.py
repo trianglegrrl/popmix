@@ -30,25 +30,25 @@ def rolloff_badsnps() -> Path:
     if not bad.exists():
         keep = set(ROLLOFF["chromosomes"])
         bad.write_text("".join(f"{s[0]}\n" for s in (line.split() for line in
-                                                      Path(f"{src}.snp").read_text().splitlines())
-                               if s[1] not in keep))
+                                                      Path(f"{src}.snp").read_text(encoding="utf-8").splitlines())
+                               if s[1] not in keep), encoding="utf-8")
     return src
 
 
 def _rolloff(i: Path, o: Path) -> list[str]:
     # tests/golden/rolloff/generate_rolloff.py's parameters
-    (o / "refs").write_text("".join(f"{p}\n" for p in ROLLOFF["refs"]))
+    (o / "refs").write_text("".join(f"{p}\n" for p in ROLLOFF["refs"]), encoding="utf-8")
     par = o / "rolloff.par"
     par.write_text("".join(f"{k}: {v}\n" for k, v in {
         "genotypename": f"{i}.geno", "snpname": f"{i}.snp", "indivname": f"{i}.ind", "poplistname": o / "refs",
         "admixpop": ROLLOFF["admixed"], "output": o / "rolloff.out", "binsize": ROLLOFF["binsize"],
         "maxdis": ROLLOFF["maxdis"], "runmode": 1, "chithresh": 6.0, "zdipcorrmode": "YES", "checkmap": "YES",
-        "seed": 1, "numchrom": 22, "jackknife": "YES", "badsnpname": _rolloff_badsnps_path()}.items()))
+        "seed": 1, "numchrom": 22, "jackknife": "YES", "badsnpname": _rolloff_badsnps_path()}.items()), encoding="utf-8")
     return [str(CLASSIC / "rolloff-hiprec"), "-p", str(par)]
 
 
 def _agree_rolloff(ours: Path, theirs: Path) -> dict:
-    want = np.array([[float(x) for x in line.split()] for line in (theirs / "rolloff.out").read_text().splitlines()
+    want = np.array([[float(x) for x in line.split()] for line in (theirs / "rolloff.out").read_text(encoding="utf-8").splitlines()
                      if line.strip() and not line.lstrip().startswith("#")])
     import pandas as pd
 
@@ -136,13 +136,13 @@ def dates_tools() -> Path:
 
 def _dates(i: Path, o: Path) -> list[str]:
     p = DATES_POPS
-    (o / "admixlist").write_text(f"{p['source1']} {p['source2']} {p['test']} {p['test']}\n")
+    (o / "admixlist").write_text(f"{p['source1']} {p['source2']} {p['test']} {p['test']}\n", encoding="utf-8")
     par = o / "dates.par"
     # tests/golden/dates/generate_dates_reference.sh's parameters
     par.write_text("".join(f"{k}: {v}\n" for k, v in {
         "genotypename": f"{i}.geno", "snpname": f"{i}.snp", "indivname": f"{i}.ind", "admixlist": "admixlist",
         "binsize": DATES_BINSIZE, "maxdis": DATES_MAXDIS, "seed": 77, "runmode": 1, "chithresh": 0.0,
-        "mincount": 4, "qbin": DATES_QBIN, "runfit": "YES", "afffit": "YES", "lovalfit": DATES_LOVAL}.items()))
+        "mincount": 4, "qbin": DATES_QBIN, "runfit": "YES", "afffit": "YES", "lovalfit": DATES_LOVAL}.items()), encoding="utf-8")
     tools = DATES_BUILD / "tools"
     # dates runs its helpers (dates_jackknife, dowtjack, ...) by name
     return ["env", f"PATH={tools}:{os.environ['PATH']}", str(tools / "dates"), "-p", par.name]
@@ -151,15 +151,15 @@ def _dates(i: Path, o: Path) -> list[str]:
 def _agree_dates(ours: Path, theirs: Path) -> dict:
     test = DATES_POPS["test"]
     res = theirs / test
-    got = json.loads((ours / "dates.json").read_text())
-    rows = [line.split() for line in (res / f"{test}.out").read_text().splitlines()
+    got = json.loads((ours / "dates.json").read_text(encoding="utf-8"))
+    rows = [line.split() for line in (res / f"{test}.out").read_text(encoding="utf-8").splitlines()
             if line.strip() and not line.lstrip().startswith("#")]
     # the JSON holds the first 20 bins
     ld = [(abs(b["n_pairs"] - int(r[4])), abs(b["weighted_ld"] - float(r[1])), abs(b["regression_coef"] - float(r[2])),
            abs(b["correlation"] - float(r[3]))) for b, r in zip(got["ld_bins"], rows)]  # noqa: B905
-    full = float(re.search(r"mean \(generations\):\s+(\S+)", (res / f"expfit_{test}.flog").read_text()).group(1))
-    blocks = sum(float(line.split()[1]) > 0 for line in (res / f"{test}.jin").read_text().splitlines())
-    jk_est, jk_se = (float(x) for x in (res / f"{test}.jout").read_text().split())
+    full = float(re.search(r"mean \(generations\):\s+(\S+)", (res / f"expfit_{test}.flog").read_text(encoding="utf-8")).group(1))
+    blocks = sum(float(line.split()[1]) > 0 for line in (res / f"{test}.jin").read_text(encoding="utf-8").splitlines())
+    jk_est, jk_se = (float(x) for x in (res / f"{test}.jout").read_text(encoding="utf-8").split())
     jk_tol = (blocks + 2) * FIT_TOL + GEN_TOL
     out = {"bins_compared": len(ld), "pairs_equal": all(d[0] == 0 for d in ld),
            "max_cov_abs": max(d[1] for d in ld), "max_corr_abs": max(max(d[2], d[3]) for d in ld),

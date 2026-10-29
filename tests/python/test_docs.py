@@ -54,7 +54,7 @@ def test_public_names_have_numpy_docstrings(name, obj):
 
 
 def _stub() -> dict[str, ast.AST]:
-    tree = ast.parse(STUB.read_text())
+    tree = ast.parse(STUB.read_text(encoding="utf-8"))
     return {n.name: n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.ClassDef))}
 
 

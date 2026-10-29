@@ -64,7 +64,7 @@ def record(tool: dict) -> str:
     for path in tool.get("bins", []):
         parts.append(f"## binary\n{binary(Path(path))}")
     for path in tool.get("files", []):
-        parts.append(f"## {path.name}\n{Path(path).read_text().strip()}")
+        parts.append(f"## {path.name}\n{Path(path).read_text(encoding='utf-8').strip()}")
     if "python" in tool:
         name = tool["python"]
         version = run([sys.executable, "-c", f"import importlib.metadata as m; print(m.version('{name}'))"])
@@ -77,7 +77,7 @@ def record(tool: dict) -> str:
 
 def main(directories: list[str]) -> None:
     for directory in directories or sorted(TOOLS):
-        (GOLDEN / directory / "environment.txt").write_text(record(TOOLS[directory]))
+        (GOLDEN / directory / "environment.txt").write_text(record(TOOLS[directory]), encoding="utf-8")
         print(GOLDEN / directory / "environment.txt")
 
 

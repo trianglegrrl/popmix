@@ -9,7 +9,7 @@ import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
-CITATION = yaml.safe_load((ROOT / "CITATION.cff").read_text())
+CITATION = yaml.safe_load((ROOT / "CITATION.cff").read_text(encoding="utf-8"))
 
 
 def test_the_citation_uses_cff_1_2():
@@ -17,7 +17,7 @@ def test_the_citation_uses_cff_1_2():
 
 
 def test_the_citation_version_is_the_package_version():
-    pyproject = re.search(r'(?m)^version = "([^"]+)"', (ROOT / "pyproject.toml").read_text()).group(1)
+    pyproject = re.search(r'(?m)^version = "([^"]+)"', (ROOT / "pyproject.toml").read_text(encoding="utf-8")).group(1)
     assert CITATION["version"] == pyproject
 
 

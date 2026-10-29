@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-REMOVED = set(json.loads((ROOT / "tests/data_ethics/removed_v66p1.json").read_text())["sha256"])
+REMOVED = set(json.loads((ROOT / "tests/data_ethics/removed_v66p1.json").read_text(encoding="utf-8"))["sha256"])
 CACHE = Path(os.environ.get("POPMIX_REFERENCE_CACHE", Path.home() / ".cache/popmix-references"))
 # sample and population names: letters, digits, _ . - ( ); ':' joins a
 # population and a sample ID in some .ind files
@@ -42,9 +42,9 @@ def _text(path: Path) -> str | None:
         if path.suffix == ".ped":
             # a .ped line is family, sample, ... then every genotype: only the
             # names are needed
-            with path.open() as f:
+            with path.open(encoding="utf-8") as f:
                 return "\n".join(" ".join(line.split(maxsplit=2)[:2]) for line in f)
-        return path.read_text()
+        return path.read_text(encoding="utf-8")
     except (UnicodeDecodeError, OSError):
         return None
 

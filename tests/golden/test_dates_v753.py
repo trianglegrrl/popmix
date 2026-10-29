@@ -29,7 +29,6 @@ checked three ways:
   mesh's own approximation.
 """
 
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -37,6 +36,8 @@ from typing import Optional
 import pytest
 
 import popmix as pm
+
+from .reference_paths import missing
 
 REF_ROOT = Path(__file__).parent / "dates" / "v753"
 
@@ -71,7 +72,7 @@ class DatesReference:
 
 def _parse_par(path: Path) -> dict[str, str]:
     params = {}
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         if ":" in line:
             key, value = line.split(":", 1)
             params[key.strip()] = value.strip()
@@ -81,28 +82,28 @@ def _parse_par(path: Path) -> dict[str, str]:
 def load_reference(name: str) -> DatesReference:
     ref_dir = REF_ROOT / name
     par = _parse_par(ref_dir / "par")
-    source1, source2, test_pop, _ = (ref_dir / "admixlist").read_text().split()
+    source1, source2, test_pop, _ = (ref_dir / "admixlist").read_text(encoding="utf-8").split()
 
     ld_rows = []
-    for line in (ref_dir / "dates.out").read_text().splitlines():
+    for line in (ref_dir / "dates.out").read_text(encoding="utf-8").splitlines():
         if line.lstrip().startswith("#") or not line.strip():
             continue
         dist, cov, yreg, corr, n_pairs = line.split()
         ld_rows.append((float(dist), float(cov), float(yreg), float(corr), int(n_pairs)))
 
     full_estimate = None
-    for line in (ref_dir / "dates.flog").read_text().splitlines():
+    for line in (ref_dir / "dates.flog").read_text(encoding="utf-8").splitlines():
         if line.startswith("mean (generations):"):
             full_estimate = float(line.split(":")[1])
     assert full_estimate is not None, f"no full-data estimate in {name}/dates.flog"
 
     jackknife_by_chrom = {}
-    for line in (ref_dir / "dates.jin").read_text().splitlines():
+    for line in (ref_dir / "dates.jin").read_text(encoding="utf-8").splitlines():
         chrom, weight, estimate = line.split()
         if float(weight) > 0:
             jackknife_by_chrom[int(chrom)] = (float(weight), float(estimate))
 
-    jk_est, jk_se = (float(x) for x in (ref_dir / "dates.jout").read_text().split())
+    jk_est, jk_se = (float(x) for x in (ref_dir / "dates.jout").read_text(encoding="utf-8").split())
 
     # inputs kept in tests/golden/dates are named relative to the config directory
     prefix = str((ref_dir / par["genotypename"]).resolve())[: -len(".geno")]
@@ -154,7 +155,7 @@ EXACT_MODE_ORACLE = {
 
 
 def _run_popmix(ref: DatesReference, compat: Optional[str]):
-    if not os.path.exists(f"{ref.prefix}.geno"):
+    if missing(f"{ref.prefix}.geno"):
         pytest.skip(f"genotype data not available: {ref.prefix}")
     return pm.dates(
         ref.prefix,

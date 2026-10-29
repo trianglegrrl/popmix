@@ -20,7 +20,7 @@ import pytest
 import popmix as pm
 
 DIR = Path(__file__).parent / "admixtools2" / "v2.0.10" / "dg_6pop"
-REF = json.loads((DIR / "qpadm_saturated.json").read_text())
+REF = json.loads((DIR / "qpadm_saturated.json").read_text(encoding="utf-8"))
 
 
 def _num(x: str) -> float:

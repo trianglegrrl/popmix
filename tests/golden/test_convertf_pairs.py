@@ -48,7 +48,7 @@ def convertf(src: Path, src_fmt: str, out: Path, out_fmt: str) -> None:
     (g, s, i), (og, os_, oi) = FORMATS[src_fmt][1], FORMATS[out_fmt][1]
     par = out.with_suffix(".par")
     par.write_text(f"genotypename: {src}.{g}\nsnpname: {src}.{s}\nindivname: {src}.{i}\noutputformat: {out_fmt}\n"
-                   f"genotypeoutname: {out}.{og}\nsnpoutname: {out}.{os_}\nindivoutname: {out}.{oi}\n")
+                   f"genotypeoutname: {out}.{og}\nsnpoutname: {out}.{os_}\nindivoutname: {out}.{oi}\n", encoding="utf-8")
     subprocess.run([CONVERTF, "-p", str(par)], check=True, capture_output=True, cwd=out.parent)
 
 

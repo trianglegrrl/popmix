@@ -28,7 +28,7 @@ def f2():
 
 
 def _cases(stat: str):
-    ref = json.loads(REF.read_text())
+    ref = json.loads(REF.read_text(encoding="utf-8"))
     return [pytest.param(r, id=",".join(r[k] for k in r if k.startswith("pop"))) for r in ref[stat]]
 
 

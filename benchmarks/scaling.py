@@ -68,7 +68,7 @@ SEED = 1
 
 
 def _ind_rows() -> list[tuple[str, str, str]]:
-    return [tuple(line.split()) for line in Path(f"{AADR}.ind").read_text().splitlines()]
+    return [tuple(line.split()) for line in Path(f"{AADR}.ind").read_text(encoding="utf-8").splitlines()]
 
 
 def pop_groups() -> list[str]:
@@ -84,7 +84,7 @@ def pop_groups() -> list[str]:
 
 def present_day_samples() -> list[str]:
     """AADR's present-day samples (date 0 BP), in a fixed shuffled order."""
-    rows = [line.split("\t") for line in ANNO.read_text().splitlines()[1:]]
+    rows = [line.split("\t") for line in ANNO.read_text(encoding="utf-8").splitlines()[1:]]
     ids = sorted(r[0] for r in rows if r[10].strip() == "0")
     random.Random(SEED).shuffle(ids)
     return ids
@@ -100,15 +100,15 @@ def _convertf(name: str, keep: Callable[[str, str], bool], fmt: str = "PACKEDANC
     if done.exists():
         return out
     SCALING.mkdir(parents=True, exist_ok=True)
-    rows = [line.split() for line in Path(f"{src}.ind").read_text().splitlines()]
+    rows = [line.split() for line in Path(f"{src}.ind").read_text(encoding="utf-8").splitlines()]
     ind = SCALING / f"{name}.in.ind"
-    ind.write_text("".join(f"{i} {s} {label(g) if keep(i, g) else 'Ignore'}\n" for i, s, g in rows))
+    ind.write_text("".join(f"{i} {s} {label(g) if keep(i, g) else 'Ignore'}\n" for i, s, g in rows), encoding="utf-8")
     ext = ("bed", "bim", "fam") if fmt == "PACKEDPED" else ("geno", "snp", "ind")
     keys = {"genotypename": f"{src}.geno", "snpname": f"{src}.snp", "indivname": ind, "outputformat": fmt,
             "genotypeoutname": f"{out}.{ext[0]}", "snpoutname": f"{out}.{ext[1]}",
             "indivoutname": f"{out}.{ext[2]}", **extra}
     par = SCALING / f"{name}.par"
-    par.write_text("".join(f"{k}: {v}\n" for k, v in keys.items()))
+    par.write_text("".join(f"{k}: {v}\n" for k, v in keys.items()), encoding="utf-8")
     subprocess.run([CONVERTF, "-p", str(par)], cwd=SCALING, check=True, stdout=subprocess.DEVNULL)
     return out
 
@@ -146,7 +146,7 @@ def _pca_point(curve: str, x: int, prepare: Callable[[], Path], threads: tuple[i
         par.write_text("".join(f"{k}: {v}\n" for k, v in {
             "genotypename": f"{i}.geno", "snpname": f"{i}.snp", "indivname": f"{i}.ind",
             "evecoutname": o / "out.evec", "evaloutname": o / "out.eval", "numoutevec": 10,
-            "numoutlieriter": 0}.items()))
+            "numoutlieriter": 0}.items()), encoding="utf-8")
         return [SMARTPCA, "-p", str(par)]
 
     return Point(curve, x, "pca", prepare,
@@ -197,10 +197,10 @@ def _snps_input(k: int) -> Callable[[], Path]:
         src = subset()
         if k == 1:
             return src
-        snps = [line.split()[0] for line in Path(f"{src}.snp").read_text().splitlines()]
+        snps = [line.split()[0] for line in Path(f"{src}.snp").read_text(encoding="utf-8").splitlines()]
         bad = SCALING / f"snps{k}.bad"
         SCALING.mkdir(parents=True, exist_ok=True)
-        bad.write_text("".join(f"{s}\n" for s in snps[len(snps) // k:]))
+        bad.write_text("".join(f"{s}\n" for s in snps[len(snps) // k:]), encoding="utf-8")
         return _convertf(f"snps{k}", lambda _i, _g: True, src=src, badsnpname=str(bad))
     return prepare
 
@@ -231,10 +231,10 @@ def _size(prefix: Path) -> dict:
     """Samples, SNPs and populations of a prefix (EIGENSTRAT or PLINK)."""
     ind = Path(f"{prefix}.ind") if Path(f"{prefix}.ind").exists() else Path(f"{prefix}.fam")
     snp = Path(f"{prefix}.snp") if Path(f"{prefix}.snp").exists() else Path(f"{prefix}.bim")
-    rows = [line.split() for line in ind.read_text().splitlines()]
+    rows = [line.split() for line in ind.read_text(encoding="utf-8").splitlines()]
     col = 2 if ind.suffix == ".ind" else 0
     used = [r for r in rows if r[col] != "Ignore"]
-    with open(snp) as f:
+    with open(snp, encoding="utf-8") as f:
         n_snps = sum(1 for _ in f)
     return {"samples": len(used), "snps": n_snps, "populations": len({r[col] for r in used})}
 
@@ -294,10 +294,10 @@ def main() -> None:
                         help="take the reference timings from this earlier report and its outputs from the "
                              "run directories, and run only popmix")
     args = parser.parse_args()
-    earlier = json.loads(args.reuse_reference.read_text()) if args.reuse_reference else None
+    earlier = json.loads(args.reuse_reference.read_text(encoding="utf-8")) if args.reuse_reference else None
     today = datetime.date.today().isoformat()
     out = args.out or Path(__file__).parent / "results" / f"scaling-{socket.gethostname()}-{today}.json"
-    report = json.loads(out.read_text()) if out.exists() else {
+    report = json.loads(out.read_text(encoding="utf-8")) if out.exists() else {
         "date": today, "machine": machine(), "versions": versions(), "repeats": args.repeats, "curves": {}}
     curves = args.curves.split(",")
     for p in points():
@@ -309,7 +309,7 @@ def main() -> None:
         print(f"{p.curve}: {p.key}", flush=True)
         done[p.key] = run_point(p, args.threads, args.repeats, earlier)
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(json.dumps(report, indent=1, default=_plain) + "\n")
+        out.write_text(json.dumps(report, indent=1, default=_plain) + "\n", encoding="utf-8")
     print(f"wrote {out}")
 
 

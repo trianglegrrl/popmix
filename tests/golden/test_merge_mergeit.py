@@ -18,8 +18,8 @@ HERE = Path(__file__).parent / "formats" / "merge"
 
 
 def _eigenstrat(prefix: Path) -> list[tuple[str, str, str, str]]:
-    snps = [line.split() for line in Path(f"{prefix}.snp").read_text().splitlines()]
-    geno = Path(f"{prefix}.geno").read_text().splitlines()
+    snps = [line.split() for line in Path(f"{prefix}.snp").read_text(encoding="utf-8").splitlines()]
+    geno = Path(f"{prefix}.geno").read_text(encoding="utf-8").splitlines()
     return [(s[0], s[4], s[5], g) for s, g in zip(snps, geno)]
 
 
@@ -28,7 +28,7 @@ def test_merge_writes_what_mergeit_writes(tmp_path):
     result = pm.merge(file_a=str(HERE / "a"), file_b=str(HERE / "b"), output=str(out),
                       output_format="eigenstrat")
     assert _eigenstrat(out) == _eigenstrat(HERE / "reference")
-    assert [line.split()[0] for line in Path(f"{out}.ind").read_text().splitlines()] == ["a1", "a2", "b1", "b2"]
+    assert [line.split()[0] for line in Path(f"{out}.ind").read_text(encoding="utf-8").splitlines()] == ["a1", "a2", "b1", "b2"]
     assert (result["strand_ambiguous_snps"], result["snps_mismatch"], result["other_strand_snps"]) == (1, 1, 2)
 
 

@@ -79,16 +79,16 @@ def relabel(prefix: str, keep: list[str], out_dir: Path) -> Path:
         os.symlink(os.path.realpath(prefix + ext), str(out) + ext)
     keep_set = set(keep)
     lines = []
-    for line in Path(prefix + ".ind").read_text().splitlines():
+    for line in Path(prefix + ".ind").read_text(encoding="utf-8").splitlines():
         ind, sex, pop = line.split()
         lines.append(f"{ind} {sex} {pop if pop in keep_set else 'Ignore'}")
-    Path(str(out) + ".ind").write_text("\n".join(lines) + "\n")
+    Path(str(out) + ".ind").write_text("\n".join(lines) + "\n", encoding="utf-8")
     return out
 
 
 def run_smartpca(binary: Path, prefix: Path, cfg: dict, work: Path, tag: str) -> dict:
     poplist = work / "poplist.txt"
-    poplist.write_text("\n".join(cfg["pca_pops"]) + "\n")
+    poplist.write_text("\n".join(cfg["pca_pops"]) + "\n", encoding="utf-8")
     par = {
         "genotypename": f"{prefix}.geno",
         "snpname": f"{prefix}.snp",
@@ -99,16 +99,16 @@ def run_smartpca(binary: Path, prefix: Path, cfg: dict, work: Path, tag: str) ->
         **{k: str(v) for k, v in cfg["params"].items()},
     }
     par_file = work / f"{tag}.par"
-    par_file.write_text("".join(f"{k}: {v}\n" for k, v in par.items()))
+    par_file.write_text("".join(f"{k}: {v}\n" for k, v in par.items()), encoding="utf-8")
     log = subprocess.run([str(binary), "-p", str(par_file)], capture_output=True, text=True, check=True).stdout
-    (work / f"{tag}.log").write_text(log)
+    (work / f"{tag}.log").write_text(log, encoding="utf-8")
 
-    evec_lines = (work / f"{tag}.evec").read_text().splitlines()
+    evec_lines = (work / f"{tag}.evec").read_text(encoding="utf-8").splitlines()
     samples = []
     for line in evec_lines[1:]:
         f = line.split()
         samples.append({"id": f[0], "pop": f[-1], "coords": [float(x) for x in f[1:-1]]})
-    eigenvalues = [float(x) for x in (work / f"{tag}.eval").read_text().split()]
+    eigenvalues = [float(x) for x in (work / f"{tag}.eval").read_text(encoding="utf-8").split()]
 
     tw = []
     in_tw = False
@@ -176,10 +176,10 @@ def main(names: list[str]) -> None:
             **hiprec,
         }
         if cfg["prefix"] == AADR:
-            out["dataset"] = json.loads((AADR_DIR / "manifest.json").read_text())
+            out["dataset"] = json.loads((AADR_DIR / "manifest.json").read_text(encoding="utf-8"))
         dest = HERE / "v7.2.1" / name
         dest.mkdir(parents=True, exist_ok=True)
-        (dest / "pca.json").write_text(json.dumps(out, indent=1) + "\n")
+        (dest / "pca.json").write_text(json.dumps(out, indent=1) + "\n", encoding="utf-8")
         print(f"  {out['n_samples_used']} PCA samples, {len(out['samples'])} in evec, "
               f"{out['n_snps_used']} SNPs, {len(out['outliers'])} outliers, "
               f"lambda1 {out['eigenvalues'][0]:.6f}", flush=True)

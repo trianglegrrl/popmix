@@ -21,7 +21,7 @@ def render(results: dict, scaling: dict | None = None) -> str:
     data = {**results, "scaling": scaling}
     # "</" cannot end the script element from inside the JSON
     payload = json.dumps(data, separators=(",", ":")).replace("</", "<\\/")
-    return TEMPLATE.read_text().replace("/*DATA*/null", payload, 1)
+    return TEMPLATE.read_text(encoding="utf-8").replace("/*DATA*/null", payload, 1)
 
 
 def main() -> None:
@@ -30,8 +30,8 @@ def main() -> None:
     parser.add_argument("--scaling", type=Path)
     parser.add_argument("-o", "--out", type=Path, default=Path("benchmark-report.html"))
     args = parser.parse_args()
-    scaling = json.loads(args.scaling.read_text()) if args.scaling else None
-    args.out.write_text(render(json.loads(args.results.read_text()), scaling))
+    scaling = json.loads(args.scaling.read_text(encoding="utf-8")) if args.scaling else None
+    args.out.write_text(render(json.loads(args.results.read_text(encoding="utf-8")), scaling), encoding="utf-8")
     print(f"wrote {args.out}")
 
 

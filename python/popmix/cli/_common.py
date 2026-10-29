@@ -56,7 +56,7 @@ def _store_pseudohaploid(ctx: click.Context, param: click.Parameter, value: str)
 def _lines(path: str) -> list[list[str]]:
     """The whitespace-separated fields of each line of PATH; blank lines and
     # comments are skipped."""
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         return [fields for fields in (line.split() for line in f) if fields and not fields[0].startswith("#")]
 
 
@@ -277,9 +277,10 @@ def write_table(df, output_format: str, output: str | None, index: bool = False)
     if output_format == "json":
         text = df.to_json(orient="index" if index else "records", indent=2, double_precision=15) + "\n"
     else:
-        text = df.to_csv(sep="\t", index=index, float_format="%.12g")
+        text = df.to_csv(sep="\t", index=index, float_format="%.12g", lineterminator="\n")
     if output:
-        with open(output, "w") as f:
+        # newline="": the text's own "\n", not the platform's line ending
+        with open(output, "w", encoding="utf-8", newline="") as f:
             f.write(text)
     else:
         click.echo(text, nl=False)
@@ -332,7 +333,8 @@ def write_columns(columns: dict, output: str | None, output_format: str = "tsv")
         else:
             text = "".join("\t".join(row) + "\n" for row in [header, *zip(*cols)])
     if output:
-        with open(output, "w") as f:
+        # newline="": the text's own "\n", not the platform's line ending
+        with open(output, "w", encoding="utf-8", newline="") as f:
             f.write(text)
     else:
         click.echo(text, nl=False)
