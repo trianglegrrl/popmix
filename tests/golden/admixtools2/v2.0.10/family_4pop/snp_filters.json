@@ -1,0 +1,42 @@
+{
+  "admixtools_version": "2.0.10",
+  "prefix": "tests/golden/dates/family_chr20_22",
+  "pops": ["French", "Yoruba", "Simulation", "Simulation.1"],
+  "cases": {
+    "all": {
+      "params": [],
+      "snps": 18702
+    },
+    "transversions": {
+      "params": {
+        "transitions": false
+      },
+      "snps": 3373
+    },
+    "transitions": {
+      "params": {
+        "transversions": false
+      },
+      "snps": 15329
+    },
+    "minmaf_0.1": {
+      "params": {
+        "minmaf": 0.1
+      },
+      "snps": 13976
+    },
+    "maxmaf_0.2": {
+      "params": {
+        "maxmaf": 0.2
+      },
+      "snps": 8898
+    },
+    "maf_0.05_0.3": {
+      "params": {
+        "minmaf": 0.05,
+        "maxmaf": 0.3
+      },
+      "snps": 10356
+    }
+  }
+}

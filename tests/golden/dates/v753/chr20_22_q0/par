@@ -1,6 +1,6 @@
-genotypename: /home/a/popmix/tests/golden/dates/family_chr20_22.geno
-snpname: /home/a/popmix/tests/golden/dates/family_chr20_22.snp
-indivname: /home/a/popmix/tests/golden/dates/family_chr20_22.ind
+genotypename: ../../family_chr20_22.geno
+snpname: ../../family_chr20_22.snp
+indivname: ../../family_chr20_22.ind
 admixlist: admixlist
 binsize: 0.001
 maxdis: 1.0

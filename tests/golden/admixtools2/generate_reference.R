@@ -128,8 +128,9 @@ CONFIGS <- list(
       admix2 = edgelist("R","Chimp.REF", "R","a", "a","Mbuti.DG", "a","b", "b","Yoruba.DG", "b","c", "c","bE", "c","ooa", "ooa","east", "ooa","west", "east","Han.DG", "east","e2", "e2","Papuan.DG", "e2","kar", "west","w1", "west","w2", "w1","kar", "w1","Basque.DG", "w2","sar", "w2","Druze.DG", "bE","sar", "kar","Karitiana.DG", "sar","Sardinian.DG")
     )
   ),
-  # DATES' simulated data: 54 samples, so each PACKEDANCESTRYMAP record is
-  # padded to 48 bytes, not ceil(54 / 4) = 14. Paths are relative to the
+  # The family data (AADR v66.p1 French and Yoruba and simulated admixed
+  # samples, tests/golden/dates/README.md): 50 samples, so each
+  # PACKEDANCESTRYMAP record is padded to 48 bytes, not ceil(50 / 4) = 13. Paths are relative to the
   # repository root.
   family_4pop = list(
     prefix = "tests/golden/dates/family_chr20_22",

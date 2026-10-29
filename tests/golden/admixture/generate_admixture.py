@@ -66,19 +66,19 @@ CONFIGS = {
 def to_bed(prefix: str, pops: list[str], work: Path, name: str, chromosomes: str | None,
            extract: Path | None = None) -> Path:
     (work / f"{name}.pops").write_text("\n".join(pops) + "\n", encoding="utf-8")
-    out = work / (name + "_all" if chromosomes or extract else name)
+    out = work / (name + "_all")
     (work / f"{name}.par").write_text(
         f"genotypename: {prefix}.geno\nsnpname: {prefix}.snp\nindivname: {prefix}.ind\n"
         f"outputformat: PACKEDPED\ngenotypeoutname: {out}.bed\nsnpoutname: {out}.bim\n"
         f"indivoutname: {out}.fam\npoplistname: {work / (name + '.pops')}\n", encoding="utf-8")
     subprocess.run([CONVERTF, "-p", str(work / f"{name}.par")], capture_output=True, check=True)
-    if chromosomes or extract:
-        # ADMIXTURE refuses SNPs with no genotype at all
-        args = ["--chr", chromosomes, "--geno", "0.9999"] if extract is None else ["--extract", str(extract)]
-        subprocess.run([PLINK2, "--bfile", str(out), *args, "--make-bed", "--out", str(work / name)],
-                       capture_output=True, check=True)
-        out = work / name
-    return out
+    # ADMIXTURE refuses SNPs with no genotype at all
+    args = ["--geno", "0.9999"] if extract is None else ["--extract", str(extract)]
+    if chromosomes:
+        args += ["--chr", chromosomes]
+    subprocess.run([PLINK2, "--bfile", str(out), *args, "--make-bed", "--out", str(work / name)],
+                   capture_output=True, check=True)
+    return work / name
 
 
 def common_snps(work: Path, beds: list[Path]) -> Path:
@@ -127,12 +127,11 @@ def run(name: str) -> None:
             out.update(ids=ids, references=cfg["references"], **run_admixture(bed, k, ["--supervised"]))
         else:
             new = to_bed(cfg["prefix"], cfg["project"], work, "new", cfg.get("chromosomes"))
-            if cfg.get("chromosomes"):
-                # both on the SNPs called in each set of samples
-                snps = common_snps(work, [bed, new])
-                bed = to_bed(cfg["prefix"], cfg["pops"], work, "data2", None, extract=snps)
-                new = to_bed(cfg["prefix"], cfg["project"], work, "new2", None, extract=snps)
-                ids = [line.split()[1] for line in Path(f"{bed}.fam").read_text(encoding="utf-8").splitlines()]
+            # both on the SNPs called in each set of samples
+            snps = common_snps(work, [bed, new])
+            bed = to_bed(cfg["prefix"], cfg["pops"], work, "data2", None, extract=snps)
+            new = to_bed(cfg["prefix"], cfg["project"], work, "new2", None, extract=snps)
+            ids = [line.split()[1] for line in Path(f"{bed}.fam").read_text(encoding="utf-8").splitlines()]
             assert Path(f"{new}.bim").read_text(encoding="utf-8") == Path(f"{bed}.bim").read_text(encoding="utf-8")
             fit = run_admixture(bed, k, [])
             shutil.copy(f"{bed}.{k}.P", f"{new}.{k}.P.in")

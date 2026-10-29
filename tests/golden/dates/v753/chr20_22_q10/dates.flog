@@ -1,12 +1,12 @@
 dates_expfit version: 200
 step (Morgans) ::     0.001000
 fitting 1 exponentials + affine
-after initialization:     0.000388     0.996 
+after initialization:     0.000061     0.901 
 gslsetup called
-gslans:   21     0.000387
-    0.997 
-error sd:     0.019683
-halflife:   239.821 
-mean (generations):     2.890 
-    0.037785597    -0.014095273 
+gslans:   19     0.000061
+    0.901 
+error sd:     0.007805
+halflife:     6.634 
+mean (generations):   104.490 
+    0.047116980    -0.000454300 
 ##end of run

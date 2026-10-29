@@ -37,8 +37,8 @@ export PATH="$DATES_BIN:$PATH"
 
 # name | genotype prefix | source1 | source2 | test pop | maxdis (Morgans) | qbin
 CONFIGS=(
-    "chr20_22_q0|$HERE/family_chr20_22|French|Yoruba|Simulation|1.0|0"
-    "chr20_22_q10|$HERE/family_chr20_22|French|Yoruba|Simulation|1.0|10"
+    "chr20_22_q0|$HERE/family_chr20_22|French|Yoruba|Simulation.1|1.0|0"
+    "chr20_22_q10|$HERE/family_chr20_22|French|Yoruba|Simulation.1|1.0|10"
     "simulation_q0|$HERE/example_data/family_packed|French|Yoruba|Simulation|1.0|0"
     "simulation_q10|$HERE/example_data/family_packed|French|Yoruba|Simulation|1.0|10"
     "aadr_french_q10|$AADR_PREFIX|Sardinian.DG|Russia_Samara_EBA_Yamnaya.AG|French.DG|0.5|10"
