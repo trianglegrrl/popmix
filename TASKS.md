@@ -799,7 +799,7 @@ thread count.
   reachable from the CLI or `popmix.__all__` and an end-to-end test runs it
   on a real result object; no mock result classes when the real type can be
   built; no `or`-chained assertions. AI
-- [ ] **K8. Tests that pin the release workflow by running it:** a test tag
+- [x] **K8. Tests that pin the release workflow by running it:** *Done in 5ec2b19 (release.yml; the v1.0.0rc1 tag run 40854778756 built the Linux x86_64/aarch64, macOS universal2 and Windows wheels and the sdist, published them to TestPyPI by trusted publishing, and installed and ran them back on all four platforms).* a test tag
   run of `release.yml` on every platform before 1.0.0. AI
 
 ## L. Packaging and release (last)
