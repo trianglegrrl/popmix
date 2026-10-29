@@ -60,8 +60,8 @@ they move, and the public API is settled before features add to it.
    I4's pipeline), F14 (KING at 3,970 samples).
 6. **Tests and CI.** K5, K4, K3 with P5, P4, K6, K1 (Linux; macOS and
    Windows after 1.0), K2, K8.
-7. **Release.** L7, L8 (before the release candidate), C7 (an independent
-   review first), L4, L5, L6.
+7. **Release.** C8-C11, L7, L8 (before the release candidate), C12, then
+   L4, L5, L6; C7 (a lawyer) with the review's questions.
 
 ## A. Wrong results (P0)
 
@@ -244,6 +244,37 @@ Tasks:
 - [x] **C6. Check the remaining tools' licences** *Done in 6fe4e9f.* (ALDER, ROLLOFF, READv2,
   ADMIXTURE, EIGENSOFT top-level) and record them in C4.
 - [ ] **C7. Optional: legal review** of the result before tagging 1.0.0.
+  An independent review (2026-10-29, an AI reviewer, not legal advice) found
+  the items below; its questions for a lawyer go with them.
+- [ ] **C8. Wheels carry every licence they must:** the L-BFGS-B licence and
+  the licences of the Rust crates compiled into the extension (BSD-2 numpy
+  and atomic-wait, Apache-2.0 nalgebra, ...) in `license-files`, checked by
+  a test on the built wheels; NOTICE with each component's licence
+  verbatim (EIGENSOFT's and mt19937ar's clauses differ from ADMIXTOOLS's;
+  L-BFGS-B's holders); one licence statement everywhere (README, CITATION.cff
+  and the nf-core meta.yml say MIT only); copyright holder and authors. (B2,
+  S1, S2, N7)
+- [ ] **C9. READ kinship rewritten clean-room:** it was written with READv2's
+  GPL-3 source in view (`kinship/read.rs` names `blockJN_SE`; DEVIATIONS.md
+  quotes its code) and PROVENANCE.md calls it independent. A specification
+  from the papers and READv2's output, a separate implementer, the READv2
+  goldens still passing. (B3)
+- [ ] **C10. DATES example data replaced:** `tests/golden/dates/family_chr20_22.*`
+  is DATES's unlicensed example data (HGDP genomes), used by the skill and
+  the nf-core tests. Replace it with an AADR v66.p1 (CC0) subset and
+  simulated admixed samples; regenerate the goldens that read it. (S3)
+- [ ] **C11. Provenance records corrected:** DEVIATIONS.md's process
+  without "the reference source"; the entries and comments that show
+  knowledge of GPL internals reworded and recorded in PROVENANCE.md
+  (`streaming.rs`, `qpgraph_fit.rs`); the R generators that call
+  `admixtools:::` internals marked GPL-3 or rewritten on the public API;
+  AI use stated; the README's non-affiliation line; `rds.py`'s provenance
+  comment. (S4-S7, N4, N8, N10)
+- [ ] **C12. Removed code out of the public history:** after C9 and C10,
+  `git filter-repo` drops the paths of every translation removed in C2 (GPL
+  admixtools2 and R, ALDER, DATES), the old READ module and the DATES data
+  from every commit; force-push main and the tags. The user decided it
+  (2026-10-29); the list of paths goes to the user before the push. (B1)
 
 ## D. Release blockers: dead code, docs, platform (P0)
 
