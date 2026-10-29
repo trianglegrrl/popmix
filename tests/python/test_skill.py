@@ -1,6 +1,7 @@
 """The agent skill (TASKS.md N1-N4) documents the CLI exactly, and its examples run.
 
-The skill is ``python/popmix/skill/``: ``SKILL.md`` and one file per command,
+The skill is ``python/popmix/skill/`` (``skills/popmix`` in the repository):
+``SKILL.md``, ``python-api.md`` (tests/python/test_skill_api.py) and one file per command,
 ``commands/<command>.md`` (a subcommand of a group would be
 ``<group>-<command>.md``). These tests walk the Click tree, so a command or
 option added, renamed or removed without its documentation fails here:

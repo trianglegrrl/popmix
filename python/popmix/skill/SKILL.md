@@ -1,6 +1,6 @@
 ---
 name: popmix
-description: Use when the user wants population-genetics analyses of genotype data with the popmix command line - f2/f3/f4 and D-statistics, qpAdm/qpWave admixture models, qpGraph admixture graphs, admixture dating (DATES, ROLLOFF), smartpca PCA, ADMIXTURE ancestry proportions, KING/READ kinship, site-frequency spectra, or converting and merging EIGENSTRAT, PACKEDANCESTRYMAP, TGENO, PLINK and VCF files - or asks how to do in popmix what admixtools2, ADMIXTOOLS, smartpca, DATES, ADMIXTURE, PLINK 2 KING or READv2 do.
+description: Population-genetics analyses of genotype data with popmix, from the command line or Python (`import popmix`): f2/f3/f4 and D-statistics, qpAdm and qpWave admixture models, qpGraph admixture graphs and graph search, admixture dating (DATES, ROLLOFF), smartpca PCA, ADMIXTURE ancestry proportions, KING-robust and READ kinship, site-frequency spectra, and converting or merging EIGENSTRAT, PACKEDANCESTRYMAP, TGENO, PLINK and VCF files. Use when the user works with ancient or present-day DNA genotypes (the AADR, 1000 Genomes, their own samples) and wants any of these, even without naming popmix, and when they ask how to do in popmix what admixtools2, ADMIXTOOLS, smartpca, DATES, ADMIXTURE, PLINK 2 KING or READv2 do.
 ---
 
 # popmix
@@ -84,6 +84,15 @@ reference tool.
 - [rolloff](commands/rolloff.md): admixture date by ROLLOFF
 - [samples](commands/samples.md): each sample's SNPs called, heterozygosity and ploidy
 - [sfs](commands/sfs.md): site-frequency spectra
+
+## Python
+
+Every command's analysis is also a Python function with the same
+defaults, and the package has more (many qpAdm models at once, resampling,
+graph comparison, admixtools2's f2 directories). Use it for loops over
+models and for results that go on into pandas or plots.
+[python-api.md](python-api.md) lists every public name and every field of
+every result.
 
 ## Global options
 
