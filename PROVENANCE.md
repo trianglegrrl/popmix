@@ -63,6 +63,7 @@ numbers only.
 | `crates/popmix-core/src/qpgraph/graph_search.rs` (enumeration) | admixtools2 R (GPL-3) | `small-helpers.md`; the exclusion rule and the order were found from `generate_all_graphs` output |
 | `python/popmix/resample.py` (`compare_fits`), `qpadm_models.py` (model sets), `dstats.py` (`fstat_combinations`) | admixtools2 R (GPL-3) | `small-helpers.md` |
 | `crates/popmix-core/src/dates/` (the whole module: weights, LD decay, mesh, exponential fit, jackknife, analysis) | DATES v753 `dates.c` (no licence) | `dates-mesh.md`, then `dates.md` |
+| `crates/popmix-core/src/kinship/read.rs` and `read/` (C9, after the independent review) | written with READv2's source in view (GPL-3) | `read.md` |
 
 Exposure during the rewrites, recorded for completeness:
 - The f4ratio implementer had earlier seen about 25 lines of the old body while reading a caller of the jackknife.
@@ -90,10 +91,12 @@ wrappers.
 
 ### Corrected by the independent review (2026-10-29, C7)
 
-- **READ kinship** (`crates/popmix-core/src/kinship/read.rs`): **partly**.
-  It was written (0733e04, before the provenance rule) with READv2's GPL-3
-  source in view: it named READv2's functions, and DEVIATIONS.md quoted its
-  code. Rewritten clean-room from `docs/cleanroom/read.md` (TASKS.md C9).
+- **READ kinship** (`crates/popmix-core/src/kinship/read.rs`): it was
+  written (0733e04, before the provenance rule) with READv2's GPL-3 source
+  in view: it named READv2's functions, and DEVIATIONS.md quoted its code.
+  Rewritten clean-room in C9 (table above): the specification from the
+  papers, READv2's README and 17 black-box runs; the implementer saw
+  neither the old module nor READv2's code; the READv2 goldens pass.
 - **qpGraph's admixture-weight fit and path weights**
   (`qpgraph/qpgraph_fit.rs`, d766673 and 473ed7d): written before the rule
   and given no verdict by the C1 audit, which covered the edge lengths and
