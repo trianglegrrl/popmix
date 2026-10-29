@@ -1,4 +1,5 @@
-"""Every `popmix ...` command line in README.md and TESTING.md exists (D4).
+"""Every `popmix ...` command line in README.md, docs/guide.md and TESTING.md
+exists (D4).
 
 Each documented line names a real command, and every flag it uses is one of
 that command's options (or a global one). The documentation used to show
@@ -17,7 +18,7 @@ import pytest
 from popmix.cli import cli
 
 ROOT = Path(__file__).resolve().parents[2]
-DOCS = ["README.md", "TESTING.md"]
+DOCS = ["README.md", "docs/guide.md", "TESTING.md"]
 
 
 def _command_lines(path: Path) -> list[tuple[int, str]]:

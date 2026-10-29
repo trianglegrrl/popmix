@@ -1,4 +1,5 @@
-"""The README's example outputs are what the commands print (TASKS.md M5).
+"""The example outputs of the README and docs/guide.md are what the commands
+print (TASKS.md M5, L7).
 
 Each ```bash block followed by an **Output** block holds one command; run
 in a directory where ``aadr_v66p1`` is AADR v66.p1 labelled by data type
@@ -25,8 +26,8 @@ PAIR = re.compile(r"```bash\n([^`]*)```\n\n(\*\*Output[^\n]*)\n```[a-z]*\n([^`]*
 
 
 def _examples() -> list[tuple[str, str, str]]:
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    return [(code, header, output) for code, header, output in PAIR.findall(readme)]
+    docs = [(ROOT / doc).read_text(encoding="utf-8") for doc in ("README.md", "docs/guide.md")]
+    return [(code, header, output) for text in docs for code, header, output in PAIR.findall(text)]
 
 
 def _command(code: str) -> str:

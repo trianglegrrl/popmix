@@ -171,8 +171,8 @@ def test_convertf_help_names_every_input_format():
     assert listed == set(_input_formats())
 
 
-def test_readme_names_every_input_format():
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+def test_the_guide_names_every_input_format():
+    readme = (ROOT / "docs" / "guide.md").read_text(encoding="utf-8")
     assert "reads 6 " not in readme
     inputs = next(line for line in readme.splitlines() if line.startswith("**Input formats:**"))
     for fmt in _input_formats():

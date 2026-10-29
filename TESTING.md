@@ -84,7 +84,7 @@ generator named at the top of the test file remakes the reference.
 
 `popmix --help` lists every command; `popmix <command> --help` its options.
 `tests/python/test_documented_commands.py` checks that every `popmix ...`
-line in README.md and this file names a real command and real options.
+line in README.md, docs/guide.md and this file names a real command and real options.
 
 ### Example: Merge Command
 

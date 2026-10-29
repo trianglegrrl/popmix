@@ -152,7 +152,7 @@ def test_pseudohaploid_samples_are_detected_in_every_format(pseudohaploid, tmp_p
 
 
 def test_pseudohaploid_samples_are_detected_when_reading_genotypes(pseudohaploid, tmp_path):
-    """README "Method 1": read_genotypes, allele_frequencies, f2_from_frequencies."""
+    """The guide's "Method 1": read_genotypes, allele_frequencies, f2_from_frequencies."""
     packed = _from(pseudohaploid, tmp_path, "packedancestrymap")
     want = pm.extract_f2(packed, POPS).f2("Simulation.1", "French")["est"]
     for prefix in (packed, pseudohaploid):
