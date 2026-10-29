@@ -648,18 +648,20 @@ Checked against PLINK v2.0.0-a.7LM (31 Dec 2025).
 
 ## READv2 (READ-style kinship)
 
-`ReadCompat` in `crates/popmix-core/src/kinship/read.rs`;
+`ReadCompat` in `crates/popmix-core/src/kinship/read.rs` (specified in
+`docs/cleanroom/read.md`, from black-box runs);
 `compat="readv2-2.01"` in Python (`read_kinship`), `--compat readv2-2.01`
 on the CLI (`kinship --method read`). Checked against READv2 2.01
 (GuntherLab/READv2 commit 73739be).
 
 ### READV2-0001: jackknife windows overlap by one SNP
 
-- **READv2:** windows are cut where `floor(position / window_size)` changes,
-  at indices `i` (the last SNP of a window), and taken as
-  `arr[pre_ind:i+1]` with `pre_ind = i` afterwards, so every window but the
-  first starts with the previous window's last SNP. The same happens to the
-  20 Mb windows that tell parent-offspring from siblings.
+- **READv2:** a window starts where a SNP's bin, ⌊position / window size⌋,
+  differs from the previous SNP's, and every window but the first also
+  counts the last SNP of the window before it. Runs with a single mismatch
+  placed at a window's last or first SNP show it
+  (`docs/cleanroom/read.md`, runs e4 to e6); the 20 Mb windows that tell
+  parent-offspring from siblings do the same (e8).
 - **Effect:** about one SNP in 2000 counts twice in the window SEs and the
   first-degree window shares; the genome-wide P0 and the kinship are not
   affected.
@@ -667,9 +669,10 @@ on the CLI (`kinship --method read`). Checked against READv2 2.01
 
 ### READV2-0002: the jackknife leaves out each window but the last
 
-- **READv2:** `blockJN_SE` computes the leave-one-out means for
-  `range(num_blocks - 1)`, so the last window is never left out, but scales
-  the variance by `(num_blocks - 1) / num_blocks` as if all were.
+- **READv2:** the leave-one-window-out replicates of its SE never leave out
+  the last window, though the variance is scaled by (g − 1)/g as if all g
+  were left out: a mismatch only in the last window moves the SE as if that
+  window were never removed (runs e2, e4 and e5).
 - **Effect:** the SE misses one of about 600 replicates. With READV2-0001,
   correcting both changes the SE by 1.6% for the median `aadr_gurgy` pair
   and by up to 28%; no relationship or first-degree type changes there.
@@ -677,10 +680,10 @@ on the CLI (`kinship --method read`). Checked against READv2 2.01
 
 ### READV2-0003: the kinship interval is the normalized P0's
 
-- **READv2:** `KinshipCoefficient_95percCI[min,max]` is the normalized P0
-  plus and minus 1.96 SE, next to `KinshipCoefficient`, which is 1 minus the
-  normalized P0. For a first-degree pair with kinship 0.272 it reports
-  [0.714, 0.741].
+- **READv2:** the reported 95% interval of the kinship coefficient is the
+  normalized P0 plus and minus 1.96 SE, next to a kinship coefficient that
+  is 1 minus the normalized P0. For a first-degree pair with kinship 0.272
+  it reports [0.714, 0.741].
 - **popmix:** the interval of the kinship coefficient, 1 minus that interval
   reversed ([0.259, 0.286]).
 
