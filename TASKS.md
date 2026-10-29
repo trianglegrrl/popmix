@@ -259,10 +259,11 @@ Tasks:
   quotes its code) and PROVENANCE.md calls it independent. A specification
   from the papers and READv2's output, a separate implementer, the READv2
   goldens still passing. (B3)
-- [ ] **C10. DATES example data replaced:** `tests/golden/dates/family_chr20_22.*`
+- [x] **C10. DATES example data replaced:** *Done in 407ca71 to 98d6e5a.* `tests/golden/dates/family_chr20_22.*`
   is DATES's unlicensed example data (HGDP genomes), used by the skill and
   the nf-core tests. Replace it with an AADR v66.p1 (CC0) subset and
   simulated admixed samples; regenerate the goldens that read it. (S3)
+  The nf-core modules' test data and snapshots still need the new files.
 - [x] **C11. Provenance records corrected:** *Done in fb819dc and 761e39f.* DEVIATIONS.md's process
   without "the reference source"; the entries and comments that show
   knowledge of GPL internals reworded and recorded in PROVENANCE.md
