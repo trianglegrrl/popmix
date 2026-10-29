@@ -64,6 +64,16 @@ def test_the_licence_agrees_everywhere() -> None:
         assert holder in notice
 
 
+def test_the_readme_states_the_same_licence() -> None:
+    licence = _read("README.md").split("## License\n")[1]
+    assert "MIT" in licence
+    assert "BSD 3-Clause" in licence
+
+
+def test_the_citation_states_the_same_licence() -> None:
+    assert _match(_read("CITATION.cff"), r"^license: (.+)$") == "[MIT, BSD-3-Clause]"
+
+
 @pytest.mark.slow
 def test_sdist_carries_what_downstream_builds_need(tmp_path: Path) -> None:
     """bioconda builds from the sdist: it needs the license, the lockfile

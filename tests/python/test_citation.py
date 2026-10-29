@@ -21,8 +21,8 @@ def test_the_citation_version_is_the_package_version():
     assert CITATION["version"] == pyproject
 
 
-def test_the_citation_licence_is_mit():
-    assert CITATION["license"] == "MIT"
+def test_the_citation_licence_is_mit_and_bsd_3():
+    assert CITATION["license"] == ["MIT", "BSD-3-Clause"]
 
 
 def test_the_author_is_named_with_her_orcid():

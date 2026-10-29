@@ -1012,4 +1012,7 @@ module was written from.
 
 ## License
 
-MIT License. See LICENSE file for details.
+MIT (LICENSE). The parts derived from ADMIXTOOLS, EIGENSOFT, L-BFGS-B and
+the Mersenne Twister reference code keep their BSD 3-Clause licences
+(NOTICE), and THIRDPARTY.yml holds the licences of the Rust crates compiled
+into popmix.

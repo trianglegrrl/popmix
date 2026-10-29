@@ -1,42 +1,17 @@
-popmix
 Copyright (c) Popmix Contributors. Licensed under the MIT License (LICENSE).
 
 Parts of popmix are derived from BSD-licensed software. Those parts remain
-under the BSD 3-Clause License reproduced below, with these notices.
+under their BSD licences, reproduced verbatim below with their notices.
+THIRDPARTY.yml holds the licences of the Rust crates compiled into popmix.
 
 1. ADMIXTOOLS (https://github.com/DReichLab/AdmixTools)
-   Copyright (c) 2009-2016, Broad Institute, Inc. All rights reserved.
    Used in: crates/popmix-core/src/rolloff.rs (ROLLOFF's weighted LD and its
    filters); the PACKEDANCESTRYMAP and TGENO header hashes
    (crates/popmix-io/src/packedancestrymap.rs).
+   Its licence, verbatim from src/LICENSE.txt:
 
-2. EIGENSOFT (https://github.com/DReichLab/EIG)
-   Copyright (c) 2006-2016, Broad Institute, Inc. and Harvard Medical School.
-   All rights reserved.
-   Used in: crates/popmix-core/src/pca/tracy_widom.rs and tw_table.rs (the
-   Tracy-Widom statistics and table of smartpca/twstats);
-   crates/popmix-core/src/pca/smartpca.rs (smartpca's normalization and
-   outlier removal).
-
-3. L-BFGS-B 3.0 (https://users.iems.northwestern.edu/~nocedal/lbfgsb.html)
-   Copyright (c) 2011 Ciyou Zhu, Richard Byrd, Jorge Nocedal and Jose Luis
-   Morales. All rights reserved.
-   Used in: crates/popmix-core/src/rcompat/lbfgsb.rs (translated from its
-   Fortran). Its licence, verbatim from the distribution, is in
-   crates/popmix-core/src/rcompat/LICENSE.lbfgsb.txt.
-
-4. mt19937ar.c, the Mersenne Twister reference implementation
-   (http://www.math.sci.hiroshima-u.ac.jp/m-mat/MT/emt.html)
-   Copyright (C) 1997 - 2002, Makoto Matsumoto and Takuji Nishimura,
-   All rights reserved.
-   Used in: crates/popmix-core/src/rcompat/rng.rs (the MT19937 recurrence and
-   tempering). Its third condition reads: "The names of its contributors may
-   not be used to endorse or promote products derived from this software
-   without specific prior written permission."
-
-The BSD 3-Clause License, as it applies to items 1, 2 and 4 (with "the
-copyright holder" read as the holders named there):
-
+Copyright (c) 2009-2016, Broad Institute, Inc.
+All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -67,3 +42,110 @@ SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
 CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
 LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE
+
+2. EIGENSOFT (https://github.com/DReichLab/EIG)
+   Used in: crates/popmix-core/src/pca/tracy_widom.rs and tw_table.rs (the
+   Tracy-Widom statistics and table of smartpca/twstats);
+   crates/popmix-core/src/pca/smartpca.rs (smartpca's normalization and
+   outlier removal).
+   Its licence, verbatim from LICENSE.txt:
+
+Copyright (c) 2006-2016, Broad Institute, Inc. and Harvard Medical School
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+*
+ Redistributions of source code must retain the above copyright notice,
+this list of conditions and the following disclaimer.
+
+
+*
+ Redistributions in binary form must reproduce the above copyright notice,
+ this list of conditions and the following disclaimer in the documentation
+ and/or other materials provided with the distribution.
+
+
+*
+ Neither the name Broad Institute, Inc. Harvard University, nor the names of its
+ contributors may be used to endorse or promote products derived from
+ this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
+USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE
+
+3. L-BFGS-B 3.0 (https://users.iems.northwestern.edu/~nocedal/lbfgsb.html)
+   Used in: crates/popmix-core/src/rcompat/lbfgsb.rs (translated from its
+   Fortran). The distribution's License.txt gives the New BSD License as a
+   template, naming no holder. The holders are the authors its code and its
+   references name: Ciyou Zhu, Richard Byrd, Peihuang Lu, Jorge Nocedal and
+   Jose Luis Morales (2011). Its licence, verbatim from License.txt:
+
+Copyright (c) <year>, <copyright holder>
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+    * Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+    * Neither the name of the <organization> nor the
+      names of its contributors may be used to endorse or promote products
+      derived from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
+DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+4. mt19937ar.c, the Mersenne Twister reference implementation
+   (http://www.math.sci.hiroshima-u.ac.jp/m-mat/MT/emt.html)
+   Used in: crates/popmix-core/src/rcompat/rng.rs (the MT19937 recurrence and
+   tempering). Its licence, verbatim from the file's header:
+
+Copyright (C) 1997 - 2002, Makoto Matsumoto and Takuji Nishimura,
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+  1. Redistributions of source code must retain the above copyright
+     notice, this list of conditions and the following disclaimer.
+
+  2. Redistributions in binary form must reproduce the above copyright
+     notice, this list of conditions and the following disclaimer in the
+     documentation and/or other materials provided with the distribution.
+
+  3. The names of its contributors may not be used to endorse or promote
+     products derived from this software without specific prior written
+     permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.

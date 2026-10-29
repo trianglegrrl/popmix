@@ -10,7 +10,7 @@ authors:
   - family-names: Hardie
     given-names: Alaina
     orcid: "https://orcid.org/0000-0002-1194-8003"
-license: MIT
+license: [MIT, BSD-3-Clause]
 repository-code: "https://github.com/trianglegrrl/popmix"
 version: 1.0.0
 keywords:

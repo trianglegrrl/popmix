@@ -7,8 +7,9 @@ name = "popmix"
 version = "1.0.0"
 description = "Population genetics F-statistics and admixture analysis toolkit"
 readme = "README.md"
+authors = [{ name = "Alaina Hardie" }]
 license = "MIT AND BSD-3-Clause"
-license-files = ["LICENSE", "NOTICE"]
+license-files = ["LICENSE", "NOTICE", "THIRDPARTY.yml"]
 requires-python = ">=3.9"
 classifiers = [
     "Development Status :: 5 - Production/Stable",

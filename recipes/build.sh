@@ -1,7 +1,6 @@
 #!/bin/bash
 set -ex
 
-# licenses of the Rust crates bundled into the extension
-cargo-bundle-licenses --format yaml --output THIRDPARTY.yml
-
+# THIRDPARTY.yml, the licences of the Rust crates compiled in, ships in the
+# sdist (.github/scripts/thirdparty-licenses.py)
 ${PYTHON} -m pip install . -vv --no-deps --no-build-isolation

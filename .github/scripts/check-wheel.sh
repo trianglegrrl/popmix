@@ -4,6 +4,16 @@
 # on the oldest and newest Python.
 set -euo pipefail
 
+# the licences every wheel must carry (NOTICE, THIRDPARTY.yml: TASKS.md C8)
+python - <<'PY'
+import glob, sys, zipfile
+for wheel in glob.glob("dist/*.whl"):
+    names = zipfile.ZipFile(wheel).namelist()
+    for required in ("licenses/LICENSE", "licenses/NOTICE", "licenses/THIRDPARTY.yml"):
+        if not any(n.endswith(".dist-info/" + required) for n in names):
+            sys.exit(f"{wheel}: no {required}")
+PY
+
 python -m venv check-env
 if [ -d check-env/Scripts ]; then bin=check-env/Scripts; else bin=check-env/bin; fi
 # the built wheel, then the dependencies it declares, from PyPI
