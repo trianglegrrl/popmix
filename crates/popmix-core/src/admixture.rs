@@ -129,14 +129,23 @@ fn clamp(x: f64) -> f64 {
 }
 
 /// Q rows onto the simplex with every entry at least `BOUND`.
+///
+/// Entries below the bound are raised to it, then the excess of every
+/// entry over the bound is scaled to make the row sum 1, so no entry falls
+/// back below the bound (dividing the whole row by its sum would).
 fn normalize_q(q: &mut [f64], k: usize) {
+    let free = 1.0 - k as f64 * BOUND;
     for row in q.chunks_mut(k) {
         for x in row.iter_mut() {
             *x = x.max(BOUND);
         }
-        let s: f64 = row.iter().sum();
-        for x in row {
-            *x /= s;
+        let excess: f64 = row.iter().map(|x| x - BOUND).sum();
+        if excess > 0.0 {
+            for x in row {
+                *x = BOUND + (*x - BOUND) * free / excess;
+            }
+        } else {
+            row.fill(1.0 / k as f64);
         }
     }
 }

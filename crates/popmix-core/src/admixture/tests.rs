@@ -190,3 +190,17 @@ fn bad_inputs_are_errors() {
     assert!(admixture_projection(&g, &p[..4], 2, &AdmixtureOptions::default()).is_err());
     assert!(admixture_supervised(&g, 2, &[Some(2), None], &AdmixtureOptions::default()).is_err());
 }
+
+#[test]
+fn normalized_q_rows_keep_the_bound_and_sum_to_one() {
+    // a step past the simplex (one entry below the bound, the other past
+    // 1), a row on it, and a row summing to more than 1
+    let mut q = vec![1e-7, 1.0128, 0.2, 0.8, 0.5, 0.6];
+    normalize_q(&mut q, 2);
+    for row in q.chunks(2) {
+        assert!((row.iter().sum::<f64>() - 1.0).abs() < 1e-15, "{row:?}");
+        assert!(row.iter().all(|&x| x >= BOUND), "{row:?}");
+    }
+    assert!((q[2] - 0.2).abs() < 1e-15, "{q:?}");
+    assert!((q[3] - 0.8).abs() < 1e-15, "{q:?}");
+}
