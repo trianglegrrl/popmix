@@ -866,11 +866,11 @@ thread count.
   (they pin `popmix=0.1.0`, `biocontainers/popmix:0.1.0--py39h2e5f10c_0`);
   add a merge/convertf test from VCF; test data to nf-core/test-datasets;
   modules PR. PG
-- [ ] **L7. README rewritten in the user's voice:** professional, concise,
+- [x] **L7. README rewritten in the user's voice:** *Done in 90ccc69 (README about 200 lines; the walkthrough in docs/guide.md, its examples still run).* professional, concise,
   brief (the alaina-voice skill). It keeps what the README tests run (the
   examples, the Citation section) and moves reference detail to the docs.
   Before the release candidate.
-- [ ] **L8. Agent skill under `skills/popmix/`, kept up to date:** made with
+- [x] **L8. Agent skill under `skills/popmix/`, kept up to date:** *Done in a8710b3 (skills/popmix links the package skill; python-api.md checked against popmix.__all__ and every result field; the skill-creator eval loop not run).* made with
   the skill-creator skill from the CLI and the API as they are; the one
   source for `popmix install-skill` (now `python/popmix/skill/`), with a
   test that fails when a command, option or result field changes and the
