@@ -76,6 +76,14 @@ genetic length. The realized French ancestry (mean of the two haplotypes):
 | NA00003 | 0.202 | 0.230 |
 | NA00004 | 0.208 | 0.179 |
 
+DATES v753 on these data (`v753/`, jackknife over chromosomes): the single
+sample Simulation, every autosome, 43.991 ± 8.381 generations in exact
+mode (`simulation_q0`) and 44.026 ± 8.344 with its FFT mesh
+(`simulation_q10`), 0.7 SE from the simulated 50; the four Simulation.1
+samples on chromosomes 20-22 alone, 104.878 ± 40.106 (`chr20_22_q0`) and
+102.157 ± 34.997 (`chr20_22_q10`), 1.4 and 1.5 SE from it. qpAdm on chromosomes
+20-22 gives Simulation.1 0.212 ± 0.011 French ancestry, against a realized
+0.203.
 
 ### Scripts
 
@@ -85,18 +93,21 @@ genetic length. The realized French ancestry (mean of the two haplotypes):
   convertf writing the PACKEDANCESTRYMAP files.
   `tests/golden/test_family_build.py` (`--run-slow`) reruns it and checks
   the output is byte-identical; `tests/python/test_family_data.py` checks
-  the composition and that supervised ADMIXTURE finds the simulated
-  ancestry.
+  the composition, that qpAdm finds the realized ancestry and that
+  f3(Simulation.1; French, Yoruba) is negative.
 - `build_dates.sh` builds DATES v753 (with `dates_numbins_fix.patch`);
   `generate_dates_reference.sh` runs it on these data and writes
   `v753/<config>/`: the parameter file, the LD table (`dates.out`), the
   full-data fit (`dates.flog`, `dates.fit`), the per-chromosome jackknife
   (`dates.jin`) and its result (`dates.jout`). `chr20_22_*` read
-  `family_chr20_22`, `simulation_*` read `example_data/family_packed`;
+  `family_chr20_22` and date Simulation.1, `simulation_*` read
+  `example_data/family_packed` and date Simulation;
   `_q0` is DATES's exact mode, `_q10` its FFT mesh.
 - `generate_yamnaya_subset.sh` writes `yamnaya_chr21_22`, AADR v66.p1
   samples for a source of mixed ploidy (DATES-0004).
 
 The full-genome data are not in the repository: run `build_family.py`
 before the slow DATES goldens (`simulation_q0`, `simulation_q10`), which
-skip without them.
+skip without them. `example_data/` is gitignored, so a checkout that still
+holds DATES's own `family_packed` there keeps it until the script
+overwrites it; those goldens fail on it.

@@ -92,7 +92,7 @@ rules for adding one.
   | Config | DATES exact mode (oracle) | DATES mesh = compat | popmix corrected mesh |
   |--------|---------------------------|---------------------|-----------------------|
   | chr20_22_q10 (tail from 91.5 cM) | 102.828; 104.878 ± 40.106 | 104.490; 102.157 ± 34.997 | 103.199; 104.051 ± 38.949 |
-  | simulation_q10 (tail from 91.7 cM) | 36.686; 35.680 ± 6.333 | 36.747; 35.738 ± 6.346 | 36.750; 35.750 ± 6.345 |
+  | simulation_q10 (tail from 91.5 cM) | 45.276; 43.991 ± 8.381 | 45.295; 44.026 ± 8.344 | 45.290; 44.004 ± 8.343 |
   | aadr_french_q10 (maxdis 0.5) | not run | 130.737 ± 16.669 | unchanged, no lag wraps |
 
   In the chr20–22 tail, DATES's mesh gets pair counts up to 116% off from

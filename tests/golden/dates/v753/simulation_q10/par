@@ -1,6 +1,6 @@
-genotypename: /home/a/popmix/tests/golden/dates/example_data/family_packed.geno
-snpname: /home/a/popmix/tests/golden/dates/example_data/family_packed.snp
-indivname: /home/a/popmix/tests/golden/dates/example_data/family_packed.ind
+genotypename: ../../example_data/family_packed.geno
+snpname: ../../example_data/family_packed.snp
+indivname: ../../example_data/family_packed.ind
 admixlist: admixlist
 binsize: 0.001
 maxdis: 1.0
