@@ -1,4 +1,7 @@
 #!/usr/bin/env Rscript
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Calls admixtools2's internals (admixtools:::), so GPL-3 like admixtools2
+# (COPYING here); test tooling, in no popmix package (PROVENANCE.md).
 #
 # Generate the admixtools2 reference for popmix's exhaustive graph search.
 #

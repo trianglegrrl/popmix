@@ -21,8 +21,9 @@
 //!    popmix's own active-set solver (`docs/cleanroom/qpgraph-edge-lengths.md`).
 //!    The score is the covariance-weighted squared residual.
 //! 3. The admixture weights minimise the score over [0, 1] from `numstart`
-//!    starts drawn as admixtools2 draws them after `set.seed(seed)`
-//!    (`matrix(runif(numstart * nadmix), numstart)`), each with R's
+//!    starts drawn as admixtools2 draws them after `set.seed(seed)` (R's
+//!    uniforms, numstart × nadmix of them, start by start within each
+//!    admixture weight), each with R's
 //!    `optim(method = "L-BFGS-B")` and admixtools2's controls (`fnscale`
 //!    1e-6, `maxit` 1e4, finite-difference gradients); the best start wins,
 //!    the first among ties. Its weights are then polished past a zero-bound

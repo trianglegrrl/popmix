@@ -1016,3 +1016,7 @@ MIT (LICENSE). The parts derived from ADMIXTOOLS, EIGENSOFT, L-BFGS-B and
 the Mersenne Twister reference code keep their BSD 3-Clause licences
 (NOTICE), and THIRDPARTY.yml holds the licences of the Rust crates compiled
 into popmix.
+
+popmix is independent: it is not affiliated with or endorsed by the authors
+of admixtools2, ADMIXTOOLS, EIGENSOFT, DATES, ROLLOFF, ADMIXTURE, PLINK,
+KING or READv2. Their names identify the tools whose results it matches.

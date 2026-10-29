@@ -1,8 +1,7 @@
 //! Streaming allele frequency computation.
 //!
 //! This module provides functions to compute allele frequencies directly from
-//! genotype files without loading all data into memory. This matches the approach
-//! used by admixtools2's cpp_packedancestrymap_to_afs.
+//! genotype files without loading all data into memory.
 
 use std::collections::HashMap;
 use std::fs::File;
@@ -33,9 +32,9 @@ fn decode_packed_byte(byte: u8) -> [u8; 4] {
 /// Bytes per record (the header and each SNP) of a PACKEDANCESTRYMAP file.
 ///
 /// Records are padded to at least 48 bytes, so this is not ceil(n / 4) for
-/// fewer than 189 samples. As admixtools2 (`cpp_packedancestrymap_to_afs`),
-/// it is the file size over the number of records; a file whose size is not
-/// a whole number of records long enough for every sample is an error.
+/// fewer than 189 samples: it is the file size over the number of records
+/// (the header and one per SNP); a file whose size is not a whole number of
+/// records long enough for every sample is an error.
 fn record_length(geno_path: &Path, n_samples: usize, n_snps: usize) -> Result<usize> {
     crate::packedancestrymap::check_header(geno_path, n_samples, n_snps)?;
     let len = std::fs::metadata(geno_path)

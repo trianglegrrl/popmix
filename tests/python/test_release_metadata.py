@@ -70,6 +70,10 @@ def test_the_readme_states_the_same_licence() -> None:
     assert "BSD 3-Clause" in licence
 
 
+def test_the_readme_says_popmix_is_not_affiliated_with_the_tools_it_matches() -> None:
+    assert "not affiliated with or endorsed by" in _read("README.md").split("## License\n")[1]
+
+
 def test_the_citation_states_the_same_licence() -> None:
     assert _match(_read("CITATION.cff"), r"^license: (.+)$") == "[MIT, BSD-3-Clause]"
 

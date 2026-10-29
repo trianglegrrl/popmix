@@ -33,8 +33,10 @@ rules for adding one.
 1. **Parity first.** popmix must reproduce the reference exactly before
    anything is corrected. The golden tests run in compat mode at the
    tolerances in CLAUDE.md. A correction is never a way to explain away a
-   mismatch that isn't understood: find the cause in the reference source,
-   reproduce it, and only then decide whether to correct it.
+   mismatch that isn't understood: find the cause from the reference's
+   documentation and black-box output (runs on inputs built to isolate it;
+   never its source: CLAUDE.md, "Provenance"), reproduce it, and only then
+   decide whether to correct it.
 
 2. **One flag per deviation.** Each tool has a compat struct with one boolean
    per quirk (`popmix_core::dates::DatesCompat`,
@@ -59,9 +61,9 @@ rules for adding one.
    Write these tests first (RED), like any other change. Isolation tests
    should predict exactly which outputs change, not just that something does.
 
-4. **A registry entry here**, giving the ID, what the reference does and
-   where in its source, what popmix does by default, its impact, and its
-   tests. IDs are `<TOOL>-NNNN` and are never reused. Cite the ID in code
+4. **A registry entry here**, giving the ID, what the reference does (its
+   observable behaviour, and the runs that show it), what popmix does by
+   default, its impact, and its tests. IDs are `<TOOL>-NNNN` and are never reused. Cite the ID in code
    comments and test docstrings.
 
 5. **Decide matched behaviours too.** When a reference behaviour looks odd
@@ -195,32 +197,20 @@ qpWave/qpAdm fits by the C++ code path (`cpp = TRUE`, the default).
 
 ### ADMIXTOOLS2-0001: popdrop's nested path compares siblings
 
-- **admixtools2:** `drop_pops` (`R/qpadm.R`) fits every subset of the
-  sources, then is meant to walk a nested path down from the full model: at
-  each rank, among the children of the path so far (one more source
-  dropped), take the feasible model with the lowest χ² (`top_n(1,
-  -jitter(chisq))`, the jitter only breaking ties), and test each step
-  against the one before. Two mistakes stop that:
-  - the path starts with *every* model at full rank − 1, not the full
-    model;
-  - `child_patterns(nested$pat)` reads only `str_locate_all(...)[[1]]`, the
-    children of the first pattern, which are at full rank − 1 again. So
-    nothing below that rank is ever added.
-
-  With two or more sources, `best` marks exactly the models that drop one
-  source. `dofdiff`, `chisqdiff` and `p_nested` compare those siblings with
-  each other: dofdiff is always 0, so p_nested is always 0 or 1.
-- **The intent is clear from both admixtools.** The R loop and its
-  `top_n(1, -chisq)` over feasible children say what was meant. Classic
-  ADMIXTOOLS (`qpAdm.c`, "best pat") does the same thing per level: the
-  feasible pattern with the best p-value, compared with the level above on
-  1 dof and flagged "not nested" when it isn't. It has its own bug: the
-  `nfeas[wt] == 1` branch resets the best on every pattern until a second
-  feasible one turns up, so an infeasible pattern with p = 0 can become the
-  incumbent. Run on Druze = Sardinian + Dinka + Han (8.0.2, AADR v62), it
-  picks 100 (χ² 790) over 001 (χ² 12.7) at level 1, then reports level 2 as
-  "not nested". popmix doesn't target classic ADMIXTOOLS; this is evidence
-  of the intent only.
+- **admixtools2:** the popdrop table is meant to follow a nested path down
+  from the full model: each step drops one more source, taking the feasible
+  model with the lowest χ², and is tested against the step before. Its
+  output doesn't. With two or more sources, `best` marks exactly the models
+  that drop one source, and nothing below full rank − 1 is ever marked.
+  `dofdiff`, `chisqdiff` and `p_nested` compare those siblings with each
+  other: dofdiff is always 0, so p_nested is always 0 or 1.
+- **The intent is clear from classic ADMIXTOOLS.** Its qpAdm prints the
+  same kind of path ("best pat"): per level, the feasible pattern with the
+  best p-value, compared with the level above on 1 dof and flagged "not
+  nested" when it isn't. It can go wrong too: run on Druze = Sardinian +
+  Dinka + Han (8.0.2, AADR v62), it picks 100 (χ² 790) over 001 (χ² 12.7)
+  at level 1, then reports level 2 as "not nested". popmix doesn't target
+  classic ADMIXTOOLS; this is evidence of the intent only.
 - **popmix default:** The path starts at the full model. Each step drops
   one more source, taking the feasible child with the lowest χ² (the first
   in `power_set` order on an exact tie, in place of `jitter`). It goes down
@@ -292,12 +282,10 @@ qpWave/qpAdm fits by the C++ code path (`cpp = TRUE`, the default).
 
 ### ADMIXTOOLS2-0003: joint_sfs() drops SNPs whose count is not exactly an integer
 
-- **admixtools2:** `joint_sfs()` (`R/fstats.R`) takes the allele count of
-  each population as `afs * counts`, frequency times sample size, groups the
-  SNPs by those values and joins them onto the integer grid
-  `expand_grid(0:max_count, ...)`. Frequency times sample size is not always
-  an exact integer in floating point (23/42 * 42 = 23.000000000000004), and
-  such a SNP matches no row of the grid, so it is silently left out.
+- **admixtools2:** `joint_sfs()` leaves out every SNP whose allele count,
+  frequency times sample size, is not exactly an integer in floating point
+  (23/42 * 42 = 23.000000000000004). Its spectrum's total is short by
+  exactly those SNPs, which a count of the input shows.
 - **Effect:** 930 of 21,162 SNPs (4.4%) of `family_3pop` and 67,979 of
   1,233,013 (5.5%) of `dg_3pop` are dropped, depending only on the sample
   sizes and counts; the spectrum is not just smaller but distorted, since
@@ -306,15 +294,16 @@ qpWave/qpAdm fits by the C++ code path (`cpp = TRUE`, the default).
   heterozygous call in a pseudo-haploid sample) are still left out, and
   reported.
 - **Also documented, not a bug in the numbers:** `joint_sfs(pref = ...)`
-  calls `geno_to_afs()`, which does not exist in 2.0.10; the reference
-  generator calls `packedancestrymap_to_afs()` and passes its result.
+  stops with `could not find function "geno_to_afs"` in 2.0.10; the
+  reference generator calls `packedancestrymap_to_afs()` and passes its
+  result.
 
 ### ADMIXTOOLS2-0004: write_dot() renames nodes on edges but not where it declares them
 
-- **admixtools2:** `write_dot()` (`R/io.R`) writes each edge with "." and "-"
-  removed from both node names, because DOT does not allow them in an
-  unquoted name, and declares the internal nodes (`[shape = point]`) under
-  their unchanged names.
+- **admixtools2:** `write_dot()` writes each edge with "." and "-" removed
+  from both node names (DOT does not allow them in an unquoted name), but
+  declares the internal nodes (`[shape = point]`) under their unchanged
+  names.
 - **Effect:** population labels change (Han.DG is drawn as HanDG); two
   populations that differ only in those characters (A.B and AB) become one
   node; and an internal node with a "." in its name (n.1) is declared as
@@ -325,11 +314,11 @@ qpWave/qpAdm fits by the C++ code path (`cpp = TRUE`, the default).
 
 ### ADMIXTOOLS2-0006: PLINK chromosome codes X and Y stop f2_from_geno()
 
-- **admixtools2:** with `auto_only = TRUE` (the default), `discard_snps()`
-  (`R/io.R`) parses chromosome names as numbers and stops with "Could not
-  parse chromosome numbers!" if any is not a number, so a .bim with PLINK's
-  usual codes X and Y (as PLINK 2 and popmix's `convertf` write them)
-  cannot be read; with numeric codes (23, 24) it works.
+- **admixtools2:** with `auto_only = TRUE` (the default), `f2_from_geno()`
+  stops with "Could not parse chromosome numbers!" when any chromosome name
+  is not a number, so a .bim with PLINK's usual codes X and Y (as PLINK 2
+  and popmix's `convertf` write them) cannot be read; with numeric codes
+  (23, 24) it works.
 - **popmix:** reads X, Y, XY and MT as non-autosomes.
 - **Reference:** generated from a copy of the PLINK files with numeric
   codes (`plink2 --output-chr 26`).

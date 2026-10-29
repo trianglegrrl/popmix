@@ -82,11 +82,48 @@ None of these is the substance of the new code.
 ### Independent
 
 Everything else: the f-statistics, f2 blocks and blocks, qpWave, qpAdm,
-qpadm_p, rotation and pairs, SFS, genotype matrices, kinship (KING-robust
-and READ, which differ in implementation from PLINK 2 and READv2), ADMIXTURE
+qpadm_p, rotation and pairs, SFS, genotype matrices, KING-robust kinship
+(which differs in implementation from PLINK 2's), ADMIXTURE
 (SQUAREM, where ADMIXTURE's source is unpublished), every reader and writer in `popmix-io` (merge, VCF, TGENO),
 and the Python bindings, CLI, f2 directories, DOT, RDS, plots and SFS
 wrappers.
+
+### Corrected by the independent review (2026-10-29, C7)
+
+- **READ kinship** (`crates/popmix-core/src/kinship/read.rs`): **partly**.
+  It was written (0733e04, before the provenance rule) with READv2's GPL-3
+  source in view: it named READv2's functions, and DEVIATIONS.md quoted its
+  code. Rewritten clean-room from `docs/cleanroom/read.md` (TASKS.md C9).
+- **qpGraph's admixture-weight fit and path weights**
+  (`qpgraph/qpgraph_fit.rs`, d766673 and 473ed7d): written before the rule
+  and given no verdict by the C1 audit, which covered the edge lengths and
+  the f3 covariance (both rewritten in C2). Its comments now describe
+  behaviour; it is left to the similarity review below.
+- **Compat flags first found in admixtools2's source.** ADMIXTOOLS2-0001
+  (popdrop's path), -0003 (`joint_sfs` counts), -0004 (`write_dot` names) and
+  -0006 (chromosome codes) were found by reading admixtools2's R code
+  before the rule. The flags reproduce observable output and no code was
+  copied; their DEVIATIONS.md entries now describe the behaviour, and every
+  later entry was found from black-box runs. The same holds for the RNG's
+  edge clamp in `docs/cleanroom/small-helpers.md`.
+- **`python/popmix/rds.py`**: written from the R Internals manual's
+  description of serialization and checked against admixtools2's f2
+  directories; not compared with R's source.
+
+### How popmix was written
+
+popmix was written by its author with AI coding agents (Anthropic's Claude,
+through Claude Code); most commits are co-authored by one. The clean-room
+rewrites (C2, C9) followed the process above: one agent wrote the
+specification from papers, documentation and black-box runs, and another,
+which had not seen the old code or the reference's source, implemented it.
+Before the provenance rule (2026-10-25), agents translated some modules
+from the reference tools' source: those are the modules rewritten in C2 or
+removed (above). Since the rule, no agent works from a GPL tool's source.
+The models were
+trained on public code, which may include the reference tools; a
+similarity comparison of popmix against those sources, by someone outside
+development, is a question for the legal review (C7).
 
 ## Removed
 
@@ -100,6 +137,15 @@ wrappers.
   `qpf4diff`; the msprime script generators and `pseudo_dates`; the parsers
   of classic ADMIXTOOLS output (`parse_qp*`). The graph plots' layout was
   rewritten (it used `pseudo_dates`).
+
+## Test scripts under GPL-3
+
+`tests/golden/admixtools2/generate_reference.R`, `generate_all_graphs.R`,
+`generate_dstat.R` and `generate_sfs.R` run admixtools2 to make the golden
+references, and call its internal functions (`admixtools:::`) for values
+its public API does not return. They are GPL-3.0-or-later like admixtools2
+(SPDX headers, `tests/golden/admixtools2/COPYING`). They are test tooling,
+in no popmix package; `tests/python/test_licence_marks.py` keeps it so.
 
 ## Test patches
 

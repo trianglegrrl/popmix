@@ -5,6 +5,13 @@ and matrices, character vectors, lists, NULL and attributes.
 Read objects come back as ``RObject`` (data and attributes), or as the bare
 data when there are no attributes: a list of floats, ints, strings or
 objects. Missing values are None (character and integer) or NaN.
+
+Provenance: the serialization format as the "R Internals" manual describes
+it ("Serialization Formats"), checked by reading the f2 directories
+admixtools2 2.0.10 writes and by admixtools2 reading the ones popmix writes
+(tests/golden/test_f2_dirs_admixtools2.py), and by round trips
+(tests/python/test_rds.py). Written before the provenance rule (ec93f28);
+not compared with R's source.
 """
 
 from __future__ import annotations

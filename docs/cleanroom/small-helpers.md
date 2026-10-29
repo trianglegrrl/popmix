@@ -76,7 +76,10 @@ Behaviour established from R 4.5.2:
 - **A draw** (`unif_rand`): the next MT19937 tempered output y, as in
   `mt19937ar.c`'s `genrand_int32`, scaled to (0, 1) as y · 2.3283064365386963e-10
   (2^−32), then mapped into the open interval: values <= 0 become
-  half of 1/(2^32 − 1), values >= 1 become 1 minus that.
+  half of 1/(2^32 − 1), values >= 1 become 1 minus that. (The clamp's
+  constants were known from R's source, read before the provenance rule;
+  R's documentation says only that the values lie in the open interval.
+  Only y = 0 reaches it, since y · 2^−32 < 1.)
 - **`runif(n)`**: n draws.
 - **`sample` with rejection** (`unif_index(n)`, uniform on 0..n−1): with
   b = ceil(log2(n)) bits, repeatedly form a b-bit integer from draws, 16 bits
