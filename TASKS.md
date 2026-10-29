@@ -774,7 +774,7 @@ thread count.
   Linux, macOS and Windows, x86_64 and aarch64; a skipped golden fails CI
   (`POPMIX_REQUIRE_GOLDEN=1`). AI, PD
   Decided: Linux for 1.0; macOS and Windows once the repository is public.
-- [ ] **K2. Portable AADR goldens:** a Zenodo-hosted AADR subset with
+- [x] **K2. Portable AADR goldens:** *Done in 3d15c9d (the subset is Zenodo record doi:10.5281/zenodo.23750150, CC0, fetched and checked by SHA-256 and per-file MD5; the `aadr-goldens` workflow runs the goldens from it every week, 41b8c6d).* a Zenodo-hosted AADR subset with
   checksums; nightly or self-hosted run of the AADR goldens; record
   `sessionInfo()` and tool versions in every reference. PD
 - [x] **K3. Cross-format reference tests:** *Done in 538589b (every convertf format pair; the f2-per-format, VCF and mergeit goldens were in place; found PED written and read inverted, fixed before it, and ANCESTRYMAP not read by prefix).* the same individuals through VCF,
