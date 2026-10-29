@@ -60,7 +60,8 @@ they move, and the public API is settled before features add to it.
    I4's pipeline), F14 (KING at 3,970 samples).
 6. **Tests and CI.** K5, K4, K3 with P5, P4, K6, K1 (Linux; macOS and
    Windows after 1.0), K2, K8.
-7. **Release.** L4, L5, L6. C7 stays open.
+7. **Release.** L7, L8 (before the release candidate), C7 (an independent
+   review first), L4, L5, L6.
 
 ## A. Wrong results (P0)
 
@@ -833,6 +834,15 @@ thread count.
   (they pin `popmix=0.1.0`, `biocontainers/popmix:0.1.0--py39h2e5f10c_0`);
   add a merge/convertf test from VCF; test data to nf-core/test-datasets;
   modules PR. PG
+- [ ] **L7. README rewritten in the user's voice:** professional, concise,
+  brief (the alaina-voice skill). It keeps what the README tests run (the
+  examples, the Citation section) and moves reference detail to the docs.
+  Before the release candidate.
+- [ ] **L8. Agent skill under `skills/popmix/`, kept up to date:** made with
+  the skill-creator skill from the CLI and the API as they are; the one
+  source for `popmix install-skill` (now `python/popmix/skill/`), with a
+  test that fails when a command, option or result field changes and the
+  skill does not. Before the release candidate.
 
 ## M. Minor cleanups (P2)
 
