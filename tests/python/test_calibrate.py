@@ -95,3 +95,68 @@ def test_the_cli_summarizes(flow, tmp_path):
 def test_popmix_never_imports_msprime():
     code = "import popmix, popmix.calibrate, popmix.cli, sys; print('msprime' in sys.modules)"
     assert subprocess.run([sys.executable, "-c", code], capture_output=True, text=True).stdout.strip() == "False"
+
+
+# What the tests above left unchecked (TASKS.md K6: each kills a mutant that
+# survived them).
+
+@pytest.mark.parametrize("n", [9, 26, 30])
+def test_the_wilson_interval_of_all_rejected_ends_at_1(n):
+    assert wilson_interval(n, n)[1] == 1.0
+
+
+@pytest.mark.parametrize("n", [10, 21, 22])
+def test_the_wilson_interval_of_none_rejected_starts_at_0(n):
+    assert wilson_interval(0, n)[0] == 0.0
+
+
+def test_the_rate_is_the_share_rejected(null):
+    a = pm.calibrate_f4(null, "A", "B", "C", "D", block_size=0.02, alpha=0.5).attrs
+    assert a["rejected"] > 1
+    assert a["rate"] == a["rejected"] / 20
+
+
+@pytest.mark.parametrize("call", [lambda: pm.calibrate_f4([], "A", "B", "C", "D"),
+                                  lambda: pm.calibrate_qpadm([], ["A", "D"], ["E", "F", "B"], "C")])
+def test_no_replicates_is_an_error(call):
+    with pytest.raises(ValueError, match="^no replicates to calibrate on$"):
+        call()
+
+
+def test_the_f4_columns(null):
+    df = pm.calibrate_f4(null[:2], "A", "B", "C", "D", block_size=0.02)
+    assert df.columns.tolist() == ["replicate", "est", "se", "z", "p", "rejected"]
+
+
+def test_an_f4_p_at_alpha_rejects(null):
+    p = pm.calibrate_f4(null[:1], "A", "B", "C", "D", block_size=0.02)["p"][0]
+    assert pm.calibrate_f4(null[:1], "A", "B", "C", "D", block_size=0.02, alpha=p)["rejected"].tolist() == [True]
+
+
+@pytest.fixture(scope="module")
+def flow_f2(flow) -> list:
+    return [pm.extract_f2(rep, list("ABCDEF"), block_size=0.02) for rep in flow[:2]]
+
+
+def test_qpadm_calibration_defaults_to_alpha_0_05(flow_f2):
+    assert pm.calibrate_qpadm(flow_f2, ["A", "D"], ["E", "F", "B"], "C").attrs["alpha"] == 0.05
+
+
+def test_qpadm_calibration_is_unconstrained_by_default(flow_f2):
+    df = pm.calibrate_qpadm(flow_f2[:1], ["A", "D"], ["E", "F", "B"], "C")
+    r = pm.qpadm(flow_f2[0], ["A", "D"], ["E", "F", "B"], "C")
+    assert df["weights"][0] == f"{r.weights[0]:.6g},{r.weights[1]:.6g}"
+
+
+def test_qpadm_calibration_differs_constrained_when_a_weight_is_out_of_range(flow_f2):
+    # B from C and D, a weight outside [0, 1] (-0.549) on the first replicate
+    r = pm.qpadm(flow_f2[0], ["C", "D"], ["A", "E", "F"], "B")
+    assert not r.feasible
+    df = pm.calibrate_qpadm(flow_f2[:1], ["C", "D"], ["A", "E", "F"], "B")
+    assert df["weights"][0] == f"{r.weights[0]:.6g},{r.weights[1]:.6g}"
+
+
+def test_a_qpadm_p_at_alpha_rejects(flow_f2):
+    p = pm.qpadm(flow_f2[0], ["A", "D"], ["E", "F", "B"], "C").p
+    df = pm.calibrate_qpadm(flow_f2[:1], ["A", "D"], ["E", "F", "B"], "C", alpha=p)
+    assert df["rejected"].tolist() == [True]

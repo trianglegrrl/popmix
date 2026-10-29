@@ -64,3 +64,7 @@ Thumbs.db
 
 # Large test data - example_data is 41MB and too large for git
 tests/golden/dates/example_data/
+# mutation testing (TASKS.md K6)
+mutants/
+mutants.out*/
+.mutmut-cache

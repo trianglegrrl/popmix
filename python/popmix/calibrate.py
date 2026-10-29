@@ -40,7 +40,9 @@ def wilson_interval(rejected: int, n: int, confidence: float = 0.95) -> tuple[fl
     Returns
     -------
     tuple of float
-        Lower and upper bounds, within [0, 1]; (0, 1) for ``n == 0``.
+        Lower and upper bounds, within [0, 1]; (0, 1) for ``n == 0``. With
+        none rejected the interval starts at exactly 0, with all at exactly
+        1 (where rounding would land a hair either side).
     """
     if n == 0:
         return 0.0, 1.0
@@ -50,15 +52,21 @@ def wilson_interval(rejected: int, n: int, confidence: float = 0.95) -> tuple[fl
     p = rejected / n
     centre = (p + z * z / (2 * n)) / (1 + z * z / n)
     half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / (1 + z * z / n)
-    return max(0.0, centre - half), min(1.0, centre + half)
+    return (0.0 if rejected == 0 else centre - half), (1.0 if rejected == n else centre + half)
 
 
 def _summarize(df: pd.DataFrame, alpha: float) -> pd.DataFrame:
     n, k = len(df), int(df["rejected"].sum())
     lo, hi = wilson_interval(k, n)
-    df.attrs.update({"alpha": alpha, "n": n, "rejected": k, "rate": k / n if n else float("nan"),
-                     "ci_low": lo, "ci_high": hi})
+    df.attrs.update({"alpha": alpha, "n": n, "rejected": k, "rate": k / n, "ci_low": lo, "ci_high": hi})
     return df
+
+
+def _replicates(replicates: Sequence[Any]) -> list[Any]:
+    replicates = list(replicates)
+    if not replicates:
+        raise ValueError("no replicates to calibrate on")
+    return replicates
 
 
 def _f2(replicate: Any, pops: list[str], f2_options: dict) -> _core.F2Blocks:
@@ -74,7 +82,8 @@ def calibrate_qpadm(replicates: Sequence[Any], left: Sequence[str], right: Seque
     Parameters
     ----------
     replicates
-        Genotype prefixes (or VCF paths), or f2 blocks, one per replicate.
+        Genotype prefixes (or VCF paths), or f2 blocks, one per replicate;
+        at least one.
     left, right, target
         The model, as for ``qpadm``.
     alpha
@@ -92,10 +101,15 @@ def calibrate_qpadm(replicates: Sequence[Any], left: Sequence[str], right: Seque
         ``feasible``, ``weights`` (comma-separated) and ``rejected``. Its
         ``attrs`` hold ``n``, ``rejected``, ``rate`` and the Wilson 95%
         interval ``ci_low``, ``ci_high``.
+
+    Raises
+    ------
+    ValueError
+        If ``replicates`` is empty.
     """
     pops = list(dict.fromkeys([target, *left, *right]))
     rows = []
-    for k, rep in enumerate(replicates):
+    for k, rep in enumerate(_replicates(replicates)):
         r = qpadm(_f2(rep, pops, f2_options), left, right, target, constrained=constrained)
         rows.append({"replicate": os.fspath(rep) if isinstance(rep, (str, os.PathLike)) else k,
                      "chisq": r.chisq, "dof": r.dof, "p": r.p, "feasible": r.feasible,
@@ -111,7 +125,8 @@ def calibrate_f4(replicates: Sequence[Any], pop1: str, pop2: str, pop3: str, pop
     Parameters
     ----------
     replicates
-        Genotype prefixes (or VCF paths), or f2 blocks, one per replicate.
+        Genotype prefixes (or VCF paths), or f2 blocks, one per replicate;
+        at least one.
     pop1, pop2, pop3, pop4
         The statistic.
     alpha
@@ -124,10 +139,15 @@ def calibrate_f4(replicates: Sequence[Any], pop1: str, pop2: str, pop3: str, pop
     pandas.DataFrame
         One row per replicate: ``replicate``, ``est``, ``se``, ``z``, ``p``
         and ``rejected``, with ``attrs`` as ``calibrate_qpadm``'s.
+
+    Raises
+    ------
+    ValueError
+        If ``replicates`` is empty.
     """
     pops = list(dict.fromkeys([pop1, pop2, pop3, pop4]))
     rows = []
-    for k, rep in enumerate(replicates):
+    for k, rep in enumerate(_replicates(replicates)):
         r = _f2(rep, pops, f2_options).f4(pop1, pop2, pop3, pop4)
         p = r["p"]
         rows.append({"replicate": os.fspath(rep) if isinstance(rep, (str, os.PathLike)) else k,

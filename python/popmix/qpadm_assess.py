@@ -42,7 +42,7 @@ class QpAdmAssessment:
     notes: tuple[str, ...]
 
 
-def assess(result: QpAdmResult, alpha: float = 0.05) -> QpAdmAssessment:
+def assess(result: QpAdmResult, alpha: float) -> QpAdmAssessment:
     """Assess a qpAdm result; see ``QpAdmResult.assess``."""
     if math.isnan(result.p):
         return QpAdmAssessment("not tested", alpha, ())
@@ -52,7 +52,7 @@ def assess(result: QpAdmResult, alpha: float = 0.05) -> QpAdmAssessment:
     for source, w, se in zip(result.sources, result.weights, result.weight_se):
         if not 0.0 <= w <= 1.0:
             notes.append(f"{source}: weight {w:.3f} is outside [0, 1]")
-        elif se > 0 and abs(w) < 2 * se:
+        elif abs(w) < 2 * se:
             notes.append(f"{source}: weight {w:.3f} is within 2 SE ({se:.3f}) of 0")
     simpler = [row for row in result.popdrop if row.wt > 0 and row.feasible and row.p > alpha]
     if simpler:

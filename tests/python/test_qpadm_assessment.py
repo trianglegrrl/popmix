@@ -8,6 +8,7 @@ model sets say how many models they tested (Harney et al. 2021).
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import subprocess
 import warnings
@@ -123,3 +124,63 @@ def test_qpadm_multi_returns_result_objects_that_assess(f2):
     results = pm.qpadm_multi(f2, [{"left": ["French_1", "Yoruba_1"], "right": RIGHT, "target": "Simulation.1"}])
     assert isinstance(results[0], pm.QpAdmResult)
     assert results[0].assess().status == "not rejected"
+
+
+# The boundaries, on real results with one field moved (TASKS.md K6: each
+# test kills a mutant that survived the tests above).
+
+def _fit(f2):
+    return pm.qpadm(f2, ["French_1", "Yoruba_1"], RIGHT, "Simulation.1")
+
+
+def test_an_assessment_cannot_be_changed(f2):
+    a = _fit(f2).assess()
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        a.status = "rejected"
+
+
+def test_p_at_alpha_rejects(f2):
+    r = _fit(f2)
+    assert r.assess(alpha=r.p).status == "rejected"
+
+
+@pytest.mark.parametrize("weights", [(0.0, 1.0), (1.0, 0.0)])
+def test_weights_of_exactly_0_and_1_are_in_range(f2, weights):
+    r = dataclasses.replace(_fit(f2), weights=weights, weight_se=(0.0, 0.0), popdrop=())
+    assert r.assess().notes == ()
+
+
+def test_a_weight_exactly_2_se_from_0_is_not_noted(f2):
+    r = dataclasses.replace(_fit(f2), weights=(0.2, 0.8), weight_se=(0.1, 0.1), popdrop=())
+    assert r.assess().notes == ()
+
+
+def test_a_simpler_model_with_p_at_alpha_is_rejected_too(f2):
+    r = pm.qpadm(f2, ["Yoruba_1", "Simulation"], RIGHT, "Simulation.1")
+    at_alpha = tuple(dataclasses.replace(row, p=0.05) for row in r.popdrop)
+    assert dataclasses.replace(r, popdrop=at_alpha).assess().notes == (
+        "Yoruba_1: weight 0.073 is within 2 SE (0.238) of 0",)
+
+
+def test_a_simpler_model_of_two_sources_names_both(f2):
+    r = pm.qpadm(f2, ["French_1", "Yoruba_1", "Simulation"], RIGHT, "Simulation.1", constrained=True)
+    kept = next(row for row in r.popdrop
+                if row.pattern.count("0") == 2 and row.p > 0.05 and row.wt > 0 and row.feasible)
+    only = tuple(row if row is kept else dataclasses.replace(row, p=0.0) for row in r.popdrop)
+    names = " + ".join(s for s, flag in zip(r.sources, kept.pattern) if flag == "0")
+    assert dataclasses.replace(r, popdrop=only).assess().notes[-1] == (
+        f"a model with fewer sources is also not rejected: {names} (p = {kept.p:.3g})")
+
+
+def test_one_model_is_not_a_multiple_test(f2):
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        pm.qpadm_multi(f2, [{"left": ["French_1"], "right": RIGHT, "target": "Simulation.1"}], full_results=False)
+    assert [w for w in caught if issubclass(w.category, pm.PopmixWarning)] == []
+
+
+def test_the_multiple_testing_warning_points_at_the_caller(f2):
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        pm.qpadm_rotate(f2, ["French_1", "Yoruba_1", "Simulation"], "Simulation.1", RIGHT)
+    assert [w.filename for w in caught if issubclass(w.category, pm.PopmixWarning)] == [__file__]
