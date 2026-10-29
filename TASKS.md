@@ -246,7 +246,7 @@ Tasks:
 - [ ] **C7. Optional: legal review** of the result before tagging 1.0.0.
   An independent review (2026-10-29, an AI reviewer, not legal advice) found
   the items below; its questions for a lawyer go with them.
-- [ ] **C8. Wheels carry every licence they must:** the L-BFGS-B licence and
+- [x] **C8. Wheels carry every licence they must:** *Done in fcce84a (THIRDPARTY.yml of 176 crates in every wheel and the sdist, checked at release; NOTICE verbatim per component; MIT AND BSD-3-Clause everywhere; nf-core meta.yml with L6).* the L-BFGS-B licence and
   the licences of the Rust crates compiled into the extension (BSD-2 numpy
   and atomic-wait, Apache-2.0 nalgebra, ...) in `license-files`, checked by
   a test on the built wheels; NOTICE with each component's licence
@@ -254,7 +254,7 @@ Tasks:
   L-BFGS-B's holders); one licence statement everywhere (README, CITATION.cff
   and the nf-core meta.yml say MIT only); copyright holder and authors. (B2,
   S1, S2, N7)
-- [ ] **C9. READ kinship rewritten clean-room:** it was written with READv2's
+- [x] **C9. READ kinship rewritten clean-room:** *Done in 29b6dd2 (spec bfe86c4 from the papers, README and 17 black-box runs; a separate implementer; READv2 goldens and the full suite pass).* it was written with READv2's
   GPL-3 source in view (`kinship/read.rs` names `blockJN_SE`; DEVIATIONS.md
   quotes its code) and PROVENANCE.md calls it independent. A specification
   from the papers and READv2's output, a separate implementer, the READv2
@@ -263,7 +263,7 @@ Tasks:
   is DATES's unlicensed example data (HGDP genomes), used by the skill and
   the nf-core tests. Replace it with an AADR v66.p1 (CC0) subset and
   simulated admixed samples; regenerate the goldens that read it. (S3)
-- [ ] **C11. Provenance records corrected:** DEVIATIONS.md's process
+- [x] **C11. Provenance records corrected:** *Done in fb819dc and 761e39f.* DEVIATIONS.md's process
   without "the reference source"; the entries and comments that show
   knowledge of GPL internals reworded and recorded in PROVENANCE.md
   (`streaming.rs`, `qpgraph_fit.rs`); the R generators that call
@@ -801,7 +801,7 @@ thread count.
 
 ## K. Tests, CI and process (P1)
 
-- [ ] **K1. CI test workflow:** `cargo test`, `pytest tests/python`, and the
+- [x] **K1. CI test workflow:** *Done in 5f380db (lints once; Rust, Python and shipped-data goldens on Linux x86_64/aarch64, macOS arm64/Intel and Windows; POPMIX_REQUIRE_GOLDEN=1 fails a shipped golden that would skip. Windows found text in cp1252, TSV rows doubled, a noisy closed pipe, and POSIX-only tests: all fixed).* `cargo test`, `pytest tests/python`, and the
   golden tests that ship their data (family_chr20_22, rlang, family_4pop) on
   Linux, macOS and Windows, x86_64 and aarch64; a skipped golden fails CI
   (`POPMIX_REQUIRE_GOLDEN=1`). AI, PD
