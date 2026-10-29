@@ -35,7 +35,7 @@ A table, one row per statistic: `pop1`, `pop2`, `pop3`, `pop4`, `est`,
 
 ```text
 pop1	pop2	pop3	pop4	est	se	z	p	n
-Yoruba	French	Simulation	French	0.0464031209408	0.00252332505691	18.389672315	1.58937684565e-75	21162
+Yoruba	French	Simulation	French	0.0470545582447	0.0019230689547	24.4684716737	3.20060268211e-132	19512
 ```
 
 ## Examples

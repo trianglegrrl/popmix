@@ -35,7 +35,7 @@ popmix rolloff --input PREFIX --admixed T --sources A,B [--binsize M] [--maxdis 
 Prints one line:
 
 ```text
-decay 500.000 generations; jackknife 807.373 +/- 356.316 (3 chromosomes, 2018 SNPs)
+decay 156.328 generations; jackknife 166.804 +/- 20.827 (3 chromosomes, 1704 SNPs)
 ```
 
 and with `-o` the bins table. Bins are labeled by their upper edge, as

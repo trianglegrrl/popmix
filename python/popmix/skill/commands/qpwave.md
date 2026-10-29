@@ -49,8 +49,8 @@ Outgroups: French_2, Yoruba_2, French_3, Yoruba_3
 
 Rank tests (* rejected at alpha 0.05):
   Rank   chisq    dof          p
-     0  1240.0343     6  0.000000 *
-     1    1.2836     2  0.526345
+     0  1259.8941     6  0.000000 *
+     1    0.4262     2  0.808082
 
 Estimated rank: 1 (the lowest rank not rejected)
 => At least 2 streams of ancestry, as seen from these right populations: a

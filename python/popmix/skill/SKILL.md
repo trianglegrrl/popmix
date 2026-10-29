@@ -177,9 +177,10 @@ suite (tests/python/test_skill.py) in a directory holding copies of the
 small data bundled in the repository, so the examples cannot go stale:
 
 - `family.geno/.snp/.ind`: tests/golden/dates/family_chr20_22, PACKEDANCESTRYMAP,
-  54 samples and 21,162 SNPs on chromosomes 20-22: French (28), Yoruba
-  (21) and simulated admixed samples, Simulation (1) and Simulation.1 (4),
-  20% French and 80% Yoruba ancestry, 50 generations ago.
+  50 samples and 21,175 SNPs on chromosomes 20-22: French (24) and Yoruba
+  (21) genomes from AADR v66.p1 (CC0) and simulated admixed samples,
+  Simulation (1) and Simulation.1 (4), 20% French and 80% Yoruba ancestry,
+  50 generations ago (tests/golden/dates/README.md).
 - `family6.*`: the same genotypes with French and Yoruba each split into
   three groups by sample order (French_1..3, Yoruba_1..3), so qpAdm and
   qpWave have enough populations. A toy labeling, for the examples only.

@@ -10,8 +10,7 @@ Tolerances come from DATES itself, not from how close popmix happens to be:
 - Fit estimates: printed precision (%9.3f) plus DATES's optimizer tolerance.
   DATES stops its GSL simplex within gslprecision = 1e-6 of r, which is up to
   1e-6 / step generations from the minimum; popmix minimises the same error
-  to full precision. (chr20_22_q0: DATES stops at 3.164539 and prints 3.165;
-  the true minimum, with lower error, is 3.164450.)
+  to full precision, so the two differ by up to that tolerance.
 - Jackknife result: DATES computes it from per-chromosome estimates that are
   rounded and carry the optimizer error above, so the bound is the propagated
   error of those inputs (see jackknife_tol).
@@ -322,8 +321,8 @@ def _check_default_vs_exact_mode(name: str):
     The mesh bins a pair by its mesh-cell lag rather than its distance, so a
     pair within one cell (1/qbin of a bin) of a bin edge can land in the
     neighbouring bin: a bin's pair count can be off by up to 1/qbin of it.
-    DATES's own mesh breaks this bound on chr20_22 (up to 113% off past
-    91.7 cM, from wrapped pairs).
+    DATES's own mesh breaks this bound on chr20_22 (up to 116% off past
+    91.5 cM, from wrapped pairs).
 
     The first bin is exempt: the mesh drops lag 0, which also holds each SNP
     paired with itself, so pairs within one cell are never counted (as in

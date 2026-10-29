@@ -38,7 +38,7 @@ def caught(f) -> list[str]:
 
 @pytest.fixture(scope="module")
 def lone(tmp_path_factory) -> str:
-    """The small DATES data with Simulation, one sample, made pseudo-haploid."""
+    """The small family data with Simulation, one sample, made pseudo-haploid."""
     prefix = str(tmp_path_factory.mktemp("lone") / "lone")
     subprocess.run(["popmix", "convertf", "-i", str(SMALL), "-o", prefix, "-of", "eigenstrat"], check=True,
                    capture_output=True)

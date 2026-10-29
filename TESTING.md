@@ -141,17 +141,19 @@ Expected output:
 ```
 DATES Results: Simulation = mix of French and Yoruba
 ============================================================
-Amplitude (fit): 0.036364
-Estimated generations: 3.2 ± nan
-Estimated years BP: 93 ± nan (29 years/gen)
-Fit R²: 0.1634
-SNPs used: 20881
+Amplitude (fit): 0.026235
+Estimated generations: 168.6 ± 52.5
+Date: 4889 ± 1523 years before the admixed samples lived (29 years/gen, taken
+      as exact; give --sample-age for years BP)
+Fit R²: 0.0103 (how well one exponential fits; it does not show a single pulse)
+...
+SNPs used: 18620
 LD bins: 1000
 
 LD Decay (first 10 bins):
   Dist(cM)  Pairs      Correlation
-     0.1       298384  +0.137219
-     0.2       206537  +0.082825
+     0.1       238774  +0.061389
+     0.2       163278  +0.034379
      ...
 ```
 
@@ -334,7 +336,7 @@ Configs (`tests/golden/admixtools2/v2.0.10/<config>/`):
 | ancient_5pop | Russia_Samara_EBA_Yamnaya.AG (pseudo-haploid), Sardinian.DG, French.DG, Mbuti.DG, Chimp.REF | 985,987 | 710 |
 | dg_11pop | Druze, Basque, Sardinian, Yoruba, Han, Dinka, Mbuti, Papuan, Karitiana, Ulchi (.DG), Chimp.REF | 1,030,026 | 709 |
 | ancient_maxmiss | as ancient_5pop, `maxmiss = 0.25` (one population may be missing) | 1,047,766 | 711 |
-| family_4pop | French, Yoruba, Simulation, Simulation.1 (DATES' simulated data, chr 20-22, 54 samples) | 21,080 | 50 |
+| family_4pop | French, Yoruba, Simulation, Simulation.1 (the family data, chr 20-22, 50 samples) | 18,702 | 50 |
 
 family_4pop is the only config with fewer than 189 samples, where each
 PACKEDANCESTRYMAP record is padded to 48 bytes rather than ceil(n / 4); it
@@ -503,7 +505,7 @@ to the stock binary's printed precision.
 | `test_tracy_widom` | the Tracy-Widom table, `compat="eigensoft-7.2.1"` | TW and neff rtol 1e-6, p rtol 1e-4 |
 | `test_corrected_p_values_differ_only_beyond_the_table` | EIGENSOFT-0001 | exact factor |
 
-Configs: `family_all` (all 54 samples), `family_lsqproject` and
+Configs: `family_all` (all 50 samples), `family_lsqproject` and
 `family_project_no_outliers` (PCA on French and Yoruba, Simulation and
 Simulation.1 projected, with and without `lsqproject`), and with
 `--run-slow` `aadr_1kg_lsqproject` and `aadr_1kg_project` (PCA on six 1000
@@ -529,7 +531,7 @@ counts) and `--make-king bin` (the kinship matrix as doubles).
 | `test_counts` | NSNP, HETHET, IBS0 and the het-hom counts (PLINK2-0001: labels swapped) | exact |
 | `test_kinship` | `.king.bin`, minus infinity for pseudo-haploid samples | rtol 1e-10 |
 
-Configs: `family` (all 54 samples) and, with `--run-slow`,
+Configs: `family` (all 50 samples) and, with `--run-slow`,
 `aadr_yri_ceu_lbk` (YRI.DG, CEU.DG and 25 pseudo-haploid
 Germany_HalberstadtSonntagsfeld_EN_LBK.AG samples; 25,425 pairs).
 
@@ -686,48 +688,30 @@ convertf write it, and a genotype counts its copies):
 
 **Used by**: VCF reader tests and the plink2/convertf goldens
 
-### DATES Test Data (chr20-22)
+### DATES Test Data (chr20-22): the family data
 
-**Location**: `tests/golden/dates/family_chr20_22.*`
+**Location**: `tests/golden/dates/family_chr20_22.*` (and every autosome,
+built locally, in `tests/golden/dates/example_data/family_packed.*`)
 
 | File | Description |
 |------|-------------|
 | `family_chr20_22.geno` | Genotype data (PACKEDANCESTRYMAP format) |
 | `family_chr20_22.ind` | Sample metadata |
 | `family_chr20_22.snp` | SNP positions |
+| `family_truth.json` | The samples, the simulation and its truth |
 
-**Contents**:
-- 21,162 SNPs across chromosomes 20-22
-- 54 samples in 4 populations:
-  - `Simulation` (1 sample) - admixed test population
-  - `French` - source population 1
-  - `Yoruba` - source population 2
-  - Reference populations
-- Simulated admixture: 20% French, 80% Yoruba, 50 generations ago
+**Contents** (`tests/golden/dates/README.md`):
+- 21,175 SNPs across chromosomes 20-22 (every third 1240K SNP)
+- 50 samples in 4 populations:
+  - `French` (24) and `Yoruba` (21): HGDP genomes of AADR v66.p1 (CC0)
+  - `Simulation` (1) and `Simulation.1` (4): admixed samples simulated by
+    `tests/golden/dates/build_family.py` (seed 20261029): 20% French, 80%
+    Yoruba, 50 generations ago, alleles from French and Yoruba genomes that
+    are not in the reference populations
 
-**Reference outputs**:
-| File | Description |
-|------|-------------|
-| `chr20_22_reference.json` | DATES v753 output for validation |
-| `simulation_reference.json` | Full simulation parameters |
-| `Simulation_French_Yoruba/` | Raw DATES v753 output files |
-
-### DATES Reference Output Format
-
-The `chr20_22_reference.json` contains:
-```json
-{
-  "dates_output": {
-    "dates_version": 753,
-    "coefficient_source1": 0.263
-  },
-  "ld_decay_bins": [
-    {"distance_cm": 0.1, "correlation": 0.137219, "n_pairs": 298384},
-    {"distance_cm": 0.2, "correlation": 0.082825, "n_pairs": 206537},
-    ...
-  ]
-}
-```
+**Reference outputs**: DATES v753 on these data, in
+`tests/golden/dates/v753/chr20_22_q0`, `chr20_22_q10` (and
+`simulation_q0`, `simulation_q10` on the full genome).
 
 ### AADR v66.p1 Reference Data
 

@@ -1,7 +1,8 @@
 """SNP filters for f2 extraction, in Python and on the CLI (TASKS.md H1).
 
 The SNP counts are admixtools2 2.0.10's f2_from_geno on the same data and
-populations (polymorphic SNPs in its blocks); the AADR goldens are
+populations (polymorphic SNPs in its blocks), from
+tests/golden/admixtools2/generate_family_snp_filters.R; the AADR goldens are
 tests/golden/test_snp_filters_admixtools2.py.
 """
 
@@ -19,22 +20,24 @@ ROOT = Path(__file__).parents[2]
 SMALL = str(ROOT / "tests" / "golden" / "dates" / "family_chr20_22")
 POPS = ["French", "Yoruba", "Simulation", "Simulation.1"]
 IDS = [line.split()[0] for line in Path(f"{SMALL}.snp").read_text(encoding="utf-8").splitlines()]
+ADMIXTOOLS2 = json.loads((ROOT / "tests" / "golden" / "admixtools2" / "v2.0.10" / "family_4pop" /
+                          "snp_filters.json").read_text(encoding="utf-8"))["cases"]
 
 
 def n_snps(**kw) -> int:
     return sum(pm.extract_f2(SMALL, POPS, **kw).block_lengths)
 
 
-@pytest.mark.parametrize(("kw", "admixtools2"), [
-    ({}, 21080),
-    ({"transitions": False}, 254),
-    ({"transversions": False}, 20826),
-    ({"minmaf": 0.1}, 17647),
-    ({"maxmaf": 0.2}, 8666),
-    ({"minmaf": 0.05, "maxmaf": 0.3}, 11998),
+@pytest.mark.parametrize(("kw", "case"), [
+    ({}, "all"),
+    ({"transitions": False}, "transversions"),
+    ({"transversions": False}, "transitions"),
+    ({"minmaf": 0.1}, "minmaf_0.1"),
+    ({"maxmaf": 0.2}, "maxmaf_0.2"),
+    ({"minmaf": 0.05, "maxmaf": 0.3}, "maf_0.05_0.3"),
 ])
-def test_snp_counts_are_admixtools2s(kw, admixtools2):
-    assert n_snps(**kw) == admixtools2
+def test_snp_counts_are_admixtools2s(kw, case):
+    assert n_snps(**kw) == ADMIXTOOLS2[case]["snps"]
 
 
 def test_keepsnps_overrides_the_other_filters():
@@ -45,7 +48,9 @@ def test_keepsnps_overrides_the_other_filters():
 
 def test_excluding_all_but_some_snps_keeps_those():
     keep = pm.extract_f2(SMALL, POPS, keepsnps=IDS[:5000])
-    rest = pm.extract_f2(SMALL, POPS, excludesnps=IDS[5000:])
+    # keepsnps overrides the other filters, maxmiss included: the SNPs
+    # left after excludesnps are all kept only with no bound on missingness
+    rest = pm.extract_f2(SMALL, POPS, excludesnps=IDS[5000:], maxmiss=1)
     assert rest.block_lengths == keep.block_lengths
     assert rest.f2("French", "Yoruba") == keep.f2("French", "Yoruba")
 
@@ -64,7 +69,7 @@ def test_extract_f2_takes_transversions_only(tmp_path):
                "-o", str(tmp_path / "f2"))
     assert r.returncode == 0, r.stderr
     f2 = pm.read_f2(str(tmp_path / "f2"))
-    assert sum(f2.block_lengths) == 254
+    assert sum(f2.block_lengths) == ADMIXTOOLS2["transversions"]["snps"]
     assert f2.provenance["parameters"]["transitions"] is False
     sidecar = json.loads((tmp_path / "f2" / "provenance.json").read_text(encoding="utf-8"))
     assert sidecar["parameters"]["transversions_only"] is True

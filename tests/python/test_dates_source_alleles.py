@@ -42,7 +42,8 @@ def test_sources_with_many_samples_do_not_warn():
 def test_the_result_holds_each_sources_mean_alleles():
     r = pm.dates(SMALL, "Simulation.1", ["French", "Simulation"], jackknife=False)
     assert r.source_alleles[1] == 2.0
-    assert r.source_alleles[0] == pytest.approx(55.977, abs=1e-3)
+    # 24 French genomes, a few calls missing
+    assert r.source_alleles[0] == pytest.approx(47.767, abs=1e-3)
 
 
 def test_the_cli_json_has_them():

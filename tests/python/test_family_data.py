@@ -81,7 +81,7 @@ def test_simulation_parameters():
 def test_chromosomes_20_to_22_only():
     chroms = {line.split()[1] for line in Path(f"{SMALL}.snp").read_text(encoding="utf-8").splitlines()}
     assert chroms == {"20", "21", "22"}
-    assert sum(1 for _ in Path(f"{SMALL}.snp").open(encoding="utf-8")) == TRUTH["snps"]["family_chr20_22"]
+    assert len(Path(f"{SMALL}.snp").read_text(encoding="utf-8").splitlines()) == TRUTH["snps"]["family_chr20_22"]
 
 
 def test_realized_ancestry_is_near_the_simulated_fraction():

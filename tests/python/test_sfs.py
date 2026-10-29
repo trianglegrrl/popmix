@@ -1,4 +1,4 @@
-"""SFS API and the sfs command, on the 54-sample DATES data.
+"""SFS API and the sfs command, on the 50-sample family data.
 
 The spectra are checked against admixtools2 and dadi in tests/golden/test_sfs.py.
 """
@@ -22,7 +22,11 @@ def test_projection_keeps_every_snp_with_enough_data():
     small = pm.sfs(SMALL, ["Yoruba"], [10])
     assert full.sample_sizes == [42]
     assert small.data.sum() > full.data.sum()
-    assert small.data.sum() == pytest.approx(21162)
+    # every SNP with at least 10 Yoruba alleles called
+    geno = pm.read_genotypes(SMALL)
+    yoruba = [k for k, smp in enumerate(geno.samples) if smp.population == "Yoruba"]
+    called = (geno.to_numpy()[:, yoruba] < 3).sum(axis=1)
+    assert small.data.sum() == pytest.approx(int((2 * called >= 10).sum()))
 
 
 def test_folded_spectrum_counts_the_same_snps():

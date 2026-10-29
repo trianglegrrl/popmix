@@ -91,13 +91,13 @@ rules for adding one.
 
   | Config | DATES exact mode (oracle) | DATES mesh = compat | popmix corrected mesh |
   |--------|---------------------------|---------------------|-----------------------|
-  | chr20_22_q10 (tail from 91.7 cM) | 3.165; 1.217 ± 3.648 | 2.890; 0.751 ± 3.411 | 3.160; 1.221 ± 3.645 |
+  | chr20_22_q10 (tail from 91.5 cM) | 102.828; 104.878 ± 40.106 | 104.490; 102.157 ± 34.997 | 103.199; 104.051 ± 38.949 |
   | simulation_q10 (tail from 91.7 cM) | 36.686; 35.680 ± 6.333 | 36.747; 35.738 ± 6.346 | 36.750; 35.750 ± 6.345 |
   | aadr_french_q10 (maxdis 0.5) | not run | 130.737 ± 16.669 | unchanged, no lag wraps |
 
-  In the chr20–22 tail, DATES's mesh gets pair counts up to 113% off from
-  exact mode. The corrected mesh is at most 5% off, close to the mesh's
-  normal binning error (2.9% elsewhere).
+  In the chr20–22 tail, DATES's mesh gets pair counts up to 116% off from
+  exact mode. The corrected mesh is at most 2.8% off, within the mesh's
+  normal binning error (3.1% elsewhere).
 - **Tests:**
   - `ld_decay.rs`: `test_corrected_mesh_matches_exact_past_the_fft_window`
     (oracle), `test_v753_mesh_reproduces_dates_quirks`,
@@ -286,7 +286,7 @@ qpWave/qpAdm fits by the C++ code path (`cpp = TRUE`, the default).
   frequency times sample size, is not exactly an integer in floating point
   (23/42 * 42 = 23.000000000000004). Its spectrum's total is short by
   exactly those SNPs, which a count of the input shows.
-- **Effect:** 930 of 21,162 SNPs (4.4%) of `family_3pop` and 67,979 of
+- **Effect:** 752 of 21,175 SNPs (3.6%) of `family_3pop` and 67,979 of
   1,233,013 (5.5%) of `dg_3pop` are dropped, depending only on the sample
   sizes and counts; the spectrum is not just smaller but distorted, since
   which counts round badly depends on the count.
@@ -584,8 +584,8 @@ eigensoft-7.2.1` on the CLI (`pca`).
   with a TW statistic above 8, which is any strongly significant one, gets
   the asymptotic density as its p-value.
 - **Effect:** the density is the tail times sqrt(x), so the p-value is too
-  large by sqrt(TW): a factor of 5.1 for the first eigenvalue of
-  `family_all` (TW 26.3; 7.0e-41 printed, 1.3e-41 correct). Such p-values
+  large by sqrt(TW): a factor of 5.0 for the first eigenvalue of
+  `family_all` (TW 24.9; 5.6e-38 printed, 1.1e-38 correct). Such p-values
   are far below any threshold, so no conclusion changes.
 - **popmix:** the asymptotic tail. `test_corrected_p_values_differ_only_beyond_the_table`
   checks that only these p-values change, by exactly 1/sqrt(TW).
@@ -633,8 +633,8 @@ Checked against PLINK v2.0.0-a.7LM (31 Dec 2025).
 - **PLINK 2:** `--make-king-table counts cols=...,ibs1` reports
   `HET1_HOM2` and `HET2_HOM1`. `HET1_HOM2` holds the SNPs where IID2 is
   heterozygous and IID1 homozygous, the reverse of its name: for the first
-  pair of `family` (IID1 NA00001, IID2 NA00000) it is 4210, and NA00000 is
-  the heterozygote at 4210 of those SNPs, NA00001 at 4360.
+  pair of `family` (IID1 NA00001, IID2 NA00000) it is 3497, and NA00000 is
+  the heterozygote at 3497 of those SNPs, NA00001 at 3573.
 - **Effect:** none on the kinship, which uses only their sum.
 - **popmix:** `het1_hom2` is het in `id1`, hom in `id2`. The golden test
   compares it with PLINK's `HET2_HOM1`.
@@ -732,9 +732,12 @@ SQUAREM, not ADMIXTURE's quasi-Newton acceleration, and from its own random
 start. Where the maximum is well defined the two agree (`family_k2`,
 `aadr_1kg_k3`: Q to 1e-4). Where it is not, they can stop at different
 local maxima: at K = 3 on `family` (two source populations and admixed
-samples), ADMIXTURE's run ends at -1044310.79 and popmix's at -1044149.28.
-With P fixed (projection) the problem is convex and the two agree to the
-printed precision.
+samples), ADMIXTURE's run ends at -794631.34 and popmix's at -794467.23.
+ADMIXTURE can also stop short of a maximum: supervised on `family` its run
+ends 1.15 log-likelihood units below popmix's (0.51 at K = 2, whose Q still
+agrees to 1e-4), with Q up to 3.4e-4 apart; its Q is then the maximum given
+its own P, as projection on that P confirms. With P fixed (projection) the
+problem is convex and the two agree to the printed precision.
 
 ## ROLLOFF (ADMIXTOOLS 7.0.2)
 
@@ -752,8 +755,10 @@ rexpfit.r's method and its weighted jackknife by dowtjack, as expfit.sh.
   mean 0, and `clipwt` was meant to zero tiny weights, but neither does
   anything; popmix matches.
 - **The fit is unbounded.** rexpfit.r starts nls from a DEoptim search with
-  the decay in (0, 500] but nls itself is unbounded; on noisy curves
-  (the 4 admixed samples of `family`) it leaves the range (decay 998).
+  the decay in (0, 500] but nls itself is unbounded; on noisy curves it
+  can leave the range, or stop anywhere along a nearly flat curve (the 4
+  admixed samples of `family`, chromosomes 20-22: decays from 0.14 to 150
+  generations over the full data and each chromosome left out).
   popmix's least-squares fit keeps the decay within (0, 500], so the two
   agree where the curve determines a date (`aadr_asw`). There nls stops at
   its convergence tolerance on a flat ridge of the affine term and the

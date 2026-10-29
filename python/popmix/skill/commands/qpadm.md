@@ -51,28 +51,28 @@ Genotypes or an f2 directory holding every population; the result on stdout:
 ```text
 qpAdm: Simulation.1 = mix of French_1, Yoruba_1
 Outgroups: French_2, Yoruba_2, French_3, Yoruba_3
-50 jackknife blocks, 21079 SNPs
+50 jackknife blocks, 18721 SNPs
 
 Admixture weights:
   source     weight        SE        z
-  French_1   0.1940    0.0203      9.5
-  Yoruba_1   0.8060    0.0203     39.7
+  French_1   0.2121    0.0113     18.8
+  Yoruba_1   0.7879    0.0113     69.7
 
-Model fit: chisq=1.2836, dof=2, p=0.526
+Model fit: chisq=0.4262, dof=2, p=0.808
 Feasible: True
 => Not rejected at alpha 0.05, with every weight in [0, 1]. That does not make
    it the model: others may fit too.
 
 Rank tests (rankdrop):
   f4rank  dof        chisq          p
-       0    6    1240.0343  1.04e-264
-       1    2       1.2836      0.526
+       0    6    1259.8941  5.21e-269
+       1    2       0.4262      0.808
 
 Models (popdrop; pattern 1 = source left out):
   pattern   wt  dof      chisq         p f4rank feasible  best weights
-  00         0    2     1.2836     0.526      1     True  True 0.1940, 0.8060
-  01         1    3   953.2251 2.52e-206      0     True False 1.0000, NA
-  10         1    3   100.5339  1.19e-21      0     True  True NA, 1.0000
+  00         0    2     0.4262     0.808      1     True  True 0.2121, 0.7879
+  01         1    3  1113.8961 3.52e-241      0     True False 1.0000, NA
+  10         1    3   259.4980  5.77e-56      0     True  True NA, 1.0000
 ```
 
 p-values in text have 3 significant digits (`<1e-300` below double

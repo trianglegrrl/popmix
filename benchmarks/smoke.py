@@ -2,7 +2,7 @@
 
 The CI subset of the benchmarks (TASKS.md E6): no reference tool, so it
 shows only how popmix's own times move from commit to commit. The input is
-tests/golden/dates/family_chr20_22 (54 samples, 21,162 SNPs), so the times
+tests/golden/dates/family_chr20_22 (50 samples, 21,175 SNPs), so the times
 are mostly startup and reading; `run.py` has the full comparison.
 
     python benchmarks/smoke.py [--repeats 3] [--out summary.md]
@@ -55,7 +55,7 @@ def render(times: dict[str, list[float]]) -> str:
     rows = ["| Command | Median | Min | Max |", "|---|---|---|---|"]
     for name, ts in times.items():
         rows.append(f"| {name} | {statistics.median(ts):.2f} s | {min(ts):.2f} s | {max(ts):.2f} s |")
-    return f"popmix on {DATA.name} (54 samples, 21,162 SNPs), 2 threads:\n\n" + "\n".join(rows) + "\n"
+    return f"popmix on {DATA.name} (50 samples, 21,175 SNPs), 2 threads:\n\n" + "\n".join(rows) + "\n"
 
 
 def main() -> None:

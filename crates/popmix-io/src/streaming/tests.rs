@@ -7,13 +7,13 @@ const SMALL: &str = concat!(
     "/../../tests/golden/dates/family_chr20_22"
 );
 
-/// 54 samples: each record is padded to 48 bytes, not ceil(54 / 4) = 14.
+/// 50 samples: each record is padded to 48 bytes, not ceil(50 / 4) = 13.
 #[test]
 fn small_files_stream_with_48_byte_records() {
     let geno_path = format!("{SMALL}.geno");
     let mut samples = read_ind_file(format!("{SMALL}.ind")).unwrap();
     let snps = read_snp_file(format!("{SMALL}.snp")).unwrap();
-    assert_eq!(samples.len(), 54);
+    assert_eq!(samples.len(), 50);
     detect_ploidy_packedancestrymap(&geno_path, &mut samples, 1000, snps.len()).unwrap();
     let pops = ["French", "Yoruba"];
     let streamed =
@@ -115,9 +115,9 @@ fn bed_rows_match_the_in_memory_genotypes() {
     let (_dir, bed) = family_bed();
     let geno = crate::PlinkReader::new(&bed).unwrap().read_all().unwrap();
     let keep: Vec<bool> = (0..geno.n_snps()).map(|i| i % 3 != 1).collect();
-    let samples = vec![53, 0, 7, 20];
+    let samples = vec![49, 0, 7, 20];
     let mut rows =
-        SnpMajorRows::open_bed(format!("{bed}.bed"), 54, keep.clone(), samples.clone()).unwrap();
+        SnpMajorRows::open_bed(format!("{bed}.bed"), 50, keep.clone(), samples.clone()).unwrap();
     let mut row = vec![0u8; samples.len()];
     for snp in (0..geno.n_snps()).filter(|&i| keep[i]) {
         rows.next_row(&mut row).unwrap();
@@ -133,9 +133,9 @@ fn batches_of_rows_are_the_rows_one_at_a_time() {
     let (_dir, bed) = family_bed();
     let n_snps = crate::PlinkReader::new(&bed).unwrap().num_snps();
     let keep: Vec<bool> = (0..n_snps).map(|i| i % 5 != 2).collect();
-    let samples = vec![53, 0, 7, 20, 31];
+    let samples = vec![49, 0, 7, 20, 31];
     let open =
-        || SnpMajorRows::open_bed(format!("{bed}.bed"), 54, keep.clone(), samples.clone()).unwrap();
+        || SnpMajorRows::open_bed(format!("{bed}.bed"), 50, keep.clone(), samples.clone()).unwrap();
     let (mut one, mut many) = (open(), open());
     let kept = keep.iter().filter(|&&k| k).count();
     let mut batch = vec![0u8; 1000 * samples.len()];
@@ -165,8 +165,8 @@ fn bed_frequencies_and_ploidy_match_the_in_memory_ones() {
     for s in &mut samples {
         s.ploidy = Ploidy::Diploid;
     }
-    let file = SnpMajor::open_bed(format!("{bed}.bed"), 54, geno.n_snps()).unwrap();
-    let all: Vec<usize> = (0..54).collect();
+    let file = SnpMajor::open_bed(format!("{bed}.bed"), 50, geno.n_snps()).unwrap();
+    let all: Vec<usize> = (0..50).collect();
     file.detect_ploidy(&mut samples, &all, geno.n_snps());
     let pops = ["French", "Simulation", "Yoruba"];
     let ploidy = |s: &[Sample]| s.iter().map(|x| x.ploidy).collect::<Vec<_>>();
@@ -211,13 +211,13 @@ fn text_geno_is_read_in_place() {
         .read_all()
         .unwrap();
     let path = format!("{text}.geno");
-    let file = SnpMajor::open_text(&path, 54, geno.n_snps())
+    let file = SnpMajor::open_text(&path, 50, geno.n_snps())
         .unwrap()
         .unwrap();
     let keep: Vec<bool> = (0..geno.n_snps()).map(|i| i % 3 != 1).collect();
-    let samples = vec![53, 0, 7, 20];
+    let samples = vec![49, 0, 7, 20];
     let mut rows = SnpMajorRows::from_file(
-        SnpMajor::open_text(&path, 54, geno.n_snps())
+        SnpMajor::open_text(&path, 50, geno.n_snps())
             .unwrap()
             .unwrap(),
         keep.clone(),
@@ -236,7 +236,7 @@ fn text_geno_is_read_in_place() {
     for s in &mut samples {
         s.ploidy = Ploidy::Diploid;
     }
-    let all: Vec<usize> = (0..54).collect();
+    let all: Vec<usize> = (0..50).collect();
     file.detect_ploidy(&mut samples, &all, geno.n_snps());
     let ploidy = |s: &[Sample]| s.iter().map(|x| x.ploidy).collect::<Vec<_>>();
     assert_eq!(ploidy(&samples), ploidy(geno.samples()));
@@ -305,9 +305,9 @@ fn packed_rows_match_the_in_memory_genotypes() {
         .read_all()
         .unwrap();
     let keep: Vec<bool> = (0..geno.n_snps()).map(|i| i % 3 != 1).collect();
-    let samples = vec![53, 0, 7, 20];
+    let samples = vec![49, 0, 7, 20];
     let mut rows =
-        PackedRows::open(format!("{SMALL}.geno"), 54, keep.clone(), samples.clone()).unwrap();
+        PackedRows::open(format!("{SMALL}.geno"), 50, keep.clone(), samples.clone()).unwrap();
     let mut row = vec![0u8; samples.len()];
     for snp in (0..geno.n_snps()).filter(|&i| keep[i]) {
         rows.next_row(&mut row).unwrap();
@@ -324,7 +324,7 @@ fn selected_ploidy_matches_the_full_detection() {
     let n_snps = read_snp_file(format!("{SMALL}.snp")).unwrap().len();
     detect_ploidy_packedancestrymap(&geno_path, &mut all, n_snps, n_snps).unwrap();
     let mut some = read_ind_file(format!("{SMALL}.ind")).unwrap();
-    let selected = [0, 5, 53];
+    let selected = [0, 5, 49];
     detect_ploidy_packedancestrymap_selected(&geno_path, &mut some, &selected, n_snps, n_snps)
         .unwrap();
     for &s in &selected {

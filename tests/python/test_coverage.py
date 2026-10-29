@@ -29,13 +29,13 @@ def caught(f) -> list[str]:
 
 @pytest.fixture(scope="module")
 def ancient(tmp_path_factory) -> str:
-    """The small data with French HGDP00521 missing 60% of its calls and
+    """The small data with French HGDP00521.DG missing 60% of its calls and
     Yoruba's first sample pseudo-haploid (heterozygous calls read as 2)."""
     prefix = str(tmp_path_factory.mktemp("ancient") / "a")
     subprocess.run(["popmix", "convertf", "-i", SMALL, "-o", prefix, "-of", "eigenstrat"], check=True,
                    capture_output=True)
     ind = [line.split() for line in Path(f"{prefix}.ind").read_text(encoding="utf-8").splitlines()]
-    gappy = next(k for k, r in enumerate(ind) if r[0] == "HGDP00521")
+    gappy = next(k for k, r in enumerate(ind) if r[0] == "HGDP00521.DG")
     haploid = next(k for k, r in enumerate(ind) if r[2] == "Yoruba")
     lines = Path(f"{prefix}.geno").read_text(encoding="utf-8").splitlines()
     out = []
@@ -58,7 +58,9 @@ def test_the_table_counts_the_calls(ancient):
         called = int((data[:, k] < 3).sum())
         assert df.loc[s.id, "snps_called"] == called
         assert df.loc[s.id, "heterozygosity"] == pytest.approx((data[:, k] == 1).sum() / called, rel=1e-12)
-    assert df.loc["HGDP00521", "called_fraction"] == pytest.approx(0.4, abs=0.01)
+    # 40% of the calls it had (its genome misses some SNPs of the panel)
+    before = pm.sample_coverage(SMALL).set_index("id").loc["HGDP00521.DG", "called_fraction"]
+    assert df.loc["HGDP00521.DG", "called_fraction"] == pytest.approx(0.4 * before, abs=0.01)
 
 
 def test_the_table_gives_each_rules_ploidy(ancient):
@@ -78,7 +80,7 @@ def test_low_coverage_pca_samples_warn(ancient):
 def test_projecting_them_does_not(ancient, tmp_path):
     keep = tmp_path / "keep.ind"
     keep.write_text("".join(line + "\n" for line in Path(f"{ancient}.ind").read_text(encoding="utf-8").splitlines()
-                            if "HGDP00521" not in line), encoding="utf-8")
+                            if "HGDP00521.DG" not in line), encoding="utf-8")
     sub = str(tmp_path / "sub")
     subprocess.run(["popmix", "convertf", "-i", ancient, "-o", sub, "-of", "eigenstrat", "--keep-inds", str(keep)],
                    check=True, capture_output=True)
@@ -106,4 +108,6 @@ def test_the_samples_command(ancient):
     rows = json.loads(r.stdout)
     assert rows[0]["ploidy"] == 1
     assert len(rows) == 21
-    assert rows[1]["called_fraction"] == pytest.approx(1.0, abs=0.01)
+    # the second Yoruba sample is unchanged
+    before = pm.sample_coverage(SMALL, ["Yoruba"]).set_index("id")["called_fraction"]
+    assert rows[1]["called_fraction"] == pytest.approx(before[rows[1]["id"]], rel=1e-12)

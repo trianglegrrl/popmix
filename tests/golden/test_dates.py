@@ -5,13 +5,15 @@ jackknife, the corrected default) is test_dates_v753.py.
 """
 
 import inspect
-import json
+from pathlib import Path
 
 import pytest
 
 import popmix as pm
 
 from .reference_paths import missing
+
+REF = Path(__file__).parent / "dates" / "v753" / "chr20_22_q0"
 
 
 def test_dates_function_signature():
@@ -25,11 +27,8 @@ def test_dates_function_signature():
 
 
 def test_dates_vs_reference():
-    """Compare DATES output against DATES v753 reference on chr20-22 subset.
-
-    This test validates that popmix DATES produces identical results to
-    the original DATES v753 implementation. Uses the chr20-22 subset
-    which runs quickly while still validating the algorithm.
+    """DATES defaults (exact mode, 0.1 cM bins to 100 cM) against DATES v753's
+    exact-mode LD table on the chr20-22 data (v753/chr20_22_q0/dates.out).
 
     Criteria:
     - Pair counts must match exactly (0 difference)
@@ -40,49 +39,21 @@ def test_dates_vs_reference():
     if missing(f"{data_path}.geno"):
         pytest.skip("Chr20-22 subset data not available")
 
-    # Load reference values from DATES v753
-    with open("tests/golden/dates/chr20_22_reference.json", encoding="utf-8") as f:
-        ref = json.load(f)
+    ref_bins = []
+    for line in (REF / "dates.out").read_text(encoding="utf-8").splitlines():
+        if line.strip() and not line.lstrip().startswith("#"):
+            dist, _cov, _yreg, corr, n_pairs = line.split()
+            ref_bins.append((float(dist), float(corr), int(n_pairs)))
+    assert len(ref_bins) == 1000
 
-    ref_bins = ref["ld_decay_bins"]
-
-    # run DATES
-
-    result = pm.dates(data_path, "Simulation", ["French", "Yoruba"])
-
-    # Compare each bin
-    total_pair_diff = 0
-    max_corr_diff = 0.0
-
-    for ref_bin in ref_bins:
-        dist_cm = ref_bin["distance_cm"]
-        # Find matching bin in our output
-        pm_bin = None
-        for b in result.ld_bins:
-            if abs(b.distance_cm - dist_cm) < 0.01:
-                pm_bin = b
-                break
-
-        assert pm_bin is not None, f"Missing bin at {dist_cm}cM"
-
-        # Pair counts must match exactly
-        pair_diff = pm_bin.n_pairs - ref_bin["n_pairs"]
-        total_pair_diff += abs(pair_diff)
-
-        # Correlations must match within tolerance
-        corr_diff = abs(pm_bin.correlation - ref_bin["correlation"])
-        max_corr_diff = max(max_corr_diff, corr_diff)
-
-        assert pair_diff == 0, \
-            f"Pair count mismatch at {dist_cm}cM: got {pm_bin.n_pairs}, expected {ref_bin['n_pairs']}"
-        assert corr_diff < 1e-6, \
-            f"Correlation mismatch at {dist_cm}cM: diff={corr_diff:.2e}"
-
-    print("\nDATES vs Reference Validation:")
-    print(f"  Total pair count difference: {total_pair_diff}")
-    print(f"  Max correlation difference: {max_corr_diff:.2e}")
-    print(f"  Coefficient α: {ref['dates_output']['coefficient_source1']}")
-    print("  Status: PASS")
+    source1, source2, admixed, _ = (REF / "admixlist").read_text(encoding="utf-8").split()
+    result = pm.dates(data_path, admixed, [source1, source2])
+    ours = {round(b.distance_cm, 3): b for b in result.ld_bins}
+    for dist_cm, corr, n_pairs in ref_bins:
+        b = ours.get(round(dist_cm, 3))
+        assert b is not None, f"Missing bin at {dist_cm}cM"
+        assert b.n_pairs == n_pairs, f"Pair count mismatch at {dist_cm}cM: got {b.n_pairs}, expected {n_pairs}"
+        assert abs(b.correlation - corr) < 1e-6, f"Correlation mismatch at {dist_cm}cM"
 
 
 if __name__ == "__main__":

@@ -38,10 +38,10 @@ folded away). For one population, unfolded and not `--joint`, four lines
 go to stderr:
 
 ```text
-S	17667.4
-pi	6276.47
-watterson_theta	4979.9
-tajima_d	1.09285
+S	15832.8
+pi	5457.79
+watterson_theta	4462.78
+tajima_d	0.935831
 ```
 
 ## Examples

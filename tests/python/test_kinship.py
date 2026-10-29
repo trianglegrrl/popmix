@@ -1,4 +1,4 @@
-"""Kinship API and the kinship command, on the 54-sample DATES data.
+"""Kinship API and the kinship command, on the 50-sample family data.
 
 The estimates are checked against PLINK 2 (KING-robust) and READv2 in
 tests/golden/test_king_plink2.py and tests/golden/test_read_readv2.py.
@@ -20,7 +20,7 @@ pytestmark = pytest.mark.skipif(not os.path.exists(f"{SMALL}.geno"), reason="tes
 
 def test_king_on_all_populations():
     df = pm.king(SMALL)
-    assert len(df) == 54 * 53 // 2
+    assert len(df) == 50 * 49 // 2
     assert list(df.columns) == ["id1", "id2", "nsnp", "hethet", "ibs0", "het1_hom2", "het2_hom1", "kinship"]
 
 

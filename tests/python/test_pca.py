@@ -1,4 +1,4 @@
-"""smartpca API, plots and the pca command, on the 54-sample DATES data.
+"""smartpca API, plots and the pca command, on the 50-sample family data.
 
 The numbers are checked against EIGENSOFT smartpca in
 tests/golden/test_pca_eigensoft.py.
@@ -20,17 +20,17 @@ pytestmark = pytest.mark.skipif(not os.path.exists(f"{SMALL}.geno"), reason="tes
 
 def test_default_pca_uses_every_population():
     r = pm.smartpca(SMALL, n_components=3)
-    assert r.n_pca_samples == 54
+    assert r.n_pca_samples == 50
     assert set(r.coords["role"]) == {"pca"}
     assert list(r.coords.columns) == ["id", "pop", "role", "PC1", "PC2", "PC3"]
-    assert r.eigenvalues.sum() == pytest.approx(53.0)
+    assert r.eigenvalues.sum() == pytest.approx(49.0)
 
 
 def test_projected_samples_are_marked():
     r = pm.smartpca(SMALL, ["French", "Yoruba"], ["Simulation.1"], n_components=2)
     roles = r.coords.set_index("id")["role"]
     assert (roles[r.coords["pop"].values == "Simulation.1"] == "project").all()
-    assert r.n_pca_samples == 49
+    assert r.n_pca_samples == 45
 
 
 def test_a_population_cannot_be_both_pca_and_projected():

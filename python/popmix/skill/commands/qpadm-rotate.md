@@ -50,8 +50,8 @@ rejected`), `weights` and `se` (comma-separated, in source order),
 
 ```text
 model	target	left	right	n_sources	chisq	dof	p	feasible	status	weights	se	n_blocks	n_snps
-1	Simulation.1	French_1	French_3,Yoruba_3,Yoruba_2,Yoruba_1,French_2	1	997.561605493	4	1.2051171255e-214	True	rejected	1	0	50	21079
-4	Simulation.1	French_1,Yoruba_1	French_3,Yoruba_3,Yoruba_2,French_2	2	1.26262747616	2	0.531892574277	True	not rejected	0.194166034748,0.805833965252	0.0203058052858,0.0203058052858	50	21079
+1	Simulation.1	French_1	French_3,Yoruba_3,Yoruba_2,Yoruba_1,French_2	1	1136.2114752	4	1.0715340757e-244	True	rejected	1	0	50	18721
+4	Simulation.1	French_1,Yoruba_1	French_3,Yoruba_3,Yoruba_2,French_2	2	0.440087915487	2	0.802483521822	True	not rejected	0.212194016284,0.787805983716	0.0113003963273,0.0113003963273	50	18721
 ```
 
 ## Examples

@@ -46,8 +46,7 @@ the iteration limit was hit, and `CV error (K=2): ...` with `--cv`.
 # runs
 popmix admixture -i family -k 2 --chromosomes 22 -o fam
 popmix admixture -i family -k 2 --chromosomes 22 --supervised French,Yoruba -o fam_sup
-popmix admixture -i family -k 2 --chromosomes 22 --populations Simulation,Simulation.1 \
-  --fixed-p fam.2.P -o fam_proj
+popmix admixture -i family -k 2 --chromosomes 22 --fixed-p fam_sup.2.P -o fam_proj
 ```
 
 ```bash
@@ -78,7 +77,10 @@ error. A higher log-likelihood is a better fit for the same K and data.
   does.
 - `--fixed-p` needs the P of a run on exactly the same SNPs: SNPs with no
   genotype in the samples used are left out, so a different
-  `--populations` set can change the SNPs and the projection then fails.
+  `--populations` set can change the SNPs and the projection then fails
+  (on the family data, the simulated samples miss every call at some SNPs
+  the reference samples have, so they are projected with the samples of
+  the run).
 - Different random starts can end at different local maxima for larger K;
   run several seeds and keep the best log-likelihood
   ([ADMIXTURE optimizer differences](https://github.com/trianglegrrl/popmix/blob/main/DEVIATIONS.md#differences-in-the-optimizer-not-deviations)).

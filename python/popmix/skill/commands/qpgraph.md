@@ -55,15 +55,15 @@ writes) and genotypes or f2 blocks holding every leaf. Output:
 ```text
 qpGraph: 3 populations, 6 edges
 f3 base population: Yoruba
-Score: 0.0714
-Worst f3 residual: f3(Yoruba; Simulation.1, Simulation.1) z = -0.21
+Score: 0.0001
+Worst f3 residual: f3(Yoruba; French, French) z = 0.01
 
   from             to               type   weight
-  R                Yoruba           edge   0.000000
-  R                n                edge   0.056653
-  n                French           edge   0.000000
-  n                adm              admix  0.189144
-  R                adm              admix  0.810856
+  R                Yoruba           edge   0.000289
+  R                n                edge   0.026748
+  n                French           edge   0.025753
+  n                adm              admix  0.414271
+  R                adm              admix  0.585729
   adm              Simulation.1     edge   0.000000
 ```
 

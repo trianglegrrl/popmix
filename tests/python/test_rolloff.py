@@ -1,4 +1,4 @@
-"""rolloff API and command, on the 54-sample DATES data.
+"""rolloff API and command, on the 50-sample family data.
 
 The bins are checked against ROLLOFF (ADMIXTOOLS 7.0.2) in tests/golden/test_rolloff.py.
 """

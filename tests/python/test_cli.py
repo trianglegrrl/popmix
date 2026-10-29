@@ -432,6 +432,7 @@ class TestDatesCommand:
     def test_dates_qbin_matches_dates_v753_mesh_mode(self):
         """popmix dates --qbin 10 --compat dates-v753 should reproduce DATES v753 run with qbin: 10."""
         ref_dir = Path("tests/golden/dates/v753/chr20_22_q10")
+        source1, source2, admixed, _ = (ref_dir / "admixlist").read_text(encoding="utf-8").split()
         ref_est, ref_se = (float(x) for x in (ref_dir / "dates.jout").read_text(encoding="utf-8").split())
         ref_full = next(
             float(line.split(":")[1])
@@ -442,8 +443,8 @@ class TestDatesCommand:
         result = run_cli(
             "dates",
             "--input", self.DATES_TEST_PREFIX,
-            "--admixed", "Simulation",
-            "--sources", "French,Yoruba",
+            "--admixed", admixed,
+            "--sources", f"{source1},{source2}",
             "--qbin", "10",
             "--min-distance", "0.45",
             "--compat", "dates-v753",

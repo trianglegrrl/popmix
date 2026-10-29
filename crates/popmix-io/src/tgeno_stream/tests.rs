@@ -7,7 +7,7 @@ const SMALL: &str = concat!(
     "/../../tests/golden/dates/family_chr20_22"
 );
 
-/// The family data (54 samples, 21,162 SNPs) as TGENO, and in memory.
+/// The family data (50 samples, 21,175 SNPs) as TGENO, and in memory.
 fn family_tgeno() -> (tempfile::TempDir, String, GenotypeMatrix) {
     let dir = tempfile::tempdir().unwrap();
     let prefix = dir.path().join("t").display().to_string();
@@ -25,7 +25,7 @@ fn rows_are_the_genotypes_whatever_the_chunk() {
     let n_snps = geno.n_snps();
     // every third SNP, and samples out of order
     let keep: Vec<bool> = (0..n_snps).map(|i| i % 3 != 1).collect();
-    let samples = vec![53, 0, 7, 7, 20];
+    let samples = vec![49, 0, 7, 7, 20];
     for chunk in [1, 3, 4, 1000, n_snps + 5] {
         let reader = TgenoReader::new(&prefix).unwrap();
         let mut rows = TgenoRows::with_chunk(reader, keep.clone(), samples.clone(), chunk).unwrap();
@@ -76,5 +76,5 @@ fn blocks_of_samples_are_the_genotypes() {
 fn a_sample_out_of_range_is_an_error() {
     let (_dir, prefix, geno) = family_tgeno();
     let reader = TgenoReader::new(&prefix).unwrap();
-    assert!(TgenoRows::new(reader, vec![true; geno.n_snps()], vec![54]).is_err());
+    assert!(TgenoRows::new(reader, vec![true; geno.n_snps()], vec![50]).is_err());
 }

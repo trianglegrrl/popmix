@@ -24,4 +24,4 @@ def test_tgeno_header_is_admixtools_layout(tmp_path):
     subprocess.run(["popmix", "convertf", "-i", SMALL, "-o", str(tmp_path / "t"), "-of", "tgeno"],
                    check=True, capture_output=True)
     header = (tmp_path / "t.geno").read_bytes()[:48]
-    assert header.rstrip(b"\0") == b"TGENO      54   21162 56afe7a2 c3689fb5"
+    assert header.rstrip(b"\0") == b"TGENO      50   21175 4732d1b6 ecbae5af"

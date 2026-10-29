@@ -42,12 +42,12 @@ Progress goes to stderr; the result to stdout:
 ```text
 DATES Results: Simulation.1 = mix of French and Yoruba
 ============================================================
-Amplitude (fit): 0.031292
-Estimated generations: 65.0 ± 25.8
-Date: 1884 ± 749 years before the admixed samples lived (29 years/gen, taken as
-      exact; give --sample-age for years BP)
-Fit R²: 0.0695 (how well one exponential fits; it does not show a single pulse)
-SNPs used: 20881
+Amplitude (fit): 0.027776
+Estimated generations: 104.9 ± 40.1
+Date: 3042 ± 1163 years before the admixed samples lived (29 years/gen, taken
+      as exact; give --sample-age for years BP)
+Fit R²: 0.0574 (how well one exponential fits; it does not show a single pulse)
+SNPs used: 18620
 LD bins: 1000
 ```
 

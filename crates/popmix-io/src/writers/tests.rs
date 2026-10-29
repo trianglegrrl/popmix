@@ -20,7 +20,7 @@ fn ped_and_tgeno_written_by_sample_blocks_are_the_matrix_writes() {
     let p = |name: &str| dir.path().join(name).to_string_lossy().to_string();
     write_ped(p("matrix"), &geno).unwrap();
     write_tgeno(p("matrix_t"), &geno).unwrap();
-    // 54 samples in blocks of 7: the last block is short
+    // 50 samples in blocks of 7: the last block is short
     for block in [7, 1000] {
         let (ped, tgeno) = (p(&format!("file{block}")), p(&format!("file_t{block}")));
         write_ped_blocks(&ped, geno.samples(), geno.snps(), &file, block).unwrap();

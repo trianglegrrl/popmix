@@ -618,13 +618,11 @@ on chr 1-3, positions i·0.003 M; patterned genotypes):
   first bin exempt). Quick configs chr20_22_q0, chr20_22_q10,
   yamnaya_chr21_22_q10 (mixed ploidy, DATES-0004); slow ones simulation_q0,
   simulation_q10, aadr_french_q10.
-- `tests/golden/test_dates.py`: reference JSON format; `pm.dates`
-  signature (`geno, test_pop, source1, source2, generation_time,
-  min_distance_cm, max_distance_cm, bin_width_cm, run_jackknife`) and the
-  `DatesResult`, `LdBin`, `DecayFit` classes; chr20-22 default run (first
-  bin n_pairs > 100000, weighted_ld > 0); `test_dates_vs_reference`: the
-  default (exact mode, maxdis 100 cM) table equals
-  `chr20_22_reference.json` (pair counts exact, correlation within 1e-6).
+- `tests/golden/test_dates.py`: the `pm.dates` signature (`prefix,
+  admixed, sources`, then keyword-only options); `test_dates_vs_reference`:
+  the default (exact mode, maxdis 100 cM) table equals DATES v753's
+  exact-mode table on the same data, `v753/chr20_22_q0/dates.out` (pair
+  counts exact, correlation within 1e-6).
 - `tests/python/test_dates.py`: unknown compat rejected with a message
   naming "dates-v753"; with qbin 10 and no jackknife, compat changes some
   bins (by n_pairs or correlation), all beyond 90 cM.

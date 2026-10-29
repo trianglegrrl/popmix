@@ -49,35 +49,40 @@ def test_a_small_p_rejects(f2):
 
 
 def test_alpha_is_the_level(f2):
-    r = pm.qpadm(f2, ["French_2", "Yoruba_1"], ["Yoruba_2", "French_3", "Yoruba_3"], "French_1")
-    assert r.p == pytest.approx(0.0243735, rel=1e-5)
+    r = pm.qpadm(f2, ["Simulation"], RIGHT, "Simulation.1")
+    assert r.p == pytest.approx(0.00415607, rel=1e-5)
     assert r.assess().status == "rejected"
-    assert r.assess(alpha=0.01).status == "not rejected"
+    assert r.assess(alpha=0.001).status == "not rejected"
 
 
 def test_a_weight_outside_0_1_is_infeasible_and_a_simpler_model_is_named(f2):
-    a = pm.qpadm(f2, ["French_2", "French_3"], ["Yoruba_2", "Yoruba_1", "Yoruba_3"], "French_1").assess()
+    a = pm.qpadm(f2, ["French_2", "Yoruba_1"], ["French_3", "Yoruba_2", "Yoruba_3"], "French_1").assess()
     assert a.status == "infeasible"
     assert a.notes == (
-        "French_2: weight -0.223 is outside [0, 1]",
-        "French_3: weight 1.223 is outside [0, 1]",
-        "a model with fewer sources is also not rejected: French_3 alone (p = 0.857)",
+        "French_2: weight 1.009 is outside [0, 1]",
+        "Yoruba_1: weight -0.009 is outside [0, 1]",
+        "a model with fewer sources is also not rejected: French_2 alone (p = 0.383)",
     )
 
 
+# Yoruba_1 as Yoruba_2 and a little French_1, against the other groups
+NEAR_ZERO = {"target": "Yoruba_1", "left": ["Yoruba_2", "French_1"], "right": ["Yoruba_3", "French_2", "French_3"]}
+
+
 def test_a_weight_within_2_se_of_0_and_a_simpler_model_are_noted(f2):
-    a = pm.qpadm(f2, ["Yoruba_1", "Simulation"], RIGHT, "Simulation.1").assess()
+    a = pm.qpadm(f2, NEAR_ZERO["left"], NEAR_ZERO["right"], NEAR_ZERO["target"]).assess()
     assert a.status == "not rejected"
     assert a.notes == (
-        "Yoruba_1: weight 0.073 is within 2 SE (0.238) of 0",
-        "a model with fewer sources is also not rejected: Simulation alone (p = 0.405)",
+        "French_1: weight 0.002 is within 2 SE (0.012) of 0",
+        "a model with fewer sources is also not rejected: Yoruba_2 alone (p = 0.973)",
     )
 
 
 def test_the_simplest_of_several_simpler_models_is_named(f2):
     a = pm.qpadm(f2, ["French_1", "Yoruba_1", "Simulation"], RIGHT, "Simulation.1", constrained=True).assess()
-    assert a.notes[-1] == ("4 models with fewer sources are also not rejected; the simplest: Simulation alone "
-                           "(p = 0.346)")
+    # no single source fits Simulation.1: the simplest are two
+    assert a.notes[-1] == ("3 models with fewer sources are also not rejected; the simplest: French_1 + Yoruba_1 "
+                           "(p = 0.789)")
 
 
 def test_no_degrees_of_freedom_is_not_tested(f2):
@@ -86,21 +91,22 @@ def test_no_degrees_of_freedom_is_not_tested(f2):
 
 
 def test_cli_prints_the_assessment_not_a_good_fit(family6):
-    out = subprocess.run(["popmix", "qpadm", "-i", family6, "--target", "Simulation.1", "--left",
-                          "Yoruba_1,Simulation", "--right", ",".join(RIGHT)], capture_output=True, text=True)
+    out = subprocess.run(["popmix", "qpadm", "-i", family6, "--target", NEAR_ZERO["target"], "--left",
+                          ",".join(NEAR_ZERO["left"]), "--right", ",".join(NEAR_ZERO["right"])],
+                         capture_output=True, text=True)
     assert out.returncode == 0, out.stderr
     assert "Good model fit" not in out.stdout
     assert ("=> Not rejected at alpha 0.05, with every weight in [0, 1]. That does not make it the "
             "model: others may fit too.") in " ".join(out.stdout.split())
-    assert "   - Yoruba_1: weight 0.073 is within 2 SE (0.238) of 0" in out.stdout
+    assert "   - French_1: weight 0.002 is within 2 SE (0.012) of 0" in out.stdout
 
 
 def test_cli_takes_alpha_and_writes_the_assessment_to_json(family6):
-    out = subprocess.run(["popmix", "qpadm", "-i", family6, "--target", "French_1", "--left", "French_2,Yoruba_1",
-                          "--right", "Yoruba_2,French_3,Yoruba_3", "--alpha", "0.01", "--format", "json"],
+    out = subprocess.run(["popmix", "qpadm", "-i", family6, "--target", "Simulation.1", "--left", "Simulation",
+                          "--right", ",".join(RIGHT), "--alpha", "0.001", "--format", "json"],
                          capture_output=True, text=True)
     assert out.returncode == 0, out.stderr
-    assert json.loads(out.stdout)["assessment"] == {"status": "not rejected", "alpha": 0.01, "notes": []}
+    assert json.loads(out.stdout)["assessment"] == {"status": "not rejected", "alpha": 0.001, "notes": []}
 
 
 @pytest.mark.parametrize("call", ["rotate", "multi"])
@@ -156,10 +162,10 @@ def test_a_weight_exactly_2_se_from_0_is_not_noted(f2):
 
 
 def test_a_simpler_model_with_p_at_alpha_is_rejected_too(f2):
-    r = pm.qpadm(f2, ["Yoruba_1", "Simulation"], RIGHT, "Simulation.1")
+    r = pm.qpadm(f2, NEAR_ZERO["left"], NEAR_ZERO["right"], NEAR_ZERO["target"])
     at_alpha = tuple(dataclasses.replace(row, p=0.05) for row in r.popdrop)
     assert dataclasses.replace(r, popdrop=at_alpha).assess().notes == (
-        "Yoruba_1: weight 0.073 is within 2 SE (0.238) of 0",)
+        "French_1: weight 0.002 is within 2 SE (0.012) of 0",)
 
 
 def test_a_simpler_model_of_two_sources_names_both(f2):

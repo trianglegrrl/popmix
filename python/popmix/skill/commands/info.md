@@ -24,10 +24,10 @@ stdout:
 ```text
 Dataset: family
 Format: packedancestrymap
-Samples: 54
-SNPs: 21162
+Samples: 50
+SNPs: 21175
 Populations: 4
-  - French
+  - Simulation
   ...
 ```
 

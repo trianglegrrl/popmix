@@ -2,7 +2,7 @@
 
 The statistics themselves are checked against admixtools2 in
 tests/golden/test_dstat_admixtools2.py; these tests check what is built on
-them, on the 54-sample DATES data.
+them, on the 50-sample family data.
 """
 
 import io

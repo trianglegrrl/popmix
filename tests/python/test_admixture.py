@@ -1,4 +1,4 @@
-"""admixture API, bar plot and command, on the 54-sample DATES data.
+"""admixture API, bar plot and command, on the 50-sample family data.
 
 The estimates are checked against ADMIXTURE 1.3.0 in tests/golden/test_admixture.py.
 """
@@ -35,7 +35,9 @@ def test_the_two_populations_are_the_two_clusters():
 
 def test_projection_of_a_fit_sample_gives_its_q():
     fit = pm.admixture(SMALL, 2, POPS, tolerance=1e-10)
-    proj = pm.admixture(SMALL, 2, ["Yoruba"], fixed_p=fit.P, tolerance=1e-10)
+    # the samples of the fit, so the same SNPs: Yoruba alone has no call at
+    # some SNPs French has, and a P must be for exactly the SNPs used
+    proj = pm.admixture(SMALL, 2, POPS, fixed_p=fit.P, tolerance=1e-10)
     q_fit = fit.Q.set_index("id").loc[proj.Q["id"], ["Q1", "Q2"]].to_numpy()
     np.testing.assert_allclose(proj.q_matrix(), q_fit, atol=1e-6)
 
