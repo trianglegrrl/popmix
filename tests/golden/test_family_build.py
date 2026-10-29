@@ -34,6 +34,10 @@ def test_build_is_reproducible(tmp_path):
     build.main(tmp_path)
     ours = json.loads((tmp_path / "family_truth.json").read_text(encoding="utf-8"))
     shipped = json.loads((DATES / "family_truth.json").read_text(encoding="utf-8"))
+    # the numpy that built it is recorded; the files do not depend on it
+    # (numpy 1.26.4 built them, 2.0.2 rebuilds them byte for byte)
+    ours["simulation"].pop("numpy")
+    shipped["simulation"].pop("numpy")
     assert ours == shipped
     for ext in ("geno", "snp", "ind"):
         assert md5(DATES / f"family_chr20_22.{ext}") == shipped["outputs"][f"family_chr20_22.{ext}"]
