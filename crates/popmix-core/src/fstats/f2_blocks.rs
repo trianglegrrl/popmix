@@ -449,18 +449,6 @@ impl F2Blocks {
         block_jackknife(&block_means, &self.block_lengths_f64())
     }
 
-    /// Get f2 for a specific block.
-    pub fn f2_block(&self, pop_a: &str, pop_b: &str, block_idx: usize) -> Option<(f64, f64)> {
-        let idx_a = self.pop_index(pop_a)?;
-        let idx_b = self.pop_index(pop_b)?;
-        let pair_idx = self.pair_index(idx_a, idx_b);
-
-        let sum = self.block_sums[[block_idx, pair_idx]];
-        let weight = self.block_weights[[block_idx, pair_idx]];
-
-        Some((sum, weight))
-    }
-
     /// Get block-level f2 values for a pair of populations.
     ///
     /// Returns f2 estimate for each block (block mean), or None if pair not found.

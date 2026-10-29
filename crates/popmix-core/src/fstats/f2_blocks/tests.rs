@@ -548,6 +548,10 @@ fn test_from_block_means_round_trips_the_block_values() {
     }
     assert_eq!(back.f2("PopA", "PopB"), f2.f2("PopA", "PopB"));
     assert!(F2Blocks::from_block_means(f2.populations.clone(), vec![1], &means, &counts).is_err());
+    // the counts are checked as well as the means
+    let short = grid(&|a, b| f2.block_counts(a, b).unwrap()[1..].to_vec());
+    let lengths = f2.block_lengths.clone();
+    assert!(F2Blocks::from_block_means(f2.populations.clone(), lengths, &means, &short).is_err());
 }
 
 #[test]

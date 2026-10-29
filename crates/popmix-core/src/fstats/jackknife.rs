@@ -383,6 +383,23 @@ mod tests {
     }
 
     #[test]
+    fn test_two_blocks_are_enough_for_a_covariance() {
+        let (x, lengths) = (vec![1.0, 3.0], [2.0, 1.0]);
+        let (_, se) = block_jackknife(&x, &lengths).unwrap();
+        let (_, cov) = block_jackknife_cov(std::slice::from_ref(&x), &lengths).unwrap();
+        assert_relative_eq!(cov[[0, 0]], se * se, max_relative = 1e-12);
+        let loo = leave_one_out(&x, &lengths);
+        let (_, cov) = jackknife_cov_from_loo(&[loo], &lengths).unwrap();
+        assert_relative_eq!(cov[[0, 0]], se * se, max_relative = 1e-12);
+    }
+
+    #[test]
+    fn test_one_finite_block_has_no_covariance() {
+        let one = vec![vec![1.0, f64::NAN]];
+        assert!(block_jackknife_cov(&one, &[1.0, 1.0]).is_none());
+    }
+
+    #[test]
     fn test_non_finite_blocks_are_left_out() {
         let with_nan = block_jackknife(&[1.0, f64::NAN, 3.0], &[2.0, 9.0, 1.0]).unwrap();
         let without = block_jackknife(&[1.0, 3.0], &[2.0, 1.0]).unwrap();

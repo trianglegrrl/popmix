@@ -61,6 +61,16 @@ fn test_simplex_qp_matches_unconstrained_inside_and_clamps_outside() {
 }
 
 #[test]
+fn test_simplex_qp_of_many_weights_converges() {
+    // 60 weights, the first pulled to 1
+    let d = DMatrix::<f64>::identity(60, 60);
+    let mut v = DVector::zeros(60);
+    v[0] = 10.0;
+    let w = simplex_qp(&d, &v).unwrap();
+    assert_eq!(w[0], 1.0);
+}
+
+#[test]
 fn test_combinations_follow_r_combn_order() {
     assert_eq!(combinations(3, 2), vec![vec![0, 1], vec![0, 2], vec![1, 2]]);
     assert_eq!(combinations(3, 3), vec![vec![0, 1, 2]]);

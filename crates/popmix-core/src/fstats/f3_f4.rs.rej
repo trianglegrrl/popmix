@@ -1,0 +1,37 @@
+--- crates/popmix-core/src/fstats/f3_f4.rs
++++ replace jackknife_std_err -> f64 with -1.0
+@@ -345,33 +345,17 @@
+         }
+ 
+         results
+     }
+ }
+ 
+ /// Compute jackknife standard error from block estimates.
+ fn jackknife_std_err(block_values: &[f64], full_estimate: f64) -> f64 {
+-    let n = block_values.len();
+-    if n < 2 {
+-        return 0.0;
+-    }
+-
+-    let total: f64 = block_values.iter().sum();
+-
+-    let mut sum_sq_diff = 0.0;
+-    for value in block_values {
+-        // Leave-one-out estimate
+-        let loo_estimate = (total - value) / (n - 1) as f64;
+-        let diff = loo_estimate - full_estimate;
+-        sum_sq_diff += diff * diff;
+-    }
+-
+-    let variance = ((n - 1) as f64 / n as f64) * sum_sq_diff;
+-    variance.sqrt()
++    -1.0 /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+     use crate::fstats::blocks::BlockDefinition;
+     use crate::genotype_matrix::{AlleleFrequencies, GenotypeMatrix};
+     use crate::genotypes::{Chromosome, PopulationId, Sample, Snp};

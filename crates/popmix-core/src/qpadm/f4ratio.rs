@@ -358,4 +358,30 @@ mod tests {
         assert!(at_least_median < f2_blocks.n_blocks());
         assert!(run(sizes[sizes.len() - 1] * 2.0).is_err());
     }
+
+    #[test]
+    fn test_f4ratio_needs_two_blocks() {
+        let f2_blocks = create_test_f2_blocks();
+        let run = |blocks: &[usize]| {
+            let f2 = f2_blocks.select_blocks(blocks).unwrap();
+            f4ratio(
+                &f2,
+                "PopX",
+                "PopA",
+                "PopB",
+                "PopO",
+                "PopC",
+                &F4RatioOptions::default(),
+            )
+        };
+        // the blocks by the size of their denominator f4(A, O; C, B)
+        let f2 = |p: &str, q: &str| f2_blocks.get_block_f2_values(p, q).unwrap();
+        let den =
+            (f2("PopA", "PopB") + f2("PopO", "PopC") - f2("PopA", "PopC") - f2("PopO", "PopB"))
+                / 2.0;
+        let mut by_size: Vec<usize> = (0..den.len()).collect();
+        by_size.sort_by(|&a, &b| den[b].abs().total_cmp(&den[a].abs()));
+        assert!(run(&by_size[..1]).is_err());
+        assert_eq!(run(&by_size[..2]).unwrap().n_blocks, 2);
+    }
 }

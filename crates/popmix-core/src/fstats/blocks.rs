@@ -189,12 +189,6 @@ impl BlockAssignment {
         let end = start + self.block_lengths[block_idx];
         start..end
     }
-
-    /// Get the number of SNPs in a block.
-    #[inline]
-    pub fn block_len(&self, block_idx: usize) -> usize {
-        self.block_lengths[block_idx]
-    }
 }
 
 #[cfg(test)]
@@ -332,6 +326,13 @@ mod tests {
             "Expected ~5 blocks, got {}",
             blocks.n_blocks
         );
+    }
+
+    #[test]
+    fn test_a_block_size_of_zero_puts_each_snp_in_a_block_of_its_own() {
+        let snps = make_snps_same_chr(3, 1.0);
+        let blocks = BlockDefinition::new(0.0).assign_blocks(&snps);
+        assert_eq!(blocks.block_lengths, vec![1, 1, 1]);
     }
 
     #[test]

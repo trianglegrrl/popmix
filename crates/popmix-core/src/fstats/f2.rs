@@ -160,6 +160,12 @@ mod tests {
     }
 
     #[test]
+    fn test_f2_needs_an_allele_in_each_population() {
+        assert_eq!(f2_single_snp(Some(0.5), Some(0.5), 0, 10), (0.0, 0.0));
+        assert_eq!(f2_single_snp(Some(0.5), Some(0.5), 10, 0), (0.0, 0.0));
+    }
+
+    #[test]
     fn test_f2_single_sample() {
         // Single-sample populations should work (matching admixtools2)
         // Uses max(1, count-1) = max(1, 0) = 1 for denominator
@@ -241,6 +247,27 @@ mod tests {
         // Average should be around 0.5 (two SNPs with f2≈1, two with f2≈0)
         assert!(result.estimate > 0.4 && result.estimate < 0.6);
         assert_eq!(result.n_snps, 4);
+    }
+
+    #[test]
+    fn test_f2_estimate_counts_only_snps_with_data_in_both() {
+        use crate::genotype_matrix::GenotypeMatrix;
+        use crate::genotypes::{Chromosome, PopulationId, Sample, Snp};
+        use ndarray::array;
+
+        let samples = vec![
+            Sample::new("IND1", PopulationId::new("PopA")),
+            Sample::new("IND2", PopulationId::new("PopB")),
+        ];
+        let snps = vec![
+            Snp::new("rs1", Chromosome::Autosome(1), 100, 0.01, 'A', 'G'),
+            Snp::new("rs2", Chromosome::Autosome(1), 200, 0.02, 'A', 'G'),
+        ];
+        // PopB is missing (3) at the second SNP
+        let data = array![[0, 2], [0, 3]];
+        let geno = GenotypeMatrix::new(data, samples, snps).unwrap();
+        let af = AlleleFrequencies::from_genotypes(&geno);
+        assert_eq!(f2_estimate(&af, "PopA", "PopB").unwrap().n_snps, 1);
     }
 
     #[test]

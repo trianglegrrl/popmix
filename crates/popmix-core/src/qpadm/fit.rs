@@ -309,10 +309,10 @@ pub(crate) fn simplex_qp(d_mat: &DMatrix<f64>, d_vec: &DVector<f64>) -> Result<D
     for _ in 0..max_iter {
         let free: Vec<usize> = (0..m).filter(|&i| state[i] == State::Free).collect();
         let nf = free.len();
-        let fixed_sum = state.iter().filter(|&&s| s == State::Upper).count() as f64;
 
         // Equality-constrained optimum over the free variables:
-        // D_FF w_F − λ1 = d_F − D_FX w_X,   1ᵀ w_F = 1 − Σ w_X.
+        // D_FF w_F − λ1 = d_F − D_FX w_X,   1ᵀ w_F = 1 (the fixed weights
+        // are all 0: one that reaches 1 stays free, below).
         let (target_free, lambda) = {
             let mut kkt = DMatrix::zeros(nf + 1, nf + 1);
             let mut rhs = DVector::zeros(nf + 1);
@@ -330,7 +330,7 @@ pub(crate) fn simplex_qp(d_mat: &DMatrix<f64>, d_vec: &DVector<f64>) -> Result<D
                 }
                 rhs[a] = v;
             }
-            rhs[nf] = 1.0 - fixed_sum;
+            rhs[nf] = 1.0;
             let sol = kkt
                 .lu()
                 .solve(&rhs)
@@ -339,7 +339,7 @@ pub(crate) fn simplex_qp(d_mat: &DMatrix<f64>, d_vec: &DVector<f64>) -> Result<D
             let mut target: Vec<f64> = (0..nf).map(|a| sol[a]).collect();
             if nf == 1 {
                 // A single free variable is pinned by the sum constraint.
-                target[0] = 1.0 - fixed_sum;
+                target[0] = 1.0;
             }
             (target, sol[nf])
         };

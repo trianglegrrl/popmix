@@ -236,11 +236,6 @@ impl F4Matrix {
     pub fn n_cols(&self) -> usize {
         self.values.ncols()
     }
-
-    /// Flatten the F4 matrix to a vector (row-major order).
-    pub fn to_vector(&self) -> Array1<f64> {
-        Array1::from_iter(self.values.iter().copied())
-    }
 }
 
 /// The jackknife covariance of the f4 statistics `stats` (row-major in the
@@ -328,6 +323,55 @@ mod tests {
 
         let block_def = BlockDefinition::new(0.05);
         F2Blocks::from_allele_frequencies(&af, &block_def)
+    }
+
+    #[test]
+    fn test_one_block_gives_a_zero_covariance_of_every_statistic() {
+        let f2_blocks = create_test_f2_blocks().select_blocks(&[0]).unwrap();
+        let (left, right) = (["Pop1", "Pop2"], ["Pop3", "Pop4", "Pop1", "Pop2"]);
+        let f4 = F4Matrix::from_f2_blocks(&f2_blocks, &left, &right).unwrap();
+        assert_eq!(f4.covariance, Array2::<f64>::zeros((3, 3)));
+        assert!(f4.leave_one_out.is_empty());
+    }
+
+    #[test]
+    fn test_two_blocks_are_enough_for_the_jackknife() {
+        let f2_blocks = create_test_f2_blocks().select_blocks(&[0, 1]).unwrap();
+        let f4 =
+            F4Matrix::from_f2_blocks(&f2_blocks, &["Pop1", "Pop2"], &["Pop3", "Pop4"]).unwrap();
+        assert_eq!(f4.leave_one_out.len(), 2);
+    }
+
+    #[test]
+    fn test_block_means_need_a_left_population_besides_the_first() {
+        let r = F4Matrix::from_block_means(&["Pop1"], &["Pop3", "Pop4"], &[], &[1.0, 1.0]);
+        assert!(r.is_err());
+    }
+
+    #[test]
+    fn test_block_means_need_one_statistic_per_cell() {
+        let stats = [vec![0.1, 0.2]];
+        let r = F4Matrix::from_block_means(
+            &["Pop1", "Pop2"],
+            &["Pop3", "Pop4", "Pop1"],
+            &stats,
+            &[1.0, 1.0],
+        );
+        assert!(r.is_err());
+    }
+
+    #[test]
+    fn test_block_means_of_two_blocks_are_enough_for_the_jackknife() {
+        let stats = [vec![0.1, 0.2, 0.7]];
+        // the third block has no weight
+        let f4 = F4Matrix::from_block_means(
+            &["Pop1", "Pop2"],
+            &["Pop3", "Pop4"],
+            &stats,
+            &[1.0, 3.0, 0.0],
+        )
+        .unwrap();
+        assert_eq!(f4.leave_one_out.len(), 2);
     }
 
     #[test]

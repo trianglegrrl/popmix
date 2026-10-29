@@ -1,0 +1,21 @@
+--- crates/popmix-core/src/qpadm/fit.rs
++++ replace * with / in simplex_qp
+@@ -299,17 +299,17 @@
+     enum State {
+         Free,
+         Lower,
+         Upper,
+     }
+     let mut state = vec![State::Free; m];
+     let mut w = DVector::from_element(m, 1.0 / m as f64);
+     let tol = 1e-12;
+-    let max_iter = 50 * (m + 1);
++    let max_iter = 50 / /* ~ changed by cargo-mutants ~ */ (m + 1);
+ 
+     for _ in 0..max_iter {
+         let free: Vec<usize> = (0..m).filter(|&i| state[i] == State::Free).collect();
+         let nf = free.len();
+         let fixed_sum = state.iter().filter(|&&s| s == State::Upper).count() as f64;
+ 
+         // Equality-constrained optimum over the free variables:
+         // D_FF w_F − λ1 = d_F − D_FX w_X,   1ᵀ w_F = 1 − Σ w_X.

@@ -254,98 +254,6 @@ impl F2Blocks {
             n_snps: total_snps,
         })
     }
-
-    /// Compute D-statistics (qpdstat) for multiple population combinations.
-    ///
-    /// This is equivalent to f4 statistics and provides a convenient way to test
-    /// for gene flow between population pairs.
-    ///
-    /// D(A, B; C, D) tests if there's differential gene flow from C and D
-    /// to A vs B. A significantly positive D indicates more gene flow
-    /// from D to A (or from C to B).
-    ///
-    /// # Arguments
-    /// * `pop1` - First population set (A in the formula)
-    /// * `pop2` - Second population set (B in the formula)
-    /// * `pop3` - Third population set (C in the formula)
-    /// * `pop4` - Fourth population set (D in the formula)
-    ///
-    /// # Returns
-    /// Vector of (pop1, pop2, pop3, pop4, F4Result) tuples
-    pub fn qpdstat(
-        &self,
-        pop1: &[&str],
-        pop2: &[&str],
-        pop3: &[&str],
-        pop4: &[&str],
-    ) -> Vec<(String, String, String, String, F4Result)> {
-        let mut results = Vec::new();
-
-        for &p1 in pop1 {
-            for &p2 in pop2 {
-                for &p3 in pop3 {
-                    for &p4 in pop4 {
-                        // Skip if any pair is identical (would give 0)
-                        if p1 == p2 || p3 == p4 {
-                            continue;
-                        }
-                        if let Some(result) = self.f4(p1, p2, p3, p4) {
-                            results.push((
-                                p1.to_string(),
-                                p2.to_string(),
-                                p3.to_string(),
-                                p4.to_string(),
-                                result,
-                            ));
-                        }
-                    }
-                }
-            }
-        }
-
-        results
-    }
-
-    /// Compute f3 outgroup statistics (qp3pop) for multiple population combinations.
-    ///
-    /// f3(Target; Source1, Source2) tests if Target is admixed between
-    /// Source1 and Source2. A significantly negative f3 indicates admixture.
-    ///
-    /// # Arguments
-    /// * `targets` - Target populations to test for admixture
-    /// * `source1` - First source population set
-    /// * `source2` - Second source population set
-    ///
-    /// # Returns
-    /// Vector of (target, source1, source2, F3Result) tuples
-    pub fn qp3pop(
-        &self,
-        targets: &[&str],
-        source1: &[&str],
-        source2: &[&str],
-    ) -> Vec<(String, String, String, F3Result)> {
-        let mut results = Vec::new();
-
-        for &target in targets {
-            for &s1 in source1 {
-                for &s2 in source2 {
-                    // Skip if sources are identical
-                    if s1 == s2 {
-                        continue;
-                    }
-                    // Skip if target is same as either source
-                    if target == s1 || target == s2 {
-                        continue;
-                    }
-                    if let Some(result) = self.f3(target, s1, s2) {
-                        results.push((target.to_string(), s1.to_string(), s2.to_string(), result));
-                    }
-                }
-            }
-        }
-
-        results
-    }
 }
 
 /// Compute jackknife standard error from block estimates.
@@ -675,6 +583,85 @@ mod tests {
             fst_ab.estimate > fst_cd.estimate,
             "FST(A,B) should be > FST(C,D) since A,B are more divergent"
         );
+    }
+
+    /// F2 blocks of A and B from storage versions 1-3 (no FST blocks):
+    /// three blocks with everything FST needs, then one each without SNPs
+    /// for the pair, for A's heterozygosity and for B's, and one whose
+    /// denominator is 0. Per usable block, FST = f2 / (raw f2 + het A +
+    /// het B): 0.1 / 0.65, 0.05 / 0.65 and 0.1 / 0.55.
+    fn f2_blocks_without_fst() -> F2Blocks {
+        // columns: pairs (A, A), (A, B), (B, B); A, B
+        let pair = |v: [f64; 7]| {
+            ndarray::Array2::from_shape_fn((7, 3), |(b, p)| if p == 1 { v[b] } else { 0.0 })
+        };
+        let pop = |a: [f64; 7], b: [f64; 7]| {
+            ndarray::Array2::from_shape_fn((7, 2), |(k, p)| [a, b][p][k])
+        };
+        F2Blocks {
+            block_sums: pair([0.2, 0.15, 0.4, 0.1, 0.1, 0.1, -0.1]),
+            block_raw_sums: pair([0.3, 0.3, 0.8, 0.2, 0.2, 0.2, 0.0]),
+            block_weights: pair([2.0, 3.0, 4.0, 0.0, 1.0, 1.0, 1.0]),
+            block_het_sums: pop(
+                [0.6, 0.75, 1.0, 0.3, 0.3, 0.3, 0.0],
+                [0.8, 1.2, 0.3, 0.3, 0.3, 0.3, 0.0],
+            ),
+            block_het_weights: pop(
+                [2.0, 3.0, 5.0, 1.0, 0.0, 1.0, 1.0],
+                [4.0, 4.0, 2.0, 1.0, 1.0, 0.0, 1.0],
+            ),
+            populations: vec![PopulationId::new("A"), PopulationId::new("B")],
+            n_blocks: 7,
+            block_lengths: vec![10; 7],
+            fst: None,
+            provenance: None,
+        }
+    }
+
+    /// The mean of `x` and its delete-one jackknife standard error.
+    fn mean_and_jackknife_se(x: &[f64]) -> (f64, f64) {
+        let g = x.len() as f64;
+        let mean = x.iter().sum::<f64>() / g;
+        let loo = x.iter().map(|v| (mean * g - v) / (g - 1.0));
+        let var = (g - 1.0) / g * loo.map(|l| (l - mean).powi(2)).sum::<f64>();
+        (mean, var.sqrt())
+    }
+
+    #[test]
+    fn test_fst_without_fst_blocks_is_the_mean_of_the_block_ratios() {
+        let fst = f2_blocks_without_fst().fst("A", "B").unwrap();
+        let (mean, se) = mean_and_jackknife_se(&[0.1 / 0.65, 0.05 / 0.65, 0.1 / 0.55]);
+        assert!((fst.estimate - mean).abs() < 1e-15, "{}", fst.estimate);
+        assert!((fst.std_err - se).abs() < 1e-15, "{}", fst.std_err);
+        // the SNPs of the blocks used
+        assert_eq!(fst.n_snps, 9);
+    }
+
+    #[test]
+    fn test_fst_without_fst_blocks_of_two_blocks() {
+        let fst = f2_blocks_without_fst()
+            .select_blocks(&[0, 1])
+            .unwrap()
+            .fst("A", "B")
+            .unwrap();
+        let (_, se) = mean_and_jackknife_se(&[0.1 / 0.65, 0.05 / 0.65]);
+        assert!((fst.std_err - se).abs() < 1e-15, "{}", fst.std_err);
+    }
+
+    #[test]
+    fn test_fst_without_fst_blocks_of_one_block_has_no_se() {
+        let fst = f2_blocks_without_fst()
+            .select_blocks(&[0])
+            .unwrap()
+            .fst("A", "B")
+            .unwrap();
+        assert_eq!(fst.std_err, 0.0);
+    }
+
+    #[test]
+    fn test_self_fst_counts_the_snps_with_a_heterozygosity() {
+        let fst = f2_blocks_without_fst().fst("A", "A").unwrap();
+        assert_eq!(fst.n_snps, 13);
     }
 
     #[test]
