@@ -243,9 +243,6 @@ pub(crate) fn qpadm_weights(
 /// 0 <= w <= 1, Σw = 1; then normalise to sum 1.
 pub(crate) fn weights_from_fit(fit: &RankFit, rnk: usize, constrained: bool) -> Result<Vec<f64>> {
     let m = fit.a.nrows();
-    if rnk == 0 && m == 1 {
-        return Ok(vec![1.0]);
-    }
     let r = fit.a.ncols();
     let mut c = DMatrix::from_element(r + 1, m, 1.0);
     for k in 0..r {
@@ -275,14 +272,16 @@ pub(crate) fn weights_from_fit(fit: &RankFit, rnk: usize, constrained: bool) -> 
     Ok(w.iter().map(|v| v / total).collect())
 }
 
-/// Minimise ½ wᵀDw − dᵀw subject to Σw = 1 and 0 <= w <= 1.
+/// Minimise ½ wᵀDw − dᵀw subject to Σw = 1 and w >= 0 (so w <= 1).
 ///
 /// A primal active-set method: bounds in the working set hold their
-/// variables exactly at 0 or 1; the remaining (free) variables solve the
+/// variables at 0; the remaining (free) variables solve the
 /// equality-constrained problem through its KKT system. A step that would
-/// leave the box stops at the first bound it meets and adds it; at a
-/// stationary point a bound whose multiplier has the wrong sign is released.
-/// D is assumed positive semi-definite (it is CᵀC for the qpAdm weights).
+/// take a weight below 0 stops at the first bound it meets and adds it (Σw
+/// stays 1 along the step, so no weight passes 1 before the others reach
+/// 0); at a stationary point a bound whose multiplier has the wrong sign is
+/// released. D is assumed positive semi-definite (it is CᵀC for the qpAdm
+/// weights).
 pub(crate) fn simplex_qp(d_mat: &DMatrix<f64>, d_vec: &DVector<f64>) -> Result<DVector<f64>> {
     let m = d_vec.len();
     let infeasible = || PopmixError::Infeasible {
@@ -295,24 +294,17 @@ pub(crate) fn simplex_qp(d_mat: &DMatrix<f64>, d_vec: &DVector<f64>) -> Result<D
         return Ok(DVector::from_element(1, 1.0));
     }
 
-    #[derive(Clone, Copy, PartialEq)]
-    enum State {
-        Free,
-        Lower,
-        Upper,
-    }
-    let mut state = vec![State::Free; m];
+    let mut at_zero = vec![false; m];
     let mut w = DVector::from_element(m, 1.0 / m as f64);
     let tol = 1e-12;
     let max_iter = 50 * (m + 1);
 
     for _ in 0..max_iter {
-        let free: Vec<usize> = (0..m).filter(|&i| state[i] == State::Free).collect();
+        let free: Vec<usize> = (0..m).filter(|&i| !at_zero[i]).collect();
         let nf = free.len();
 
-        // Equality-constrained optimum over the free variables:
-        // D_FF w_F − λ1 = d_F − D_FX w_X,   1ᵀ w_F = 1 (the fixed weights
-        // are all 0: one that reaches 1 stays free, below).
+        // Equality-constrained optimum over the free variables (the others
+        // are 0): D_FF w_F − λ1 = d_F,   1ᵀ w_F = 1.
         let (target_free, lambda) = {
             let mut kkt = DMatrix::zeros(nf + 1, nf + 1);
             let mut rhs = DVector::zeros(nf + 1);
@@ -322,13 +314,7 @@ pub(crate) fn simplex_qp(d_mat: &DMatrix<f64>, d_vec: &DVector<f64>) -> Result<D
                 }
                 kkt[(a, nf)] = -1.0;
                 kkt[(nf, a)] = 1.0;
-                let mut v = d_vec[i];
-                for j in 0..m {
-                    if state[j] != State::Free {
-                        v -= d_mat[(i, j)] * w[j];
-                    }
-                }
-                rhs[a] = v;
+                rhs[a] = d_vec[i];
             }
             rhs[nf] = 1.0;
             let sol = kkt
@@ -344,60 +330,37 @@ pub(crate) fn simplex_qp(d_mat: &DMatrix<f64>, d_vec: &DVector<f64>) -> Result<D
             (target, sol[nf])
         };
 
-        // Step from w towards the free optimum, stopping at the first bound.
+        // Step from w (>= 0) towards the free optimum, stopping where the
+        // first weight reaches 0: a target below 0 is reached at t in [0, 1).
         let mut alpha = 1.0;
-        let mut blocking: Option<(usize, State)> = None;
+        let mut blocking = None;
         for (a, &i) in free.iter().enumerate() {
-            let p = target_free[a] - w[i];
-            if p < -tol && target_free[a] < 0.0 {
-                let t = w[i] / -p;
+            if target_free[a] < 0.0 {
+                let t = w[i] / (w[i] - target_free[a]);
                 if t < alpha {
                     alpha = t;
-                    blocking = Some((i, State::Lower));
-                }
-            } else if p > tol && target_free[a] > 1.0 {
-                let t = (1.0 - w[i]) / p;
-                if t < alpha {
-                    alpha = t;
-                    blocking = Some((i, State::Upper));
+                    blocking = Some(i);
                 }
             }
         }
-        for (a, &i) in free.iter().enumerate() {
-            w[i] += alpha * (target_free[a] - w[i]);
-        }
-        if let Some((i, s)) = blocking {
-            state[i] = s;
-            w[i] = if s == State::Upper { 1.0 } else { 0.0 };
-            if s == State::Upper {
-                // Σw = 1 with one weight at 1 forces every other to 0.
-                for j in 0..m {
-                    if j != i {
-                        state[j] = State::Lower;
-                        w[j] = 0.0;
-                    }
-                }
-                // Keep one variable free so the multiplier is defined.
-                state[i] = State::Free;
+        if let Some(i) = blocking {
+            for (a, &j) in free.iter().enumerate() {
+                w[j] += alpha * (target_free[a] - w[j]);
             }
+            at_zero[i] = true;
+            w[i] = 0.0;
             continue;
         }
         for (a, &i) in free.iter().enumerate() {
-            w[i] = target_free[a].clamp(0.0, 1.0);
+            w[i] = target_free[a];
         }
 
-        // Stationary on the working set: check the bound multipliers.
-        // Gradient of the Lagrangian g = Dw − d − λ1; at a lower bound it
-        // must be >= 0, at an upper bound <= 0.
+        // Stationary on the working set: check the bound multipliers. The
+        // gradient of the Lagrangian, Dw − d − λ1, must be >= 0 at a bound.
         let g = d_mat * &w - d_vec;
         let mut worst: Option<(usize, f64)> = None;
-        for i in 0..m {
-            let gi = g[i] - lambda;
-            let violation = match state[i] {
-                State::Free => 0.0,
-                State::Lower => -gi,
-                State::Upper => gi,
-            };
+        for i in (0..m).filter(|&i| at_zero[i]) {
+            let violation = lambda - g[i];
             if violation > tol * (1.0 + g[i].abs().max(lambda.abs()))
                 && worst.is_none_or(|(_, v)| violation > v)
             {
@@ -411,7 +374,7 @@ pub(crate) fn simplex_qp(d_mat: &DMatrix<f64>, d_vec: &DVector<f64>) -> Result<D
                 }
                 return Ok(w);
             }
-            Some((i, _)) => state[i] = State::Free,
+            Some((i, _)) => at_zero[i] = false,
         }
     }
     Err(PopmixError::ConvergenceFailure {

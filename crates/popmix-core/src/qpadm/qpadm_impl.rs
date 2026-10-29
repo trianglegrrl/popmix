@@ -66,13 +66,6 @@ pub struct QpAdmResult {
     pub popdrop: Vec<fit::PopDropRow>,
 }
 
-impl QpAdmResult {
-    /// Whether all weights lie in [0, 1].
-    pub fn is_feasible(&self) -> bool {
-        self.weights.iter().all(|&w| (0.0..=1.0).contains(&w))
-    }
-}
-
 /// Run qpAdm: estimate the weights of `sources` in `target`.
 ///
 /// # Arguments
@@ -241,6 +234,32 @@ mod tests {
 
         let block_def = BlockDefinition::new(0.05);
         F2Blocks::from_allele_frequencies(&af, &block_def)
+    }
+
+    #[test]
+    fn test_qpadm_on_an_f4_matrix_is_qpadm_with_its_fudge() {
+        let f2_blocks = create_admixed_test_data();
+        let opts = QpAdmOptions {
+            fudge: 0.1,
+            ..Default::default()
+        };
+        let right = ["Out1", "Out2", "Pop2"];
+        let f4 = F4Matrix::from_f2_blocks(&f2_blocks, &["Pop3", "Pop1"], &right).unwrap();
+        let on = qpadm_on("Pop3", &["Pop1"], f4, &opts).unwrap();
+        let full = qpadm(&f2_blocks, "Pop3", &["Pop1"], &right, &opts).unwrap();
+        assert_eq!(on.chi_sq, full.chi_sq);
+    }
+
+    #[test]
+    fn test_qpadm_on_needs_a_row_per_source() {
+        let f2_blocks = create_admixed_test_data();
+        let left = ["Pop3", "Pop1", "Pop2"];
+        let f4 = F4Matrix::from_f2_blocks(&f2_blocks, &left, &["Out1", "Out2"]).unwrap();
+        let err = qpadm_on("Pop3", &["Pop1"], f4, &Default::default()).unwrap_err();
+        assert!(
+            matches!(&err, crate::PopmixError::DimensionMismatch { context, .. } if context == "qpAdm f4 matrix"),
+            "{err:?}"
+        );
     }
 
     #[test]

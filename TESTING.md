@@ -819,6 +819,64 @@ and installs it back from there on Linux (x86-64 and ARM), macOS and Windows
 to run it (`.github/scripts/check-installed.sh`). Publishing uses trusted
 publishing, from the GitHub environments `pypi` and `testpypi`.
 
+## Mutation Testing
+
+Mutation testing (TASKS.md K6) changes the code one operator or return
+value at a time and runs the tests: a change no test notices marks a test
+that cannot fail, dead code, or a change that cannot alter a result.
+
+**Rust: cargo-mutants 27.1.0** on the core statistics (`fstats/` jackknife,
+f2, f3/f4, blocks, f2 blocks, statistics from genotypes, SNP filter;
+`qpadm/` qpAdm, qpWave, f4 matrix, fit, f4ratio, qpAdm p-values), against
+popmix-core's own tests:
+
+```bash
+cargo install --locked cargo-mutants@27.1.0
+cargo mutants -p popmix-core -f crates/popmix-core/src/qpadm/fit.rs -j 8 --timeout 300
+```
+
+The whole set is about 1750 mutants and some hours on 16 cores; it ran on a
+GCP c2d-standard-16 (2026-10-28). Mutants the Rust tests miss can still be
+caught by the golden and Python tests, so each was then applied (`patch
+-p0`: cargo-mutants' diffs have no `a/` `b/` prefixes) to a full popmix
+build and run against `tests/golden`, then `tests/golden --run-slow
+tests/python`. The 2026-10-28 run:
+
+| | Mutants |
+|---|---|
+| Caught by the Rust tests | 999 |
+| Unviable (do not compile) | 475 |
+| Timed out | 7 |
+| Missed by the Rust tests, caught by the goldens or Python tests | 78 |
+| Missed by every test | 192 |
+
+Of the 192, 118 now fail a test (among them exact FST for F2 directories
+of storage versions 1-3, whose tests only checked bounds, and the qpAdm
+simplex QP against a brute-force solver), 50 were in code nothing needed
+(unused methods; the QP's upper bounds, which Σw = 1 and w >= 0 already
+imply), and 24 cannot change a result (0/0 guards that give NaN either way,
+tie-breaking, tolerances, iteration limits).
+
+**Python: mutmut 2.5.1** on `_names`, `qpadm_assess` and `calibrate`.
+mutmut 3 forks its workers after the Rust thread pool exists and the
+mutants deadlock, so use mutmut 2, which runs the tests in a subprocess.
+It counts a pytest collection error (exit code 2) as a survivor, so the
+runner must turn every failure into exit code 1, and stale bytecode can hide
+a mutation of the same size:
+
+```bash
+pip install mutmut==2.5.1   # in a venv of its own; the popmix venv on PATH
+PYTHONDONTWRITEBYTECODE=1 mutmut run \
+  --paths-to-mutate python/popmix/_names.py,python/popmix/qpadm_assess.py,python/popmix/calibrate.py \
+  --tests-dir tests/python --simple-output \
+  --runner "sh -c 'python -m pytest -x -q -p no:cacheprovider tests/python/test_population_names.py \
+    tests/python/test_qpadm_assessment.py tests/python/test_qpadm_output.py tests/python/test_calibrate.py || exit 1'"
+```
+
+mutmut edits `python/popmix` in place while it runs: commit nothing until
+it finishes (`mutmut results`, then `mutmut apply <id>` to inspect one, and
+revert it). Of 136 mutants, 24 survived; each now has a test.
+
 ## Debugging Test Failures
 
 ### Merge Test Failures

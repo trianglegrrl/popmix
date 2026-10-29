@@ -361,6 +361,29 @@ mod tests {
     }
 
     #[test]
+    fn test_block_means_give_each_statistic_its_own_se() {
+        let stats = [
+            vec![0.1, 0.2, 0.4],
+            vec![0.5, 0.5, 0.6],
+            vec![0.0, 0.3, 0.1],
+            vec![0.9, 0.1, 0.2],
+        ];
+        let w = [1.0, 2.0, 3.0];
+        let f4 = F4Matrix::from_block_means(
+            &["Pop1", "Pop2", "Pop3"],
+            &["Pop4", "Pop1", "Pop2"],
+            &stats,
+            &w,
+        )
+        .unwrap();
+        assert_eq!(f4.n_cols(), 2);
+        for (s, x) in stats.iter().enumerate() {
+            let (_, se) = crate::fstats::block_jackknife(x, &w).unwrap();
+            assert_eq!(f4.std_errors[[s / 2, s % 2]], se, "statistic {s}");
+        }
+    }
+
+    #[test]
     fn test_block_means_of_two_blocks_are_enough_for_the_jackknife() {
         let stats = [vec![0.1, 0.2, 0.7]];
         // the third block has no weight

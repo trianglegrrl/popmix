@@ -70,13 +70,6 @@ pub struct QpWaveResult {
     pub f4_matrix: F4Matrix,
 }
 
-impl QpWaveResult {
-    /// Get the full rank test result.
-    pub fn full_rank(&self) -> Option<&RankTest> {
-        self.rank_tests.last()
-    }
-}
-
 /// Run qpWave analysis.
 ///
 /// # Arguments
@@ -157,6 +150,17 @@ mod tests {
     use crate::genotype_matrix::AlleleFrequencies;
     use crate::genotypes::{Chromosome, PopulationId};
     use ndarray::Array2;
+
+    #[test]
+    fn test_a_p_value_of_alpha_rejects_the_rank() {
+        let tests = [0, 1].map(|rank| RankTest {
+            rank,
+            chi_sq: 1.0,
+            df: 1,
+            p_value: 0.05,
+        });
+        assert_eq!(estimate_rank(&tests, 1, 0.05), 2);
+    }
 
     fn create_test_f2_blocks() -> F2Blocks {
         // Create synthetic data with known structure

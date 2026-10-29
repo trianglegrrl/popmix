@@ -382,6 +382,24 @@ mod tests {
         let mut by_size: Vec<usize> = (0..den.len()).collect();
         by_size.sort_by(|&a, &b| den[b].abs().total_cmp(&den[a].abs()));
         assert!(run(&by_size[..1]).is_err());
+        // with all blocks: the numerator is the length-weighted mean of the
+        // block numerators f4(A, O; X, B), over the blocks whose
+        // denominator is at least 1e-6 in absolute value
+        let all = run(&(0..den.len()).collect::<Vec<_>>()).unwrap();
+        let used = |k: usize| den[k].abs() >= 1e-6;
+        let num =
+            (f2("PopA", "PopB") + f2("PopO", "PopX") - f2("PopA", "PopX") - f2("PopO", "PopB"))
+                / 2.0;
+        let lengths = f2_blocks.block_lengths_f64();
+        let used_sum =
+            |x: &dyn Fn(usize) -> f64| (0..den.len()).filter(|&k| used(k)).map(x).sum::<f64>();
+        let want = used_sum(&|k| num[k] * lengths[k]) / used_sum(&|k| lengths[k]);
+        num.iter().zip(&lengths).map(|(v, m)| v * m).sum::<f64>() / lengths.iter().sum::<f64>();
+        assert!(
+            (all.f4_numerator - want).abs() <= 1e-15 * want.abs(),
+            "{} {want}",
+            all.f4_numerator
+        );
         assert_eq!(run(&by_size[..2]).unwrap().n_blocks, 2);
     }
 }

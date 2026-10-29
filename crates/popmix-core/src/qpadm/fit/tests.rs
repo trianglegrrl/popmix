@@ -61,6 +61,12 @@ fn test_simplex_qp_matches_unconstrained_inside_and_clamps_outside() {
 }
 
 #[test]
+fn test_simplex_qp_needs_a_square_d_of_its_size() {
+    let d = DMatrix::<f64>::identity(3, 3);
+    assert!(simplex_qp(&d, &DVector::from_vec(vec![1.0, 1.0])).is_err());
+}
+
+#[test]
 fn test_simplex_qp_of_many_weights_converges() {
     // 60 weights, the first pulled to 1
     let d = DMatrix::<f64>::identity(60, 60);
@@ -68,6 +74,125 @@ fn test_simplex_qp_of_many_weights_converges() {
     v[0] = 10.0;
     let w = simplex_qp(&d, &v).unwrap();
     assert_eq!(w[0], 1.0);
+}
+
+/// Uniform numbers in [0, 1) from a fixed seed.
+fn uniforms(seed: u64) -> impl FnMut() -> f64 {
+    let mut state = seed
+        .wrapping_mul(2862933555777941757)
+        .wrapping_add(3037000493);
+    move || {
+        state = state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+        (state >> 11) as f64 / (1u64 << 53) as f64
+    }
+}
+
+fn qp_objective(d: &DMatrix<f64>, v: &DVector<f64>, w: &DVector<f64>) -> f64 {
+    0.5 * w.dot(&(d * w)) - v.dot(w)
+}
+
+/// The minimum of the simplex QP by brute force: on every support S, the
+/// optimum with w_S summing to 1 and the rest 0 (its KKT system), kept if
+/// w_S >= 0. Supports whose KKT system is singular are skipped.
+fn simplex_qp_by_brute_force(d: &DMatrix<f64>, v: &DVector<f64>) -> DVector<f64> {
+    let m = v.len();
+    let mut best: Option<(f64, DVector<f64>)> = None;
+    for mask in 1..(1usize << m) {
+        let s: Vec<usize> = (0..m).filter(|&i| mask >> i & 1 == 1).collect();
+        let k = s.len();
+        let mut kkt = DMatrix::zeros(k + 1, k + 1);
+        let mut rhs = DVector::zeros(k + 1);
+        for (a, &i) in s.iter().enumerate() {
+            for (b, &j) in s.iter().enumerate() {
+                kkt[(a, b)] = d[(i, j)];
+            }
+            kkt[(a, k)] = -1.0;
+            kkt[(k, a)] = 1.0;
+            rhs[a] = v[i];
+        }
+        rhs[k] = 1.0;
+        let Some(sol) = kkt.lu().solve(&rhs) else {
+            continue;
+        };
+        if (0..k).any(|a| !(sol[a] >= -1e-12)) {
+            continue;
+        }
+        let mut w = DVector::zeros(m);
+        for (a, &i) in s.iter().enumerate() {
+            w[i] = sol[a];
+        }
+        let f = qp_objective(d, v, &w);
+        if best.as_ref().is_none_or(|(g, _)| f < *g) {
+            best = Some((f, w));
+        }
+    }
+    best.unwrap().1
+}
+
+#[test]
+fn test_simplex_qp_matches_brute_force_on_positive_definite_problems() {
+    for seed in 0..400 {
+        let mut u = uniforms(seed);
+        let m = 2 + (seed as usize % 4);
+        let b = DMatrix::from_fn(m, m, |_, _| 2.0 * u() - 1.0);
+        let d = b.transpose() * &b + DMatrix::identity(m, m) * 0.01;
+        let v = DVector::from_fn(m, |_, _| 4.0 * u() - 2.0);
+        let got = simplex_qp(&d, &v).unwrap();
+        let want = simplex_qp_by_brute_force(&d, &v);
+        assert!((&got - &want).amax() < 1e-9, "seed {seed}: {got} != {want}");
+    }
+}
+
+#[test]
+fn test_simplex_qp_matches_brute_force_on_qpadm_problems() {
+    // qpAdm's: D = CᵀC, e = (0, ..., 0, 1), C = [Aᵀ; 1ᵀ] with A m x (m - 1)
+    for seed in 0..400 {
+        let mut u = uniforms(seed + 1000);
+        let m = 2 + (seed as usize % 4);
+        let mut c = DMatrix::from_fn(m, m, |_, _| 2.0 * u() - 1.0);
+        c.row_mut(m - 1).fill(1.0);
+        let mut e = DVector::zeros(m);
+        e[m - 1] = 1.0;
+        let (d, v) = (c.transpose() * &c, c.transpose() * e);
+        let got = simplex_qp(&d, &v).unwrap();
+        let want = simplex_qp_by_brute_force(&d, &v);
+        assert!((&got - &want).amax() < 1e-9, "seed {seed}: {got} != {want}");
+    }
+}
+
+#[test]
+fn test_unconstrained_weights_are_normalised_to_sum_one() {
+    // A = I (2 sources, rank 2): CᵀC w = Cᵀe gives w = (1/3, 1/3)
+    let fit = RankFit {
+        a: DMatrix::identity(2, 2),
+        b: DMatrix::zeros(2, 1),
+    };
+    let w = weights_from_fit(&fit, 2, false).unwrap();
+    assert!(w.iter().all(|x| (x - 0.5).abs() < 1e-15), "{w:?}");
+}
+
+#[test]
+fn test_model_failures_are_singular_or_infeasible_fits() {
+    assert!(is_model_failure(&singular("x")));
+    assert!(is_model_failure(&PopmixError::Infeasible {
+        context: "x".to_string()
+    }));
+    assert!(!is_model_failure(&PopmixError::PopulationNotFound(
+        "x".to_string()
+    )));
+}
+
+#[test]
+fn test_weight_std_errors_need_two_replicates() {
+    let x = |a: f64| ndarray::arr2(&[[a, 0.5], [0.2, a]]);
+    let qinv = DMatrix::<f64>::identity(4, 4);
+    let none = qpadm_weight_std_errors(&[], &qinv, 1, 0.0, false).unwrap();
+    assert_eq!(none.len(), 2);
+    assert!(none.iter().all(|s| s.is_nan()));
+    let two = qpadm_weight_std_errors(&[x(1.0), x(1.5)], &qinv, 1, 0.0, false).unwrap();
+    assert!(two.iter().all(|s| s.is_finite()), "{two:?}");
 }
 
 #[test]
@@ -82,6 +207,7 @@ fn test_chisq_upper_tail_with_zero_df() {
     // R: pchisq(-3, 0, lower.tail = FALSE) = 1; pchisq(3, 0, ...) = 0
     assert_eq!(chisq_upper_tail(-3.0, 0), 1.0);
     assert_eq!(chisq_upper_tail(3.0, 0), 0.0);
+    assert_eq!(chisq_upper_tail(0.0, 0), 0.0);
 }
 
 fn row(pattern: &str, f4rank: usize, dof: usize, chi_sq: f64, feasible: bool) -> PopDropRow {
@@ -144,6 +270,16 @@ fn test_corrected_popdrop_path_is_nested_and_greedy() {
             ("101", Some(1), Some(38.0), Some(chisq_upper_tail(38.0, 1))),
         ]
     );
+}
+
+#[test]
+fn test_corrected_popdrop_path_takes_the_first_of_tied_children() {
+    let mut rows = three_source_rows();
+    // 001's children 011 and 101 fit equally well
+    rows[1].chi_sq = 100.0;
+    mark_nested_path(&mut rows, 2, Admixtools2Compat::CORRECTED);
+    assert!(rows[0].best);
+    assert!(!rows[1].best);
 }
 
 #[test]
