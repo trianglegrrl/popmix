@@ -95,7 +95,8 @@ def printing_sd(prefix: str, ref: dict, q: np.ndarray, p: np.ndarray) -> float:
     col = {smp.id: n for n, smp in enumerate(geno.samples)}
     data = geno.to_numpy()[:, [col[i] for i in ref["ids"]]]
     chroms = _chroms(ref)
-    keep = np.array([chroms is None or int(str(snp.chromosome)) in chroms for snp in geno.snps])
+    wanted = None if chroms is None else {str(c) for c in chroms}
+    keep = np.array([wanted is None or str(snp.chromosome) in wanted for snp in geno.snps])
     data = data[keep]
     data = data[(data < 3).any(axis=1)]  # SNPs with no call are left out
     assert data.shape[0] == p.shape[0]
