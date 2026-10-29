@@ -1,0 +1,435 @@
+cff-version: 1.2.0
+message: "If you use popmix, please cite it as below, and the papers of the methods you used (references, and README.md, Citation)."
+title: "popmix"
+abstract: >-
+  Population genetics in Rust and Python: f-statistics, qpAdm and qpWave,
+  smartpca, DATES, ROLLOFF, ADMIXTURE, KING and READ kinship, and site
+  frequency spectra.
+type: software
+authors:
+  - family-names: Hardie
+    given-names: Alaina
+    orcid: "https://orcid.org/0000-0002-1194-8003"
+license: MIT
+repository-code: "https://github.com/trianglegrrl/popmix"
+version: 1.0.0
+keywords:
+  - population genetics
+  - f-statistics
+  - admixture
+  - qpAdm
+  - ancient DNA
+references:
+  # f-statistics, qpWave, qpAdm and admixture graphs (admixtools2, ADMIXTOOLS)
+  - type: article
+    title: "Reconstructing Indian population history"
+    authors:
+      - family-names: "Reich"
+        given-names: "David"
+      - name: "et al."
+    journal: "Nature"
+    year: 2009
+    doi: 10.1038/nature08365
+  - type: article
+    title: "A Draft Sequence of the Neandertal Genome"
+    authors:
+      - family-names: "Green"
+        given-names: "Richard E."
+      - name: "et al."
+    journal: "Science"
+    year: 2010
+    doi: 10.1126/science.1188021
+  - type: article
+    title: "Ancient Admixture in Human History"
+    authors:
+      - family-names: "Patterson"
+        given-names: "Nick"
+      - name: "et al."
+    journal: "Genetics"
+    year: 2012
+    doi: 10.1534/genetics.112.145037
+  - type: article
+    title: "Reconstructing Native American population history"
+    authors:
+      - family-names: "Reich"
+        given-names: "David"
+      - name: "et al."
+    journal: "Nature"
+    year: 2012
+    doi: 10.1038/nature11258
+  - type: article
+    title: "Massive migration from the steppe was a source for Indo-European languages in Europe"
+    authors:
+      - family-names: "Haak"
+        given-names: "Wolfgang"
+      - name: "et al."
+    journal: "Nature"
+    year: 2015
+    doi: 10.1038/nature14317
+  - type: article
+    title: "Assessing the performance of qpAdm: a statistical tool for studying population admixture"
+    authors:
+      - family-names: "Harney"
+        given-names: "Éadaoin"
+      - name: "et al."
+    journal: "Genetics"
+    year: 2021
+    doi: 10.1093/genetics/iyaa045
+  - type: article
+    title: "On the limits of fitting complex models of population history to f-statistics"
+    authors:
+      - family-names: "Maier"
+        given-names: "Robert"
+      - name: "et al."
+    journal: "eLife"
+    year: 2023
+    doi: 10.7554/eLife.85492
+  - type: article
+    title: "Delete-m Jackknife for Unequal m"
+    authors:
+      - family-names: "Busing"
+        given-names: "Frank M. T. A."
+      - name: "et al."
+    journal: "Statistics and Computing"
+    year: 1999
+    doi: 10.1023/A:1008800423698
+  # Optimization and random numbers, matched to R for admixture-graph fits (R)
+  - type: article
+    title: "A Limited Memory Algorithm for Bound Constrained Optimization"
+    authors:
+      - family-names: "Byrd"
+        given-names: "Richard H."
+      - name: "et al."
+    journal: "SIAM Journal on Scientific Computing"
+    year: 1995
+    doi: 10.1137/0916069
+  - type: article
+    title: "Algorithm 778: L-BFGS-B: Fortran subroutines for large-scale bound-constrained optimization"
+    authors:
+      - family-names: "Zhu"
+        given-names: "Ciyou"
+      - name: "et al."
+    journal: "ACM Transactions on Mathematical Software"
+    year: 1997
+    doi: 10.1145/279232.279236
+  - type: article
+    title: "Remark on \"Algorithm 778: L-BFGS-B: Fortran subroutines for large-scale bound constrained optimization\""
+    authors:
+      - family-names: "Morales"
+        given-names: "José Luis"
+      - family-names: "Nocedal"
+        given-names: "Jorge"
+    journal: "ACM Transactions on Mathematical Software"
+    year: 2011
+    doi: 10.1145/2049662.2049669
+  - type: article
+    title: "Line search algorithms with guaranteed sufficient decrease"
+    authors:
+      - family-names: "Moré"
+        given-names: "Jorge J."
+      - family-names: "Thuente"
+        given-names: "David J."
+    journal: "ACM Transactions on Mathematical Software"
+    year: 1994
+    doi: 10.1145/192115.192132
+  - type: article
+    title: "Mersenne twister: a 623-dimensionally equidistributed uniform pseudo-random number generator"
+    authors:
+      - family-names: "Matsumoto"
+        given-names: "Makoto"
+      - family-names: "Nishimura"
+        given-names: "Takuji"
+    journal: "ACM Transactions on Modeling and Computer Simulation"
+    year: 1998
+    doi: 10.1145/272991.272995
+  # PCA (EIGENSOFT smartpca, twstats)
+  - type: article
+    title: "Population Structure and Eigenanalysis"
+    authors:
+      - family-names: "Patterson"
+        given-names: "Nick"
+      - name: "et al."
+    journal: "PLoS Genetics"
+    year: 2006
+    doi: 10.1371/journal.pgen.0020190
+  - type: article
+    title: "Principal components analysis corrects for stratification in genome-wide association studies"
+    authors:
+      - family-names: "Price"
+        given-names: "Alkes L."
+      - name: "et al."
+    journal: "Nature Genetics"
+    year: 2006
+    doi: 10.1038/ng1847
+  - type: article
+    title: "Level-spacing distributions and the Airy kernel"
+    authors:
+      - family-names: "Tracy"
+        given-names: "Craig A."
+      - family-names: "Widom"
+        given-names: "Harold"
+    journal: "Communications in Mathematical Physics"
+    year: 1994
+    doi: 10.1007/BF02100489
+  # Admixture dating (ROLLOFF, ALDER, DATES)
+  - type: article
+    title: "The History of African Gene Flow into Southern Europeans, Levantines, and Jews"
+    authors:
+      - family-names: "Moorjani"
+        given-names: "Priya"
+      - name: "et al."
+    journal: "PLoS Genetics"
+    year: 2011
+    doi: 10.1371/journal.pgen.1001373
+  - type: article
+    title: "Inferring Admixture Histories of Human Populations Using Linkage Disequilibrium"
+    authors:
+      - family-names: "Loh"
+        given-names: "Po-Ru"
+      - name: "et al."
+    journal: "Genetics"
+    year: 2013
+    doi: 10.1534/genetics.112.147330
+  - type: article
+    title: "The formation of human populations in South and Central Asia"
+    authors:
+      - family-names: "Narasimhan"
+        given-names: "Vagheesh M."
+      - name: "et al."
+    journal: "Science"
+    year: 2019
+    doi: 10.1126/science.aat7487
+  - type: article
+    title: "The spatiotemporal patterns of major human admixture events during the European Holocene"
+    authors:
+      - family-names: "Chintalapati"
+        given-names: "Manjusha"
+      - name: "et al."
+    journal: "eLife"
+    year: 2022
+    doi: 10.7554/eLife.77625
+  # ADMIXTURE
+  - type: article
+    title: "Fast model-based estimation of ancestry in unrelated individuals"
+    authors:
+      - family-names: "Alexander"
+        given-names: "David H."
+      - name: "et al."
+    journal: "Genome Research"
+    year: 2009
+    doi: 10.1101/gr.094052.109
+  - type: article
+    title: "Simple and Globally Convergent Methods for Accelerating the Convergence of Any EM Algorithm"
+    authors:
+      - family-names: "Varadhan"
+        given-names: "Ravi"
+      - family-names: "Roland"
+        given-names: "Christophe"
+    journal: "Scandinavian Journal of Statistics"
+    year: 2008
+    doi: 10.1111/j.1467-9469.2007.00585.x
+  # Kinship (KING-robust, READ)
+  - type: article
+    title: "Robust relationship inference in genome-wide association studies"
+    authors:
+      - family-names: "Manichaikul"
+        given-names: "Ani"
+      - name: "et al."
+    journal: "Bioinformatics"
+    year: 2010
+    doi: 10.1093/bioinformatics/btq559
+  - type: article
+    title: "Estimating genetic kin relationships in prehistoric populations"
+    authors:
+      - family-names: "Monroy Kuhn"
+        given-names: "Jose Manuel"
+      - name: "et al."
+    journal: "PLOS ONE"
+    year: 2018
+    doi: 10.1371/journal.pone.0195491
+  - type: article
+    title: "READv2: advanced and user-friendly detection of biological relatedness in archaeogenomics"
+    authors:
+      - family-names: "Alaçamlı"
+        given-names: "Erkin"
+      - name: "et al."
+    journal: "Genome Biology"
+    year: 2024
+    doi: 10.1186/s13059-024-03350-3
+  # File formats and conversion (PLINK, BCFtools)
+  - type: article
+    title: "Second-generation PLINK: rising to the challenge of larger and richer datasets"
+    authors:
+      - family-names: "Chang"
+        given-names: "Christopher C."
+      - name: "et al."
+    journal: "Gigascience"
+    year: 2015
+    doi: 10.1186/s13742-015-0047-8
+  - type: article
+    title: "Twelve years of SAMtools and BCFtools"
+    authors:
+      - family-names: "Danecek"
+        given-names: "Petr"
+      - name: "et al."
+    journal: "GigaScience"
+    year: 2021
+    doi: 10.1093/gigascience/giab008
+  # Site frequency spectra (dadi)
+  - type: article
+    title: "Inferring the Joint Demographic History of Multiple Populations from Multidimensional SNP Frequency Data"
+    authors:
+      - family-names: "Gutenkunst"
+        given-names: "Ryan N."
+      - name: "et al."
+    journal: "PLoS Genetics"
+    year: 2009
+    doi: 10.1371/journal.pgen.1000695
+  # Simulation for calibrating qpAdm and f4 (msprime)
+  - type: article
+    title: "Efficient ancestry and mutation simulation with msprime 1.0"
+    authors:
+      - family-names: "Baumdicker"
+        given-names: "Franz"
+      - name: "et al."
+    journal: "Genetics"
+    year: 2022
+    doi: 10.1093/genetics/iyab229
+  # The AADR, the data every AADR golden test runs on
+  - type: article
+    title: "The Allen Ancient DNA Resource (AADR) a curated compendium of ancient human genomes"
+    authors:
+      - family-names: "Mallick"
+        given-names: "Swapan"
+      - name: "et al."
+    journal: "Scientific Data"
+    year: 2024
+    doi: 10.1038/s41597-024-03031-7
+  # The tools popmix reimplements or was checked against, at the versions
+  # its golden tests ran (PROVENANCE.md, tests/golden/*/environment.txt)
+  - type: software
+    title: "admixtools2"
+    version: "2.0.10"
+    authors:
+      - family-names: "Maier"
+        given-names: "Robert"
+    url: "https://github.com/uqrmaie1/admixtools"
+  - type: software
+    title: "ADMIXTOOLS"
+    version: "7.0.2 (qpAdm, qpWave, ROLLOFF) and 8.0.2 (convertf, mergeit)"
+    authors:
+      - family-names: "Patterson"
+        given-names: "Nick"
+    repository-code: "https://github.com/DReichLab/AdmixTools"
+  - type: software
+    title: "EIGENSOFT (smartpca, twstats)"
+    version: "7.2.1"
+    authors:
+      - family-names: "Patterson"
+        given-names: "Nick"
+      - family-names: "Price"
+        given-names: "Alkes L."
+    repository-code: "https://github.com/DReichLab/EIG"
+  - type: software
+    title: "DATES"
+    version: "753"
+    authors:
+      - family-names: "Moorjani"
+        given-names: "Priya"
+      - family-names: "Chintalapati"
+        given-names: "Manjusha"
+    repository-code: "https://github.com/priyamoorjani/DATES"
+  - type: software
+    title: "ALDER"
+    version: "1.03"
+    authors:
+      - family-names: "Loh"
+        given-names: "Po-Ru"
+    url: "http://cb.csail.mit.edu/cb/alder/"
+  - type: software
+    title: "ADMIXTURE"
+    version: "1.3.0"
+    authors:
+      - family-names: "Alexander"
+        given-names: "David H."
+    url: "https://dalexander.github.io/admixture/"
+  - type: software
+    title: "KING"
+    authors:
+      - family-names: "Manichaikul"
+        given-names: "Ani"
+    url: "https://www.kingrelatedness.com/"
+  - type: software
+    title: "READv2"
+    version: "73739bef65b3725315417e70ad8edf6aca21f7b3"
+    authors:
+      - family-names: "Alaçamlı"
+        given-names: "Erkin"
+    repository-code: "https://github.com/GuntherLab/READv2"
+  - type: software
+    title: "PLINK 2.0"
+    version: "2.0.0-a.7LM"
+    authors:
+      - family-names: "Chang"
+        given-names: "Christopher C."
+    url: "https://www.cog-genomics.org/plink/2.0/"
+  - type: software
+    title: "PLINK 1.9"
+    authors:
+      - family-names: "Chang"
+        given-names: "Christopher C."
+    url: "https://www.cog-genomics.org/plink/1.9/"
+  - type: software
+    title: "dadi"
+    version: "2.4.4"
+    authors:
+      - family-names: "Gutenkunst"
+        given-names: "Ryan N."
+    repository-code: "https://bitbucket.org/gutenkunstlab/dadi"
+  - type: software
+    title: "BCFtools"
+    authors:
+      - family-names: "Danecek"
+        given-names: "Petr"
+    repository-code: "https://github.com/samtools/bcftools"
+  - type: software
+    title: "msprime"
+    authors:
+      - name: "tskit developers"
+    repository-code: "https://github.com/tskit-dev/msprime"
+  - type: software
+    title: "R: A Language and Environment for Statistical Computing"
+    version: "4.5.2"
+    authors:
+      - name: "R Core Team"
+    url: "https://www.r-project.org/"
+  - type: software
+    title: "L-BFGS-B"
+    version: "3.0"
+    authors:
+      - family-names: "Zhu"
+        given-names: "Ciyou"
+      - family-names: "Byrd"
+        given-names: "Richard H."
+      - family-names: "Nocedal"
+        given-names: "Jorge"
+      - family-names: "Morales"
+        given-names: "José Luis"
+    url: "https://users.iems.northwestern.edu/~nocedal/lbfgsb.html"
+  - type: software
+    title: "mt19937ar.c (Mersenne Twister reference implementation)"
+    authors:
+      - family-names: "Matsumoto"
+        given-names: "Makoto"
+      - family-names: "Nishimura"
+        given-names: "Takuji"
+    url: "http://www.math.sci.hiroshima-u.ac.jp/m-mat/MT/emt.html"
+  - type: data
+    title: "Allen Ancient DNA Resource (AADR)"
+    version: "v66.p1, 1240K public"
+    authors:
+      - family-names: "Mallick"
+        given-names: "Swapan"
+      - family-names: "Reich"
+        given-names: "David"
+    doi: 10.7910/DVN/FFIDCW

@@ -30,6 +30,13 @@ papers, documentation and black-box output only (CLAUDE.md, "Provenance").
 | READv2 | GPL-3 | `LICENSE` |
 | ADMIXTURE 1.3.0 | closed source, free for academic use | distribution |
 
+The golden tests also run dadi 2.4.4 (site frequency spectra), PLINK 1.9
+(`--bmerge`, for the SNPs a merge must flip) and BCFtools (reading the VCF
+popmix writes), as black boxes. KING-robust kinship was written from
+Manichaikul et al. 2010 and checked against PLINK 2's implementation.
+`CITATION.cff` cites every tool here, at the version its goldens ran, and
+the paper of every method popmix implements (README.md, "Citation").
+
 ## Modules
 
 Verdicts: **translation** (routine-by-routine correspondence with the same

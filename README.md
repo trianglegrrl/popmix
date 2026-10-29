@@ -973,18 +973,42 @@ has no stability promise: it may change in any release, 1.x included.
 
 ## Citation
 
-If you use Popmix in your research, please cite:
+Cite popmix itself as `CITATION.cff` gives it (GitHub's "Cite this
+repository" shows it as APA and BibTeX):
 
 ```
-Popmix 1.0.0: f-statistics, admixture graphs, qpAdm, PCA, ADMIXTURE and
-admixture dating
-https://github.com/trianglegrrl/popmix
+Hardie, A. popmix 1.0.0: f-statistics, qpAdm, PCA, ADMIXTURE, kinship and
+admixture dating in Rust and Python. https://github.com/trianglegrrl/popmix
 ```
 
-Also cite the original methods:
-- F-statistics: Patterson et al. 2012, Genetics
-- qpAdm/qpWave: Haak et al. 2015, Nature
-- DATES: Narasimhan et al. 2019, Science
+popmix reimplements other people's methods, and each was built and tested
+against the original tool. Cite the papers of the methods you use:
+
+| Analysis | Papers | Tool popmix matches |
+|----------|--------|---------------------|
+| f2, f3, f4, D, FST | Reich et al. 2009; Green et al. 2010; Patterson et al. 2012; Maier et al. 2023 | admixtools2, ADMIXTOOLS |
+| qpWave, qpAdm | Reich et al. 2012; Haak et al. 2015; Harney et al. 2021 | admixtools2, ADMIXTOOLS |
+| Admixture graphs (qpGraph) | Patterson et al. 2012; Maier et al. 2023 | admixtools2 |
+| Block jackknife | Busing et al. 1999 | admixtools2 |
+| PCA, Tracy-Widom | Patterson, Price and Reich 2006; Price et al. 2006; Tracy and Widom 1994 | EIGENSOFT smartpca, twstats |
+| ROLLOFF | Moorjani et al. 2011 | ADMIXTOOLS rolloff |
+| DATES | Narasimhan et al. 2019; Chintalapati et al. 2022 | DATES |
+| ADMIXTURE | Alexander et al. 2009; Varadhan and Roland 2008 (SQUAREM) | ADMIXTURE |
+| KING-robust kinship | Manichaikul et al. 2010 | PLINK 2 |
+| READ kinship | Monroy Kuhn et al. 2018; Alaçamlı et al. 2024 | READv2 |
+| Site frequency spectra | Gutenkunst et al. 2009 | dadi, admixtools2 |
+| qpAdm and f4 calibration | Baumdicker et al. 2022 (msprime, the simulator it is written for) | |
+| File formats, conversion, merge | Chang et al. 2015; Danecek et al. 2021 | convertf, mergeit, PLINK 1.9 and 2, BCFtools |
+
+The admixture-graph fits match R's `optim` L-BFGS-B and the samples match
+R's Mersenne Twister, from Byrd et al. 1995, Zhu et al. 1997, Morales and
+Nocedal 2011, Moré and Thuente 1994 and Matsumoto and Nishimura 1998. The
+golden tests run on the AADR (Mallick et al. 2024). ALDER (Loh et al. 2013)
+was a reference before it was removed for 1.0.
+
+`CITATION.cff` lists every one of these with its DOI, and every reference
+tool with the version the golden tests ran. PROVENANCE.md records what each
+module was written from.
 
 ## License
 
