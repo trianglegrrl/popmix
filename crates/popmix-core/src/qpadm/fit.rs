@@ -234,14 +234,14 @@ pub(crate) fn qpadm_weights(
     constrained: bool,
 ) -> Result<Vec<f64>> {
     let fit = fit_rank(xmat, qinv, rnk, fudge)?;
-    weights_from_fit(&fit, rnk, constrained)
+    weights_from_fit(&fit, constrained)
 }
 
 /// The weights w with wᵀA = 0 and Σw = 1, in the least-squares sense
 /// (spec section 4): with C = [Aᵀ; 1ᵀ] and e = (0, ..., 0, 1), solve
 /// (CᵀC) w = Cᵀe, or (constrained) the same quadratic over the simplex
 /// 0 <= w <= 1, Σw = 1; then normalise to sum 1.
-pub(crate) fn weights_from_fit(fit: &RankFit, rnk: usize, constrained: bool) -> Result<Vec<f64>> {
+pub(crate) fn weights_from_fit(fit: &RankFit, constrained: bool) -> Result<Vec<f64>> {
     let m = fit.a.nrows();
     let r = fit.a.ncols();
     let mut c = DMatrix::from_element(r + 1, m, 1.0);
@@ -492,7 +492,7 @@ pub(crate) fn drop_pops(
             let rnk = size - 1;
             let fit = fit_rank(&xs, &ws, rnk, fudge)?;
             let (chi_sq, dof) = evaluate_fit(&xs, &ws, &fit, rnk);
-            let w = weights_from_fit(&fit, rnk, constrained)?;
+            let w = weights_from_fit(&fit, constrained)?;
             let feasible = w.iter().all(|v| (0.0..=1.0).contains(v));
             let mut weights = vec![None; m];
             let mut pattern = vec!['1'; m];

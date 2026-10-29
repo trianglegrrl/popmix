@@ -394,7 +394,6 @@ mod tests {
         let used_sum =
             |x: &dyn Fn(usize) -> f64| (0..den.len()).filter(|&k| used(k)).map(x).sum::<f64>();
         let want = used_sum(&|k| num[k] * lengths[k]) / used_sum(&|k| lengths[k]);
-        num.iter().zip(&lengths).map(|(v, m)| v * m).sum::<f64>() / lengths.iter().sum::<f64>();
         assert!(
             (all.f4_numerator - want).abs() <= 1e-15 * want.abs(),
             "{} {want}",

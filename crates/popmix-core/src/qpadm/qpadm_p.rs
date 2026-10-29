@@ -61,7 +61,7 @@ pub fn qpadm_p(
     let weights = if rnk == 0 {
         (nr == 1).then(|| vec![1.0])
     } else if rnk + 1 >= nr {
-        Some(fit::weights_from_fit(&rank_fit, rnk, constrained)?)
+        Some(fit::weights_from_fit(&rank_fit, constrained)?)
     } else {
         None
     };

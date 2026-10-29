@@ -116,7 +116,7 @@ fn simplex_qp_by_brute_force(d: &DMatrix<f64>, v: &DVector<f64>) -> DVector<f64>
         let Some(sol) = kkt.lu().solve(&rhs) else {
             continue;
         };
-        if (0..k).any(|a| !(sol[a] >= -1e-12)) {
+        if (0..k).any(|a| sol[a].is_nan() || sol[a] < -1e-12) {
             continue;
         }
         let mut w = DVector::zeros(m);
@@ -169,7 +169,7 @@ fn test_unconstrained_weights_are_normalised_to_sum_one() {
         a: DMatrix::identity(2, 2),
         b: DMatrix::zeros(2, 1),
     };
-    let w = weights_from_fit(&fit, 2, false).unwrap();
+    let w = weights_from_fit(&fit, false).unwrap();
     assert!(w.iter().all(|x| (x - 0.5).abs() < 1e-15), "{w:?}");
 }
 
