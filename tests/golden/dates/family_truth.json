@@ -1,0 +1,236 @@
+{
+ "release": "AADR v66.p1, 1240K public (doi:10.7910/DVN/FFIDCW), CC0",
+ "aadr": {
+  "geno": "5ea1d2675a271c81e55b8f8b08b3ff3b",
+  "snp": "50f66178fc81b8aa087cc4b135317e59",
+  "ind": "19a434ac954bcd10dbb8dba1d1188a09"
+ },
+ "snps": {
+  "selection": "every 3rd autosomal SNP of the 1240K panel (rows 0, 3, ...)",
+  "family_packed": 383547,
+  "family_chr20_22": 21175
+ },
+ "reference_samples": {
+  "French": [
+   "HGDP00511.DG",
+   "HGDP00512.DG",
+   "HGDP00513.DG",
+   "HGDP00514.DG",
+   "HGDP00515.DG",
+   "HGDP00516.DG",
+   "HGDP00517.DG",
+   "HGDP00518.DG",
+   "HGDP00519.DG",
+   "HGDP00520.DG",
+   "HGDP00521.DG",
+   "HGDP00522.DG",
+   "HGDP00523.DG",
+   "HGDP00524.DG",
+   "HGDP00525.DG",
+   "HGDP00526.DG",
+   "HGDP00527.DG",
+   "HGDP00528.DG",
+   "HGDP00529.DG",
+   "HGDP00530.DG",
+   "HGDP00531.DG",
+   "HGDP00533.DG",
+   "HGDP00534.DG",
+   "HGDP00535.DG"
+  ],
+  "Yoruba": [
+   "HGDP00920.DG",
+   "HGDP00924.DG",
+   "HGDP00925.DG",
+   "HGDP00926.DG",
+   "HGDP00928.DG",
+   "HGDP00929.DG",
+   "HGDP00930.DG",
+   "HGDP00931.DG",
+   "HGDP00932.DG",
+   "HGDP00933.DG",
+   "HGDP00934.DG",
+   "HGDP00935.DG",
+   "HGDP00936.DG",
+   "HGDP00937.DG",
+   "HGDP00938.DG",
+   "HGDP00939.DG",
+   "HGDP00940.DG",
+   "HGDP00941.DG",
+   "HGDP00942.DG",
+   "HGDP00943.DG",
+   "HGDP00944.DG"
+  ]
+ },
+ "source_samples": {
+  "French": [
+   "HGDP00536.DG",
+   "HGDP00537.DG",
+   "HGDP00538.DG",
+   "HGDP00539.DG"
+  ],
+  "Yoruba": [
+   "HGDP00927.DG",
+   "NA18486.DG",
+   "NA18488.DG",
+   "NA18489.DG",
+   "NA18498.DG",
+   "NA18499.DG",
+   "NA18501.DG",
+   "NA18502.DG",
+   "NA18504.DG",
+   "NA18505.DG",
+   "NA18507.DG",
+   "NA18508.DG",
+   "NA18510.DG",
+   "NA18511.DG",
+   "NA18516.DG",
+   "NA18517.DG",
+   "NA18519.DG",
+   "NA18520.DG",
+   "NA18522.DG",
+   "NA18856.DG",
+   "NA18858.DG",
+   "NA18861.DG",
+   "NA18864.DG",
+   "NA18865.DG",
+   "NA18867.DG",
+   "NA18868.DG",
+   "NA18870.DG",
+   "NA18871.DG",
+   "NA18873.DG",
+   "NA18874.DG"
+  ]
+ },
+ "duplicates_left_out": [
+  "B_French-3.DG = HGDP00533.DG",
+  "S_French-1.DG = HGDP00530.DG",
+  "S_French-2.DG = HGDP00526.DG",
+  "B_Yoruba-3.DG = HGDP00936.DG",
+  "S_Yoruba-1.DG = HGDP00928.DG",
+  "S_Yoruba-2.DG = HGDP00932.DG"
+ ],
+ "largest_kinship": {
+  "French": 0.01282811164855957,
+  "Yoruba": 0.010370135307312012
+ },
+ "simulation": {
+  "seed": 20261029,
+  "numpy": "1.26.4",
+  "generations": 50,
+  "fraction": {
+   "French": 0.2,
+   "Yoruba": 0.8
+  },
+  "model": "crossovers at rate generations per Morgan on the AADR map; each segment French with probability fraction, from a random source sample, one allele drawn per SNP"
+ },
+ "samples": [
+  {
+   "id": "NA00000",
+   "pop": "Simulation",
+   "haplotypes": [
+    {
+     "tracts": 1805,
+     "french_fraction": 0.1935673923348864,
+     "french_fraction_chr20_22": 0.14943937561634194,
+     "morgans": 35.37928699999999
+    },
+    {
+     "tracts": 1829,
+     "french_fraction": 0.18754461057791413,
+     "french_fraction_chr20_22": 0.1430975867001964,
+     "morgans": 35.37928699999999
+    }
+   ],
+   "french_fraction": 0.19055600145640028,
+   "french_fraction_chr20_22": 0.14626848115826918
+  },
+  {
+   "id": "NA00001",
+   "pop": "Simulation.1",
+   "haplotypes": [
+    {
+     "tracts": 1783,
+     "french_fraction": 0.20747519107409607,
+     "french_fraction_chr20_22": 0.08189518410884737,
+     "morgans": 35.37928699999999
+    },
+    {
+     "tracts": 1734,
+     "french_fraction": 0.186299012171188,
+     "french_fraction_chr20_22": 0.2644455787715531,
+     "morgans": 35.37928699999999
+    }
+   ],
+   "french_fraction": 0.19688710162264203,
+   "french_fraction_chr20_22": 0.17317038144020025
+  },
+  {
+   "id": "NA00002",
+   "pop": "Simulation.1",
+   "haplotypes": [
+    {
+     "tracts": 1802,
+     "french_fraction": 0.22488612536699784,
+     "french_fraction_chr20_22": 0.27576041956080327,
+     "morgans": 35.37928699999999
+    },
+    {
+     "tracts": 1858,
+     "french_fraction": 0.22999996444489373,
+     "french_fraction_chr20_22": 0.1812227282351821,
+     "morgans": 35.37928699999999
+    }
+   ],
+   "french_fraction": 0.2274430449059458,
+   "french_fraction_chr20_22": 0.22849157389799268
+  },
+  {
+   "id": "NA00003",
+   "pop": "Simulation.1",
+   "haplotypes": [
+    {
+     "tracts": 1814,
+     "french_fraction": 0.21014947216897104,
+     "french_fraction_chr20_22": 0.21019800700762212,
+     "morgans": 35.37928699999999
+    },
+    {
+     "tracts": 1917,
+     "french_fraction": 0.19417823834828626,
+     "french_fraction_chr20_22": 0.249882734922314,
+     "morgans": 35.37928699999999
+    }
+   ],
+   "french_fraction": 0.20216385525862865,
+   "french_fraction_chr20_22": 0.23004037096496804
+  },
+  {
+   "id": "NA00004",
+   "pop": "Simulation.1",
+   "haplotypes": [
+    {
+     "tracts": 1850,
+     "french_fraction": 0.20256783706607742,
+     "french_fraction_chr20_22": 0.17873220359013317,
+     "morgans": 35.37928699999999
+    },
+    {
+     "tracts": 1736,
+     "french_fraction": 0.2130655219884823,
+     "french_fraction_chr20_22": 0.17918037854467267,
+     "morgans": 35.37928699999999
+    }
+   ],
+   "french_fraction": 0.20781667952727986,
+   "french_fraction_chr20_22": 0.1789562910674029
+  }
+ ],
+ "outputs": {
+  "family_chr20_22.geno": "36fcbaa79344df91802844cf8ec8420e",
+  "family_chr20_22.snp": "d70315684581a652f1e02ae0f2f66c56",
+  "family_chr20_22.ind": "c608792636bc7859365ce430a51765a0",
+  "example_data/family_packed.geno": "0714a3b8f7f32917eb19e14defa61940",
+  "example_data/family_packed.snp": "1522b10c9efad8eb83c5520164ec1eef",
+  "example_data/family_packed.ind": "c608792636bc7859365ce430a51765a0"
+ }
+}
